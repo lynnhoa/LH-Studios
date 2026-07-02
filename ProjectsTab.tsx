@@ -83,7 +83,7 @@ function ProjectRow({
   const rowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isExpanded) getPDFModal().then(setPDFModal);
+    if (isExpanded) getPDFModal().then(m => setPDFModal(() => m));
   }, [isExpanded]);
 
   const cl  = { id: pr._cid, name: pr._cname };
