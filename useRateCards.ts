@@ -51,7 +51,9 @@ export function useRateCards(userId: string | null): UseRateCardsReturn {
       .from("rate_cards")
       .select("*")
       .eq("user_id", userId)
-      .then(async ({ data, error }) => {
+      .then(async (res) => {
+        const data = res?.data;
+        const error = res?.error;
         if (error) {
           setError(error.message);
           setLoading(false);
