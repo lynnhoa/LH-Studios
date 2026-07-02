@@ -8,10 +8,10 @@ import { supabase } from "./useSupabase";
 import type { Role } from "./types";
 
 interface AuthState {
-  userId:    string | null;
-  role:      Role | null;
-  loading:   boolean;
-  error:     string | null;
+  userId:  string | null;
+  role:    Role | null;
+  loading: boolean;
+  error:   string | null;
 }
 
 interface UseAuthReturn extends AuthState {
@@ -27,16 +27,14 @@ export function useAuth(): UseAuthReturn {
     error:   null,
   });
 
-  // ── Fetch role from profiles table ───────────────────────
   const fetchRole = async (userId: string): Promise<Role> => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", userId)
         .maybeSingle();
 
-      if (error) return "manager";
       if (!data?.role) {
         await supabase
           .from("profiles")
@@ -49,39 +47,31 @@ export function useAuth(): UseAuthReturn {
     }
   };
 
-  // ── Listen to auth state changes ─────────────────────────
   useEffect(() => {
     let cancelled = false;
-    let initialized = false;
 
-    // Check existing session on mount first
+    // getSession first — source of truth on mount
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (cancelled) return;
-      initialized = true;
       if (session?.user) {
         const role = await fetchRole(session.user.id);
         if (!cancelled)
           setState({ userId: session.user.id, role, loading: false, error: null });
       } else {
-        if (!cancelled)
-          setState({ userId: null, role: null, loading: false, error: null });
+        setState({ userId: null, role: null, loading: false, error: null });
       }
     });
 
-    // Subscribe — only handle events AFTER initial session check
+    // onAuthStateChange only handles SIGNED_OUT and real new sign-ins
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (cancelled) return;
-        // Skip the initial SIGNED_IN that duplicates getSession
-        if (!initialized && event === "SIGNED_IN") return;
-
-        if (session?.user) {
+        if (event === "SIGNED_OUT") {
+          setState({ userId: null, role: null, loading: false, error: null });
+        } else if (event === "SIGNED_IN" && session?.user) {
           const role = await fetchRole(session.user.id);
           if (!cancelled)
             setState({ userId: session.user.id, role, loading: false, error: null });
-        } else {
-          if (!cancelled)
-            setState({ userId: null, role: null, loading: false, error: null });
         }
       }
     );
@@ -92,24 +82,19 @@ export function useAuth(): UseAuthReturn {
     };
   }, []);
 
-  // ── Sign in ───────────────────────────────────────────────
   const signIn = async (
     email: string,
     password: string
   ): Promise<string | null> => {
     setState(s => ({ ...s, loading: true, error: null }));
-
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-
     if (error) {
       setState(s => ({ ...s, loading: false, error: error.message }));
       return error.message;
     }
-
     return null;
   };
 
-  // ── Sign out ──────────────────────────────────────────────
   const signOut = async (): Promise<void> => {
     await supabase.auth.signOut();
   };

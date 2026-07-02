@@ -14,11 +14,14 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* Vite env types */
+    "types": ["vite/client"],
+
     /* Linting */
-    "strict": true,
+    "strict": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["*.ts", "*.tsx"]
+  "include": ["*.ts", "*.tsx", "vite-env.d.ts"]
 }

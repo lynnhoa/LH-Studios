@@ -1,3 +1,4 @@
+import PDFModalComponent from "./PDFModal";
 // ─────────────────────────────────────────────────────────────
 // ProjectCard — single project row with docs, actions, status
 // Used in both ClientDetail and ProjectsTab
@@ -105,7 +106,7 @@ export default function ProjectCard({
   };
 
   // import PDFModal lazily to avoid circular dep at build time
-  const PDFModal = pdf ? require("./PDFModal").default : null;
+  const PDFModal = PDFModalComponent;
 
   if (pdf && PDFModal) {
     return (

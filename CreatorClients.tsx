@@ -11,15 +11,16 @@ import { fmt, fmtD, dLeft } from "./formatters";
 import { getLineGroups, ccCatLabel, ccCatStyle } from "./wsHelpers";
 
 interface CreatorClientsProps {
-  clients:  any[];
-  isMobile: boolean;
+  clients:     any[];
+  isMobile:    boolean;
+  onSelChange?: (id: string | null) => void;
 }
 
 function scol(s: string): string {
   return ({ invoiced: C.amber, contracted: C.muted, quoted: C.light, revised: C.amber, production: C.blue, paid: C.green, lead: C.light }[s] ?? C.light);
 }
 
-export default function CreatorClients({ clients, isMobile }: CreatorClientsProps) {
+export default function CreatorClients({ clients, isMobile, onSelChange }: CreatorClientsProps) {
   const [sel, setSel] = useState<string | null>(null);
 
   const activeClients = clients.filter(c => c.projects.some((pr: any) => pr.status === "production"));

@@ -1,7 +1,6 @@
 // ─────────────────────────────────────────────────────────────
-// AuthScreen — Supabase email + password login
-// No role toggle on screen — role comes from profiles table.
-// Desktop + iPad + PWA iOS.
+// AuthScreen — Manager / Creator toggle + email + password
+// Role toggle is visual UX only — actual role comes from DB.
 // ─────────────────────────────────────────────────────────────
 
 import { useState } from "react";
@@ -14,6 +13,7 @@ interface AuthScreenProps {
 }
 
 export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
+  const [role,     setRole]     = useState<"manager" | "creator">("manager");
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
   const [err,      setErr]      = useState<string | null>(null);
@@ -45,31 +45,54 @@ export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
         boxSizing:      "border-box" as const,
       }}
     >
-      <div
-        style={{
-          width:     "100%",
-          maxWidth:  340,
-          textAlign: "center" as const,
-        }}
-      >
+      <div style={{ width: "100%", maxWidth: 320, textAlign: "center" as const }}>
+
         {/* ── LOGO ── */}
         <div style={{ marginBottom: 8 }}>
           <AppLogo size="auth" />
         </div>
 
         {/* ── SUBTITLE ── */}
-        <p
-          style={{
-            fontSize:      TYPE.micro.size,
-            fontFamily:    SANS,
-            color:         C.muted,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase" as const,
-            margin:        "0 0 32px",
-          }}
-        >
+        <p style={{
+          fontSize:      TYPE.micro.size,
+          fontFamily:    SANS,
+          color:         C.muted,
+          letterSpacing: "0.14em",
+          textTransform: "uppercase" as const,
+          margin:        "0 0 28px",
+        }}>
           Private Access
         </p>
+
+        {/* ── ROLE TOGGLE ── */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+          {(["Manager", "Creator"] as const).map(r => {
+            const v = r.toLowerCase() as "manager" | "creator";
+            const sel = role === v;
+            return (
+              <button
+                key={r}
+                onClick={() => setRole(v)}
+                style={{
+                  flex:          1,
+                  padding:       "9px 0",
+                  border:        `1px solid ${sel ? C.black : C.rule}`,
+                  background:    sel ? C.black : C.bg,
+                  color:         sel ? C.white : C.muted,
+                  cursor:        "pointer",
+                  fontFamily:    SANS,
+                  fontSize:      TYPE.button.size,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase" as const,
+                  borderRadius:  2,
+                  transition:    "all 0.15s ease",
+                }}
+              >
+                {r}
+              </button>
+            );
+          })}
+        </div>
 
         {/* ── EMAIL ── */}
         <input
@@ -82,17 +105,17 @@ export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
           onChange={e => { setEmail(e.target.value); setErr(null); }}
           onKeyDown={onKey}
           style={{
-            width:         "100%",
-            padding:       "11px 14px",
-            border:        `1px solid ${err ? C.red : C.rule}`,
-            background:    C.bg,
-            fontFamily:    SANS,
-            fontSize:      TYPE.body.size,
-            color:         C.black,
-            borderRadius:  2,
-            outline:       "none",
-            boxSizing:     "border-box" as const,
-            marginBottom:  10,
+            width:            "100%",
+            padding:          "10px 14px",
+            border:           `1px solid ${err ? C.red : C.rule}`,
+            background:       C.bg,
+            fontFamily:       SANS,
+            fontSize:         TYPE.body.size,
+            color:            C.black,
+            borderRadius:     2,
+            outline:          "none",
+            boxSizing:        "border-box" as const,
+            marginBottom:     10,
             WebkitAppearance: "none" as const,
           }}
         />
@@ -106,43 +129,41 @@ export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
           onChange={e => { setPassword(e.target.value); setErr(null); }}
           onKeyDown={onKey}
           style={{
-            width:         "100%",
-            padding:       "11px 14px",
-            border:        `1px solid ${err ? C.red : C.rule}`,
-            background:    C.bg,
-            fontFamily:    SANS,
-            fontSize:      TYPE.body.size,
-            color:         C.black,
-            borderRadius:  2,
-            outline:       "none",
-            boxSizing:     "border-box" as const,
-            marginBottom:  8,
+            width:            "100%",
+            padding:          "10px 14px",
+            border:           `1px solid ${err ? C.red : C.rule}`,
+            background:       C.bg,
+            fontFamily:       SANS,
+            fontSize:         TYPE.body.size,
+            color:            C.black,
+            borderRadius:     2,
+            outline:          "none",
+            boxSizing:        "border-box" as const,
+            marginBottom:     8,
             WebkitAppearance: "none" as const,
           }}
         />
 
         {/* ── ERROR ── */}
         {err && (
-          <p
-            style={{
-              fontSize:   TYPE.micro.size,
-              fontFamily: SANS,
-              color:      C.red,
-              margin:     "0 0 10px",
-              textAlign:  "left" as const,
-            }}
-          >
+          <p style={{
+            fontSize:   TYPE.micro.size,
+            fontFamily: SANS,
+            color:      C.red,
+            margin:     "0 0 10px",
+            textAlign:  "left" as const,
+          }}>
             {err}
           </p>
         )}
 
-        {/* ── SIGN IN BUTTON ── */}
+        {/* ── ENTER BUTTON ── */}
         <button
           onClick={go}
           disabled={busy || loading || !email || !password}
           style={{
             width:         "100%",
-            padding:       "12px 0",
+            padding:       "11px 0",
             background:    busy || loading ? C.light : C.black,
             color:         C.white,
             border:        "none",
@@ -156,7 +177,7 @@ export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
             minHeight:     44,
           }}
         >
-          {busy ? "Signing in…" : "Sign In"}
+          {busy ? "Signing in…" : "Enter"}
         </button>
 
       </div>
