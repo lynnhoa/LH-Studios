@@ -54,8 +54,9 @@ export function useAuth(): UseAuthReturn {
     let cancelled = false;
 
     // On mount: check existing session only
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then((res) => {
       if (cancelled) return;
+      const session = res?.data?.session;
       if (session?.user) {
         setState({
           userId:  session.user.id,
@@ -70,7 +71,7 @@ export function useAuth(): UseAuthReturn {
 
     // Listener: only act on SIGNED_OUT
     // We handle SIGNED_IN ourselves inside signIn() to avoid the race
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const authListener = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (cancelled) return;
 
@@ -96,7 +97,7 @@ export function useAuth(): UseAuthReturn {
 
     return () => {
       cancelled = true;
-      subscription.unsubscribe();
+      authListener?.data?.subscription?.unsubscribe();
     };
   }, []);
 
