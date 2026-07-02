@@ -161,19 +161,31 @@ export interface Amendment {
 }
 
 // ─── RENEWAL ─────────────────────────────────────────────────
+// Old-app authoritative shape (produced by RenewalModal, read by
+// license trackers via r.endDate). No `type` field — the old app
+// treats every renewal as a usage extension; replicate exactly.
 export interface Renewal {
-  id:           string;
-  rNo:          string;
-  usageMode:    string;
-  exclMode:     string;
-  usageMonths:  number;
-  exclMonths:   number;
-  usageFee:     number;
-  exclFee:      number;
-  totalFee:     number;
-  usageEnd:     string | null;  // ISO date
-  doc:          Partial<QuoteDoc>;
-  createdAt?:   string;
+  id:         string;
+  rNo:        string;               // "RNW-2026-xxx-01"
+  optLabel:   string;               // "6 months + 3 months" | "Custom"
+  startDate:  string;               // ISO date
+  endDate:    string | null;        // ISO date
+  fee:        number;
+  signed:     boolean;              // saveRenewal sets true
+  paid:       boolean;
+  doc:        Partial<QuoteDoc>;
+  createdAt?: string;
+}
+
+// ─── MONTHLY INVOICE (retainer) ──────────────────────────────
+// Ordered array on Project, manipulated by index (old-app semantics).
+export interface MonthlyInvoice {
+  id:       string;
+  iNo:      string;                 // "INV-2026-xxx-M01"
+  delivery: string;                 // ISO date
+  amount:   number;
+  paid:     boolean;
+  doc:      Partial<QuoteDoc>;
 }
 
 // ─── DELIVERABLE ─────────────────────────────────────────────
@@ -211,6 +223,7 @@ export interface Project {
   qd:                     QuoteDoc | null;
   amendments:             Amendment[];
   renewals:               Renewal[];
+  monthlyInvoices:        MonthlyInvoice[];
   workspaceStatus:        WorkspaceStatus;
   workspaceStatusHistory: WorkspaceStatusHistory;
   workspaceNames:         Record<string, string>;

@@ -306,8 +306,8 @@ export const scol = (s: string): string =>
     invoiced:   C.amber,
     contracted: C.muted,
     quoted:     C.light,
-    revised:    C.amber,
-    production: C.blue,
+    revised:    "#b8a090",   // old-app rosewood
+    production: "#8fa89a",   // old-app sage
     paid:       C.green,
     lead:       C.light,
   }[s] ?? C.light);

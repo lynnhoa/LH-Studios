@@ -361,3 +361,22 @@ export const RC0: RateCards = {
     ],
   },
 } as unknown as RateCards;
+
+
+// ─── RENEWAL OPTIONS (RenewalModal) — ported from old App.tsx ─
+export const RENEWAL_OPTS: Record<string, any[]> = {
+  usage: [
+    { l: "Organic — 3 months",   mo: 3,  pct: 0   },
+    { l: "Organic — 12 months",  mo: 12, pct: 0   },
+    { l: "Paid ads — 1 month",   mo: 1,  pct: 30  },
+    { l: "Paid ads — 3 months",  mo: 3,  pct: 60  },
+    { l: "Paid ads — 6 months",  mo: 6,  pct: 100 },
+    { l: "Paid ads — 12 months", mo: 12, pct: 150 },
+  ],
+  excl: [
+    { l: "Category exclusivity — 1 month",  mo: 1, pct: 30  },
+    { l: "Category exclusivity — 3 months", mo: 3, pct: 60  },
+    { l: "Full exclusivity — 1 month",      mo: 1, pct: 75  },
+    { l: "Full exclusivity — 3 months",     mo: 3, pct: 125 },
+  ],
+};

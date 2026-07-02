@@ -464,6 +464,7 @@ export default function ManagerApp({
             onPendingClear={() => setPendingProjectQNo(null)}
             onGoToCalc={goToCalc}
             onRevise={onRevise}
+            onAmend={onAmend}
             clientsHook={clientsHook}
           />
         )}
@@ -475,15 +476,10 @@ export default function ManagerApp({
             rc={rateCardsHook.rc}
             prefill={prefill}
             clearPrefill={() => setPrefill(null)}
-            onAfterSave={(brand: string, qNo?: string | null) => {
-              setTimeout(() => {
-                // Navigate to Clients tab — auto-selects client by brand name and
-                // highlights the new project card inside ClientDetail.
-                // pendingProjectQNo is also set so switching to Projects tab later
-                // shows the expanded project row automatically.
-                setPendingProjectQNo(qNo ?? null);
-                goToClients(brand, qNo ?? undefined);
-              }, 100);
+            onAfterSave={(_brand: string, qNo?: string | null) => {
+              // Old-app behavior: after saving a quote, land on the Projects tab
+              // with the new project auto-expanded + scrolled (via pendingProjectQNo).
+              setTimeout(() => goToProjects(qNo ?? undefined), 100);
             }}
             saveQuote={clientsHook.saveQuote}
           />

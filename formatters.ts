@@ -24,6 +24,13 @@ export const fmtD = (
 };
 
 // Add months to an ISO date string
+export const addD = (d: string, days: number): string | null => {
+  if (!d || !days) return null;
+  const dt = new Date(d);
+  dt.setDate(dt.getDate() + days);
+  return dt.toISOString().split("T")[0];
+};
+
 export const addM = (d: string, m: number): string | null => {
   if (!d || !m) return null;
   const dt = new Date(d);
@@ -87,8 +94,8 @@ export const scol = (s: string): string =>
     invoiced:   C.amber,
     contracted: C.muted,
     quoted:     C.light,
-    revised:    C.amber,
-    production: C.blue,
+    revised:    "#b8a090",   // old-app rosewood
+    production: "#8fa89a",   // old-app sage
     paid:       C.green,
     lead:       C.light,
   }[s] || C.light);

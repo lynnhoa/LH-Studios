@@ -262,6 +262,7 @@ export default function PDFModal({
         {/* Close */}
         <button
           onClick={() => {
+            if (!onSave) { onClose(); return; }   // read-only doc — nothing to save
             if (isNew) { setConfirmClose(true); return; }
             if (savedClean) { onClose(); return; }
             const isDirty = JSON.stringify(staged) !== JSON.stringify(data);
@@ -392,11 +393,14 @@ export default function PDFModal({
               />
             </div>
 
-            {/* Save button */}
-            <div style={{ padding: "12px 18px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>
-              {flash === "saved" && <p style={{ fontSize: TYPE.micro.size, color: C.green, margin: "0 0 7px", letterSpacing: "0.06em" }}>Saved ✓</p>}
-              <B onClick={handleSave} s={{ width: "100%", textAlign: "center" as const }}>Save</B>
-            </div>
+            {/* Save button — only when a persist handler exists (read-only docs
+                like amendments/renewals opened from project cards have none) */}
+            {onSave && (
+              <div style={{ padding: "12px 18px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>
+                {flash === "saved" && <p style={{ fontSize: TYPE.micro.size, color: C.green, margin: "0 0 7px", letterSpacing: "0.06em" }}>Saved ✓</p>}
+                <B onClick={handleSave} s={{ width: "100%", textAlign: "center" as const }}>Save</B>
+              </div>
+            )}
           </div>
         )}
 

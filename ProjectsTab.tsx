@@ -8,6 +8,8 @@ import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt, fmtD, today, uid, addM } from "./formatters";
 import { I, B, StatusBadge } from "./atoms";
 import { STATUS } from "./rateCards";
+import RenewalModal from "./RenewalModal";
+import ProductionSection from "./ProductionSection";
 
 // ── Lazy PDFModal to avoid circular deps ──────────────────────
 let _PDFModal: any = null;
@@ -19,7 +21,7 @@ const getPDFModal = async () => {
 // ── Status color helper ───────────────────────────────────────
 const scol = (s: string) => ({
   invoiced: C.amber, contracted: C.muted, quoted: C.light,
-  revised: C.amber, production: C.blue, paid: C.green, lead: C.light,
+  revised: "#b8a090", production: "#8fa89a", paid: C.green, lead: C.light,
 }[s] ?? C.light);
 
 // ── License tracker (inline mini) ────────────────────────────
@@ -65,15 +67,18 @@ function ProjectLicenseTracker({ pr }: { pr: any }) {
 
 // ── Single expandable project row ─────────────────────────────
 function ProjectRow({
-  pr, isMobile, isExpanded, onToggle, clientsHook, onRevise, onGoToCalc, settings,
+  pr, clients, isMobile, isExpanded, onToggle, clientsHook, onRevise, onAmend, onGoToCalc, settings, onModalClosed,
 }: {
-  pr: any; isMobile: boolean; isExpanded: boolean;
+  pr: any; clients: any[]; isMobile: boolean; isExpanded: boolean;
   onToggle: () => void; clientsHook: any;
   onRevise: (pr: any, cl: any) => void;
+  onAmend: (pr: any, cl: any) => void;
   onGoToCalc: (name: string) => void;
   settings: any;
+  onModalClosed: () => void;
 }) {
   const [pdf, setPdf] = useState<any>(null);
+  const [renewT, setRenewT] = useState<any>(null);
   const [PDFModal, setPDFModal] = useState<any>(null);
   const rowRef = useRef<HTMLDivElement>(null);
 
@@ -108,18 +113,64 @@ function ProjectRow({
     });
   };
 
+  // Renewal builder modal (old-app: saveRenewal forces signed:true)
+  if (renewT) {
+    return (
+      <RenewalModal
+        p={renewT}
+        rc={{}}
+        settings={settings}
+        onClose={() => { setRenewT(null); onModalClosed(); }}
+        onSave={async (r: any) => {
+          await clientsHook.addRenewal(cl.id, pr.id, { ...r, signed: true });
+          setRenewT(null);
+          onModalClosed();
+        }}
+      />
+    );
+  }
+
   if (pdf && PDFModal) {
+    // Old-app onSave routing:
+    //  · readOnly (amendment / renewal docs) → no save handler at all
+    //  · official contract revision → bump contractRev, NEVER touch amount
+    //  · monthly retainer invoice → append or edit-in-place by index
+    //  · own quote/contract/invoice → save qd + recompute amount
+    const onSave = pdf.readOnly
+      ? undefined
+      : pdf.isRevision
+        ? (doc: any) => {
+            upP({ qd: { ...doc, contractRev: pdf.nextContractRev, clauses: doc.clauses || [] } });
+            setPdf(null);
+          }
+        : pdf.isMonthlyInv
+          ? (doc: any) => {
+              const amount = doc.total || (doc.lines || []).reduce((s: number, l: any) => s + (parseFloat(l.amt) || 0), 0);
+              const mis = pr.monthlyInvoices || [];
+              if (pdf.monthlyIdx !== undefined) {
+                // edit existing monthly invoice in place (old-app semantics)
+                upP({ monthlyInvoices: mis.map((inv: any, ii: number) =>
+                  ii === pdf.monthlyIdx
+                    ? { ...inv, doc, iNo: doc.iNo || inv.iNo, delivery: doc.delivery, amount }
+                    : inv
+                ) });
+              } else {
+                upP({ monthlyInvoices: [...mis, { id: uid(), iNo: doc.iNo || doc.rNo, delivery: doc.delivery, amount, paid: false, doc }] });
+              }
+              setPdf(null);
+            }
+          : (doc: any) => {
+            const tot = doc.total || (doc.lines || []).reduce((s: number, l: any) => s + (parseFloat(l.amt) || 0), 0);
+            upP({ qd: { ...doc, clauses: doc.clauses || [] }, amount: tot });
+            setPdf(null);
+          };
     return (
       <PDFModal
         data={pdf.data}
         type={pdf.type}
-        onClose={() => setPdf(null)}
+        onClose={() => { setPdf(null); onModalClosed(); }}
         settings={settings}
-        onSave={(doc: any) => {
-          const tot = doc.total || (doc.lines || []).reduce((s: number,l: any) => s + (parseFloat(l.amt)||0), 0);
-          upP({ qd: { ...doc, clauses: doc.clauses || [] }, amount: tot });
-          setPdf(null);
-        }}
+        onSave={onSave}
       />
     );
   }
@@ -169,11 +220,17 @@ function ProjectRow({
               <I
                 type="date"
                 value={pr.deliveryDate || ""}
-                onChange={(e: any) => { const nv = e.target.value; if (!nv) return; upP({ deliveryDate: nv }); }}
+                onChange={(e: any) => { const nv = e.target.value; if (!nv) return; if (!pr.deliveryDate || nv > pr.deliveryDate) upP({ deliveryDate: nv }); }}
                 s={{ width: isMobile ? 160 : 138, fontSize: TYPE.micro.size, padding: isMobile ? "9px 10px" : "5px 8px" }}
               />
             </div>
           )}
+
+          {/* Production — deliverable progress + manager checkboxes */}
+          {pr.status === "production" && <>
+            <div style={{ fontSize: 9, color: C.muted, letterSpacing: "0.09em", textTransform: "uppercase" as const, marginBottom: 5 }}>Production</div>
+            <ProductionSection pr={pr} clients={clients} cl={cl} upP={upP} isMobile={isMobile} />
+          </>}
 
           {/* License tracker */}
           <ProjectLicenseTracker pr={pr} />
@@ -201,7 +258,7 @@ function ProjectRow({
             {!isMobile && (pr.amendments || []).map((a: any, ai: number) => (
               <B key={ai} v="sec"
                 s={{ fontSize: TYPE.micro.size, color: a.signed ? C.black : C.amber, borderColor: a.signed ? C.rule : C.amber }}
-                onClick={() => setPdf({ data: { brand: pr.qd?.brand, contact: pr.qd?.contact, date: today(), ctype: pr.qd?.ctype || "Content Creator", qNo: pr.qd?.qNo, aNo: a.aNo, lines: a.lines || [], amendTotal: a.amendTotal, origTotal: pr.amount - a.amendTotal }, type: "amendment" })}
+                onClick={() => setPdf({ data: { brand: pr.qd?.brand, contact: pr.qd?.contact, date: today(), ctype: pr.qd?.ctype || "Content Creator", qNo: pr.qd?.qNo, aNo: a.aNo, lines: a.lines || [], amendTotal: a.amendTotal, origTotal: pr.amount - a.amendTotal }, type: "amendment", readOnly: true })}
               >
                 Amend {ai + 1}{!a.signed ? " · unsigned" : ""}
               </B>
@@ -213,9 +270,19 @@ function ProjectRow({
               r.doc && (
                 <B key={ri} v="sec"
                   s={{ fontSize: TYPE.micro.size, color: r.paid ? C.black : C.green, borderColor: r.paid ? C.rule : C.green, padding: isMobile ? "9px 14px" : "5px 10px" }}
-                  onClick={() => setPdf({ data: r.doc, type: "renewal" })}
+                  onClick={() => setPdf({ data: r.doc, type: "renewal", readOnly: true })}
                 >
                   Renewal {ri + 1}
+                </B>
+              )
+            ))}
+            {pr.qd?.retainer && (pr.monthlyInvoices || []).map((inv: any, ii: number) => (
+              inv.doc && (
+                <B key={ii} v="sec"
+                  s={{ fontSize: TYPE.micro.size, color: inv.paid ? C.black : C.green, borderColor: inv.paid ? C.rule : C.green, padding: isMobile ? "9px 14px" : "5px 10px" }}
+                  onClick={() => setPdf({ data: inv.doc, type: "invoice", isMonthlyInv: true, monthlyIdx: ii })}
+                >
+                  Invoice M{String(ii + 1).padStart(2, "0")}
                 </B>
               )
             ))}
@@ -244,14 +311,64 @@ function ProjectRow({
               <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }} onClick={() => setStatus("production")}>Mark Signed</B>
             </>}
 
-            {pr.status === "production" && (
+            {pr.status === "production" && (pr.qd?.retainer ? (() => {
+              // ── Retainer monthly-invoice cycle (verbatim old-app logic) ──
+              const mis      = pr.monthlyInvoices || [];
+              const retMo    = pr.qd?.retMo || 1;
+              const nextN    = mis.length + 1;
+              const allDone  = mis.length >= retMo;
+              const lastPaid = mis.length > 0 && mis[mis.length - 1].paid;
+              const canNext  = mis.length === 0 || lastPaid;
+              return (<>
+                {mis.map((inv: any, ii: number) => (
+                  <span key={inv.id || ii} style={{ display: "contents" }}>
+                    {!inv.paid && (
+                      <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "10px 14px" : "7px 14px" }}
+                        onClick={() => {
+                          const newMis = mis.map((inv2: any, i2: number) => i2 === ii ? { ...inv2, paid: true } : inv2);
+                          const allPaid = newMis.length >= retMo && newMis.every((v: any) => v.paid);
+                          upP({ monthlyInvoices: newMis, paid: allPaid, status: allPaid ? "paid" : pr.status });
+                        }}>
+                        Mark M{ii + 1} Paid
+                      </B>
+                    )}
+                    <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "10px 14px" : "7px 14px" }}
+                      onClick={() => upP({ monthlyInvoices: mis.filter((_: any, i2: number) => i2 !== ii), paid: false, status: "production" })}>
+                      Undo M{ii + 1}
+                    </B>
+                  </span>
+                ))}
+                {!allDone && canNext && (
+                  <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }}
+                    onClick={() => {
+                      const q = pr.qd;
+                      const baseINo = `INV-${(q?.qNo || "").replace("QUO", "").trim() || "001"}`;
+                      const iNo = `${baseINo}-M${String(nextN).padStart(2, "0")}`;
+                      const skip = ["usage","excl","rush","revision","whitelisting","aspect","raw footage","kill","pinned","link in bio"];
+                      const monthlyLines = (q?.lines || []).map((l: any) => ({
+                        ...l,
+                        amt: skip.some((sk: string) => (l.name || "").toLowerCase().includes(sk))
+                          ? parseFloat(l.amt) || 0
+                          : Math.round((parseFloat(l.amt) || 0) * 0.8),
+                        up: parseFloat(l.up) || 0,
+                      }));
+                      const monthlyAmt = Math.round(monthlyLines.reduce((s2: number, l: any) => s2 + (parseFloat(l.amt) || 0), 0));
+                      const data = { brand: q?.brand, contact: q?.contact, date: today(), qNo: q?.qNo, iNo, delivery: today(), ctype: q?.ctype || "Content Creator", lines: monthlyLines, total: monthlyAmt, retainer: true, retMo: q?.retMo, footer: "Thank you for the pleasure of working together." };
+                      setPdf({ data, type: "invoice", isMonthlyInv: true });
+                    }}>
+                    Create Invoice {nextN}/{retMo}
+                  </B>
+                )}
+              </>);
+            })() : (
               <B
                 s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px", opacity: pr.deliveryDate ? 1 : 0.35, cursor: pr.deliveryDate ? "pointer" : "not-allowed" as const }}
+                title={pr.deliveryDate ? "" : "Set a delivery date first"}
                 onClick={() => { if (!pr.deliveryDate) return; setStatus("invoiced"); openPDF("invoice"); }}
               >
                 Create Invoice
               </B>
-            )}
+            ))}
 
             {pr.status === "invoiced" && !pr.paid && (
               <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }} onClick={() => setStatus("paid")}>Mark Paid</B>
@@ -259,7 +376,7 @@ function ProjectRow({
 
             {pr.paid && !pr.qd?.retainer && <>
               <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "10px 18px" : "7px 14px" }}
-                onClick={() => {}}>
+                onClick={() => setRenewT(pr)}>
                 Add Renewal
               </B>
               <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "10px 18px" : "7px 14px" }}
@@ -272,13 +389,13 @@ function ProjectRow({
               <span key={r.id || ri} style={{ display: "contents" }}>
                 {!r.paid && (
                   <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "10px 14px" : "7px 14px" }}
-                    onClick={() => clientsHook.updateRenewal(cl.id, pr.id, r.id, { ...r, paid: true })}>
+                    onClick={() => clientsHook.updateRenewal(cl.id, pr.id, r.id, { paid: true })}>
                     Mark Renewal {ri + 1} Paid
                   </B>
                 )}
                 {!r.paid && (
                   <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "10px 14px" : "7px 14px" }}
-                    onClick={() => upP({ renewals: (pr.renewals || []).filter((_: any, i: number) => i !== ri) })}>
+                    onClick={() => clientsHook.deleteRenewal(cl.id, pr.id, r.id)}>
                     Undo Renewal {ri + 1}
                   </B>
                 )}
@@ -294,7 +411,7 @@ function ProjectRow({
 
             {["production","invoiced","paid"].includes(pr.status) && pr.qd && (
               <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "10px 14px" : "7px 14px" }}
-                onClick={() => {}}>
+                onClick={() => onAmend(pr, cl)}>
                 + Amend
               </B>
             )}
@@ -313,6 +430,7 @@ interface ProjectsTabProps {
   rc:               any;
   clientsHook:      any;
   onRevise:         (pr: any, cl: any) => void;
+  onAmend:          (pr: any, cl: any) => void;
   onGoToCalc:       (name: string) => void;
   pendingProjectQNo:string | null;
   onPendingClear:   () => void;
@@ -320,12 +438,13 @@ interface ProjectsTabProps {
 
 export default function ProjectsTab({
   clients, isMobile, settings, rc, clientsHook,
-  onRevise, onGoToCalc, pendingProjectQNo, onPendingClear,
+  onRevise, onAmend, onGoToCalc, pendingProjectQNo, onPendingClear,
 }: ProjectsTabProps) {
 
-  const [expanded,     setExpanded]     = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [sortOrder,    setSortOrder]    = useState("newest");
+  const [expanded,      setExpanded]      = useState<string | null>(null);
+  const [statusFilter,  setStatusFilter]  = useState("all");
+  const [sortOrder,     setSortOrder]     = useState("newest");
+  const [scrollTrigger, setScrollTrigger] = useState(0);  // re-scroll to row after modal close (old-app)
 
   // Auto-expand pending project
   useEffect(() => {
@@ -336,12 +455,12 @@ export default function ProjectsTab({
     if (onPendingClear) onPendingClear();
   }, [pendingProjectQNo]);
 
-  // Scroll to expanded
+  // Scroll to expanded (also re-fires after a modal closes, like old app)
   useEffect(() => {
     if (!expanded) return;
     const el = document.querySelector(`[data-prid="${expanded}"]`);
     if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
-  }, [expanded]);
+  }, [expanded, scrollTrigger]);
 
   // ── Flatten all projects ──────────────────────────────────
   const all = clients.flatMap((c: any) =>
@@ -424,13 +543,16 @@ export default function ProjectsTab({
           <ProjectRow
             key={pr.id}
             pr={pr}
+            clients={clients}
             isMobile={isMobile}
             isExpanded={expanded === pr.id}
             onToggle={() => setExpanded(expanded === pr.id ? null : pr.id)}
             clientsHook={clientsHook}
             onRevise={onRevise}
+            onAmend={onAmend}
             onGoToCalc={onGoToCalc}
             settings={settings}
+            onModalClosed={() => setScrollTrigger(t => t + 1)}
           />
         ))}
         {filteredActive.length === 0 && (
@@ -449,13 +571,16 @@ export default function ProjectsTab({
             <ProjectRow
               key={pr.id}
               pr={pr}
+              clients={clients}
               isMobile={isMobile}
               isExpanded={expanded === pr.id}
               onToggle={() => setExpanded(expanded === pr.id ? null : pr.id)}
               clientsHook={clientsHook}
               onRevise={onRevise}
+              onAmend={onAmend}
               onGoToCalc={onGoToCalc}
               settings={settings}
+              onModalClosed={() => setScrollTrigger(t => t + 1)}
             />
           ))}
         </div>

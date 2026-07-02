@@ -78,6 +78,7 @@ export default function ClientDetail({
       qd:                     null,
       amendments:             [],
       renewals:               [],
+      monthlyInvoices:        [],
       workspaceStatus:        {},
       workspaceStatusHistory: {},
     });

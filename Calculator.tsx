@@ -265,8 +265,9 @@ export default function Calculator({
           <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 9px" }}>Original Quote — read only</p>
           {prefill.origLines.map((ln: any, i: number) => (
             <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
-              <span style={{ fontSize: TYPE.micro.size, color: C.black }}>
+              <span style={{ fontSize: TYPE.micro.size, color: C.black, display: "flex", alignItems: "center", gap: 6 }}>
                 {ln.qty > 1 ? `${ln.qty}× ` : ""}{ln.name}
+                {ln.cat && <span style={{ fontSize: 8, color: C.white, background: ln.cat === "ugc" ? C.amber : ln.cat === "editorial" ? "#8fa89a" : C.muted, padding: "1px 6px", borderRadius: 2, letterSpacing: "0.05em" }}>{({ influencer: "Influencer", ugc: "UGC", editorial: "Editorial" } as Record<string,string>)[ln.cat] || ln.cat}</span>}
               </span>
               <span style={{ fontSize: TYPE.micro.size, fontFamily: SERIF, color: C.muted, flexShrink: 0, marginLeft: 8 }}>{fmt(ln.amt)}</span>
             </div>

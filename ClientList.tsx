@@ -40,7 +40,7 @@ function usageEnd(pr: any): string | null {
 
 const scol = (s: string) => ({
   invoiced: C.amber, contracted: C.muted, quoted: C.light,
-  revised: C.amber, production: C.blue, paid: C.green, lead: C.light,
+  revised: "#b8a090", production: "#8fa89a", paid: C.green, lead: C.light,
 }[s] ?? C.light);
 
 export default function ClientList({

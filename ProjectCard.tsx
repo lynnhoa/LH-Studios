@@ -9,6 +9,7 @@ import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt, fmtD, addM, today, uid } from "./formatters";
 import { I, B, StatusBadge } from "./atoms";
 import { STATUS } from "./rateCards";
+import RenewalModal from "./RenewalModal";
 
 interface ProjectCardProps {
   pr:               any;
@@ -27,7 +28,7 @@ interface ProjectCardProps {
 }
 
 function scol(s: string): string {
-  return ({ invoiced: C.amber, contracted: C.muted, quoted: C.light, revised: C.amber, production: C.blue, paid: C.green, lead: C.light }[s] ?? C.light);
+  return ({ invoiced: C.amber, contracted: C.muted, quoted: C.light, revised: "#b8a090", production: "#8fa89a", paid: C.green, lead: C.light }[s] ?? C.light);
 }
 
 // ── License tracker mini ──────────────────────────────────
@@ -108,18 +109,46 @@ export default function ProjectCard({
   // import PDFModal lazily to avoid circular dep at build time
   const PDFModal = PDFModalComponent;
 
+  // Renewal builder modal (old-app: saveRenewal forces signed:true)
+  if (renewT) {
+    return (
+      <RenewalModal
+        p={renewT}
+        rc={rc}
+        settings={settings}
+        onClose={() => setRenewT(null)}
+        onSave={async (r: any) => {
+          await clientsHook.addRenewal(cl.id, pr.id, { ...r, signed: true });
+          setRenewT(null);
+        }}
+      />
+    );
+  }
+
   if (pdf && PDFModal) {
+    // Old-app onSave routing:
+    //  · readOnly (amendment / renewal docs) → no save handler at all
+    //  · official contract revision → bump contractRev, NEVER touch amount
+    //  · own quote/contract/invoice → save qd + recompute amount
+    const onSave = pdf.readOnly
+      ? undefined
+      : pdf.isRevision
+        ? (doc: any) => {
+            upP({ qd: { ...doc, contractRev: pdf.nextContractRev, clauses: doc.clauses || [] } });
+            setPdf(null);
+          }
+        : (doc: any) => {
+            const tot = doc.total || (doc.lines || []).reduce((s: number, l: any) => s + (parseFloat(l.amt) || 0), 0);
+            upP({ qd: { ...doc, clauses: doc.clauses || [] }, amount: tot });
+            setPdf(null);
+          };
     return (
       <PDFModal
         data={pdf.data}
         type={pdf.type}
         onClose={() => setPdf(null)}
         settings={settings}
-        onSave={(doc: any) => {
-          const tot = doc.total || (doc.lines || []).reduce((s: number,l: any) => s + (parseFloat(l.amt) || 0), 0);
-          upP({ qd: { ...doc, clauses: doc.clauses || [] }, amount: tot });
-          setPdf(null);
-        }}
+        onSave={onSave}
       />
     );
   }
@@ -153,7 +182,7 @@ export default function ProjectCard({
           <I
             type="date"
             value={pr.deliveryDate || ""}
-            onChange={(e: any) => { const nv = e.target.value; if (!nv) return; upP({ deliveryDate: nv }); }}
+            onChange={(e: any) => { const nv = e.target.value; if (!nv) return; if (!pr.deliveryDate || nv > pr.deliveryDate) upP({ deliveryDate: nv }); }}
             s={{ fontSize: TYPE.micro.size, padding: "5px 8px", width: "auto" }}
           />
         </div>
@@ -178,7 +207,7 @@ export default function ProjectCard({
           {(pr.amendments || []).map((a: any, ai: number) => (
             <B key={ai} v="sec"
               s={{ fontSize: TYPE.micro.size, color: a.signed ? C.black : C.amber, borderColor: a.signed ? C.rule : C.amber, padding: isMobile ? "9px 14px" : "5px 10px" }}
-              onClick={() => setPdf({ data: { brand: pr.qd?.brand, contact: pr.qd?.contact, date: today(), ctype: pr.qd?.ctype || "Content Creator", qNo: pr.qd?.qNo, aNo: a.aNo, lines: a.lines || [], amendTotal: a.amendTotal, origTotal: pr.amount - a.amendTotal }, type: "amendment" })}
+              onClick={() => setPdf({ data: { brand: pr.qd?.brand, contact: pr.qd?.contact, date: today(), ctype: pr.qd?.ctype || "Content Creator", qNo: pr.qd?.qNo, aNo: a.aNo, lines: a.lines || [], amendTotal: a.amendTotal, origTotal: pr.amount - a.amendTotal }, type: "amendment", readOnly: true })}
             >
               Amend {ai + 1}{!a.signed ? " · unsigned" : ""}
             </B>
@@ -189,7 +218,7 @@ export default function ProjectCard({
           {(pr.renewals || []).map((r: any, ri: number) => (
             r.doc && <B key={ri} v="sec"
               s={{ fontSize: TYPE.micro.size, color: r.paid ? C.black : C.green, borderColor: r.paid ? C.rule : C.green, padding: isMobile ? "9px 14px" : "5px 10px" }}
-              onClick={() => setPdf({ data: r.doc, type: "renewal" })}
+              onClick={() => setPdf({ data: r.doc, type: "renewal", readOnly: true })}
             >
               Renewal {ri + 1}
             </B>

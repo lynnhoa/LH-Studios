@@ -9,7 +9,7 @@ import { supabase } from "./useSupabase";
 import { uid, today } from "./formatters";
 import { SEED_CLIENTS } from "./rateCards";
 import type {
-  Client, Project, Amendment, Renewal,
+  Client, Project, Amendment, Renewal, MonthlyInvoice,
   Deliverable, QuoteDoc, ProjectStatus,
 } from "./types";
 
@@ -36,6 +36,7 @@ interface UseClientsReturn {
   // Renewal ops
   addRenewal:    (clientId: string, projectId: string, r: Omit<Renewal, "id" | "createdAt">) => Promise<string | null>;
   updateRenewal: (clientId: string, projectId: string, renewalId: string, updates: Partial<Renewal>) => Promise<string | null>;
+  deleteRenewal: (clientId: string, projectId: string, renewalId: string) => Promise<string | null>;
 
   // Deliverable ops
   updateDeliverable: (projectId: string, deliverableId: string, updates: Partial<Deliverable>) => Promise<string | null>;
@@ -80,12 +81,17 @@ function rowToProject(
   renewals: Renewal[],
   deliverables: Deliverable[],
 ): Project {
-  const ws: Record<string, any>    = {};
-  const wsh: Record<string, any[]> = {};
-  for (const d of deliverables) {
-    const key = `${row.id}_ln${d.lineRef}_q${d.quantityIndex}`;
-    ws[key]  = d.status;
-    wsh[key] = [{ status: d.status, date: d.statusDate ?? today() }];
+  // Workspace state lives in JSONB columns on projects (old-app parity).
+  // Fallback: derive from legacy deliverables rows if the columns are empty.
+  let ws: Record<string, any>     = row.workspace_status         ?? {};
+  let wsh: Record<string, any[]>  = row.workspace_status_history ?? {};
+  if (Object.keys(ws).length === 0 && deliverables.length > 0) {
+    ws = {}; wsh = {};
+    for (const d of deliverables) {
+      const key = `${row.id}_ln${d.lineRef}_q${d.quantityIndex}`;
+      ws[key]  = d.status;
+      wsh[key] = [{ status: d.status, date: d.statusDate ?? today() }];
+    }
   }
   return {
     id:                     row.id,
@@ -101,6 +107,7 @@ function rowToProject(
     qd:                     row.quote_doc      ?? null,
     amendments,
     renewals,
+    monthlyInvoices:        row.monthly_invoices ?? [],
     workspaceStatus:        ws,
     workspaceStatusHistory: wsh,
     workspaceNames:         row.workspace_names   ?? {},
@@ -127,18 +134,17 @@ function rowToAmendment(row: any): Amendment {
 
 function rowToRenewal(row: any): Renewal {
   return {
-    id:           row.id,
-    rNo:          row.r_no          ?? "",
-    usageMode:    row.usage_mode    ?? "organic",
-    exclMode:     row.excl_mode     ?? "none",
-    usageMonths:  row.usage_months  ?? 0,
-    exclMonths:   row.excl_months   ?? 0,
-    usageFee:     row.usage_fee     ?? 0,
-    exclFee:      row.excl_fee      ?? 0,
-    totalFee:     row.total_fee     ?? 0,
-    usageEnd:     row.usage_end     ?? null,
-    doc:          row.doc           ?? {},
-    createdAt:    row.created_at,
+    id:        row.id,
+    rNo:       row.r_no       ?? "",
+    optLabel:  row.opt_label  ?? "",
+    startDate: row.start_date ?? "",
+    // fallback to legacy usage_end for rows created before Phase 0 migration
+    endDate:   row.end_date   ?? row.usage_end ?? null,
+    fee:       row.fee        ?? row.total_fee ?? 0,
+    signed:    row.signed     ?? true,
+    paid:      row.paid       ?? false,
+    doc:       row.doc        ?? {},
+    createdAt: row.created_at,
   };
 }
 
@@ -273,7 +279,8 @@ export function useClients(userId: string | null): UseClientsReturn {
       const id = uid();
       const row = { id, user_id: userId, ...c };
 
-      setClients(prev => [{ ...c, id, projects: [] }, ...prev]);
+      // Old-app addCl appends new clients to the end of the list
+      setClients(prev => [...prev, { ...c, id, projects: [] } as Client]);
 
       const { error } = await supabase.from("clients").insert(row);
       if (error) { setError(error.message); return error.message; }
@@ -369,6 +376,14 @@ export function useClients(userId: string | null): UseClientsReturn {
       if (updates.usageEndOverride!== undefined) dbUpdates.usage_end_override= updates.usageEndOverride || null;
       if (updates.notes           !== undefined) dbUpdates.notes             = updates.notes;
       if (updates.qd              !== undefined) dbUpdates.quote_doc         = updates.qd;
+      if (updates.monthlyInvoices !== undefined) dbUpdates.monthly_invoices  = updates.monthlyInvoices;
+      if (updates.workspaceStatus        !== undefined) dbUpdates.workspace_status         = updates.workspaceStatus;
+      if (updates.workspaceStatusHistory !== undefined) dbUpdates.workspace_status_history = updates.workspaceStatusHistory;
+      if (updates.workspaceNames         !== undefined) dbUpdates.workspace_names          = updates.workspaceNames;
+      if (updates.workspaceNotes         !== undefined) dbUpdates.workspace_notes          = updates.workspaceNotes;
+      if (updates.workspaceDeleted       !== undefined) dbUpdates.workspace_deleted        = updates.workspaceDeleted;
+      if (updates.workspacePlanner       !== undefined) dbUpdates.workspace_planner        = updates.workspacePlanner;
+      if (updates.managerStatus          !== undefined) dbUpdates.manager_status           = updates.managerStatus;
 
       const { error } = await supabase
         .from("projects")
@@ -478,10 +493,14 @@ export function useClients(userId: string | null): UseClientsReturn {
 
       const { error } = await supabase.from("renewals").insert({
         id, user_id: userId, project_id: projectId,
-        r_no: r.rNo, usage_mode: r.usageMode, excl_mode: r.exclMode,
-        usage_months: r.usageMonths, excl_months: r.exclMonths,
-        usage_fee: r.usageFee, excl_fee: r.exclFee,
-        total_fee: r.totalFee, usage_end: r.usageEnd, doc: r.doc,
+        r_no:       r.rNo,
+        opt_label:  r.optLabel,
+        start_date: r.startDate || null,
+        end_date:   r.endDate   || null,
+        fee:        r.fee,
+        signed:     r.signed,
+        paid:       r.paid,
+        doc:        r.doc,
       });
 
       if (error) { setError(error.message); return error.message; }
@@ -505,11 +524,32 @@ export function useClients(userId: string | null): UseClientsReturn {
       }));
 
       const dbUpdates: Record<string, any> = {};
-      if (updates.usageEnd !== undefined) dbUpdates.usage_end = updates.usageEnd;
-      if (updates.doc      !== undefined) dbUpdates.doc       = updates.doc;
+      if (updates.paid     !== undefined) dbUpdates.paid     = updates.paid;
+      if (updates.signed   !== undefined) dbUpdates.signed   = updates.signed;
+      if (updates.endDate  !== undefined) dbUpdates.end_date = updates.endDate;
+      if (updates.doc      !== undefined) dbUpdates.doc      = updates.doc;
 
       const { error } = await supabase
         .from("renewals").update(dbUpdates).eq("id", renewalId).eq("user_id", userId);
+
+      if (error) { setError(error.message); return error.message; }
+      return null;
+    },
+    [userId]
+  );
+
+  // Old-app "Undo Renewal" on an unpaid renewal removes the record entirely.
+  const deleteRenewal = useCallback(
+    async (clientId: string, projectId: string, renewalId: string): Promise<string | null> => {
+      if (!userId) return "Not authenticated";
+
+      updateProjectLocal(clientId, projectId, p => ({
+        ...p,
+        renewals: p.renewals.filter(r => r.id !== renewalId),
+      }));
+
+      const { error } = await supabase
+        .from("renewals").delete().eq("id", renewalId).eq("user_id", userId);
 
       if (error) { setError(error.message); return error.message; }
       return null;
@@ -653,6 +693,7 @@ export function useClients(userId: string | null): UseClientsReturn {
           qd:                     quoteDoc,
           amendments:             [],
           renewals:               [],
+          monthlyInvoices:        [],
           workspaceStatus:        {},
           workspaceStatusHistory: {},
           workspaceNames:         {},
@@ -687,6 +728,7 @@ export function useClients(userId: string | null): UseClientsReturn {
         qd:                     quoteDoc,
         amendments:             [],
         renewals:               [],
+        monthlyInvoices:        [],
         workspaceStatus:        {},
         workspaceStatusHistory: {},
         workspaceNames:         {},
@@ -753,7 +795,7 @@ export function useClients(userId: string | null): UseClientsReturn {
     addClient, updateClient, deleteClient,
     addProject, updateProject, deleteProject, setProjectStatus,
     addAmendment, updateAmendment,
-    addRenewal, updateRenewal,
+    addRenewal, updateRenewal, deleteRenewal,
     updateDeliverable, upsertDeliverables,
     saveQuote,
   };

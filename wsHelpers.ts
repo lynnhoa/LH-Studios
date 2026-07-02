@@ -138,3 +138,28 @@ export function getAllDelivered(clients: any[], allItems: any[]) {
   }));
   return out.sort((a, b) => new Date(b.deliveredDate).getTime() - new Date(a.deliveredDate).getTime());
 }
+
+
+// ── Category progress per project — port of old App.tsx getCatProgress ──
+export function getCatProgress(pr: any, clients: any[]): Record<string, { total: number; created: number; posted: number; allCreated: boolean }> {
+  const cl = clients.find((c: any) => c.projects.some((p: any) => p.id === pr.id));
+  if (!cl) return {};
+  const skip = ["usage","excl","rush","revision","whitelisting","aspect","raw footage","kill","pinned","link in bio"];
+  const cats: Record<string, { total: number; created: number; posted: number; allCreated: boolean }> = {};
+  (pr.qd?.lines || []).forEach((ln: any, li: number) => {
+    if (!ln.name) return;
+    if (skip.some((s: string) => ln.name.toLowerCase().includes(s))) return;
+    const qty = parseInt(ln.qty) || 1;
+    for (let q = 0; q < qty; q++) {
+      const id = `${pr.id}_ln${li}_q${q}`;
+      const cat = getWsCategory(ln.name);
+      const st = (pr.workspaceStatus || {})[id] || "Not started";
+      if (!cats[cat]) cats[cat] = { total: 0, created: 0, posted: 0, allCreated: false };
+      cats[cat].total++;
+      if (["Created","Reviewed","Delivered","Posted"].includes(st)) cats[cat].created++;
+      if (st === "Posted") cats[cat].posted++;
+    }
+  });
+  Object.keys(cats).forEach(k => { cats[k].allCreated = cats[k].total > 0 && cats[k].created === cats[k].total; });
+  return cats;
+}
