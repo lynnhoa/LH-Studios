@@ -21,11 +21,22 @@ interface UseAuthReturn extends AuthState {
   switchMode: () => void;
 }
 
-const ROLE_KEY = "lh_studio_role";
+const TAB_ID = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+const ROLE_KEY = `lh_studio_role_${TAB_ID}`;
 
 function getStoredRole(): Role {
   return (sessionStorage.getItem(ROLE_KEY) as Role) || "manager";
 }
+
+// Clean up stale keys from previous tabs on load
+try {
+  for (let i = sessionStorage.length - 1; i >= 0; i--) {
+    const key = sessionStorage.key(i);
+    if (key && key.startsWith("lh_studio_role_") && key !== ROLE_KEY) {
+      sessionStorage.removeItem(key);
+    }
+  }
+} catch (_) {}
 
 export function useAuth(): UseAuthReturn {
   const [state, setState] = useState<AuthState>({
