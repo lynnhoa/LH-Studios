@@ -42,6 +42,7 @@ export default function PDFModal({
   const [showEdit,   setShowEdit]    = useState(false);
   const [winW,       setWinW]        = useState(() => window.innerWidth);
   const [saving,     setSaving]      = useState(false);
+  const [saveError,  setSaveError]   = useState<string | null>(null);
 
   // ── Page layout guards ────────────────────────────────────
   const [docHeight,       setDocHeight]       = useState(841);
@@ -179,6 +180,7 @@ export default function PDFModal({
   const handleSave = async (): Promise<boolean> => {
     if (saving) return false;
     setSaving(true);
+    setSaveError(null);
     const snap = JSON.parse(JSON.stringify(staged));
     setPreview(snap);
     try {
@@ -187,8 +189,10 @@ export default function PDFModal({
       setFlash("saved");
       setTimeout(() => setFlash(null), 2500);
       return true;
-    } catch (err) {
-      console.error("[LH Studio] Save failed:", err);
+    } catch (err: any) {
+      const msg = err?.message || "Unknown error";
+      console.error("[LH Studio] Save failed:", msg);
+      setSaveError(msg);
       setFlash("error");
       setTimeout(() => setFlash(null), 3000);
       return false;
@@ -288,22 +292,23 @@ export default function PDFModal({
       {/* ── CONFIRM CLOSE DIALOG ── */}
       {confirmClose && createPortal(
         <div style={{ position: "fixed", inset: 0, zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(250,249,247,0.88)" }}>
-          <div style={{ background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "24px 28px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)", textAlign: "center" as const, minWidth: 220 }}>
+          <div style={{ background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "24px 28px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)", textAlign: "center" as const, minWidth: 220, maxWidth: 320 }}>
             <p style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, fontWeight: "normal", color: C.black, margin: "0 0 6px" }}>
-              {isNew ? "Save this document?" : "Save before closing?"}
+              {saveError ? "Save failed" : isNew ? "Save this document?" : "Save before closing?"}
             </p>
-            <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "0 0 18px" }}>
-              {isNew ? "It will be added to the client's project." : "Changes will be lost if you don't save."}
+            <p style={{ fontSize: TYPE.micro.size, color: saveError ? C.red : C.muted, margin: "0 0 18px", wordBreak: "break-word" as const }}>
+              {saveError || (isNew ? "It will be added to the client's project." : "Changes will be lost if you don't save.")}
             </p>
             <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
               <B onClick={async () => {
                 const ok = await handleSave();
-                setConfirmClose(false);
-                if (ok) { if (onSaveClose) onSaveClose(staged); else onClose(); }
+                if (ok) { setConfirmClose(false); if (onSaveClose) onSaveClose(staged); else onClose(); }
               }} s={{ opacity: saving ? 0.5 : 1, cursor: saving ? "default" : "pointer" as const }}>
-                {saving ? "Saving…" : "Yes, save"}
+                {saving ? "Saving…" : saveError ? "Retry" : "Yes, save"}
               </B>
-              <B v="sec" onClick={() => { setConfirmClose(false); onClose(); }}>No, discard</B>
+              <B v="sec" onClick={() => { setSaveError(null); setConfirmClose(false); onClose(); }}>
+                {saveError ? "Discard" : "No, discard"}
+              </B>
             </div>
           </div>
         </div>,

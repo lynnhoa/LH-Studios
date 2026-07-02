@@ -3,7 +3,7 @@
 // New quote, revision, amendment — all in one component
 // ─────────────────────────────────────────────────────────────
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt, today, uid } from "./formatters";
 import { isSingle } from "./formatters";
@@ -225,9 +225,15 @@ export default function Calculator({
 
   // ── Lazy PDFModal ─────────────────────────────────────────
   const [PDFModal, setPDFModal] = useState<any>(null);
-  if (pdf && !PDFModal) {
-    import("./PDFModal").then(m => setPDFModal(() => m.default));
-  }
+  useEffect(() => {
+    if (pdf && !PDFModal) {
+      let cancelled = false;
+      import("./PDFModal").then(m => {
+        if (!cancelled) setPDFModal(() => m.default);
+      });
+      return () => { cancelled = true; };
+    }
+  }, [pdf, PDFModal]);
 
   if (pdf && PDFModal) {
     return (
@@ -244,6 +250,8 @@ export default function Calculator({
             prefill?.qNo,
           );
           if (err) throw new Error(err);
+          // Clear PDFModal first, then navigate
+          setPdf(null);
           if (onAfterSave) onAfterSave(doc.brand || brand, isAmend ? prefill?.qNo : doc.qNo);
         }}
       />
