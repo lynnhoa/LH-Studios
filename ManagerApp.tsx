@@ -134,6 +134,12 @@ export default function ManagerApp({
     setNav(NAV_PROJECTS);
   };
 
+  const goToClients = (brand?: string, qNo?: string) => {
+    setPendingClientName(brand ?? null);
+    setPendingProjectQNo(qNo ?? null);
+    setNav(NAV_CLIENTS);
+  };
+
   // ── Avatar menu ───────────────────────────────────────────
   const MENU_ITEMS: [string, number][] = [
     ["Creator Profile",  NAV_PROFILE],
@@ -469,8 +475,15 @@ export default function ManagerApp({
             rc={rateCardsHook.rc}
             prefill={prefill}
             clearPrefill={() => setPrefill(null)}
-            onAfterSave={(_brand: string, qNo?: string | null) => {
-              setTimeout(() => goToProjects(qNo ?? undefined), 100);
+            onAfterSave={(brand: string, qNo?: string | null) => {
+              setTimeout(() => {
+                // Navigate to Clients tab — auto-selects client by brand name and
+                // highlights the new project card inside ClientDetail.
+                // pendingProjectQNo is also set so switching to Projects tab later
+                // shows the expanded project row automatically.
+                setPendingProjectQNo(qNo ?? null);
+                goToClients(brand, qNo ?? undefined);
+              }, 100);
             }}
             saveQuote={clientsHook.saveQuote}
           />
