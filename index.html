@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover for iPhone notch / home bar -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- PWA / home screen -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="LH Studio" />
+    <meta name="theme-color" content="#faf9f7" />
+
+    <!-- No index — private app -->
+    <meta name="robots" content="noindex, nofollow" />
+
+    <title>Lynn Hoa Studio</title>
+
+    <!-- Playfair Display — must match SERIF constant in constants.ts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      /* Reset */
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body, #root {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        /* Use dvh on modern browsers so iOS toolbar doesn't cut content */
+        min-height: 100dvh;
+      }
+      body {
+        background: #faf9f7;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      /* Prevent double-tap zoom on iOS buttons */
+      button { touch-action: manipulation; }
+      /* Native input styling baseline */
+      input, select, textarea {
+        font-family: inherit;
+        -webkit-appearance: none;
+        appearance: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>
