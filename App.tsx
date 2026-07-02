@@ -1,12 +1,9 @@
 // ─────────────────────────────────────────────────────────────
-// App.tsx — root component
-// Auth gate → role from toggle → ManagerApp or CreatorApp
-// switchMode flips between manager/creator without signing out
+// App.tsx — root component (self-contained auth, no external useAuth)
 // ─────────────────────────────────────────────────────────────
 
-import { Component } from "react";
+import { Component, useState, useEffect, useRef } from "react";
 import type { ReactNode, ErrorInfo } from "react";
-import { useAuth }      from "./authHook";
 import { useSettings }  from "./useSettings";
 import { useClients }   from "./useClients";
 import { useRateCards } from "./useRateCards";
@@ -14,13 +11,102 @@ import AuthScreen       from "./AuthScreen";
 import ManagerApp       from "./ManagerApp";
 import CreatorApp       from "./CreatorApp";
 import { Loading }      from "./atoms";
-import { supabaseConfigured } from "./useSupabase";
+import { supabase, supabaseConfigured } from "./useSupabase";
 import { C, SANS, SERIF, TYPE } from "./constants";
+import type { Role } from "./types";
 
-// ─────────────────────────────────────────────────────────────
-// ErrorBoundary — catches uncaught React errors so the app
-// never goes blank. Shows a styled fallback with a reload button.
-// ─────────────────────────────────────────────────────────────
+// ─── INLINE AUTH HOOK (no external file) ─────────────────────
+function useAuth() {
+  const [userId, setUserId]   = useState<string | null>(null);
+  const [role, setRole]       = useState<Role | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
+  const signingIn = useRef(false);
+
+  const getRole = (): Role => {
+    try { return (sessionStorage.getItem("lh_role") as Role) || "manager"; }
+    catch { return "manager"; }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // Safe session check — no destructuring
+    supabase.auth.getSession().then((res) => {
+      if (cancelled) return;
+      const session = res?.data?.session;
+      if (session?.user) {
+        setUserId(session.user.id);
+        setRole(getRole());
+      }
+      setLoading(false);
+    }).catch(() => {
+      if (!cancelled) setLoading(false);
+    });
+
+    // Safe auth listener — no destructuring
+    let unsub: (() => void) | null = null;
+    try {
+      const listener = supabase.auth.onAuthStateChange((event, session) => {
+        if (cancelled) return;
+        if (event === "SIGNED_OUT") {
+          try { sessionStorage.removeItem("lh_role"); } catch {}
+          setUserId(null);
+          setRole(null);
+          setLoading(false);
+        }
+        if (event === "SIGNED_IN" && session?.user && signingIn.current) {
+          signingIn.current = false;
+          setUserId(session.user.id);
+          setRole(getRole());
+          setLoading(false);
+        }
+      });
+      unsub = () => { try { listener?.data?.subscription?.unsubscribe(); } catch {} };
+    } catch {}
+
+    return () => { cancelled = true; if (unsub) unsub(); };
+  }, []);
+
+  const signIn = async (email: string, password: string, r: Role): Promise<string | null> => {
+    try { sessionStorage.setItem("lh_role", r); } catch {}
+    signingIn.current = true;
+    setLoading(true);
+    setError(null);
+    try {
+      const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+      if (err) {
+        signingIn.current = false;
+        try { sessionStorage.removeItem("lh_role"); } catch {}
+        setError(err.message);
+        setLoading(false);
+        return err.message;
+      }
+      return null;
+    } catch (e: any) {
+      signingIn.current = false;
+      setLoading(false);
+      return e?.message || "Sign in failed";
+    }
+  };
+
+  const signOut = async () => {
+    try { sessionStorage.removeItem("lh_role"); } catch {}
+    await supabase.auth.signOut();
+  };
+
+  const switchMode = () => {
+    setRole(prev => {
+      const next: Role = prev === "manager" ? "creator" : "manager";
+      try { sessionStorage.setItem("lh_role", next); } catch {}
+      return next;
+    });
+  };
+
+  return { userId, role, loading, error, signIn, signOut, switchMode };
+}
+
+// ─── ERROR BOUNDARY ──────────────────────────────────────────
 class ErrorBoundary extends Component<
   { children: ReactNode },
   { hasError: boolean; error: Error | null }
@@ -29,15 +115,12 @@ class ErrorBoundary extends Component<
     super(props);
     this.state = { hasError: false, error: null };
   }
-
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
   }
-
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[LH Studio] Uncaught error:", error, info.componentStack);
   }
-
   render() {
     if (this.state.hasError) {
       return (
@@ -52,25 +135,13 @@ class ErrorBoundary extends Component<
             {this.state.error && (
               <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "10px 14px", marginBottom: 20, background: C.white, textAlign: "left" as const }}>
                 <p style={{ fontSize: TYPE.micro.size, fontFamily: "monospace", color: C.red, margin: 0, wordBreak: "break-word" as const }}>
-                  {this.state.error.message}
+                  {this.state.error.message} {this.state.error.stack?.split("\n")[1] || ""}
                 </p>
               </div>
             )}
             <button
               onClick={() => window.location.reload()}
-              style={{
-                padding:       "12px 32px",
-                background:    C.black,
-                color:         C.white,
-                border:        "none",
-                borderRadius:  2,
-                cursor:        "pointer",
-                fontFamily:    SANS,
-                fontSize:      TYPE.button.size,
-                letterSpacing: "0.10em",
-                textTransform: "uppercase" as const,
-                minHeight:     44,
-              }}
+              style={{ padding: "12px 32px", background: C.black, color: C.white, border: "none", borderRadius: 2, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.button.size, letterSpacing: "0.10em", textTransform: "uppercase" as const, minHeight: 44 }}
             >
               Reload App
             </button>
@@ -82,17 +153,14 @@ class ErrorBoundary extends Component<
   }
 }
 
+// ─── ENV MISSING ─────────────────────────────────────────────
 function EnvMissingScreen() {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100dvh", background: C.bg, fontFamily: SANS, padding: 24 }}>
       <div style={{ maxWidth: 480, textAlign: "center" as const }}>
-        <h1 style={{ fontFamily: SERIF, fontSize: 22, fontWeight: "normal", color: C.black, margin: "0 0 12px" }}>
-          Lynn Hoa Studio
-        </h1>
+        <h1 style={{ fontFamily: SERIF, fontSize: 22, fontWeight: "normal", color: C.black, margin: "0 0 12px" }}>Lynn Hoa Studio</h1>
         <div style={{ border: `1px solid ${C.red}`, borderRadius: 2, padding: "20px 24px", background: "#fdf0f0", marginBottom: 20 }}>
-          <p style={{ fontSize: 13, color: C.red, margin: "0 0 8px", fontWeight: "600" }}>
-            Supabase environment variables missing
-          </p>
+          <p style={{ fontSize: 13, color: C.red, margin: "0 0 8px", fontWeight: "600" }}>Supabase environment variables missing</p>
           <p style={{ fontSize: 12, color: C.red, margin: 0, lineHeight: 1.6 }}>
             <code style={{ background: "rgba(0,0,0,0.07)", padding: "1px 5px", borderRadius: 2 }}>VITE_SUPABASE_URL</code>
             {" "}and{" "}
@@ -100,21 +168,15 @@ function EnvMissingScreen() {
             {" "}are not set.
           </p>
         </div>
-        <p style={{ fontSize: 11, color: C.muted, lineHeight: 1.7, margin: 0 }}>
-          In Vercel: go to <strong>Project → Settings → Environment Variables</strong> and add both keys from your Supabase project dashboard under <strong>Project Settings → API</strong>.
-        </p>
       </div>
     </div>
   );
 }
 
+// ─── ROOT ────────────────────────────────────────────────────
 export default function App() {
   if (!supabaseConfigured) return <EnvMissingScreen />;
-  return (
-    <ErrorBoundary>
-      <AppInner />
-    </ErrorBoundary>
-  );
+  return <ErrorBoundary><AppInner /></ErrorBoundary>;
 }
 
 function AppInner() {
@@ -124,10 +186,7 @@ function AppInner() {
   const rateCardsHook = useRateCards(userId);
 
   if (authLoading) return <Loading />;
-
-  if (!userId) {
-    return <AuthScreen onSignIn={signIn} loading={authLoading} />;
-  }
+  if (!userId) return <AuthScreen onSignIn={signIn} loading={authLoading} />;
 
   if (role === "manager") {
     return (
