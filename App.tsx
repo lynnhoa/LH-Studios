@@ -6,7 +6,7 @@
 
 import { Component } from "react";
 import type { ReactNode, ErrorInfo } from "react";
-import { useAuth }      from "./useAuth";
+import { useAuth }      from "./authHook";
 import { useSettings }  from "./useSettings";
 import { useClients }   from "./useClients";
 import { useRateCards } from "./useRateCards";
