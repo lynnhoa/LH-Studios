@@ -1,19 +1,20 @@
 // ─────────────────────────────────────────────────────────────
 // AuthScreen — Manager / Creator toggle + email + password
-// Role toggle is visual UX only — actual role comes from DB.
+// Selected role is passed to signIn and determines which app loads.
 // ─────────────────────────────────────────────────────────────
 
 import { useState } from "react";
 import { C, SANS, TYPE } from "./constants";
 import AppLogo from "./AppLogo";
+import type { Role } from "./types";
 
 interface AuthScreenProps {
-  onSignIn: (email: string, password: string) => Promise<string | null>;
+  onSignIn: (email: string, password: string, role: Role) => Promise<string | null>;
   loading:  boolean;
 }
 
 export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
-  const [role,     setRole]     = useState<"manager" | "creator">("manager");
+  const [role,     setRole]     = useState<Role>("manager");
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
   const [err,      setErr]      = useState<string | null>(null);
@@ -23,7 +24,7 @@ export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
     if (!email.trim() || !password) return;
     setBusy(true);
     setErr(null);
-    const error = await onSignIn(email.trim(), password);
+    const error = await onSignIn(email.trim(), password, role);
     if (error) setErr("Incorrect email or password.");
     setBusy(false);
   };
@@ -33,18 +34,16 @@ export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
   };
 
   return (
-    <div
-      style={{
-        minHeight:      "100dvh",
-        background:     C.bg,
-        display:        "flex",
-        alignItems:     "center",
-        justifyContent: "center",
-        fontFamily:     SANS,
-        padding:        "20px",
-        boxSizing:      "border-box" as const,
-      }}
-    >
+    <div style={{
+      minHeight:      "100dvh",
+      background:     C.bg,
+      display:        "flex",
+      alignItems:     "center",
+      justifyContent: "center",
+      fontFamily:     SANS,
+      padding:        "20px",
+      boxSizing:      "border-box" as const,
+    }}>
       <div style={{ width: "100%", maxWidth: 320, textAlign: "center" as const }}>
 
         {/* ── LOGO ── */}
@@ -66,12 +65,11 @@ export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
 
         {/* ── ROLE TOGGLE ── */}
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          {(["Manager", "Creator"] as const).map(r => {
-            const v = r.toLowerCase() as "manager" | "creator";
+          {(["manager", "creator"] as Role[]).map(v => {
             const sel = role === v;
             return (
               <button
-                key={r}
+                key={v}
                 onClick={() => setRole(v)}
                 style={{
                   flex:          1,
@@ -88,7 +86,7 @@ export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
                   transition:    "all 0.15s ease",
                 }}
               >
-                {r}
+                {v}
               </button>
             );
           })}

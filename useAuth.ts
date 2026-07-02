@@ -1,6 +1,8 @@
 // ─────────────────────────────────────────────────────────────
 // useAuth — Supabase auth hook
-// Handles: signIn, signOut, session persistence, role from profiles
+// Auth: Supabase email + password
+// Role: set by toggle at login time, stored in sessionStorage
+//       so page refresh keeps the role until sign out.
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
@@ -15,9 +17,11 @@ interface AuthState {
 }
 
 interface UseAuthReturn extends AuthState {
-  signIn:  (email: string, password: string) => Promise<string | null>;
+  signIn:  (email: string, password: string, role: Role) => Promise<string | null>;
   signOut: () => Promise<void>;
 }
+
+const ROLE_KEY = "lh_studio_role";
 
 export function useAuth(): UseAuthReturn {
   const [state, setState] = useState<AuthState>({
@@ -27,51 +31,29 @@ export function useAuth(): UseAuthReturn {
     error:   null,
   });
 
-  const fetchRole = async (userId: string): Promise<Role> => {
-    try {
-      const { data } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (!data?.role) {
-        await supabase
-          .from("profiles")
-          .upsert({ id: userId, role: "manager" }, { onConflict: "id" });
-        return "manager";
-      }
-      return data.role as Role;
-    } catch {
-      return "manager";
-    }
-  };
-
   useEffect(() => {
     let cancelled = false;
 
-    // getSession first — source of truth on mount
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled) return;
       if (session?.user) {
-        const role = await fetchRole(session.user.id);
-        if (!cancelled)
-          setState({ userId: session.user.id, role, loading: false, error: null });
+        const savedRole = (sessionStorage.getItem(ROLE_KEY) as Role) || "manager";
+        setState({ userId: session.user.id, role: savedRole, loading: false, error: null });
       } else {
+        sessionStorage.removeItem(ROLE_KEY);
         setState({ userId: null, role: null, loading: false, error: null });
       }
     });
 
-    // onAuthStateChange only handles SIGNED_OUT and real new sign-ins
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (cancelled) return;
         if (event === "SIGNED_OUT") {
+          sessionStorage.removeItem(ROLE_KEY);
           setState({ userId: null, role: null, loading: false, error: null });
         } else if (event === "SIGNED_IN" && session?.user) {
-          const role = await fetchRole(session.user.id);
-          if (!cancelled)
-            setState({ userId: session.user.id, role, loading: false, error: null });
+          const savedRole = (sessionStorage.getItem(ROLE_KEY) as Role) || "manager";
+          setState({ userId: session.user.id, role: savedRole, loading: false, error: null });
         }
       }
     );
@@ -84,18 +66,27 @@ export function useAuth(): UseAuthReturn {
 
   const signIn = async (
     email: string,
-    password: string
+    password: string,
+    role: Role
   ): Promise<string | null> => {
     setState(s => ({ ...s, loading: true, error: null }));
+
+    // Save chosen role before auth so onAuthStateChange can read it
+    sessionStorage.setItem(ROLE_KEY, role);
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+
     if (error) {
+      sessionStorage.removeItem(ROLE_KEY);
       setState(s => ({ ...s, loading: false, error: error.message }));
       return error.message;
     }
+
     return null;
   };
 
   const signOut = async (): Promise<void> => {
+    sessionStorage.removeItem(ROLE_KEY);
     await supabase.auth.signOut();
   };
 

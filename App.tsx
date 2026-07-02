@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 // App.tsx — root component
-// Auth gate → role check → ManagerApp or CreatorApp
+// Auth gate → role from toggle → ManagerApp or CreatorApp
 // ─────────────────────────────────────────────────────────────
 
 import { useAuth }      from "./useAuth";
@@ -12,9 +12,8 @@ import ManagerApp       from "./ManagerApp";
 import CreatorApp       from "./CreatorApp";
 import { Loading }      from "./atoms";
 import { supabaseConfigured } from "./useSupabase";
-import { C, SANS, SERIF, TYPE } from "./constants";
+import { C, SANS, SERIF } from "./constants";
 
-// ── Shown when VITE_SUPABASE_* env vars are not set ──────────
 function EnvMissingScreen() {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100dvh", background: C.bg, fontFamily: SANS, padding: 24 }}>
@@ -42,9 +41,7 @@ function EnvMissingScreen() {
 }
 
 export default function App() {
-  // Show setup screen before trying to connect to Supabase
   if (!supabaseConfigured) return <EnvMissingScreen />;
-
   return <AppInner />;
 }
 
