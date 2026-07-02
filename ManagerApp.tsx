@@ -469,9 +469,8 @@ export default function ManagerApp({
             rc={rateCardsHook.rc}
             prefill={prefill}
             clearPrefill={() => setPrefill(null)}
-            onAfterSave={(_brand: string, qNo?: string) => {
-              setPendingProjectQNo(qNo ?? null);
-              goToProjects(qNo);
+            onAfterSave={(_brand: string, qNo?: string | null) => {
+              setTimeout(() => goToProjects(qNo ?? undefined), 100);
             }}
             saveQuote={clientsHook.saveQuote}
           />

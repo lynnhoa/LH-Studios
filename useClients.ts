@@ -51,6 +51,7 @@ interface UseClientsReturn {
     projectName?: string,
     isAmend?: boolean,
     amendN?: number,
+    origQNo?: string,
   ) => Promise<string | null>;
 }
 
@@ -583,6 +584,7 @@ export function useClients(userId: string | null): UseClientsReturn {
       projectName?: string,
       isAmend?: boolean,
       amendN?: number,
+      origQNo?: string,
     ): Promise<string | null> => {
       if (!userId) return "Not authenticated";
 
@@ -591,9 +593,10 @@ export function useClients(userId: string | null): UseClientsReturn {
       );
 
       // ── Amendment ─────────────────────────────────────────
+      // origQNo is the original QUO-... number from prefill; quoteDoc.qNo is AMD-...
       if (isAmend && existingClient) {
         const existingProject = existingClient.projects.find(
-          p => p.qd?.qNo === quoteDoc.qNo
+          p => p.qd?.qNo === (origQNo || quoteDoc.qNo)
         );
         if (!existingProject) return "Project not found";
 
@@ -611,9 +614,10 @@ export function useClients(userId: string | null): UseClientsReturn {
       }
 
       // ── Revision ──────────────────────────────────────────
+      // For revisions quoteDoc.qNo is the original QUO number (unchanged), origQNo also works
       if (isRevision && existingClient) {
         const existingProject = existingClient.projects.find(
-          p => p.qd?.qNo === quoteDoc.qNo
+          p => p.qd?.qNo === (origQNo || quoteDoc.qNo)
         );
         if (!existingProject) return "Project not found";
         return updateProject(existingClient.id, existingProject.id, {

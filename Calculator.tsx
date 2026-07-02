@@ -61,7 +61,7 @@ interface CalcProps {
   rc:          any;
   prefill:     any;
   clearPrefill:() => void;
-  saveQuote:   (doc: any, brand: string, contact: string, isRev: boolean, revN: number, projName?: string, isAmend?: boolean, amendN?: number) => Promise<string | null>;
+  saveQuote:   (doc: any, brand: string, contact: string, isRev: boolean, revN: number, projName?: string, isAmend?: boolean, amendN?: number, origQNo?: string) => Promise<string | null>;
   onAfterSave: (brand: string, qNo?: string) => void;
 }
 
@@ -241,8 +241,9 @@ export default function Calculator({
           await saveQuote(
             { ...doc, id: uid(), status: isAmend ? "production" : "quoted" },
             doc.brand, doc.contact, isRev, revN, projName, isAmend, amendN,
+            prefill?.qNo,
           );
-          if (onAfterSave) onAfterSave(doc.brand || brand, isAmend ? undefined : doc.qNo);
+          if (onAfterSave) onAfterSave(doc.brand || brand, isAmend ? null : doc.qNo);
         }}
       />
     );
