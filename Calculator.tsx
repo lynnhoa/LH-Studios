@@ -238,12 +238,13 @@ export default function Calculator({
         settings={settings}
         isNew={true}
         onSave={async (doc: any) => {
-          await saveQuote(
+          const err = await saveQuote(
             { ...doc, id: uid(), status: isAmend ? "production" : "quoted" },
             doc.brand, doc.contact, isRev, revN, projName, isAmend, amendN,
             prefill?.qNo,
           );
-          if (onAfterSave) onAfterSave(doc.brand || brand, isAmend ? null : doc.qNo);
+          if (err) throw new Error(err);
+          if (onAfterSave) onAfterSave(doc.brand || brand, isAmend ? prefill?.qNo : doc.qNo);
         }}
       />
     );

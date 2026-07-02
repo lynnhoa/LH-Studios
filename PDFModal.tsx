@@ -41,6 +41,7 @@ export default function PDFModal({
   const [downloading, setDownloading]= useState(false);
   const [showEdit,   setShowEdit]    = useState(false);
   const [winW,       setWinW]        = useState(() => window.innerWidth);
+  const [saving,     setSaving]      = useState(false);
 
   // ── Page layout guards ────────────────────────────────────
   const [docHeight,       setDocHeight]       = useState(841);
@@ -175,13 +176,25 @@ export default function PDFModal({
     setSavedClean(false);
   };
 
-  const handleSave = () => {
+  const handleSave = async (): Promise<boolean> => {
+    if (saving) return false;
+    setSaving(true);
     const snap = JSON.parse(JSON.stringify(staged));
     setPreview(snap);
-    if (onSave) onSave(snap);
-    setSavedClean(true);
-    setFlash("saved");
-    setTimeout(() => setFlash(null), 2500);
+    try {
+      if (onSave) await onSave(snap);
+      setSavedClean(true);
+      setFlash("saved");
+      setTimeout(() => setFlash(null), 2500);
+      return true;
+    } catch (err) {
+      console.error("[LH Studio] Save failed:", err);
+      setFlash("error");
+      setTimeout(() => setFlash(null), 3000);
+      return false;
+    } finally {
+      setSaving(false);
+    }
   };
 
   const updStagedLine = (i: number, k: string, v: string) =>
@@ -283,7 +296,13 @@ export default function PDFModal({
               {isNew ? "It will be added to the client's project." : "Changes will be lost if you don't save."}
             </p>
             <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-              <B onClick={() => { handleSave(); setConfirmClose(false); if (onSaveClose) onSaveClose(staged); else onClose(); }}>Yes, save</B>
+              <B onClick={async () => {
+                const ok = await handleSave();
+                setConfirmClose(false);
+                if (ok) { if (onSaveClose) onSaveClose(staged); else onClose(); }
+              }} s={{ opacity: saving ? 0.5 : 1, cursor: saving ? "default" : "pointer" as const }}>
+                {saving ? "Saving…" : "Yes, save"}
+              </B>
               <B v="sec" onClick={() => { setConfirmClose(false); onClose(); }}>No, discard</B>
             </div>
           </div>
@@ -337,11 +356,11 @@ export default function PDFModal({
                 {(staged.lines || []).map((ln: any, i: number) => (
                   <div key={i} style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: 10, marginBottom: 7 }}>
                     <I value={ln.name || ""} onChange={(e: any) => updStagedLine(i, "name", e.target.value)} s={{ marginBottom: 5 }} />
-                    <I value={ln.note || ""} onChange={(e: any) => updStagedLine(i, "note", e.target.value)} s={{ marginBottom: 5, color: C.muted, fontSize: TYPE.micro.size }} placeholder="note (optional)" />
+                    <I value={ln.note || ""} onChange={(e: any) => updStagedLine(i, "note", e.target.value)} s={{ marginBottom: 5, color: C.muted }} placeholder="note (optional)" />
                     <div style={{ display: "grid", gridTemplateColumns: "56px 1fr 76px", gap: 5 }}>
-                      <I type="number" value={ln.qty || ""} onChange={(e: any) => updStagedLine(i, "qty", e.target.value)} placeholder="qty" s={{ fontSize: TYPE.micro.size }} />
-                      <I type="number" value={ln.up || ""}  onChange={(e: any) => updStagedLine(i, "up",  e.target.value)} placeholder="unit €" s={{ fontSize: TYPE.micro.size }} />
-                      <I type="number" value={ln.amt || ""} onChange={(e: any) => updStagedLine(i, "amt", e.target.value)} placeholder="total €" s={{ fontSize: TYPE.micro.size }} />
+                      <I type="number" value={ln.qty || ""} onChange={(e: any) => updStagedLine(i, "qty", e.target.value)} placeholder="qty" />
+                      <I type="number" value={ln.up || ""}  onChange={(e: any) => updStagedLine(i, "up",  e.target.value)} placeholder="unit €" />
+                      <I type="number" value={ln.amt || ""} onChange={(e: any) => updStagedLine(i, "amt", e.target.value)} placeholder="total €" />
                     </div>
                   </div>
                 ))}
@@ -370,9 +389,9 @@ export default function PDFModal({
                             <button onClick={delClause} style={{ background: "none", border: `1px solid ${C.rule}`, borderRadius: 2, cursor: "pointer", color: C.red, fontSize: TYPE.label.size, padding: "1px 6px" }}>✕</button>
                           </div>
                         </div>
-                        <I value={cl.title || ""} onChange={(e: any) => updClause("title", e.target.value)} s={{ marginBottom: 5, fontFamily: SERIF, fontSize: TYPE.micro.size }} placeholder="Clause title" />
+                        <I value={cl.title || ""} onChange={(e: any) => updClause("title", e.target.value)} s={{ marginBottom: 5, fontFamily: SERIF }} placeholder="Clause title" />
                         <textarea value={cl.text || ""} onChange={(e: any) => updClause("text", e.target.value)}
-                          style={{ width: "100%", padding: "7px 9px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: TYPE.micro.size, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 72 }}
+                          style={{ width: "100%", padding: "7px 9px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: 16, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 72 }}
                           placeholder="Clause text"
                         />
                       </div>
@@ -389,7 +408,7 @@ export default function PDFModal({
               <textarea
                 value={staged.footer || ""}
                 onChange={(e: any) => setStaged((p: any) => ({ ...p, footer: e.target.value }))}
-                style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: TYPE.micro.size, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 72 }}
+                style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: 16, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 72 }}
               />
             </div>
 
@@ -398,7 +417,10 @@ export default function PDFModal({
             {onSave && (
               <div style={{ padding: "12px 18px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>
                 {flash === "saved" && <p style={{ fontSize: TYPE.micro.size, color: C.green, margin: "0 0 7px", letterSpacing: "0.06em" }}>Saved ✓</p>}
-                <B onClick={handleSave} s={{ width: "100%", textAlign: "center" as const }}>Save</B>
+                {flash === "error" && <p style={{ fontSize: TYPE.micro.size, color: C.red, margin: "0 0 7px", letterSpacing: "0.06em" }}>Save failed — try again</p>}
+                <B onClick={handleSave} s={{ width: "100%", textAlign: "center" as const, opacity: saving ? 0.5 : 1, cursor: saving ? "default" : "pointer" as const }}>
+                  {saving ? "Saving…" : "Save"}
+                </B>
               </div>
             )}
           </div>

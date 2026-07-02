@@ -4,6 +4,8 @@
 // switchMode flips between manager/creator without signing out
 // ─────────────────────────────────────────────────────────────
 
+import { Component } from "react";
+import type { ReactNode, ErrorInfo } from "react";
 import { useAuth }      from "./useAuth";
 import { useSettings }  from "./useSettings";
 import { useClients }   from "./useClients";
@@ -13,7 +15,72 @@ import ManagerApp       from "./ManagerApp";
 import CreatorApp       from "./CreatorApp";
 import { Loading }      from "./atoms";
 import { supabaseConfigured } from "./useSupabase";
-import { C, SANS, SERIF } from "./constants";
+import { C, SANS, SERIF, TYPE } from "./constants";
+
+// ─────────────────────────────────────────────────────────────
+// ErrorBoundary — catches uncaught React errors so the app
+// never goes blank. Shows a styled fallback with a reload button.
+// ─────────────────────────────────────────────────────────────
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("[LH Studio] Uncaught error:", error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100dvh", background: C.bg, fontFamily: SANS, padding: 24 }}>
+          <div style={{ maxWidth: 420, textAlign: "center" as const }}>
+            <h1 style={{ fontFamily: SERIF, fontSize: 22, fontWeight: "normal", color: C.black, margin: "0 0 12px" }}>
+              Something went wrong
+            </h1>
+            <p style={{ fontSize: TYPE.subtext.size, color: C.muted, lineHeight: 1.7, margin: "0 0 20px" }}>
+              An unexpected error occurred. Your data is safe — just reload to continue.
+            </p>
+            {this.state.error && (
+              <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "10px 14px", marginBottom: 20, background: C.white, textAlign: "left" as const }}>
+                <p style={{ fontSize: TYPE.micro.size, fontFamily: "monospace", color: C.red, margin: 0, wordBreak: "break-word" as const }}>
+                  {this.state.error.message}
+                </p>
+              </div>
+            )}
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                padding:       "12px 32px",
+                background:    C.black,
+                color:         C.white,
+                border:        "none",
+                borderRadius:  2,
+                cursor:        "pointer",
+                fontFamily:    SANS,
+                fontSize:      TYPE.button.size,
+                letterSpacing: "0.10em",
+                textTransform: "uppercase" as const,
+                minHeight:     44,
+              }}
+            >
+              Reload App
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function EnvMissingScreen() {
   return (
@@ -43,7 +110,11 @@ function EnvMissingScreen() {
 
 export default function App() {
   if (!supabaseConfigured) return <EnvMissingScreen />;
-  return <AppInner />;
+  return (
+    <ErrorBoundary>
+      <AppInner />
+    </ErrorBoundary>
+  );
 }
 
 function AppInner() {

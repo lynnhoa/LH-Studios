@@ -16,13 +16,11 @@ export const I = ({ s, ...p }: any) => (
       border:      `1px solid ${C.rule}`,
       background:  C.bg,
       fontFamily:  SANS,
-      fontSize:    TYPE.body.size,
+      fontSize:    16,  // iOS auto-zooms inputs < 16px — never go below
       color:       C.black,
       borderRadius: 2,
       outline:     "none",
       boxSizing:   "border-box" as const,
-      // iOS PWA — prevent auto-zoom on focus
-      // font-size >= 16 prevents zoom; we handle via viewport meta instead
       WebkitAppearance: "none" as const,
       ...s,
     }}
@@ -39,7 +37,7 @@ export const S = ({ s, ...p }: any) => (
       border:       `1px solid ${C.rule}`,
       background:   C.bg,
       fontFamily:   SANS,
-      fontSize:     TYPE.body.size,
+      fontSize:     16,  // iOS auto-zooms selects < 16px — never go below
       color:        C.black,
       borderRadius: 2,
       outline:      "none",

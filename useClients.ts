@@ -4,7 +4,7 @@
 // All data fetched once, kept in local state, synced to Supabase.
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "./useSupabase";
 import { uid, today } from "./formatters";
 import { SEED_CLIENTS } from "./rateCards";
@@ -172,6 +172,11 @@ export function useClients(userId: string | null): UseClientsReturn {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
+
+  // Ref always points to latest clients — used inside saveQuote
+  // so the brand-matching lookup never uses a stale closure.
+  const clientsRef = useRef(clients);
+  clientsRef.current = clients;
 
   // ── Full fetch ────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
@@ -628,7 +633,7 @@ export function useClients(userId: string | null): UseClientsReturn {
     ): Promise<string | null> => {
       if (!userId) return "Not authenticated";
 
-      const existingClient = clients.find(
+      const existingClient = clientsRef.current.find(
         c => c.name.toLowerCase() === brand.toLowerCase()
       );
 
@@ -787,7 +792,7 @@ export function useClients(userId: string | null): UseClientsReturn {
 
       return null;
     },
-    [userId, clients, addClient, addProject, updateProject, addAmendment]
+    [userId, addClient, addProject, updateProject, addAmendment]
   );
 
   return {

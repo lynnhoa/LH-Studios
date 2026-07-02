@@ -177,11 +177,11 @@ function RateCardPreview({ card, settings, onSave, onClose }: any) {
               <I value={staged.sub || ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, sub: e.target.value }))} s={{ marginBottom: 10 }} />
               {(staged.sections || []).map((sec: any, si: number) => (
                 <div key={si} style={{ marginBottom: 10, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "8px 10px", background: C.white }}>
-                  <I value={sec.t} onChange={(e: any) => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, t: e.target.value }) }))} s={{ marginBottom: 6, fontSize: TYPE.micro.size, fontWeight: "500" }} />
+                  <I value={sec.t} onChange={(e: any) => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, t: e.target.value }) }))} s={{ marginBottom: 6, fontWeight: "500" }} />
                   {sec.items.map((it: any) => (
                     <div key={it.id} style={{ display: "flex", gap: 5, alignItems: "center", marginBottom: 4 }}>
-                      <I value={it.n} onChange={(e: any) => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, items: s.items.map((x: any) => x.id !== it.id ? x : { ...x, n: e.target.value }) }) }))} s={{ flex: 2, fontSize: TYPE.micro.size }} />
-                      <I type="number" value={it.p ?? ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, items: s.items.map((x: any) => x.id !== it.id ? x : { ...x, p: e.target.value === "" ? null : parseFloat(e.target.value) || 0 }) }) }))} s={{ width: 52, fontSize: TYPE.micro.size }} placeholder="€" />
+                      <I value={it.n} onChange={(e: any) => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, items: s.items.map((x: any) => x.id !== it.id ? x : { ...x, n: e.target.value }) }) }))} s={{ flex: 2 }} />
+                      <I type="number" value={it.p ?? ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, items: s.items.map((x: any) => x.id !== it.id ? x : { ...x, p: e.target.value === "" ? null : parseFloat(e.target.value) || 0 }) }) }))} s={{ width: 64 }} placeholder="€" />
                       <button onClick={() => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, items: s.items.filter((x: any) => x.id !== it.id) }) }))} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, padding: 0 }}>✕</button>
                     </div>
                   ))}
@@ -299,7 +299,7 @@ function AddRateCardModal({ rc, onSave, onClose }: any) {
               return (
                 <div key={sec.id} style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "11px 12px", marginBottom: 10, background: C.white }}>
                   <div style={{ display: "flex", gap: 7, alignItems: "center", marginBottom: 8 }}>
-                    <I value={sec.t} onChange={(e: any) => setSections(prev => prev.map((s, i) => i !== si ? s : { ...s, t: e.target.value }))} s={{ flex: 1, fontSize: TYPE.micro.size, fontWeight: "500" }} />
+                    <I value={sec.t} onChange={(e: any) => setSections(prev => prev.map((s, i) => i !== si ? s : { ...s, t: e.target.value }))} s={{ flex: 1, fontWeight: "500" }} />
                     <button onClick={() => setSections(prev => prev.filter((_, i) => i !== si))} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, fontSize: 13, padding: 0 }}>✕</button>
                   </div>
                   {sec.items.map((it: any) => (

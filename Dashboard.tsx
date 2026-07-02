@@ -179,10 +179,10 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
         <DrillTitle title="Active Projects" value={fmt(totalActive)} />
         <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: "-10px 0 16px" }}>{filteredProjects.length} of {activeProjects.length} project{activeProjects.length !== 1 ? "s" : ""} in progress</p>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 5, marginBottom: 16 }}>
-          <S value={pFilter} onChange={(e: any) => setPFilter(e.target.value)} s={{ fontSize: TYPE.label.size, padding: "5px 10px" }}>
+          <S value={pFilter} onChange={(e: any) => setPFilter(e.target.value)} s={{ padding: "5px 10px" }}>
             {[["all","All"],["production","Production"],["contracted","Contracted"],["invoiced","Invoiced"],["quoted","Quoted"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
           </S>
-          <S value={pSort} onChange={(e: any) => setPSort(e.target.value)} s={{ fontSize: TYPE.label.size, padding: "5px 10px" }}>
+          <S value={pSort} onChange={(e: any) => setPSort(e.target.value)} s={{ padding: "5px 10px" }}>
             {[["status","By Stage"],["amount_hi","Amount ↓"],["amount_lo","Amount ↑"],["delivery","Delivery"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
           </S>
         </div>
@@ -218,11 +218,11 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
         <DrillTitle title="Revenue" value={fmt(rev)} />
         <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: "-10px 0 16px" }}>{paid.length} paid project{paid.length !== 1 ? "s" : ""} · all time</p>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 5, marginBottom: 20 }}>
-          <S value={revYear} onChange={(e: any) => setRevYear(e.target.value)} s={{ fontSize: TYPE.label.size, padding: "5px 10px" }}>
+          <S value={revYear} onChange={(e: any) => setRevYear(e.target.value)} s={{ padding: "5px 10px" }}>
             <option value="all">All years</option>
             {allYears.map((y: number) => <option key={y} value={String(y)}>{y}</option>)}
           </S>
-          <S value={revSort} onChange={(e: any) => setRevSort(e.target.value)} s={{ fontSize: TYPE.label.size, padding: "5px 10px" }}>
+          <S value={revSort} onChange={(e: any) => setRevSort(e.target.value)} s={{ padding: "5px 10px" }}>
             {[["date_new","Newest first"],["date_old","Oldest first"],["amount_hi","Amount ↓"],["amount_lo","Amount ↑"],["client","Client A→Z"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
           </S>
         </div>
@@ -443,7 +443,7 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <select value={invYear} onChange={(e: any)=>{setInvYear(e.target.value);setInvSel(new Set());}} style={{height:28,padding:"0 8px",border:`1px solid ${C.rule}`,borderRadius:2,background:C.bg,fontFamily:SANS,fontSize:TYPE.label.size,color:C.black,outline:"none"}}>
+          <select value={invYear} onChange={(e: any)=>{setInvYear(e.target.value);setInvSel(new Set());}} style={{height:34,padding:"0 8px",border:`1px solid ${C.rule}`,borderRadius:2,background:C.bg,fontFamily:SANS,fontSize:16,color:C.black,outline:"none"}}>
             {periodOpts.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
           <button onClick={()=>exportCsv(filteredInv,invYear==="all"?"all_invoices":invYear)} style={{height:28,padding:"0 10px",border:`1px solid ${C.rule}`,borderRadius:2,background:C.bg,cursor:"pointer",fontFamily:SANS,fontSize:TYPE.label.size,color:C.muted}}>Export CSV</button>

@@ -109,7 +109,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard }: ServiceCa
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
             {edit ? (
               <div style={{ display: "flex", gap: 6, flex: 1, alignItems: "center" }}>
-                <I value={sec.t} onChange={(e: any) => upSecTitle(si, e.target.value)} s={{ flex: 1, fontSize: TYPE.micro.size }} />
+                <I value={sec.t} onChange={(e: any) => upSecTitle(si, e.target.value)} s={{ flex: 1 }} />
                 <button onClick={() => remSection(si)} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, fontSize: 13, padding: 0 }}>✕</button>
               </div>
             ) : (
@@ -153,7 +153,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard }: ServiceCa
           <textarea
             value={card.fine || ""}
             onChange={(e: any) => upFine(e.target.value)}
-            style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: TYPE.micro.size, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 64 }}
+            style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: 16, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 64 }}
           />
         </div>
       ) : (

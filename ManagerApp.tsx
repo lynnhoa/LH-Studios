@@ -479,6 +479,7 @@ export default function ManagerApp({
             onAfterSave={(_brand: string, qNo?: string | null) => {
               // Old-app behavior: after saving a quote, land on the Projects tab
               // with the new project auto-expanded + scrolled (via pendingProjectQNo).
+              setPrefill(null);
               setTimeout(() => goToProjects(qNo ?? undefined), 100);
             }}
             saveQuote={clientsHook.saveQuote}
