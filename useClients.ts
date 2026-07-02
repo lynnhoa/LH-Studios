@@ -664,32 +664,17 @@ export function useClients(userId: string | null): UseClientsReturn {
       }
 
       // ── New client + new project ───────────────────────────
-      const clientId = uid();
-      const newClient: Client = {
-        id:       clientId,
-        name:     brand || "New Client",
-        contact:  contact || "",
-        email:    "",
-        agency:   "Direct",
-        country:  "Germany",
-        tags:     [],
-        notes:    "",
-        projects: [],
-      };
+      // Atomic local state update: add client AND project in one setClients call
+      // to avoid the React state race where addProject's updateClientLocal fires
+      // before addClient's setClients has flushed, causing the project card to
+      // never appear in the UI even though both DB inserts succeed.
+      const clientId  = uid();
+      const projectId = uid();
+      const name      = projectName?.trim() || brand || "Untitled Project";
+      const now       = new Date().toISOString();
 
-      const clientErr = await addClient({
-        name:    newClient.name,
-        contact: newClient.contact,
-        email:   newClient.email,
-        agency:  newClient.agency,
-        country: newClient.country,
-        tags:    newClient.tags,
-        notes:   newClient.notes,
-      });
-      if (clientErr) return clientErr;
-
-      const name = projectName?.trim() || brand || "Untitled Project";
-      return addProject(clientId, {
+      const newProject: Project = {
+        id:                     projectId,
         clientId,
         name,
         status:                 "quoted",
@@ -709,7 +694,56 @@ export function useClients(userId: string | null): UseClientsReturn {
         workspaceDeleted:       [],
         workspacePlanner:       {},
         managerStatus:          {},
+        createdAt:              now,
+      };
+
+      const newClient: Client = {
+        id:       clientId,
+        name:     brand || "New Client",
+        contact:  contact || "",
+        email:    "",
+        agency:   "Direct",
+        country:  "Germany",
+        tags:     [],
+        notes:    "",
+        projects: [newProject],
+      };
+
+      // Single state update — client card + project card appear together
+      setClients(prev => [newClient, ...prev]);
+
+      // DB inserts (client first so FK constraint on projects.client_id is satisfied)
+      const { error: clientInsertErr } = await supabase.from("clients").insert({
+        id:       clientId,
+        user_id:  userId,
+        name:     newClient.name,
+        contact:  newClient.contact,
+        email:    newClient.email,
+        agency:   newClient.agency,
+        country:  newClient.country,
+        tags:     newClient.tags,
+        notes:    newClient.notes,
       });
+      if (clientInsertErr) { setError(clientInsertErr.message); return clientInsertErr.message; }
+
+      const { error: projectInsertErr } = await supabase.from("projects").insert({
+        id:                 projectId,
+        user_id:            userId,
+        client_id:          clientId,
+        name,
+        status:             newProject.status,
+        amount:             newProject.amount,
+        paid:               newProject.paid,
+        date:               newProject.date,
+        delivery_date:      null,
+        usage_end_override: null,
+        notes:              newProject.notes,
+        quote_doc:          newProject.qd,
+        created_at:         now,
+      });
+      if (projectInsertErr) { setError(projectInsertErr.message); return projectInsertErr.message; }
+
+      return null;
     },
     [userId, clients, addClient, addProject, updateProject, addAmendment]
   );
