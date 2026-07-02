@@ -184,13 +184,7 @@ export function useClients(userId: string | null): UseClientsReturn {
 
     setLoading(true);
 
-    const [
-      { data: cRows, error: cErr },
-      { data: pRows, error: pErr },
-      { data: aRows, error: aErr },
-      { data: rRows, error: rErr },
-      { data: dRows, error: dErr },
-    ] = await Promise.all([
+    const results = await Promise.all([
       supabase.from("clients")     .select("*").eq("user_id", userId).order("created_at"),
       supabase.from("projects")    .select("*").eq("user_id", userId).order("created_at"),
       supabase.from("amendments")  .select("*").eq("user_id", userId).order("created_at"),
@@ -198,7 +192,13 @@ export function useClients(userId: string | null): UseClientsReturn {
       supabase.from("deliverables").select("*").eq("user_id", userId),
     ]);
 
-    const err = cErr || pErr || aErr || rErr || dErr;
+    const cRows = results[0]?.data;
+    const pRows = results[1]?.data;
+    const aRows = results[2]?.data;
+    const rRows = results[3]?.data;
+    const dRows = results[4]?.data;
+
+    const err = results[0]?.error || results[1]?.error || results[2]?.error || results[3]?.error || results[4]?.error;
     if (err) { setError(err.message); setLoading(false); return; }
 
     // Seed clients if first login

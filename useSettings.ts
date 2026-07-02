@@ -82,12 +82,35 @@ export function useSettings(userId: string | null): UseSettingsReturn {
       .select("*")
       .eq("id", userId)
       .single()
-      .then(({ data, error }) => {
-        if (error) {
-          setError(error.message);
-        } else if (data) {
+      .then(async (res) => {
+        const data = res?.data;
+        const error = res?.error;
+
+        if (data) {
           setSettings(rowToSettings(data));
+          setLoading(false);
+          return;
         }
+
+        // Profile missing (new user or table was recreated) — create one
+        if (error?.code === "PGRST116" || !data) {
+          const { error: insertErr } = await supabase
+            .from("profiles")
+            .insert({ id: userId })
+            .single();
+          if (insertErr) {
+            // Insert may fail if row already exists (race condition) — that's OK
+            console.warn("[LH Studio] Profile insert:", insertErr.message);
+          }
+          setSettings({ ...SETTINGS_DEFAULT });
+        } else if (error) {
+          setError(error.message);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("[LH Studio] Profile fetch failed:", err);
+        setSettings({ ...SETTINGS_DEFAULT });
         setLoading(false);
       });
   }, [userId]);
