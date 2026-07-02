@@ -41,6 +41,7 @@ interface ManagerAppProps {
   clientsHook:     any;
   rateCardsHook:   any;
   signOut:         () => Promise<void>;
+  switchMode:      () => void;
 }
 
 export default function ManagerApp({
@@ -49,6 +50,7 @@ export default function ManagerApp({
   clientsHook,
   rateCardsHook,
   signOut,
+  switchMode,
 }: ManagerAppProps) {
   const [nav,      setNav]      = useState(NAV_DASHBOARD);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -230,6 +232,30 @@ export default function ManagerApp({
               {label}
             </button>
           ))}
+
+          <div style={{ borderTop: `1px solid ${C.rule}` }} />
+
+          {/* Switch mode */}
+          <button
+            onClick={() => { setMenuOpen(false); switchMode(); }}
+            style={{
+              display:    "flex",
+              alignItems: "center",
+              width:      "100%",
+              padding:    "11px 16px",
+              background: "none",
+              border:     "none",
+              cursor:     "pointer",
+              textAlign:  "left" as const,
+              fontFamily: SANS,
+              fontSize:   TYPE.label.size,
+              color:      C.muted,
+              letterSpacing: "0.04em",
+              boxSizing:  "border-box" as const,
+            }}
+          >
+            Switch to Creator
+          </button>
 
           <div style={{ borderTop: `1px solid ${C.rule}` }} />
 

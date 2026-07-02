@@ -1,8 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // useAuth — Supabase auth hook
-// Auth: Supabase email + password
-// Role: set by toggle at login time, stored in sessionStorage
-//       so page refresh keeps the role until sign out.
+// Auth via Supabase. Role set by toggle at login, stored in
+// sessionStorage. switchMode flips role without signing out.
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
@@ -17,8 +16,9 @@ interface AuthState {
 }
 
 interface UseAuthReturn extends AuthState {
-  signIn:  (email: string, password: string, role: Role) => Promise<string | null>;
-  signOut: () => Promise<void>;
+  signIn:     (email: string, password: string, role: Role) => Promise<string | null>;
+  signOut:    () => Promise<void>;
+  switchMode: () => void;
 }
 
 const ROLE_KEY = "lh_studio_role";
@@ -70,18 +70,14 @@ export function useAuth(): UseAuthReturn {
     role: Role
   ): Promise<string | null> => {
     setState(s => ({ ...s, loading: true, error: null }));
-
-    // Save chosen role before auth so onAuthStateChange can read it
     sessionStorage.setItem(ROLE_KEY, role);
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-
     if (error) {
       sessionStorage.removeItem(ROLE_KEY);
       setState(s => ({ ...s, loading: false, error: error.message }));
       return error.message;
     }
-
     return null;
   };
 
@@ -90,5 +86,14 @@ export function useAuth(): UseAuthReturn {
     await supabase.auth.signOut();
   };
 
-  return { ...state, signIn, signOut };
+  // Flip between manager and creator without signing out
+  const switchMode = () => {
+    setState(s => {
+      const next: Role = s.role === "manager" ? "creator" : "manager";
+      sessionStorage.setItem(ROLE_KEY, next);
+      return { ...s, role: next };
+    });
+  };
+
+  return { ...state, signIn, signOut, switchMode };
 }

@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // App.tsx — root component
 // Auth gate → role from toggle → ManagerApp or CreatorApp
+// switchMode flips between manager/creator without signing out
 // ─────────────────────────────────────────────────────────────
 
 import { useAuth }      from "./useAuth";
@@ -46,7 +47,7 @@ export default function App() {
 }
 
 function AppInner() {
-  const { userId, role, loading: authLoading, signIn, signOut } = useAuth();
+  const { userId, role, loading: authLoading, signIn, signOut, switchMode } = useAuth();
   const { settings, updateSettings } = useSettings(userId);
   const clientsHook   = useClients(userId);
   const rateCardsHook = useRateCards(userId);
@@ -65,6 +66,7 @@ function AppInner() {
         clientsHook={clientsHook}
         rateCardsHook={rateCardsHook}
         signOut={signOut}
+        switchMode={switchMode}
       />
     );
   }
@@ -74,6 +76,7 @@ function AppInner() {
       settings={settings}
       clientsHook={clientsHook}
       signOut={signOut}
+      switchMode={switchMode}
     />
   );
 }
