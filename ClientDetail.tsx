@@ -217,6 +217,7 @@ export default function ClientDetail({
               onAmend={onAmend}
               highlighted={pr.qd?.qNo === highlightedQNo}
               onClearHighlight={onClearHighlight}
+              readOnly={true}
             />
           ))}
         </div>

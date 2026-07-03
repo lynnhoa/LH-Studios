@@ -6,7 +6,7 @@ import PDFModalComponent from "./PDFModal";
 
 import { useState, useEffect, useRef } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
-import { fmt, fmtD, addM, today, uid } from "./formatters";
+import { fmt, fmtD, fmtE, addM, today, uid } from "./formatters";
 import { I, B, StatusBadge } from "./atoms";
 import { STATUS } from "./rateCards";
 import RenewalModal from "./RenewalModal";
@@ -23,8 +23,8 @@ interface ProjectCardProps {
   onAmend:          (pr: any, cl: any) => void;
   highlighted?:     boolean;
   onClearHighlight?:() => void;
-  // optional — used in ProjectsTab where client name shown
   showClientName?:  boolean;
+  readOnly?:        boolean;  // NEW: ClientDetail (read-only) vs ProjectsTab (editable)
 }
 
 function scol(s: string): string {
@@ -77,11 +77,12 @@ function ProjectLicenseTracker({ pr }: { pr: any }) {
 export default function ProjectCard({
   pr, cl, clients, isMobile, settings, rc,
   clientsHook, onRevise, onAmend,
-  highlighted, onClearHighlight, showClientName,
+  highlighted, onClearHighlight, showClientName, readOnly,
 }: ProjectCardProps) {
 
   const [pdf,      setPdf]      = useState<any>(null);
   const [renewT,   setRenewT]   = useState<any>(null);
+  const [open,     setOpen]     = useState(false);  // NEW: expandable
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -159,19 +160,32 @@ export default function ProjectCard({
   return (
     <div
       ref={cardRef}
-      style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "13px 14px", marginBottom: 10, opacity: pr.paid ? 0.6 : 1 }}
+      style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "13px 14px", marginBottom: 10, opacity: pr.paid ? 0.55 : 1 }}
     >
-      {/* ── HEADER ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: isMobile ? 10 : 7 }}>
+      {/* ── HEADER (Clickable if readOnly to expand) ── */}
+      <div
+        onClick={() => readOnly && setOpen(!open)}
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          marginBottom: isMobile ? 10 : 7,
+          cursor: readOnly ? "pointer" : "default",
+        }}
+      >
         <div>
           {showClientName && <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "0 0 2px", letterSpacing: "0.04em" }}>{cl.name}</p>}
           <p style={{ fontSize: isMobile ? TYPE.sectionHeading.size : TYPE.subtext.size, color: C.black, margin: "0 0 2px", fontWeight: "500" }}>{pr.name}</p>
           <p style={{ fontSize: isMobile ? TYPE.subtext.size : TYPE.label.size, color: C.muted, margin: "0 0 5px" }}>{fmtD(pr.date)}</p>
           <StatusBadge status={statusLabel} />
         </div>
-        <div style={{ textAlign: "right" as const }}>
-          <p style={{ fontFamily: SERIF, fontSize: isMobile ? TYPE.amount.size : TYPE.sectionHeading.size, color: C.black, margin: "0 0 2px" }}>{fmt(pr.amount)}</p>
-          {(pr.amendments || []).length > 0 && <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: 0 }}>incl. {pr.amendments.length} amend.</p>}
+        <div style={{ textAlign: "right" as const, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+          <p style={{ fontFamily: SERIF, fontSize: isMobile ? TYPE.amount.size : TYPE.sectionHeading.size, color: C.black, margin: 0 }}>{fmt(pr.amount)}</p>
+          {readOnly && (
+            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>
+              {open ? "▲" : "▼"}
+            </span>
+          )}
         </div>
       </div>
 
@@ -179,20 +193,112 @@ export default function ProjectCard({
       {["quoted","revised","contracted","production","invoiced","paid"].includes(pr.status) && (
         <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
           <span style={{ fontSize: TYPE.micro.size, color: C.muted, whiteSpace: "nowrap" as const, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>Delivery</span>
-          <I
-            type="date"
-            value={pr.deliveryDate || ""}
-            onChange={(e: any) => { const nv = e.target.value; if (!nv) return; if (!pr.deliveryDate || nv > pr.deliveryDate) upP({ deliveryDate: nv }); }}
-            s={{ fontSize: TYPE.micro.size, padding: "5px 8px", width: "auto" }}
-          />
+          {readOnly ? (
+            <span style={{ fontSize: TYPE.micro.size, color: C.black }}>{pr.deliveryDate ? fmtD(pr.deliveryDate) : "—"}</span>
+          ) : (
+            <I
+              type="date"
+              value={pr.deliveryDate || ""}
+              onChange={(e: any) => { const nv = e.target.value; if (!nv) return; if (!pr.deliveryDate || nv > pr.deliveryDate) upP({ deliveryDate: nv }); }}
+              s={{ fontSize: TYPE.micro.size, padding: "5px 8px", width: "auto" }}
+            />
+          )}
         </div>
       )}
 
-      {/* ── LICENSE TRACKER ── */}
-      <ProjectLicenseTracker pr={pr} />
+      {/* ── EXPANDABLE SECTION (ReadOnly ClientDetail mode only) ── */}
+      {readOnly && open && (
+        <div style={{ borderTop: `1px solid ${C.rule}`, paddingTop: 10, marginTop: 10 }}>
 
-      {/* ── DOCUMENTS ── */}
-      {(pr.qd || (pr.amendments || []).length > 0 || (pr.renewals || []).length > 0) && (
+          {/* Dates Section */}
+          <div style={{ marginBottom: 10 }}>
+            {pr.qd?.date && (
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
+                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.muted }}>Quote date</span>
+                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.black }}>{fmtD(pr.qd.date)}</span>
+              </div>
+            )}
+            {pr.deliveryDate && (
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
+                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.muted }}>Delivery</span>
+                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.black }}>{fmtD(pr.deliveryDate)}</span>
+              </div>
+            )}
+            {pr.qd?.validUntil && (
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
+                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.muted }}>Valid until</span>
+                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.black }}>{fmtD(pr.qd.validUntil)}</span>
+              </div>
+            )}
+            {pr.notes && (
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
+                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.muted }}>Notes</span>
+                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.black, textAlign: "right", maxWidth: "55%" }}>{pr.notes}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Line Items Summary */}
+          {pr.qd?.lines && pr.qd.lines.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <p style={{ fontFamily: "Lato", fontSize: 9, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: C.light, margin: "0 0 6px" }}>Line Items</p>
+              {pr.qd.lines.map((l: any, i: number) => (
+                <div key={l.id ?? i} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: `1px solid ${C.rule}` }}>
+                  <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.black }}>{l.name}</span>
+                  <span style={{ fontFamily: SERIF, fontSize: 10.5, color: C.muted }}>€ {fmtE(l.amt || 0)}</span>
+                </div>
+              ))}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0 0" }}>
+                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.muted }}>Total</span>
+                <span style={{ fontFamily: SERIF, fontSize: 12, color: C.black, fontWeight: "600" }}>€ {fmtE(pr.amount || 0)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* License Tracker */}
+          <ProjectLicenseTracker pr={pr} />
+
+          {/* Documents (Read-Only in ClientDetail) */}
+          {(pr.qd || (pr.amendments || []).length > 0 || (pr.renewals || []).length > 0) && (
+            <div>
+              <p style={{ fontFamily: "Lato", fontSize: 9, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: C.light, margin: "0 0 6px" }}>Documents</p>
+              <div style={{ display: "flex", gap: isMobile ? 8 : 5, flexWrap: "wrap" as const }}>
+                {pr.qd && (
+                  <button style={{ height: 24, padding: "0 9px", background: "none", border: `1px solid ${C.rule}`, borderRadius: 2, fontFamily: SANS, fontSize: 10, color: C.muted, cursor: "default", opacity: 0.6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" as const }}>
+                    {pr.qd.rev > 0 ? `Quote R${pr.qd.rev}` : "Quote"}
+                  </button>
+                )}
+                {["contracted","production","invoiced","paid"].includes(pr.status) && pr.qd && (
+                  <button style={{ height: 24, padding: "0 9px", background: "none", border: `1px solid ${C.rule}`, borderRadius: 2, fontFamily: SANS, fontSize: 10, color: C.muted, cursor: "default", opacity: 0.6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" as const }}>
+                    {pr.qd.contractRev > 0 ? `Contract R${pr.qd.contractRev}` : "Contract"}
+                  </button>
+                )}
+                {(pr.amendments || []).map((a: any, ai: number) => (
+                  <button key={ai} style={{ height: 24, padding: "0 9px", background: "none", border: `1px solid ${a.signed ? C.rule : C.amber}`, borderRadius: 2, fontFamily: SANS, fontSize: 10, color: a.signed ? C.muted : C.amber, cursor: "default", opacity: 0.6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" as const }}>
+                    Amend {ai + 1}{!a.signed ? " · unsigned" : ""}
+                  </button>
+                ))}
+                {["invoiced","paid"].includes(pr.status) && pr.qd && !pr.qd?.retainer && (
+                  <button style={{ height: 24, padding: "0 9px", background: "none", border: `1px solid ${C.rule}`, borderRadius: 2, fontFamily: SANS, fontSize: 10, color: C.muted, cursor: "default", opacity: 0.6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" as const }}>
+                    Invoice
+                  </button>
+                )}
+                {(pr.renewals || []).map((r: any, ri: number) => (
+                  r.doc && <button key={ri} style={{ height: 24, padding: "0 9px", background: "none", border: `1px solid ${C.rule}`, borderRadius: 2, fontFamily: SANS, fontSize: 10, color: C.muted, cursor: "default", opacity: 0.6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" as const }}>
+                    Renewal {ri + 1}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── LICENSE TRACKER (Always visible in editable mode) ── */}
+      {!readOnly && <ProjectLicenseTracker pr={pr} />}
+
+      {/* ── DOCUMENTS (Functional, editable mode only) ── */}
+      {!readOnly && (pr.qd || (pr.amendments || []).length > 0 || (pr.renewals || []).length > 0) && (
         <div style={{ display: "flex", gap: isMobile ? 8 : 5, flexWrap: "wrap" as const, borderTop: `1px solid ${C.rule}`, paddingTop: isMobile ? 10 : 7, marginBottom: isMobile ? 8 : 6 }}>
           {pr.qd && (
             <B v="sec" onClick={() => openPDF("quote")} s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px" }}>
@@ -226,65 +332,66 @@ export default function ProjectCard({
         </div>
       )}
 
-      {/* ── ACTIONS ── */}
-      <div style={{ display: "flex", gap: isMobile ? 8 : 5, flexWrap: "wrap" as const, alignItems: "center", paddingTop: isMobile ? 10 : 7, borderTop: `1px solid ${C.rule}` }}>
+      {/* ── ACTIONS (Editable mode only) ── */}
+      {!readOnly && (
+        <div style={{ display: "flex", gap: isMobile ? 8 : 5, flexWrap: "wrap" as const, alignItems: "center", paddingTop: isMobile ? 10 : 7, borderTop: `1px solid ${C.rule}` }}>
 
-        {["quoted","revised"].includes(pr.status) && <>
-          <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => onRevise(pr, cl)}>Revise Quote</B>
-          <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }}
-            onClick={() => { setStatus("contracted"); openPDF("contract"); }}>
-            → Contract
-          </B>
-        </>}
+          {["quoted","revised"].includes(pr.status) && <>
+            <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => onRevise(pr, cl)}>Revise Quote</B>
+            <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }}
+              onClick={() => { setStatus("contracted"); openPDF("contract"); }}>
+              → Contract
+            </B>
+          </>}
 
-        {pr.status === "contracted" && <>
-          <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => {
-            const q = pr.qd; const nextRev = (q?.contractRev || 0) + 1;
-            const iNo = `INV-${(q?.qNo || "").replace(/QUO-?/i,"").trim() || "001"}`;
-            setPdf({ data: { brand: q?.brand, contact: q?.contact, date: today(), validUntil: q?.validUntil, qNo: q?.qNo, rev: q?.rev || 0, contractRev: nextRev, clauses: q?.clauses || [], iNo, delivery: pr.deliveryDate, ctype: q?.ctype || "Content Creator", lines: q?.lines || [], amendments: pr.amendments || [], total: pr.amount, footer: "Looking forward to working together." }, type: "contract", isRevision: true, nextContractRev: nextRev });
-          }}>Revise Contract</B>
-          <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }} onClick={() => setStatus("production")}>Mark Signed</B>
-        </>}
+          {pr.status === "contracted" && <>
+            <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => {
+              const q = pr.qd; const nextRev = (q?.contractRev || 0) + 1;
+              const iNo = `INV-${(q?.qNo || "").replace(/QUO-?/i,"").trim() || "001"}`;
+              setPdf({ data: { brand: q?.brand, contact: q?.contact, date: today(), validUntil: q?.validUntil, qNo: q?.qNo, rev: q?.rev || 0, contractRev: nextRev, clauses: q?.clauses || [], iNo, delivery: pr.deliveryDate, ctype: q?.ctype || "Content Creator", lines: q?.lines || [], amendments: pr.amendments || [], total: pr.amount, footer: "Looking forward to working together." }, type: "contract", isRevision: true, nextContractRev: nextRev });
+            }}>Revise Contract</B>
+            <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }} onClick={() => setStatus("production")}>Mark Signed</B>
+          </>}
 
-        {pr.status === "production" && (
-          <B
-            s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px", opacity: pr.deliveryDate ? 1 : 0.35, cursor: pr.deliveryDate ? "pointer" : "not-allowed" as const }}
-            onClick={() => { if (!pr.deliveryDate) return; setStatus("invoiced"); openPDF("invoice"); }}
-          >
-            Create Invoice
-          </B>
-        )}
+          {pr.status === "production" && (
+            <B
+              s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px", opacity: pr.deliveryDate ? 1 : 0.35, cursor: pr.deliveryDate ? "pointer" : "not-allowed" as const }}
+              onClick={() => { if (!pr.deliveryDate) return; setStatus("invoiced"); openPDF("invoice"); }}
+            >
+              Create Invoice
+            </B>
+          )}
 
-        {pr.status === "invoiced" && !pr.paid && (
-          <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }} onClick={() => setStatus("paid")}>Mark Paid</B>
-        )}
+          {pr.status === "invoiced" && !pr.paid && (
+            <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }} onClick={() => setStatus("paid")}>Mark Paid</B>
+          )}
 
-        {pr.paid && !pr.qd?.retainer && <>
-          <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "10px 18px" : "7px 14px" }}
-            onClick={() => setRenewT(pr)}>
-            Add Renewal
-          </B>
-          <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "10px 18px" : "7px 14px" }}
-            onClick={() => upP({ paid: false, status: "invoiced" })}>
-            Undo Paid
-          </B>
-        </>}
+          {pr.paid && !pr.qd?.retainer && <>
+            <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "10px 18px" : "7px 14px" }}
+              onClick={() => setRenewT(pr)}>
+              Add Renewal
+            </B>
+            <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "10px 18px" : "7px 14px" }}
+              onClick={() => upP({ paid: false, status: "invoiced" })}>
+              Undo Paid
+            </B>
+          </>}
 
-        {!pr.paid && pr.status !== "quoted" && (
-          <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "10px 14px" : "7px 14px" }}
-            onClick={() => { const p = prv(pr.status); if (p) setStatus(p); }}>
-            Undo
-          </B>
-        )}
+          {!pr.paid && pr.status !== "quoted" && (
+            <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "10px 14px" : "7px 14px" }}
+              onClick={() => { const p = prv(pr.status); if (p) setStatus(p); }}>
+              Undo
+            </B>
+          )}
 
-        {/* Amend */}
-        {["production","invoiced","paid"].includes(pr.status) && pr.qd && (
-          <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "10px 14px" : "7px 14px" }}
-            onClick={() => onAmend(pr, cl)}>
-            + Amend
-          </B>
-        )}
-      </div>
+          {["production","invoiced","paid"].includes(pr.status) && pr.qd && (
+            <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "10px 14px" : "7px 14px" }}
+              onClick={() => onAmend(pr, cl)}>
+              + Amend
+            </B>
+          )}
+        </div>
+      )}
     </div>
   );
 }
