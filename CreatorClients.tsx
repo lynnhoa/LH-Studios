@@ -23,16 +23,16 @@ function scol(s: string): string {
 export default function CreatorClients({ clients, isMobile, onSelChange }: CreatorClientsProps) {
   const [sel, setSel] = useState<string | null>(null);
 
-  const activeClients = clients.filter(c => c.projects.some((pr: any) => pr.status === "production"));
+  const activeClients = clients.filter(c => c.projects.some((pr: any) => pr.status === "production" || pr.status === "contracted"));
   const pastClients   = clients.filter(c =>
-    !c.projects.some((pr: any) => pr.status === "production") &&
+    !c.projects.some((pr: any) => pr.status === "production" || pr.status === "contracted") &&
      c.projects.some((pr: any) => pr.status === "invoiced" || pr.status === "paid")
   );
   const selClient = sel ? clients.find(c => c.id === sel) : null;
 
   // ── Progress bars per line group ─────────────────────────
   const LineRows = ({ c }: { c: any }) => {
-    const pr = c.projects.find((p: any) => p.status === "production");
+    const pr = c.projects.find((p: any) => p.status === "production") || c.projects.find((p: any) => p.status === "contracted");
     if (!pr) return null;
     return (
       <div style={{ display: "flex", flexDirection: "column" as const, gap: 5, marginTop: 8 }}>
@@ -61,7 +61,7 @@ export default function CreatorClients({ clients, isMobile, onSelChange }: Creat
   const Detail = ({ c }: { c: any }) => {
     const allPr = (c.projects || []).slice().sort((a: any,b: any) => (b.createdAt||0) - (a.createdAt||0));
     const totalEarned  = allPr.filter((p: any) => p.status === "paid").reduce((s: number,p: any) => s + (p.amount||0), 0);
-    const activePrs    = allPr.filter((p: any) => p.status === "production");
+    const activePrs    = allPr.filter((p: any) => p.status === "production" || p.status === "contracted");
     return (
       <div style={{ flex: 1, minWidth: 0, overflowY: isMobile ? undefined : "auto", maxHeight: isMobile ? undefined : "calc(100vh - 80px)", paddingLeft: isMobile ? 0 : 4 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
@@ -126,7 +126,7 @@ export default function CreatorClients({ clients, isMobile, onSelChange }: Creat
 
   // ── Client card (list item) ───────────────────────────────
   const ClientCard = ({ c, isActive }: { c: any; isActive: boolean }) => {
-    const pr = c.projects.find((p: any) => p.status === "production");
+    const pr = c.projects.find((p: any) => p.status === "production") || c.projects.find((p: any) => p.status === "contracted");
     const dl = dLeft(pr?.deliveryDate);
     return (
       <div onClick={() => setSel(c.id)}

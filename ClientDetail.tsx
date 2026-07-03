@@ -59,6 +59,9 @@ export default function ClientDetail({
   };
 
   const deleteClient = async () => {
+    const nProj = (cl.projects || []).length;
+    const msg = `Delete "${cl.name}"${nProj > 0 ? ` and ${nProj} project${nProj > 1 ? "s" : ""} (quotes, contracts, invoices, renewals)` : ""}? This cannot be undone.`;
+    if (!window.confirm(msg)) return;
     await clientsHook.deleteClient(cl.id);
     setSel(null);
   };
@@ -68,7 +71,7 @@ export default function ClientDetail({
     await clientsHook.addProject(cl.id, {
       clientId:               cl.id,
       name:                   newPN,
-      status:                 "quoted",
+      status:                 "lead",
       amount:                 0,
       paid:                   false,
       date:                   today(),

@@ -33,10 +33,17 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings }: any) 
   const [selQty, setSelQty] = useState<Record<string, number>>({});
   const setQty = (key: string, max: number, val: number) =>
     setSelQty(p => ({ ...p, [key]: Math.max(0, Math.min(max, val)) }));
+  // Per-unit effective price = line amount / line qty, so usage rights,
+  // exclusivity, and add-on uplifts baked into amt are carried into the
+  // renewal base. Falls back to `up` if amt is missing.
   const base = allLines.reduce((s: number, l: any, i: number) => {
     const key = l.id || `line_${i}`;
     const qty = selQty[key] || 0;
-    return s + (parseFloat(l.up || 0) * qty);
+    if (!qty) return s;
+    const lineAmt = parseFloat(l.amt) || 0;
+    const lineQty = Math.max(1, parseInt(l.qty) || 1);
+    const unit = lineAmt > 0 ? lineAmt / lineQty : (parseFloat(l.up) || 0);
+    return s + unit * qty;
   }, 0);
 
   // 02 usage rights

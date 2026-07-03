@@ -28,13 +28,17 @@ interface ClientListProps {
 
 function usageEnd(pr: any): string | null {
   if (!pr.deliveryDate || !pr.qd) return null;
-  const ul = (pr.qd?.lines || []).find((l: any) => l.usageLabel);
+  // Longest usage period across ALL lines (matches Calculator 'mo' logic)
+  let mo: number | null = pr.qd?.mo && pr.qd.mo > 0 ? pr.qd.mo : null;
+  (pr.qd?.lines || []).forEach((l: any) => {
+    if (!l.usageLabel) return;
+    const m = String(l.usageLabel).match(/(\d+)\s*month/i);
+    const itemMo = m ? parseInt(m[1]) : null;
+    if (itemMo && (!mo || itemMo > mo)) mo = itemMo;
+  });
   const hasRenewals = (pr.renewals || []).length > 0;
-  if (!ul?.usageLabel && !hasRenewals) return null;
+  if (!mo && !hasRenewals) return null;
   if (pr.usageEndOverride) return pr.usageEndOverride;
-  if (!ul?.usageLabel) return null;
-  const m = ul.usageLabel.match(/(\d+)\s*month/i);
-  const mo = m ? parseInt(m[1]) : null;
   return mo ? addM(pr.deliveryDate, mo) : null;
 }
 

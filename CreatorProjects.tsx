@@ -49,7 +49,7 @@ export default function CreatorProjects({ clients, isMobile }: CreatorProjectsPr
   const allProjects: any[] = [];
   clients.forEach(c => (c.projects || []).forEach((pr: any) => allProjects.push({ ...pr, clientName: c.name, clientId: c.id })));
 
-  const active = allProjects.filter(pr => pr.status === "production").sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+  const active = allProjects.filter(pr => pr.status === "production" || pr.status === "contracted").sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
   const done   = allProjects.filter(pr => pr.status === "invoiced" || pr.status === "paid").sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
   const allIds = [...active, ...done].map(pr => pr.id);
   const allCollapsed = allIds.length > 0 && allIds.every(id => collapsed[id] === true);

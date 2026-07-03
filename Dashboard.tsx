@@ -20,10 +20,14 @@ const ageCol  = (d: number | null) => d === null ? C.muted : d >= 14 ? C.red : d
 function getUsageEnd(pr: any): string | null {
   if (!pr.deliveryDate || !pr.qd) return null;
   if (pr.usageEndOverride) return pr.usageEndOverride;
-  const ul = (pr.qd?.lines || []).find((l: any) => l.usageLabel);
-  if (!ul?.usageLabel) return null;
-  const m = ul.usageLabel.match(/(\d+)\s*month/i);
-  const mo = m ? parseInt(m[1]) : null;
+  // Longest usage period across ALL lines (matches Calculator 'mo' logic)
+  let mo: number | null = pr.qd?.mo && pr.qd.mo > 0 ? pr.qd.mo : null;
+  (pr.qd?.lines || []).forEach((l: any) => {
+    if (!l.usageLabel) return;
+    const m = String(l.usageLabel).match(/(\d+)\s*month/i);
+    const itemMo = m ? parseInt(m[1]) : null;
+    if (itemMo && (!mo || itemMo > mo)) mo = itemMo;
+  });
   return mo ? addM(pr.deliveryDate, mo) : null;
 }
 
