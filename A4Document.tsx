@@ -70,36 +70,22 @@ export default function A4Document({
     </div>
   );
 
-  const catBadge: Record<string, string> = {
-    influencer: "Brand Collaboration",
-    ugc:        "UGC Creator",
-    editorial:  "Editorial",
-  };
-
-  const inferCat = (name: string, cat?: string) => {
-    if (cat) return cat;
-    const n = name.toLowerCase();
-    return n.includes("hero") || n.includes("editorial") || n.includes("photo story") || n.includes("mini set") ? "editorial"
-         : n.includes("ugc") || n.includes("campaign video") ? "ugc"
-         : "influencer";
-  };
+  const catBadgeLabel: Record<string, string> = { influencer: "Brand Collaboration", ugc: "UGC Creator", editorial: "Editorial" };
 
   const TRow = ({ ln, prevLn, idx }: any) => {
-    const ic       = inferCat(ln.name || "", ln.cat);
-    const prevIc   = prevLn ? inferCat(prevLn.name || "", prevLn.cat) : null;
-    const showCat  = !!(catBadge[ic] && ic !== prevIc);
+    const showCat = !!(ln.cat && catBadgeLabel[ln.cat] && ln.cat !== (prevLn?.cat));
     const subDetails = [ln.usageLabel, ln.exclLabel, ...(ln.addons || []), ...(ln.platforms || [])].filter(Boolean);
     return (
       <div data-trow={idx} style={{ paddingTop: tRowGuards?.[idx] || 0, borderBottom: `1px solid ${C.rule}` }}>
         {showCat && (
           <div style={{ paddingTop: 10, paddingBottom: 1 }}>
-            <span style={{ fontSize: 5.5, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: C.light }}>{catBadge[ic]}</span>
+            <span style={{ fontSize: 5.5, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: C.light }}>{catBadgeLabel[ln.cat]}</span>
           </div>
         )}
         <div style={{ padding: "4px 0", display: "grid", gridTemplateColumns: "1fr 28px 52px 46px", alignItems: "baseline" }}>
           <div>
             <span style={{ fontSize: 8.5 }}>{ln.name}</span>
-            {ln.note      && <span style={{ fontSize: 7, color: C.light, display: "block" }}>{ln.note}</span>}
+            {ln.note && <span style={{ fontSize: 7, color: C.light, display: "block" }}>{ln.note}</span>}
             {subDetails.length > 0 && <span style={{ fontSize: 7, color: C.muted, display: "block" }}>{subDetails.join(" · ")}</span>}
           </div>
           <span style={{ fontSize: 8, textAlign: "right" as const, color: C.muted }}>{ln.qty || ""}</span>
@@ -111,17 +97,13 @@ export default function A4Document({
   };
 
   // ── Default contract clauses ──────────────────────────────
-  const _dc    = s.company || s.name || (l ? "Der/Die Auftragnehmer/in" : "The creator");
-  const _total = fmt(linesSum);
-  const _dd    = deliverablesList || (l ? "den vereinbarten Content gemäß Angebot" : "the content as per the agreed quote");
-
   const defClauses = [
-    { title: l ? "§ 1 — Vertragsgegenstand" : "§ 1 — Subject Matter", text: l ? `${_dc} verpflichtet sich, folgende Leistungen gegen ein vereinbartes Honorar von ${_total} zu erbringen: ${_dd}. Umfang, Format und Zeitplan werden vor Produktionsbeginn schriftlich von beiden Parteien bestätigt. Das kreative Konzept bedarf der schriftlichen Freigabe beider Parteien vor Beginn der Produktion.` : `${_dc} agrees to produce and deliver the following for a total agreed fee of ${_total}: ${_dd}. The deliverable scope, format, and timeline shall be confirmed in writing by both parties prior to production. The creative concept is subject to mutual written approval before work begins.` },
-    { title: l ? "§ 2 — Lieferung" : "§ 2 — Delivery", text: l ? `${d.delivery ? "Die Inhalte sind bis zum " + fmtD(d.delivery, true) + " zu liefern. " : ""}Die Lieferung erfolgt innerhalb des schriftlich vereinbarten Zeitrahmens. Stellt der Auftraggeber erforderliche Materialien, Freigaben, Produkte oder Zugänge nicht innerhalb von 5 Werktagen nach vereinbartem Termin zur Verfügung, verlängert sich die Lieferfrist entsprechend.` : `${d.delivery ? "Content is to be delivered by " + fmtD(d.delivery) + ". " : ""}Delivery follows the project timeline confirmed at commencement. If the client delays providing required materials, approvals, products, or access by more than 5 business days beyond any agreed handover date, the delivery deadline extends by the same period.` },
-    { title: l ? "§ 3 — Korrekturen" : "§ 3 — Revisions", text: l ? "Eine (1) Korrektur je Leistung ist im Honorar enthalten. Korrekturwünsche sind innerhalb von 5 Werktagen nach Ablieferung schriftlich einzureichen; später eingereichte Anfragen können als neue Aufträge gewertet werden. Weitere Korrekturen werden nach dem jeweils gültigen Tagessatz berechnet." : "One revision per deliverable is included in the agreed fee. Revision requests must be submitted in writing within 5 business days of each delivery; requests received after this period may be treated as new work. Additional revisions are charged at the creator's current rate." },
-    { title: l ? "§ 4 — Nutzungsrechte" : "§ 4 — Usage Rights", text: l ? `${_dc} räumt dem Auftraggeber ein zeitlich begrenztes, nicht-exklusives, nicht übertragbares Nutzungsrecht an den vereinbarten Inhalten für ${platformsList || "die vereinbarten Plattformen"}, den vereinbarten Zweck, Zeitraum und Geltungsbereich ein. Urheberrecht und Persönlichkeitsrechte verbleiben ausschließlich bei ${_dc}. Es werden weder dauerhafte noch exklusive Rechte gewährt.` : `${_dc} grants the client a time-limited, non-exclusive, non-transferable licence to use the delivered content for ${platformsList || "the agreed platforms"}, purpose, duration, and territory only. All copyright, moral rights, and ownership vest exclusively in ${_dc}. No perpetual, exclusive, or sub-licensable rights are granted.` },
-    { title: l ? "§ 5 — Zahlung" : "§ 5 — Payment", text: l ? `Das Honorar in Höhe von ${fmt(total)} ist innerhalb von 14 Tagen nach Rechnungsdatum fällig. Bei Zahlungsverzug ist ${_dc} berechtigt, Verzugszinsen gemäß § 288 BGB ab dem ersten Verzugstag geltend zu machen. ${s.taxNote || "Gemäß § 19 UStG wird keine Umsatzsteuer erhoben."}` : `The total fee of ${fmt(total)} is due within 14 days of the invoice date. In the event of late payment, statutory default interest pursuant to § 288 BGB is charged from the first day of delay. ${s.taxNote || "No VAT is charged pursuant to § 19 UStG."}` },
-    { title: l ? "§ 6 — Stornierung" : "§ 6 — Cancellation", text: l ? `Stornierungen bedürfen der Schriftform. Bei Stornierung vor Produktionsbeginn sind 25 % des vereinbarten Honorars fällig. Bei Stornierung nach Produktionsbeginn sind 50 % fällig. Ist die Leistung im Wesentlichen erbracht, ist das vollständige Honorar zu entrichten.` : `Cancellation must be submitted in writing. If the client cancels before production begins, 25% of the agreed fee is due. If the client cancels after production has begun, 50% of the agreed fee is due. If the deliverable is substantially complete, the full fee is payable.` },
+    { title: l ? "§ 1 — Vertragsgegenstand" : "§ 1 — Subject Matter", text: l ? `${s.company || s.name || "Der/Die Auftragnehmer/in"} verpflichtet sich, folgende Leistungen gegen ein vereinbartes Honorar von ${fmt(total)} zu erbringen: ${deliverablesList || "den vereinbarten Content gemäß obiger Übersicht"}. Umfang, Format und Zeitplan werden vor Produktionsbeginn schriftlich von beiden Parteien bestätigt. Das kreative Konzept bedarf der schriftlichen Freigabe beider Parteien vor Beginn der Produktion.` : `${s.company || s.name || "The creator"} agrees to produce and deliver the following for a total agreed fee of ${fmt(total)}: ${deliverablesList || "the content specified above"}. The deliverable scope, format, and timeline shall be confirmed in writing by both parties prior to production. The creative concept is subject to mutual written approval before work begins.` },
+    { title: l ? "§ 2 — Lieferung" : "§ 2 — Delivery", text: l ? "Die Lieferung erfolgt innerhalb des schriftlich vereinbarten Zeitrahmens. Stellt der Auftraggeber erforderliche Materialien, Freigaben, Produkte oder Zugänge nicht innerhalb von 5 Werktagen nach vereinbartem Termin zur Verfügung, verlängert sich die Lieferfrist entsprechend. Auftraggeber-seitige Verzögerungen berechtigen nicht zur Minderung des Honorars." : "Delivery follows the project timeline confirmed at commencement. If the client delays providing required materials, approvals, products, or access by more than 5 business days beyond any agreed handover date, the delivery deadline extends by the same period. Client-caused delays do not reduce the agreed fee." },
+    { title: l ? "§ 3 — Korrekturen" : "§ 3 — Revisions", text: l ? "Eine (1) Korrektur je Leistung ist im Honorar enthalten. Korrekturwünsche sind innerhalb von 5 Werktagen nach Ablieferung schriftlich einzureichen; später eingereichte Anfragen können als neue Aufträge gewertet werden. Weitere Korrekturen werden nach dem jeweils gültigen Tagessatz berechnet. Kreativstil und redaktionelle Linie bleiben stets beim Auftragnehmer." : "One revision per deliverable is included in the agreed fee. Revision requests must be submitted in writing within 5 business days of each delivery; requests received after this period may be treated as new work. Additional revisions are charged at the creator's current rate. The creator's editorial voice and creative direction remain at the creator's sole discretion throughout." },
+    { title: l ? "§ 4 — Nutzungsrechte" : "§ 4 — Usage Rights", text: l ? `${s.company || s.name || "Der/Die Auftragnehmer/in"} räumt dem Auftraggeber ein zeitlich begrenztes, nicht-exklusives, nicht übertragbares Nutzungsrecht an den vereinbarten Inhalten für ${platformsList || "die vereinbarten Plattformen"}, den vereinbarten Zweck, Zeitraum und Geltungsbereich ein. Urheberrecht und Persönlichkeitsrechte verbleiben ausschließlich bei ${s.company || s.name || "dem/der Auftragnehmer/in"}. Es werden weder dauerhafte noch exklusive Rechte gewährt; Unterlizenzierung ist ohne schriftliche Zustimmung unzulässig. Der Auftragnehmer behält das Recht zur Verwendung der Inhalte im eigenen Portfolio. Mit Ablauf des Nutzungszeitraums fallen alle eingeräumten Rechte vollständig zurück.` : `${s.company || s.name || "The creator"} grants the client a time-limited, non-exclusive, non-transferable licence to use the delivered content for ${platformsList || "the agreed platforms"}, purpose, duration, and territory only. All copyright, moral rights, and ownership vest exclusively in ${s.company || s.name || "the creator"}. No perpetual, exclusive, or sub-licensable rights are granted; sub-licensing requires prior written consent. The creator retains the right to display the content in their portfolio and press materials. Upon expiry of the licence period, all granted rights revert in full to the creator.` },
+    { title: l ? "§ 5 — Zahlung" : "§ 5 — Payment", text: l ? `Das Honorar in Höhe von ${fmt(total)} ist innerhalb von 14 Tagen nach Rechnungsdatum fällig. Bei Zahlungsverzug ist ${s.company || s.name || "der/die Auftragnehmer/in"} berechtigt, Verzugszinsen gemäß § 288 BGB ab dem ersten Verzugstag geltend zu machen. ${s.taxNote || "Gemäß § 19 UStG wird keine Umsatzsteuer erhoben."}` : `The total fee of ${fmt(total)} is due within 14 days of the invoice date. In the event of late payment, statutory default interest pursuant to § 288 BGB is charged from the first day of delay. ${s.taxNote || "No VAT is charged pursuant to § 19 UStG."}` },
+    { title: l ? "§ 6 — Stornierung" : "§ 6 — Cancellation", text: l ? `Stornierungen bedürfen der Schriftform. Bei Stornierung vor Produktionsbeginn sind 25 % des vereinbarten Honorars fällig. Bei Stornierung nach Produktionsbeginn sind 50 % fällig. Ist die Leistung im Wesentlichen erbracht, ist das vollständige Honorar zu entrichten. Als Produktionsbeginn gilt jede Vorarbeit, Recherche, Konzeptentwicklung, Anreise, Produktion oder Beauftragung Dritter durch ${s.company || s.name || "den/die Auftragnehmer/in"} im Zusammenhang mit diesem Vertrag.` : `Cancellation must be submitted in writing. If the client cancels before production begins, 25% of the agreed fee is due. If the client cancels after production has begun, 50% of the agreed fee is due. If the deliverable is substantially complete, the full fee is payable. Production is deemed to have commenced upon any preparatory work, research, concept development, travel, filming, or third-party commitments made by ${s.company || s.name || "the creator"} in connection with this contract.` },
   ];
 
   const clauses = d.clauses && d.clauses.length > 0 ? d.clauses : defClauses;
@@ -132,8 +114,8 @@ export default function A4Document({
     if (type === "amendment") return (
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
         <div style={{ width: 175 }}>
-          <MRow lb={l ? "Ursprünglicher Betrag" : "Original Total"} v={fmt(d.origTotal || 0)} />
-          <MRow lb={l ? "Nachtragsbetrag" : "Amendment Total"} v={fmt(d.amendTotal || 0)} />
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3, fontSize: 8 }}><span style={{ color: C.muted }}>{l ? "Ursprünglicher Betrag" : "Original Total"}</span><span>{fmt(d.origTotal || 0)}</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 8 }}><span style={{ color: C.muted }}>{l ? "Nachtragsbetrag" : "Amendment Total"}</span><span>{fmt(d.amendTotal || 0)}</span></div>
           <div style={{ borderTop: `1px solid ${C.rule}`, paddingTop: 6, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <span style={{ fontSize: 6.5, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" as const }}>{l ? "Neuer Gesamtbetrag" : "New Total"}</span>
             <span style={{ fontFamily: SERIF, fontSize: 14 }}>€ {Number((d.origTotal || 0) + (d.amendTotal || 0)).toLocaleString("de-DE")}</span>
@@ -175,24 +157,21 @@ export default function A4Document({
     );
 
     return (
-      <div style={{ textAlign: "right" as const, marginBottom: 10 }}>
-        <p style={{ fontSize: 6.5, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" as const, margin: "0 0 3px" }}>{l ? "Gesamt (EUR)" : "Total (EUR)"}</p>
-        <p style={{ fontFamily: SERIF, fontSize: 15, margin: 0 }}>€ {Number(total).toLocaleString("de-DE")}</p>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+        <div style={{ textAlign: "right" as const }}>
+          <p style={{ fontSize: 6.5, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" as const, margin: "0 0 3px" }}>{l ? "Gesamt (EUR)" : "Total (EUR)"}</p>
+          <p style={{ fontFamily: SERIF, fontSize: 15, margin: 0 }}>€ {Number(total).toLocaleString("de-DE")}</p>
+        </div>
       </div>
     );
   };
 
   // ── Sort lines by category ────────────────────────────────
-  const catOrder: Record<string, number> = { influencer: 0, ugc: 1, editorial: 2 };
-  const sortLines = (arr: any[]) => [...arr].sort((a, b) => {
-    const c1 = inferCat(a.name || "", a.cat);
-    const c2 = inferCat(b.name || "", b.cat);
-    return (catOrder[c1] ?? 0) - (catOrder[c2] ?? 0);
-  });
-  const displayLines = sortLines(type === "invoice" ? allLines : baseLines);
+  // Use direct line mapping like old app (no sorting)
+  const displayLines = type === "invoice" ? allLines : baseLines;
 
   return (
-    <div style={{ padding: "120px 62px 90px", fontSize: 9.5, lineHeight: 1.5, position: "relative", minHeight: 841, fontFamily: SANS, color: C.black, background: C.bg }}>
+    <div style={{ padding: "120px 62px 90px", fontSize: 9.5, lineHeight: 1.5, position: "relative", minHeight: 841, fontFamily: SANS, color: C.black, background: C.bg, WebkitTextSizeAdjust: "100%", textSizeAdjust: "100%" } as any}>
 
       {/* ── TITLE ── */}
       <div style={{ margin: "0 0 22px" }}>
@@ -253,7 +232,7 @@ export default function A4Document({
       {type === "contract" && (d.quoteRef || "none") === "ref" && (
         <div style={{ padding: "10px 0", marginBottom: 0 }}>
           <p style={{ fontSize: 8.5, color: C.muted, margin: 0, fontStyle: "italic" }}>
-            {l ? `Bezugnehmend auf Angebot ${d.qNo || ""}${d.date ? ` vom ${fmtD(d.date, l)}` : ""}.` : `As per the agreed quote ${d.qNo || ""}${d.date ? ` dated ${fmtD(d.date)}` : ""}.`}
+            {l ? `Bezugnehmend auf Angebot ${d.qNo || ""}${d.date ? ` vom ${fmtD(d.date, l)}` : ""}.` : `As per the agreed quote ${d.qNo || ""}${d.date ? ` dated ${fmtD(d.date, l)}` : ""}.`}
           </p>
         </div>
       )}

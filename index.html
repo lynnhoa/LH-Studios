@@ -33,6 +33,11 @@
     <style>
       /* Reset */
       *, *::before, *::after { box-sizing: border-box; }
+      html {
+        /* Stop iOS Safari from inflating small text (PDF preview pages) */
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+      }
       html, body, #root {
         margin: 0;
         padding: 0;
