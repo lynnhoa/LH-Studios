@@ -2,7 +2,7 @@
 // ManagerApp — nav shell for manager role
 // Tabs:        Dashboard · Clients · Projects · Calculator
 // Avatar menu: Creator Profile · Change Password ·
-//              Service Catalog · Rate Card · Invoices
+//              Service Catalog (incl. Rate Card PDF) · Invoices
 // Desktop + iPad + PWA iOS responsive
 // ─────────────────────────────────────────────────────────────
 
@@ -17,7 +17,6 @@ import ClientList     from "./ClientList";
 import ProjectsTab    from "./ProjectsTab";
 import Calculator     from "./Calculator";
 import ServiceCatalog from "./ServiceCatalog";
-import RateCard       from "./RateCard";
 import Invoices       from "./Invoices";
 import CreatorProfile from "./CreatorProfile";
 import ChangePassword from "./ChangePassword";
@@ -30,7 +29,6 @@ const NAV_PROJECTS   = 3;
 const NAV_PROFILE    = 4;
 const NAV_PASSWORD   = 5;
 const NAV_CATALOG    = 6;
-const NAV_RATECARD   = 7;
 const NAV_INVOICES   = 8;
 
 const BREAKPOINT = 768; // iPad standard
@@ -145,7 +143,6 @@ export default function ManagerApp({
     ["Creator Profile",  NAV_PROFILE],
     ["Change Password",  NAV_PASSWORD],
     ["Service Catalog",  NAV_CATALOG],
-    ["Rate Card",        NAV_RATECARD],
     ["Invoices",         NAV_INVOICES],
   ];
 
@@ -488,13 +485,6 @@ export default function ManagerApp({
 
         {nav === NAV_CATALOG && (
           <ServiceCatalog
-            rc={rateCardsHook.rc}
-            upsertCard={rateCardsHook.upsertCard}
-          />
-        )}
-
-        {nav === NAV_RATECARD && (
-          <RateCard
             rc={rateCardsHook.rc}
             upsertCard={rateCardsHook.upsertCard}
             deleteCard={rateCardsHook.deleteCard}
