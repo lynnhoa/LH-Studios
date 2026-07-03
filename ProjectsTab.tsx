@@ -79,6 +79,7 @@ function ProjectRow({
 }) {
   const [pdf, setPdf] = useState<any>(null);
   const [renewT, setRenewT] = useState<any>(null);
+  const [amendT, setAmendT] = useState<any>(null);
   const [PDFModal, setPDFModal] = useState<any>(null);
   const rowRef = useRef<HTMLDivElement>(null);
 
@@ -124,6 +125,26 @@ function ProjectRow({
         onSave={async (r: any) => {
           await clientsHook.addRenewal(cl.id, pr.id, { ...r, signed: true });
           setRenewT(null);
+          onModalClosed();
+        }}
+      />
+    );
+  }
+
+  // Amendment — rights extension via same builder (mode="amend");
+  // "Open Calculator" escape hatch routes to the classic add-items amend flow.
+  if (amendT) {
+    return (
+      <RenewalModal
+        mode="amend"
+        p={amendT}
+        rc={{}}
+        settings={settings}
+        onClose={() => { setAmendT(null); onModalClosed(); }}
+        onCalc={() => { setAmendT(null); onModalClosed(); onAmend(pr, cl); }}
+        onSave={async (a: any) => {
+          await clientsHook.addAmendment(cl.id, pr.id, a);
+          setAmendT(null);
           onModalClosed();
         }}
       />
@@ -397,7 +418,7 @@ function ProjectRow({
 
             {!pr.paid && pr.status !== "quoted" && <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => { const p = prv(pr.status); if (p) setStatus(p); }}>← Undo</B>}
 
-            {["production","invoiced","paid"].includes(pr.status) && pr.qd && <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => onAmend(pr, cl)}>+ Amend</B>}
+            {["production","invoiced","paid"].includes(pr.status) && pr.qd && <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => setAmendT(pr)}>+ Amend</B>}
 
             {(pr.amendments || []).map((a: any, ai: number) => (
               <B key={a.id || ai} v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => clientsHook.deleteAmendment(cl.id, pr.id, a.id)}>Undo Amend {ai + 1}</B>

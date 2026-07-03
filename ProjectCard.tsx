@@ -82,6 +82,7 @@ export default function ProjectCard({
 
   const [pdf,      setPdf]      = useState<any>(null);
   const [renewT,   setRenewT]   = useState<any>(null);
+  const [amendT,   setAmendT]   = useState<any>(null);
   const [open,     setOpen]     = useState(false);  // NEW: expandable
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -121,6 +122,25 @@ export default function ProjectCard({
         onSave={async (r: any) => {
           await clientsHook.addRenewal(cl.id, pr.id, { ...r, signed: true });
           setRenewT(null);
+        }}
+      />
+    );
+  }
+
+  // Amendment — rights extension via same builder (mode="amend");
+  // "Open Calculator" escape hatch routes to the classic add-items amend flow.
+  if (amendT) {
+    return (
+      <RenewalModal
+        mode="amend"
+        p={amendT}
+        rc={rc}
+        settings={settings}
+        onClose={() => setAmendT(null)}
+        onCalc={() => { setAmendT(null); onAmend(pr, cl); }}
+        onSave={async (a: any) => {
+          await clientsHook.addAmendment(cl.id, pr.id, a);
+          setAmendT(null);
         }}
       />
     );
@@ -390,7 +410,7 @@ export default function ProjectCard({
 
           {["production","invoiced","paid"].includes(pr.status) && pr.qd && (
             <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "10px 14px" : "7px 14px" }}
-              onClick={() => onAmend(pr, cl)}>
+              onClick={() => setAmendT(pr)}>
               + Amend
             </B>
           )}

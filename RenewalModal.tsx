@@ -19,7 +19,10 @@ const CAT_FROM_ID = (id: string) => {
   return p === "i" ? "Influencer" : p === "u" ? "UGC" : p === "e" ? "Editorial" : p === "h" ? "Hotels" : "";
 };
 
-export default function RenewalModal({ p, onSave, onClose, rc, settings }: any) {
+export default function RenewalModal({ p, onSave, onClose, rc, settings, mode = "renewal", onCalc }: any) {
+  // mode: "renewal" (default, unchanged) | "amend" — same builder, but the
+  // output is an Amendment (rights extension mid-contract, item not re-charged).
+  const isAmendMode = mode === "amend";
   const q = p.qd;
   // all billable lines from quote + signed amendments
   const origLines  = (q?.lines || []).map((l: any) => ({ ...l, _src: "quote" }));
@@ -80,6 +83,7 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings }: any) 
 
   const totalFee = uFee + eFee;
   const rNo = `RNW-${(q?.qNo || "").replace("QUO", "").trim() || "001"}-${String((p.renewals || []).length + 1).padStart(2, "0")}`;
+  const aNo = `Amend ${(p.amendments || []).length + 1}`;
   const canPreview = base > 0 && (uMode !== "none" || eMode !== "none") && totalFee > 0;
 
   const [showPreview, setShowPreview] = useState(false);
@@ -103,6 +107,14 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings }: any) 
       const pctNote = eMode === "predefined" && eOpt.pct > 0 ? ` · ${fmt(base)} × ${eOpt.pct}% = ${fmt(eFee)}` : "";
       lines.push({ name: `Exclusivity — ${label}`, note: `${itemsSummary}${pctNote} · ${fmtD(startD)}${eEnd ? ` → ${fmtD(eEnd)}` : ""}`, qty: 1, up: eFee, amt: eFee });
     }
+    if (isAmendMode) return {
+      brand: q?.brand, contact: q?.contact, date: today(),
+      aNo, qNo: q?.qNo, ctype: q?.ctype || "Content Creator",
+      lines, amendTotal: totalFee, origTotal: p.amount || 0,
+      startDate: startD, endDate: endD,
+      footer: "Looking forward to working together.",
+      type: "amendment",
+    };
     return {
       brand: q?.brand, contact: q?.contact, date: today(),
       rNo, qNo: q?.qNo, ctype: q?.ctype || "Content Creator",
@@ -126,6 +138,22 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings }: any) 
 
   if (showPreview) {
     const doc = buildDoc();
+    if (isAmendMode) {
+      // Amendment record — matches addAmendment(Omit<Amendment,"id"|"createdAt">).
+      // signed:false for parity with the calculator amend flow.
+      const amendment = { aNo, lines: doc.lines, amendTotal: totalFee, origTotal: p.amount || 0, signed: false, doc };
+      return (
+        <PDFModal
+          data={doc}
+          type="amendment"
+          settings={settings}
+          isNew={true}
+          onClose={onClose}
+          onSave={() => onSave(amendment)}
+          onSaveClose={onClose}
+        />
+      );
+    }
     const renewal = { id: uid(), optLabel: [uMode !== "none" ? uOpt?.l : "", eMode !== "none" ? eOpt?.l : ""].filter(Boolean).join(" + ") || "Custom", startDate: startD, endDate: endD, fee: totalFee, rNo, signed: false, paid: false, doc };
     return (
       <PDFModal
@@ -144,15 +172,25 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings }: any) 
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ background: C.bg, width: "100%", maxWidth: 520, borderRadius: 2, padding: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.18)", maxHeight: "92vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 style={{ fontFamily: SERIF, fontSize: 17, fontWeight: "normal", margin: 0 }}>Add Renewal</h3>
+          <h3 style={{ fontFamily: SERIF, fontSize: 17, fontWeight: "normal", margin: 0 }}>{isAmendMode ? "Amendment — Rights Extension" : "Add Renewal"}</h3>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: C.muted }}>✕</button>
         </div>
-        <p style={{ fontSize: 10.5, color: C.muted, margin: "0 0 16px" }}>Project: <strong style={{ color: C.black }}>{p.name}</strong></p>
+        <p style={{ fontSize: 10.5, color: C.muted, margin: isAmendMode ? "0 0 6px" : "0 0 16px" }}>Project: <strong style={{ color: C.black }}>{p.name}</strong></p>
+        {isAmendMode && (
+          <p style={{ fontSize: 10, color: C.muted, margin: "0 0 16px" }}>
+            Extend usage rights or exclusivity on items already delivered — the item itself is not charged again.{" "}
+            {onCalc && (
+              <button onClick={onCalc} style={{ background: "none", border: "none", cursor: "pointer", color: C.black, fontSize: 10, padding: 0, textDecoration: "underline", fontFamily: SANS }}>
+                Adding new deliverables instead? Open Calculator →
+              </button>
+            )}
+          </p>
+        )}
 
         {/* 01 — Deliverables */}
         <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "13px 14px", marginBottom: 12, background: C.white }}>
           <SectionHead n="01" title="Which Deliverables" />
-          <p style={{ fontSize: 9.5, color: C.muted, margin: "0 0 8px" }}>Select items the renewal fee applies to. Their prices are the base for % calculation.</p>
+          <p style={{ fontSize: 9.5, color: C.muted, margin: "0 0 8px" }}>{isAmendMode ? "Select the contracted items the extension applies to. Their prices are the base for % calculation — items are not re-charged." : "Select items the renewal fee applies to. Their prices are the base for % calculation."}</p>
           {allLines.map((l: any, i: number) => {
             const key = l.id || `line_${i}`;
             const max = l.qty || 1;
@@ -262,7 +300,7 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings }: any) 
 
         {/* Total */}
         <div style={{ padding: "9px 12px", border: `1px solid ${C.rule}`, borderRadius: 2, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <span style={{ fontSize: 10, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>Renewal Total</span>
+          <span style={{ fontSize: 10, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>{isAmendMode ? "Amendment Total" : "Renewal Total"}</span>
           <span style={{ fontFamily: SERIF, fontSize: 18 }}>{fmt(totalFee)}</span>
         </div>
 
