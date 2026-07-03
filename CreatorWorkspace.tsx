@@ -76,6 +76,25 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
     });
   };
 
+  // Tap the category pill to cycle Influencer → UGC → Editorial.
+  // Writes `cat` onto the source quote line (pr.qd.lines[li]) so the fix
+  // persists everywhere the category is derived — workspace, manager
+  // production section, and future PDFs. Repairs legacy lines saved
+  // before the Calculator stored `cat`.
+  const CAT_CYCLE = ["Influencer", "UGC", "Editorial"];
+  const CAT_TO_KEY: Record<string, string> = { Influencer: "influencer", UGC: "ugc", Editorial: "editorial" };
+  const setItemCat = (item: any) => {
+    const pr = getPr(item.clientId, item.projectId);
+    if (!pr?.qd?.lines) return;
+    const m = /_ln(\d+)_q\d+$/.exec(item.id);
+    if (!m) return;
+    const li = parseInt(m[1], 10);
+    if (!pr.qd.lines[li]) return;
+    const next  = CAT_CYCLE[(CAT_CYCLE.indexOf(item.category) + 1) % CAT_CYCLE.length];
+    const lines = pr.qd.lines.map((l: any, i: number) => i === li ? { ...l, cat: CAT_TO_KEY[next] } : l);
+    clientsHook.updateProject(item.clientId, item.projectId, { qd: { ...pr.qd, lines } });
+  };
+
   const saveName = (item: any, val: string) => {
     const trimmed = val.trim();
     const pr = getPr(item.clientId, item.projectId);
@@ -226,7 +245,7 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0, flex: 1 }}>
                           <span style={{ fontSize: TYPE.micro.size, fontWeight: "500", color: C.black, letterSpacing: "0.07em", textTransform: "uppercase" as const, flexShrink: 0 }}>{item.clientName}</span>
-                          <span style={{ fontSize: TYPE.micro.size, padding: "1px 7px", border: `1px solid ${catStyle.border}`, borderRadius: 10, color: catStyle.color, background: catStyle.bg, flexShrink: 0 }}>{item.category}</span>
+                          <span onClick={() => setItemCat(item)} title="Tap to change category" style={{ fontSize: TYPE.micro.size, padding: "1px 7px", border: `1px solid ${catStyle.border}`, borderRadius: 10, color: catStyle.color, background: catStyle.bg, flexShrink: 0, cursor: "pointer" }}>{item.category}</span>
                         </div>
                         <span style={{ fontSize: TYPE.label.size, color: dlColor, fontWeight: dlColor === C.red ? "600" : "400", flexShrink: 0, marginLeft: 8 }}>{fmtDeadline(item.deadline)}</span>
                       </div>
@@ -280,7 +299,7 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
                               {item.name}
                             </span>
                           )}
-                          <span style={{ fontSize: TYPE.micro.size, padding: "2px 7px", border: `1px solid ${catStyle.border}`, borderRadius: 10, color: catStyle.color, background: catStyle.bg, flexShrink: 0 }}>{item.category}</span>
+                          <span onClick={() => setItemCat(item)} title="Tap to change category" style={{ fontSize: TYPE.micro.size, padding: "2px 7px", border: `1px solid ${catStyle.border}`, borderRadius: 10, color: catStyle.color, background: catStyle.bg, flexShrink: 0, cursor: "pointer" }}>{item.category}</span>
                         </div>
                         {item.lineNote && <span style={{ fontSize: TYPE.label.size, color: C.muted, display: "block", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{item.lineNote}</span>}
                         {item.notes && !isNoting && <span onClick={() => { setNoteId(item.id); setNoteVal(item.notes); }} style={{ fontSize: TYPE.label.size, color: C.amber, display: "block", marginTop: 1, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{item.notes}</span>}
