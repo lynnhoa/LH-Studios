@@ -59,8 +59,8 @@ export default function CreatorProfile({ settings, updateSettings, isMobile }: C
         <Lbl>Street & Number</Lbl>
         <I value={s.street} onChange={(e: any) => upd("street", e.target.value)} placeholder="Musterstraße 12" />
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 9, marginBottom: 9 }}>
-        <div><Lbl>Postal Code (PLZ)</Lbl><I value={s.plz} onChange={(e: any) => upd("plz", e.target.value)} placeholder="10115" /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 9, marginBottom: 9, alignItems: "end" }}>
+        <div><Lbl>PLZ</Lbl><I value={s.plz} onChange={(e: any) => upd("plz", e.target.value)} placeholder="10115" /></div>
         <div><Lbl>City</Lbl><I value={s.city} onChange={(e: any) => upd("city", e.target.value)} placeholder="Berlin" /></div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 9, marginBottom: 9 }}>
