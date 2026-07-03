@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt, fmtD, fmtE, today, uid, addM } from "./formatters";
-import { I, B, StatusBadge } from "./atoms";
+import { I, B, StatusBadge, TSel, TSelWrap } from "./atoms";
 import { STATUS } from "./rateCards";
 import RenewalModal from "./RenewalModal";
 import ProductionSection from "./ProductionSection";
@@ -494,22 +494,20 @@ export default function ProjectsTab({
         ))}
       </div>
 
-      {/* ── FILTER + SORT ── */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
-        <select
-          value={sortOrder} onChange={(e: any) => setSortOrder(e.target.value)}
-          style={{ fontSize: TYPE.micro.size, padding: "5px 8px", border: `1px solid ${C.rule}`, borderRadius: 2, background: C.bg, color: C.black, fontFamily: SANS, cursor: "pointer", outline: "none" }}
-        >
-          <option value="newest">Newest</option>
-          <option value="oldest">Oldest</option>
-          <option value="amount">Amount</option>
-        </select>
-        <select
-          value={statusFilter} onChange={(e: any) => setStatusFilter(e.target.value)}
-          style={{ fontSize: TYPE.micro.size, padding: "5px 8px", border: `1px solid ${C.rule}`, borderRadius: 2, background: C.bg, color: C.black, fontFamily: SANS, cursor: "pointer", outline: "none" }}
-        >
-          {FILTERS.map(([val, lbl]) => <option key={val} value={val}>{lbl}</option>)}
-        </select>
+      {/* ── FILTER + SORT — standard list toolbar: text selects, top right ── */}
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 14, marginBottom: 16 }}>
+        <TSelWrap>
+          <TSel value={statusFilter} onChange={(e: any) => setStatusFilter(e.target.value)}>
+            {FILTERS.map(([val, lbl]) => <option key={val} value={val}>{`Filter: ${lbl}`}</option>)}
+          </TSel>
+        </TSelWrap>
+        <TSelWrap>
+          <TSel value={sortOrder} onChange={(e: any) => setSortOrder(e.target.value)}>
+            <option value="newest">Sort: Newest</option>
+            <option value="oldest">Sort: Oldest</option>
+            <option value="amount">Sort: Amount</option>
+          </TSel>
+        </TSelWrap>
       </div>
 
       {/* ── ACTIVE SECTION ── */}

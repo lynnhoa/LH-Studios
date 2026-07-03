@@ -6,7 +6,7 @@
 import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt, fmtD, addM, uid, today } from "./formatters";
-import { I, S, B, Lbl, Tag, UBadge } from "./atoms";
+import { I, S, B, Lbl, Tag, UBadge, TSel, TSelWrap } from "./atoms";
 import ClientDetail from "./ClientDetail";
 
 interface ClientListProps {
@@ -158,32 +158,32 @@ export default function ClientList({
       {/* Search */}
       <I placeholder="Search clients, tags…" value={search} onChange={(e: any) => setSearch(e.target.value)} s={{ marginBottom: 8 }} />
 
-      {/* Filter + sort */}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 7, marginBottom: 11 }}>
-        <select
-          value={typeFilter !== "all" ? typeFilter.toLowerCase() : statusFilter}
-          onChange={(e: any) => { const v = e.target.value; if (v === "direct" || v === "agency") { setTypeFilter(v === "direct" ? "Direct" : "Agency"); setStatusFilter("all"); } else { setStatusFilter(v); setTypeFilter("all"); } }}
-          style={{ fontSize: TYPE.micro.size, fontFamily: SANS, color: C.muted, background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "4px 8px", cursor: "pointer", outline: "none" }}
-        >
-          <option value="all">Filter: All</option>
-          <optgroup label="Status">
-            {["lead","quoted","revised","contracted","production","invoiced","paid"].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
-          </optgroup>
-          <optgroup label="Type">
-            <option value="direct">Direct</option>
-            <option value="agency">Agency</option>
-          </optgroup>
-        </select>
-        <select
-          value={sortOrder} onChange={(e: any) => setSortOrder(e.target.value)}
-          style={{ fontSize: TYPE.micro.size, fontFamily: SANS, color: C.muted, background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "4px 8px", cursor: "pointer", outline: "none" }}
-        >
-          <option value="recent">Sort: Most Recent</option>
-          <option value="status">Sort: Status Priority</option>
-          <option value="name_az">Sort: Name A → Z</option>
-          <option value="revenue_hi">Sort: Revenue ↓</option>
-          <option value="revenue_lo">Sort: Revenue ↑</option>
-        </select>
+      {/* Filter + sort — standard list toolbar: text selects, top right */}
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 14, marginBottom: 11 }}>
+        <TSelWrap>
+          <TSel
+            value={typeFilter !== "all" ? typeFilter.toLowerCase() : statusFilter}
+            onChange={(e: any) => { const v = e.target.value; if (v === "direct" || v === "agency") { setTypeFilter(v === "direct" ? "Direct" : "Agency"); setStatusFilter("all"); } else { setStatusFilter(v); setTypeFilter("all"); } }}
+          >
+            <option value="all">Filter: All</option>
+            <optgroup label="Status">
+              {["lead","quoted","revised","contracted","production","invoiced","paid"].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
+            </optgroup>
+            <optgroup label="Type">
+              <option value="direct">Direct</option>
+              <option value="agency">Agency</option>
+            </optgroup>
+          </TSel>
+        </TSelWrap>
+        <TSelWrap>
+          <TSel value={sortOrder} onChange={(e: any) => setSortOrder(e.target.value)}>
+            <option value="recent">Sort: Recent</option>
+            <option value="status">Sort: Status</option>
+            <option value="name_az">Sort: Name A–Z</option>
+            <option value="revenue_hi">Sort: Revenue ↓</option>
+            <option value="revenue_lo">Sort: Revenue ↑</option>
+          </TSel>
+        </TSelWrap>
       </div>
 
       {/* New client form */}

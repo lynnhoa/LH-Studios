@@ -28,6 +28,40 @@ export const I = ({ s, ...p }: any) => (
   />
 );
 
+// ─── TEXT SELECT — minimal borderless sort/filter control ─────
+// Standard for list toolbars: uppercase micro text, muted, top-right.
+// Native <select> underneath so mobile pickers keep working.
+export const TSel = ({ s, ...p }: any) => (
+  <select
+    style={{
+      border:        "none",
+      background:    "transparent",
+      fontFamily:    SANS,
+      fontSize:      TYPE.micro.size,
+      color:         C.muted,
+      letterSpacing: "0.08em",
+      textTransform: "uppercase" as const,
+      padding:       "4px 2px",
+      cursor:        "pointer",
+      outline:       "none",
+      WebkitAppearance: "none" as const,
+      MozAppearance: "none" as const,
+      appearance:    "none" as const,
+      textAlignLast: "right" as const,
+      ...s,
+    }}
+    {...p}
+  />
+);
+
+// Caret + select wrapper so the ▾ affordance is consistent
+export const TSelWrap = ({ children }: any) => (
+  <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+    {children}
+    <span style={{ fontSize: 8, color: C.light, pointerEvents: "none" as const }}>▾</span>
+  </span>
+);
+
 // ─── SELECT ──────────────────────────────────────────────────
 export const S = ({ s, ...p }: any) => (
   <select
