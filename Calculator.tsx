@@ -50,8 +50,8 @@ AO.complete = [...AO.influencer, ...AO.ugc, ...AO.editorial]
 AO.hotels = AO.complete;
 
 const CAT_LABEL: Record<string, string> = {
-  influencer: "Brand Collaboration",
-  ugc:        "UGC Creator",
+  influencer: "Brand Collabs",
+  ugc:        "UGC",
   editorial:  "Editorial",
 };
 
