@@ -508,18 +508,21 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, i
     setShowBuilder(false);
   };
 
-  // Header actions — Edit is the primary daily action
-  const actions = edit ? (
-    <>
-      <B v="sec" onClick={addSection}>+ Section</B>
-      <B onClick={() => setEdit(false)}>Done</B>
-    </>
-  ) : (
-    <>
-      <B v="sec" onClick={() => setShowPreview(true)}>Rate Card PDF</B>
-      <B v="sec" onClick={() => setShowBuilder(true)}>+ Add Card</B>
-      <B onClick={() => setEdit(true)}>Edit</B>
-    </>
+  // ── Header action styles ────────────────────────────────────
+  // Quiet text links for secondary actions; one compact solid
+  // button for the primary action. Links keep a 44px touch
+  // target via invisible vertical padding.
+  const LinkBtn = ({ onClick, children }: any) => (
+    <button
+      onClick={onClick}
+      style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, padding: "17px 0", lineHeight: 1, flexShrink: 0 }}
+    >{children}</button>
+  );
+  const CompactB = ({ onClick, children }: any) => (
+    <button
+      onClick={onClick}
+      style={{ background: C.black, color: C.white, border: "none", borderRadius: 2, minHeight: 36, padding: "0 16px", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.10em", textTransform: "uppercase" as const, flexShrink: 0 }}
+    >{children}</button>
   );
 
   return (
@@ -535,18 +538,28 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, i
       )}
 
       {/* ── HEADER ── */}
-      {/* Desktop / iPad: title left, actions right on one line.        */}
-      {/* Mobile: title block, then one calm action row underneath.     */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: isMobile ? 14 : 18, gap: 8 }}>
-        <div style={{ minWidth: 0 }}>
-          <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 4px" }}>Service Catalog</h2>
-          <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" as const, margin: 0 }}>Single source of truth · Fashion · Beauty · Lifestyle</p>
-        </div>
-        {!isMobile && <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>{actions}</div>}
+      <div>
+        <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 4px" }}>Service Catalog</h2>
+        <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" as const, margin: "0 0 6px" }}>Fashion · Beauty · Lifestyle</p>
       </div>
-      {isMobile && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>{actions}</div>
-      )}
+
+      {/* ── ACTION ROW — quiet links left, compact primary right ── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 18, borderBottom: `1px solid ${C.rule}`, marginBottom: 14 }}>
+        {edit ? (
+          <>
+            <LinkBtn onClick={addSection}>+ Section</LinkBtn>
+            <div style={{ flex: 1 }} />
+            <CompactB onClick={() => setEdit(false)}>Done</CompactB>
+          </>
+        ) : (
+          <>
+            <LinkBtn onClick={() => setShowPreview(true)}>Rate Card PDF</LinkBtn>
+            <LinkBtn onClick={() => setShowBuilder(true)}>+ Add Card</LinkBtn>
+            <div style={{ flex: 1 }} />
+            <CompactB onClick={() => setEdit(true)}>Edit</CompactB>
+          </>
+        )}
+      </div>
 
       {/* ── CATEGORY TABS ── */}
       {/* Mobile: single row, swipe horizontally — never wraps.         */}
