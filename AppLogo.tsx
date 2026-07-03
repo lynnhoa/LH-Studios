@@ -11,10 +11,10 @@ interface AppLogoProps {
   onClick?: () => void;
 }
 
-const LOGO_SIZES: Record<LogoSize, { name: number; studio: number; gap: number }> = {
-  auth: { name: 26, studio: TYPE.micro.size, gap: 6 },
-  web:  { name: 20, studio: TYPE.micro.size, gap: 3 },
-  nav:  { name: 32, studio: TYPE.micro.size, gap: 2 },
+const LOGO_SIZES: Record<LogoSize, { name: number; studio: number; gap: number; padY: number }> = {
+  auth: { name: 26, studio: TYPE.micro.size, gap: 6, padY: 0 },
+  web:  { name: 20, studio: TYPE.micro.size, gap: 3, padY: 0 },
+  nav:  { name: 30, studio: TYPE.micro.size, gap: 2, padY: 8 },
 };
 
 export default function AppLogo({ size = "nav", onClick }: AppLogoProps) {
@@ -27,6 +27,7 @@ export default function AppLogo({ size = "nav", onClick }: AppLogoProps) {
         textAlign:   "center",
         lineHeight:  1,
         display:     "inline-block",
+        padding:     `${sz.padY}px 0`,
         cursor:      onClick ? "pointer" : "default",
         userSelect:  "none" as const,
       }}
