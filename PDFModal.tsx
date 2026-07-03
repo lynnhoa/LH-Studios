@@ -144,7 +144,7 @@ export default function PDFModal({
     const ro = new ResizeObserver(calc);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [preview, lang]);
+  }, [preview, lang, showEdit, isMobile]);
 
   // ── Staged state setter (adds to history) ─────────────────
   const setStaged = (fn: any) => {
