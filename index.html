@@ -60,6 +60,10 @@
         /* iOS auto-zooms on focus when font-size < 16px — force minimum */
         font-size: 16px !important;
       }
+      /* Borderless filter/sort toolbar selects are display-only (native
+         picker, no text entry) so they don't trigger iOS focus-zoom.
+         Higher specificity than the rule above so 10px wins. */
+      select.tsel { font-size: 10px !important; }
     </style>
   </head>
   <body>

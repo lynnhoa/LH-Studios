@@ -31,8 +31,9 @@ export const I = ({ s, ...p }: any) => (
 // ─── TEXT SELECT — minimal borderless sort/filter control ─────
 // Standard for list toolbars: uppercase micro text, muted, top-right.
 // Native <select> underneath so mobile pickers keep working.
-export const TSel = ({ s, ...p }: any) => (
+export const TSel = ({ s, className, ...p }: any) => (
   <select
+    className={["tsel", className].filter(Boolean).join(" ")}
     style={{
       border:        "none",
       background:    "transparent",
