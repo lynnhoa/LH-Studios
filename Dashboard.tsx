@@ -87,6 +87,7 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
   const [invTab,         setInvTab]         = useState<"unpaid"|"paid">("unpaid");
   const [invYear,        setInvYear]        = useState("all");
   const [invSel,         setInvSel]         = useState<Set<string>>(new Set());
+  const [invBulkStatus,  setInvBulkStatus]  = useState<string | null>(null);
   const [invPdfData,     setInvPdfData]     = useState<any>(null);
   const [licTab,         setLicTab]         = useState<"usage"|"excl">("usage");
   const [licenseActions, setLicenseActions] = useState<Record<string,string>>({});
@@ -431,6 +432,40 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
     const toggleSel  = (key: string) => setInvSel(prev => { const n=new Set(prev); n.has(key)?n.delete(key):n.add(key); return n; });
     const openPreview = (r: any) => { const pr=r.pr; const q=pr.qd; setInvPdfData({data:{brand:q?.brand,contact:q?.contact,date:pr.date||today(),qNo:q?.qNo,iNo:r.iNo,delivery:pr.deliveryDate,ctype:q?.ctype||"Content Creator",lines:q?.lines||[],amendments:pr.amendments||[],total:pr.amount,footer:"Thank you for the pleasure of working together."},type:"invoice"}); };
     const exportCsv  = (rows: any[], label: string) => { const h=["Invoice No.","Client","Project","Income","Date","Status"]; const lines=[h,...rows.map(r=>[r.iNo,r.cName,r.pr.name,`€ ${Number(r.pr.amount).toFixed(2).replace(".",",")}`,r.pr.date||"",r.pr.paid?"paid":"invoiced"])]; const csv=lines.map(row=>row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n"); const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`${label.replace(/[:\s]/g,"_")}.csv`; a.click(); URL.revokeObjectURL(url); };
+
+    // Selection + bulk PDF (restored from old app)
+    const selRows    = filteredInv.filter((r: any) => invSel.has(r.iNo));
+    const allChecked = filteredInv.length > 0 && filteredInv.every((r: any) => invSel.has(r.iNo));
+    const toggleAll  = () => { if (allChecked) setInvSel(new Set()); else setInvSel(new Set(filteredInv.map((r: any) => r.iNo))); };
+    const doInvBulk  = async (rows: any[]) => {
+      if (!rows.length || invBulkStatus) return;
+      setInvBulkStatus(`Preparing ${rows.length} invoice${rows.length > 1 ? "s" : ""}…`);
+      const [{ default: html2canvas }, { default: jsPDF }, { default: A4Document }] = await Promise.all([
+        import("html2canvas"), import("jspdf"), import("./A4Document"),
+      ]);
+      const { createRoot } = await import("react-dom/client");
+      const { createElement } = await import("react");
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i]; const pr = r.pr; const q = pr.qd;
+        const d = { brand: q?.brand, contact: q?.contact, date: pr.date || today(), qNo: q?.qNo, iNo: r.iNo, delivery: pr.deliveryDate, ctype: q?.ctype || "Content Creator", lines: q?.lines || [], amendments: pr.amendments || [], total: pr.amount, footer: "Thank you for the pleasure of working together." };
+        setInvBulkStatus(`Saving ${i + 1} / ${rows.length} — ${r.iNo}`);
+        const wrap = document.createElement("div");
+        wrap.style.cssText = "position:fixed;left:-9999px;top:0;width:595px;z-index:-1;background:#faf9f7;";
+        document.body.appendChild(wrap);
+        const root = createRoot(wrap);
+        await new Promise<void>(res => { root.render(createElement(A4Document, { d, type: "invoice", lang: "en", settings, extraSigMargin: 0, clauseGuards: [], tRowGuards: [] })); setTimeout(res, 600); });
+        try {
+          const pages = Array.from(wrap.querySelectorAll("[data-pdf-page]")) as HTMLElement[];
+          const pdf = new (jsPDF as any)({ orientation: "portrait", unit: "mm", format: "a4" });
+          const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
+          for (let p = 0; p < pages.length; p++) { if (p > 0) pdf.addPage(); const canvas = await (html2canvas as any)(pages[p], { scale: 2, useCORS: true, backgroundColor: "#faf9f7" }); pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pw, ph); }
+          pdf.save(`${(pr.date || "").replace(/-/g,"_")} ${r.iNo}.pdf`);
+        } finally { root.unmount(); document.body.removeChild(wrap); }
+        if (i < rows.length - 1) await new Promise(res => setTimeout(res, 400));
+      }
+      setInvBulkStatus(null); setInvSel(new Set());
+    };
+
     const tabPillS   = (active: boolean): any => ({padding:"6px 15px",border:`1px solid ${active?C.black:C.rule}`,background:active?C.black:"none",color:active?C.white:C.muted,cursor:"pointer",fontFamily:SANS,fontSize:TYPE.label.size,letterSpacing:"0.1em",textTransform:"uppercase" as const,outline:"none"});
     return (
       <div>
@@ -446,7 +481,15 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
           <select value={invYear} onChange={(e: any)=>{setInvYear(e.target.value);setInvSel(new Set());}} style={{height:34,padding:"0 8px",border:`1px solid ${C.rule}`,borderRadius:2,background:C.bg,fontFamily:SANS,fontSize:16,color:C.black,outline:"none"}}>
             {periodOpts.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          <button onClick={()=>exportCsv(filteredInv,invYear==="all"?"all_invoices":invYear)} style={{height:28,padding:"0 10px",border:`1px solid ${C.rule}`,borderRadius:2,background:C.bg,cursor:"pointer",fontFamily:SANS,fontSize:TYPE.label.size,color:C.muted}}>Export CSV</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {filteredInv.length > 0 && (
+              <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: TYPE.label.size, color: C.muted }}>
+                <input type="checkbox" checked={allChecked} onChange={toggleAll} style={{ cursor: "pointer", accentColor: C.black, width: 13, height: 13 }} />
+                Select all
+              </label>
+            )}
+            <button onClick={()=>exportCsv(filteredInv,invYear==="all"?"all_invoices":invYear)} style={{height:28,padding:"0 10px",border:`1px solid ${C.rule}`,borderRadius:2,background:C.bg,cursor:"pointer",fontFamily:SANS,fontSize:TYPE.label.size,color:C.muted}}>Export CSV</button>
+          </div>
         </div>
         {filteredInv.length === 0 && <p style={{fontSize:TYPE.subtext.size,color:C.muted}}>No invoices match this filter.</p>}
         {invGrouped.map((yg,yi)=>(
@@ -475,6 +518,7 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
                         </div>
                       </div>
                       <span style={{fontFamily:SERIF,fontSize:TYPE.sectionHeading.size,color:C.black,flexShrink:0}}>{fmt(pr.amount)}</span>
+                      <button onClick={(e: any)=>{e.stopPropagation();doInvBulk([r]);}} disabled={!!invBulkStatus} title="Download PDF" style={{fontSize:TYPE.micro.size,padding:"4px 9px",border:`1px solid ${C.rule}`,borderRadius:2,background:"none",cursor:invBulkStatus?"default":"pointer",color:C.muted,fontFamily:SANS,letterSpacing:"0.06em",flexShrink:0,whiteSpace:"nowrap" as const,opacity:invBulkStatus?0.4:1}}>Save PDF</button>
                       <input type="checkbox" checked={isChecked} onChange={()=>toggleSel(r.iNo)} style={{flexShrink:0,cursor:"pointer",accentColor:C.black,width:13,height:13}} onClick={(e: any)=>e.stopPropagation()}/>
                     </div>
                   );
@@ -484,9 +528,12 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
           </div>
         ))}
         {invSel.size > 0 && (
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:"#fdf6ee",border:`1px solid ${C.amber}`,borderRadius:2,marginTop:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:"#fdf6ee",border:`1px solid ${C.amber}`,borderRadius:2,marginTop:12,gap:8,flexWrap:"wrap" as const}}>
             <span style={{fontSize:TYPE.subtext.size,color:C.amber}}>{invSel.size} selected</span>
-            <button onClick={()=>setInvSel(new Set())} style={{fontSize:TYPE.label.size,padding:"5px 12px",border:`1px solid ${C.amber}`,borderRadius:2,background:"none",cursor:"pointer",color:C.amber,fontFamily:SANS}}>Clear</button>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <button onClick={()=>setInvSel(new Set())} style={{fontSize:TYPE.label.size,padding:"5px 12px",border:`1px solid ${C.amber}`,borderRadius:2,background:"none",cursor:"pointer",color:C.amber,fontFamily:SANS}}>Clear</button>
+              <button onClick={()=>doInvBulk(selRows)} disabled={!!invBulkStatus} style={{fontSize:TYPE.label.size,padding:"5px 12px",border:"none",borderRadius:2,background:C.black,color:C.white,cursor:invBulkStatus?"default":"pointer",fontFamily:SANS,opacity:invBulkStatus?0.5:1,whiteSpace:"nowrap" as const}}>{invBulkStatus || `↓ Download ${invSel.size} PDF${invSel.size>1?"s":""}`}</button>
+            </div>
           </div>
         )}
       </div>

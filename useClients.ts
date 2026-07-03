@@ -32,6 +32,7 @@ interface UseClientsReturn {
   // Amendment ops
   addAmendment:    (clientId: string, projectId: string, a: Omit<Amendment, "id" | "createdAt">) => Promise<string | null>;
   updateAmendment: (clientId: string, projectId: string, amendId: string, updates: Partial<Amendment>) => Promise<string | null>;
+  deleteAmendment: (clientId: string, projectId: string, amendId: string) => Promise<string | null>;
 
   // Renewal ops
   addRenewal:    (clientId: string, projectId: string, r: Omit<Renewal, "id" | "createdAt">) => Promise<string | null>;
@@ -435,6 +436,10 @@ export function useClients(userId: string | null): UseClientsReturn {
       const id = uid();
       const newA: Amendment = { ...a, id };
 
+      // Compute the new project total so we can persist it to projects.amount
+      const projNow = clientsRef.current.find(c => c.id === clientId)?.projects.find(p => p.id === projectId);
+      const newAmount = (projNow?.amount ?? 0) + a.amendTotal;
+
       updateProjectLocal(clientId, projectId, p => ({
         ...p,
         amendments: [...p.amendments, newA],
@@ -446,8 +451,13 @@ export function useClients(userId: string | null): UseClientsReturn {
         a_no: a.aNo, lines: a.lines, amend_total: a.amendTotal,
         orig_total: a.origTotal, signed: a.signed, doc: a.doc,
       });
-
       if (error) { setError(error.message); return error.message; }
+
+      // Persist the bumped project total (old app kept amount in sync)
+      const { error: amtErr } = await supabase.from("projects")
+        .update({ amount: newAmount, updated_at: new Date().toISOString() })
+        .eq("id", projectId).eq("user_id", userId);
+      if (amtErr) { setError(amtErr.message); return amtErr.message; }
       return null;
     },
     [userId]
@@ -475,6 +485,35 @@ export function useClients(userId: string | null): UseClientsReturn {
         .from("amendments").update(dbUpdates).eq("id", amendId).eq("user_id", userId);
 
       if (error) { setError(error.message); return error.message; }
+      return null;
+    },
+    [userId]
+  );
+
+  // Undo an amendment — remove the record and roll its amendTotal back off the project total.
+  const deleteAmendment = useCallback(
+    async (clientId: string, projectId: string, amendId: string): Promise<string | null> => {
+      if (!userId) return "Not authenticated";
+
+      const projNow = clientsRef.current.find(c => c.id === clientId)?.projects.find(p => p.id === projectId);
+      const amend   = projNow?.amendments.find(a => a.id === amendId);
+      const amendTotal = amend?.amendTotal ?? 0;
+      const newAmount  = (projNow?.amount ?? 0) - amendTotal;
+
+      updateProjectLocal(clientId, projectId, p => ({
+        ...p,
+        amendments: p.amendments.filter(a => a.id !== amendId),
+        amount: p.amount - amendTotal,
+      }));
+
+      const { error: delErr } = await supabase
+        .from("amendments").delete().eq("id", amendId).eq("user_id", userId);
+      if (delErr) { setError(delErr.message); return delErr.message; }
+
+      const { error: amtErr } = await supabase.from("projects")
+        .update({ amount: newAmount, updated_at: new Date().toISOString() })
+        .eq("id", projectId).eq("user_id", userId);
+      if (amtErr) { setError(amtErr.message); return amtErr.message; }
       return null;
     },
     [userId]
@@ -799,7 +838,7 @@ export function useClients(userId: string | null): UseClientsReturn {
     clients, loading, error,
     addClient, updateClient, deleteClient,
     addProject, updateProject, deleteProject, setProjectStatus,
-    addAmendment, updateAmendment,
+    addAmendment, updateAmendment, deleteAmendment,
     addRenewal, updateRenewal, deleteRenewal,
     updateDeliverable, upsertDeliverables,
     saveQuote,

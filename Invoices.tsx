@@ -43,12 +43,23 @@ function buildInvoiceRows(clients: any[]) {
 }
 
 function exportCSV(rows: any[], label: string) {
-  const headers = ["Invoice No.","Client","Project","Type of Work","Income","Delivery Date","Payment Status"];
-  const lines = [headers, ...rows.map(r => {
-    const pr = r.pr;
-    const income = pr.amount ? `€ ${Number(pr.amount).toFixed(2).replace(".",",")}` : "€ 0,00";
-    return [r.iNo, r.cName, pr.name, getTypeOfWork(pr), income, pr.deliveryDate || "", pr.paid ? "paid" : "invoiced"];
-  })];
+  const headers = ["Month","Invoice No.","Client","Project","Type of Work","Collab","TikToks","Reels","Posts","Stories","Income","Expenses","Delivery Date","Payment Status","Receipt Date"];
+  const lines: string[][] = [headers];
+  rows.forEach(r => {
+    const pr = r.pr; const q = pr.qd;
+    const mo = r.dateStr ? `${MO_SHORT[r.month]} ${String(r.year).slice(2)}` : "";
+    const typeOfWork = getTypeOfWork(pr);
+    const isCollab = q?.ctab === "influencer";
+    const ls = q?.lines || [];
+    const collab  = isCollab ? String(ls.filter((l: any) => l.name?.toLowerCase().includes("photo") || l.name?.toLowerCase().includes("carousel") || l.name?.toLowerCase().includes("set")).reduce((s: number, l: any) => s + (l.qty || 1), 0) || "") : "";
+    const tiktoks = isCollab ? String(ls.filter((l: any) => l.name?.toLowerCase().includes("tiktok") || (l.platforms || []).includes("TikTok")).reduce((s: number, l: any) => s + (l.qty || 1), 0) || "") : "";
+    const reels   = isCollab ? String(ls.filter((l: any) => l.name?.toLowerCase().includes("reel") || (l.platforms || []).includes("Instagram")).reduce((s: number, l: any) => s + (l.qty || 1), 0) || "") : "";
+    const stories = isCollab ? String(ls.filter((l: any) => l.name?.toLowerCase().includes("story") || l.name?.toLowerCase().includes("storie")).reduce((s: number, l: any) => s + (l.qty || 1), 0) || "") : "";
+    const income  = pr.amount ? `€ ${Number(pr.amount).toFixed(2).replace(".",",")}` : "€ 0,00";
+    const delivery = pr.deliveryDate ? pr.deliveryDate.split("-").reverse().join(".") : "";
+    const receipt  = pr.paid && pr.paidDate ? pr.paidDate.split("-").reverse().join(".") : "";
+    lines.push([mo, r.iNo, r.cName, pr.name, typeOfWork, collab, tiktoks, reels, "", stories, income, "€ 0,00", delivery, pr.paid ? "paid" : "invoiced", receipt]);
+  });
   const csv  = lines.map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n");
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
   const url  = URL.createObjectURL(blob);

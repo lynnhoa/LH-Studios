@@ -346,13 +346,14 @@ function AddRateCardModal({ rc, onSave, onClose }: any) {
 interface RateCardProps {
   rc:         any;
   upsertCard: (key: string, card: any) => Promise<string | null>;
+  deleteCard: (key: string) => Promise<string | null>;
   settings:   any;
 }
 
 const BASE_CATS = ["influencer","ugc","editorial"];
 const CAT_LABEL: Record<string,string> = { influencer: "Brand Collaboration", ugc: "UGC", editorial: "Editorial" };
 
-export default function RateCard({ rc, upsertCard, settings }: RateCardProps) {
+export default function RateCard({ rc, upsertCard, deleteCard, settings }: RateCardProps) {
   const [tab,          setTab]         = useState("influencer");
   const [showBuilder,  setShowBuilder] = useState(false);
   const [showPreview,  setShowPreview] = useState(false);
@@ -399,7 +400,7 @@ export default function RateCard({ rc, upsertCard, settings }: RateCardProps) {
             <Pill on={tab === k} onClick={() => setTab(k)}>{rc[k]?.label || CAT_LABEL[k] || k}</Pill>
             {!BASE_CATS.includes(k) && (
               <button
-                onClick={() => { if (window.confirm(`Delete "${rc[k]?.label || k}"?`)) { /* deleteCard handled via upsert with null */ setTab("influencer"); } }}
+                onClick={() => { if (window.confirm(`Delete "${rc[k]?.label || k}"?`)) { deleteCard(k); setTab("influencer"); } }}
                 style={{ background: "none", border: "none", cursor: "pointer", color: C.light, fontSize: 11, padding: "0 2px", lineHeight: 1 }}
                 title="Delete"
               >✕</button>

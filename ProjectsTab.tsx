@@ -389,12 +389,19 @@ function ProjectRow({
                   <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => clientsHook.updateRenewal(cl.id, pr.id, r.id, { paid: true })}>Mark R{ri + 1} Paid</B>
                   <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => clientsHook.deleteRenewal(cl.id, pr.id, r.id)}>Undo R{ri + 1}</B>
                 </>}
+                {r.paid && (
+                  <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => clientsHook.updateRenewal(cl.id, pr.id, r.id, { paid: false })}>Undo R{ri + 1}</B>
+                )}
               </span>
             ))}
 
             {!pr.paid && pr.status !== "quoted" && <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => { const p = prv(pr.status); if (p) setStatus(p); }}>← Undo</B>}
 
             {["production","invoiced","paid"].includes(pr.status) && pr.qd && <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => onAmend(pr, cl)}>+ Amend</B>}
+
+            {(pr.amendments || []).map((a: any, ai: number) => (
+              <B key={a.id || ai} v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => clientsHook.deleteAmendment(cl.id, pr.id, a.id)}>Undo Amend {ai + 1}</B>
+            ))}
           </div>
         </div>
       )}

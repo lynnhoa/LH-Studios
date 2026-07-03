@@ -12,7 +12,6 @@ import { I, B, Lbl, Pill } from "./atoms";
 interface ServiceCatalogProps {
   rc:         any;
   upsertCard: (key: string, card: any) => Promise<string | null>;
-  deleteCard: (key: string) => Promise<string | null>;
 }
 
 const CAT_TABS: [string, string][] = [
@@ -21,7 +20,7 @@ const CAT_TABS: [string, string][] = [
   ["editorial",  "Editorial"],
 ];
 
-export default function ServiceCatalog({ rc, upsertCard, deleteCard }: ServiceCatalogProps) {
+export default function ServiceCatalog({ rc, upsertCard }: ServiceCatalogProps) {
   const [tab,  setTab]  = useState("influencer");
   const [edit, setEdit] = useState(false);
 

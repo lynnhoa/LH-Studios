@@ -490,7 +490,6 @@ export default function ManagerApp({
           <ServiceCatalog
             rc={rateCardsHook.rc}
             upsertCard={rateCardsHook.upsertCard}
-            deleteCard={rateCardsHook.deleteCard}
           />
         )}
 
@@ -498,6 +497,7 @@ export default function ManagerApp({
           <RateCard
             rc={rateCardsHook.rc}
             upsertCard={rateCardsHook.upsertCard}
+            deleteCard={rateCardsHook.deleteCard}
             settings={settings}
           />
         )}

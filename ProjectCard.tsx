@@ -264,29 +264,33 @@ export default function ProjectCard({
               <p style={{ fontFamily: "Lato", fontSize: 9, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: C.light, margin: "0 0 6px" }}>Documents</p>
               <div style={{ display: "flex", gap: isMobile ? 8 : 5, flexWrap: "wrap" as const }}>
                 {pr.qd && (
-                  <button style={{ height: 24, padding: "0 9px", background: "none", border: `1px solid ${C.rule}`, borderRadius: 2, fontFamily: SANS, fontSize: 10, color: C.muted, cursor: "default", opacity: 0.6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" as const }}>
+                  <B v="sec" onClick={() => openPDF("quote")} s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px" }}>
                     {pr.qd.rev > 0 ? `Quote R${pr.qd.rev}` : "Quote"}
-                  </button>
+                  </B>
                 )}
                 {["contracted","production","invoiced","paid"].includes(pr.status) && pr.qd && (
-                  <button style={{ height: 24, padding: "0 9px", background: "none", border: `1px solid ${C.rule}`, borderRadius: 2, fontFamily: SANS, fontSize: 10, color: C.muted, cursor: "default", opacity: 0.6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" as const }}>
+                  <B v="sec" onClick={() => openPDF("contract")} s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px" }}>
                     {pr.qd.contractRev > 0 ? `Contract R${pr.qd.contractRev}` : "Contract"}
-                  </button>
+                  </B>
                 )}
                 {(pr.amendments || []).map((a: any, ai: number) => (
-                  <button key={ai} style={{ height: 24, padding: "0 9px", background: "none", border: `1px solid ${a.signed ? C.rule : C.amber}`, borderRadius: 2, fontFamily: SANS, fontSize: 10, color: a.signed ? C.muted : C.amber, cursor: "default", opacity: 0.6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" as const }}>
+                  <B key={ai} v="sec"
+                    s={{ fontSize: TYPE.micro.size, color: a.signed ? C.black : C.amber, borderColor: a.signed ? C.rule : C.amber, padding: isMobile ? "9px 14px" : "5px 10px" }}
+                    onClick={() => setPdf({ data: { brand: pr.qd?.brand, contact: pr.qd?.contact, date: today(), ctype: pr.qd?.ctype || "Content Creator", qNo: pr.qd?.qNo, aNo: a.aNo, lines: a.lines || [], amendTotal: a.amendTotal, origTotal: pr.amount - a.amendTotal }, type: "amendment", readOnly: true })}
+                  >
                     Amend {ai + 1}{!a.signed ? " · unsigned" : ""}
-                  </button>
+                  </B>
                 ))}
                 {["invoiced","paid"].includes(pr.status) && pr.qd && !pr.qd?.retainer && (
-                  <button style={{ height: 24, padding: "0 9px", background: "none", border: `1px solid ${C.rule}`, borderRadius: 2, fontFamily: SANS, fontSize: 10, color: C.muted, cursor: "default", opacity: 0.6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" as const }}>
-                    Invoice
-                  </button>
+                  <B v="sec" onClick={() => openPDF("invoice")} s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px" }}>Invoice</B>
                 )}
                 {(pr.renewals || []).map((r: any, ri: number) => (
-                  r.doc && <button key={ri} style={{ height: 24, padding: "0 9px", background: "none", border: `1px solid ${C.rule}`, borderRadius: 2, fontFamily: SANS, fontSize: 10, color: C.muted, cursor: "default", opacity: 0.6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" as const }}>
+                  r.doc && <B key={ri} v="sec"
+                    s={{ fontSize: TYPE.micro.size, color: r.paid ? C.black : C.green, borderColor: r.paid ? C.rule : C.green, padding: isMobile ? "9px 14px" : "5px 10px" }}
+                    onClick={() => setPdf({ data: r.doc, type: "renewal", readOnly: true })}
+                  >
                     Renewal {ri + 1}
-                  </button>
+                  </B>
                 ))}
               </div>
             </div>
