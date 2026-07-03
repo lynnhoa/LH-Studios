@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
-import { fmt, fmtD, today, uid, addM } from "./formatters";
+import { fmt, fmtD, fmtE, today, uid, addM } from "./formatters";
 import { I, B, StatusBadge } from "./atoms";
 import { STATUS } from "./rateCards";
 import RenewalModal from "./RenewalModal";
@@ -213,208 +213,188 @@ function ProjectRow({
       {isExpanded && (
         <div style={{ paddingBottom: isMobile ? 16 : 12, paddingTop: 4 }}>
 
-          {/* Delivery date */}
-          {["quoted","revised","contracted","production","invoiced","paid"].includes(pr.status) && (
-            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: isMobile ? 12 : 8 }}>
-              <span style={{ fontSize: TYPE.micro.size, color: C.muted, whiteSpace: "nowrap" as const, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>Delivery</span>
-              <I
-                type="date"
-                value={pr.deliveryDate || ""}
-                onChange={(e: any) => { const nv = e.target.value; if (!nv) return; if (!pr.deliveryDate || nv > pr.deliveryDate) upP({ deliveryDate: nv }); }}
-                s={{ width: isMobile ? 160 : 138, fontSize: TYPE.micro.size, padding: isMobile ? "9px 10px" : "5px 8px" }}
-              />
+          {/* 1. DETAILS */}
+          {pr.qd && (
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Details</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                {pr.qd.qNo    && <div style={{ display: "flex", justifyContent: "space-between", fontSize: TYPE.body.size }}><span style={{ color: C.muted }}>Quote No.</span><span style={{ color: C.black, fontWeight: 500 }}>{pr.qd.qNo}</span></div>}
+                {pr.qd.contact && <div style={{ display: "flex", justifyContent: "space-between", fontSize: TYPE.body.size }}><span style={{ color: C.muted }}>Contact</span><span style={{ color: C.black, fontWeight: 500 }}>{pr.qd.contact}</span></div>}
+                {pr.qd.date && <div style={{ display: "flex", justifyContent: "space-between", fontSize: TYPE.body.size }}><span style={{ color: C.muted }}>Date</span><span style={{ color: C.black, fontWeight: 500 }}>{fmtD(pr.qd.date)}</span></div>}
+                {pr.qd.validUntil && <div style={{ display: "flex", justifyContent: "space-between", fontSize: TYPE.body.size }}><span style={{ color: C.muted }}>Valid until</span><span style={{ color: C.black, fontWeight: 500 }}>{fmtD(pr.qd.validUntil)}</span></div>}
+                {["production","invoiced","paid"].includes(pr.status) ? (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: TYPE.body.size }}>
+                    <span style={{ color: C.muted }}>Delivery</span>
+                    <I
+                      type="date"
+                      value={pr.deliveryDate || ""}
+                      onChange={(e: any) => { const nv = e.target.value; if (nv) upP({ deliveryDate: nv }); }}
+                      s={{ width: isMobile ? 120 : 140, fontSize: TYPE.micro.size, padding: "5px 8px" }}
+                    />
+                  </div>
+                ) : pr.deliveryDate ? (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: TYPE.body.size }}><span style={{ color: C.muted }}>Delivery</span><span style={{ color: C.black, fontWeight: 500 }}>{fmtD(pr.deliveryDate)}</span></div>
+                ) : null}
+              </div>
             </div>
           )}
 
-          {/* Production — deliverable progress + manager checkboxes */}
-          {pr.status === "production" && <>
-            <div style={{ fontSize: 9, color: C.muted, letterSpacing: "0.09em", textTransform: "uppercase" as const, marginBottom: 5 }}>Production</div>
-            <ProductionSection pr={pr} clients={clients} cl={cl} upP={upP} isMobile={isMobile} />
-          </>}
-
-          {/* License tracker */}
-          <ProjectLicenseTracker pr={pr} />
-
-          {/* Notes */}
-          {pr.notes && (
-            <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "0 0 7px", lineHeight: 1.6 }}>{pr.notes}</p>
+          {/* 2. DELIVERABLES */}
+          {pr.qd && (pr.qd.lines || []).length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Deliverables</p>
+              {(pr.qd.lines || []).map((ln: any, li: number) => (
+                <div key={li} style={{ marginBottom: li < (pr.qd.lines || []).length - 1 ? 8 : 0, paddingBottom: li < (pr.qd.lines || []).length - 1 ? 8 : 0, borderBottom: li < (pr.qd.lines || []).length - 1 ? `1px solid ${C.rule}` : "none" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
+                    <span style={{ fontSize: TYPE.body.size, color: C.black, fontWeight: 500 }}>{ln.name}{ln.qty && ln.qty > 1 ? ` × ${ln.qty}` : ""}</span>
+                    {ln.usageLabel && <span style={{ fontSize: 8, color: C.muted, padding: "1px 5px", background: C.light, borderRadius: 2 }}>Usage: {ln.usageLabel}</span>}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: TYPE.label.size }}>
+                    <span style={{ color: C.muted }}>Rate</span>
+                    <span style={{ fontFamily: SERIF, fontSize: TYPE.body.size, color: C.black }}>{fmtE(parseFloat(ln.amt) || 0)} €{ln.qty && ln.qty > 1 ? ` × ${ln.qty}` : ""}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
 
-          {/* Documents */}
-          <div style={{ display: "flex", gap: isMobile ? 8 : 5, flexWrap: "wrap" as const, marginBottom: isMobile ? 10 : 7 }}>
-            {!pr.qd && (
-              <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px" }} onClick={() => onGoToCalc(pr._cname)}>+ Create Quote</B>
-            )}
-            {pr.qd && (
-              <B v="sec" s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px" }} onClick={() => openPDF("quote")}>
-                {pr.qd.rev > 0 ? `Quote R${pr.qd.rev}` : "Quote"}
-              </B>
-            )}
-            {["contracted","production","invoiced","paid"].includes(pr.status) && pr.qd && (
-              <B v="sec" s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px" }} onClick={() => openPDF("contract")}>
-                {pr.qd.contractRev > 0 ? `Contract R${pr.qd.contractRev}` : "Contract"}
-              </B>
-            )}
-            {!isMobile && (pr.amendments || []).map((a: any, ai: number) => (
-              <B key={ai} v="sec"
-                s={{ fontSize: TYPE.micro.size, color: a.signed ? C.black : C.amber, borderColor: a.signed ? C.rule : C.amber }}
-                onClick={() => setPdf({ data: { brand: pr.qd?.brand, contact: pr.qd?.contact, date: today(), ctype: pr.qd?.ctype || "Content Creator", qNo: pr.qd?.qNo, aNo: a.aNo, lines: a.lines || [], amendTotal: a.amendTotal, origTotal: pr.amount - a.amendTotal }, type: "amendment", readOnly: true })}
-              >
-                Amend {ai + 1}{!a.signed ? " · unsigned" : ""}
-              </B>
-            ))}
-            {["invoiced","paid"].includes(pr.status) && pr.qd && (
-              <B v="sec" s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px" }} onClick={() => openPDF("invoice")}>Invoice</B>
-            )}
-            {(pr.renewals || []).map((r: any, ri: number) => (
-              r.doc && (
-                <B key={ri} v="sec"
-                  s={{ fontSize: TYPE.micro.size, color: r.paid ? C.black : C.green, borderColor: r.paid ? C.rule : C.green, padding: isMobile ? "9px 14px" : "5px 10px" }}
-                  onClick={() => setPdf({ data: r.doc, type: "renewal", readOnly: true })}
-                >
-                  Renewal {ri + 1}
+          {/* 3. BUILD QUOTE */}
+          {!pr.qd && (
+            <div style={{ marginBottom: 12 }}>
+              <B s={{ fontSize: TYPE.micro.size, padding: "8px 14px", width: "100%" }} onClick={() => onGoToCalc(pr._cname)}>+ Create Quote</B>
+            </div>
+          )}
+
+          {/* 4. DOCUMENTS */}
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Documents</p>
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const }}>
+              {pr.qd && (
+                <B v="sec" s={{ fontSize: TYPE.micro.size, padding: "5px 10px" }} onClick={() => openPDF("quote")}>
+                  {pr.qd.rev > 0 ? `Quote R${pr.qd.rev}` : "Quote"}
                 </B>
-              )
-            ))}
-            {pr.qd?.retainer && (pr.monthlyInvoices || []).map((inv: any, ii: number) => (
-              inv.doc && (
-                <B key={ii} v="sec"
-                  s={{ fontSize: TYPE.micro.size, color: inv.paid ? C.black : C.green, borderColor: inv.paid ? C.rule : C.green, padding: isMobile ? "9px 14px" : "5px 10px" }}
-                  onClick={() => setPdf({ data: inv.doc, type: "invoice", isMonthlyInv: true, monthlyIdx: ii })}
-                >
-                  Invoice M{String(ii + 1).padStart(2, "0")}
+              )}
+              {["contracted","production","invoiced","paid"].includes(pr.status) && pr.qd && (
+                <B v="sec" s={{ fontSize: TYPE.micro.size, padding: "5px 10px" }} onClick={() => openPDF("contract")}>
+                  {pr.qd.contractRev > 0 ? `Contract R${pr.qd.contractRev}` : "Contract"}
                 </B>
-              )
-            ))}
+              )}
+              {(pr.amendments || []).map((a: any, ai: number) => (
+                <B key={ai} v="sec" s={{ fontSize: TYPE.micro.size, padding: "5px 10px", color: a.signed ? C.black : C.amber, borderColor: a.signed ? C.rule : C.amber }}
+                  onClick={() => setPdf({ data: { brand: pr.qd?.brand, contact: pr.qd?.contact, date: today(), ctype: pr.qd?.ctype || "Content Creator", qNo: pr.qd?.qNo, aNo: a.aNo, lines: a.lines || [], amendTotal: a.amendTotal, origTotal: pr.amount - a.amendTotal }, type: "amendment", readOnly: true })}>
+                  Amend {ai + 1}{!a.signed ? " · unsigned" : ""}
+                </B>
+              ))}
+              {["invoiced","paid"].includes(pr.status) && pr.qd && (
+                <B v="sec" s={{ fontSize: TYPE.micro.size, padding: "5px 10px" }} onClick={() => openPDF("invoice")}>Invoice</B>
+              )}
+              {(pr.renewals || []).map((r: any, ri: number) => (
+                r.doc && (
+                  <B key={ri} v="sec" s={{ fontSize: TYPE.micro.size, padding: "5px 10px", color: r.paid ? C.black : C.green, borderColor: r.paid ? C.rule : C.green }}
+                    onClick={() => setPdf({ data: r.doc, type: "renewal", readOnly: true })}>
+                    Renewal {ri + 1}
+                  </B>
+                )
+              ))}
+              {pr.qd?.retainer && (pr.monthlyInvoices || []).map((inv: any, ii: number) => (
+                inv.doc && (
+                  <B key={ii} v="sec" s={{ fontSize: TYPE.micro.size, padding: "5px 10px", color: inv.paid ? C.black : C.green, borderColor: inv.paid ? C.rule : C.green }}
+                    onClick={() => setPdf({ data: inv.doc, type: "invoice", isMonthlyInv: true, monthlyIdx: ii })}>
+                    Invoice M{String(ii + 1).padStart(2, "0")}
+                  </B>
+                )
+              ))}
+            </div>
           </div>
 
-          {/* Actions */}
-          <div style={{ display: "flex", gap: isMobile ? 8 : 5, flexWrap: "wrap" as const, alignItems: "center", paddingTop: isMobile ? 10 : 7, borderTop: `1px solid ${C.rule}` }}>
+          {/* 5. PRODUCTION SECTION */}
+          {pr.status === "production" && (
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Production</p>
+              <ProductionSection pr={pr} clients={clients} cl={cl} upP={upP} isMobile={isMobile} />
+            </div>
+          )}
+
+          {/* 6. LICENSE TRACKER */}
+          <ProjectLicenseTracker pr={pr} />
+
+          {/* 7. NOTES */}
+          {pr.notes && (
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Notes</p>
+              <p style={{ fontSize: TYPE.body.size, color: C.muted, margin: 0, lineHeight: 1.5 }}>{pr.notes}</p>
+            </div>
+          )}
+
+          {/* 8. ACTION ROW */}
+          <div style={{ display: "flex", gap: isMobile ? 6 : 5, flexWrap: "wrap" as const, paddingTop: 10, borderTop: `1px solid ${C.rule}` }}>
 
             {["quoted","revised"].includes(pr.status) && <>
               <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => onRevise(pr, cl)}>Revise Quote</B>
-              <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }}
-                onClick={() => { setStatus("contracted"); openPDF("contract", { ...pr, status: "contracted" }); }}>
-                → Contract
-              </B>
+              <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "8px 14px" : "7px 14px" }} onClick={() => { setStatus("contracted"); openPDF("contract", { ...pr, status: "contracted" }); }}>→ Contract</B>
             </>}
 
             {pr.status === "contracted" && <>
-              <B v="sec" s={{ fontSize: TYPE.micro.size }}
-                onClick={() => {
-                  const q = pr.qd; const nextRev = (q?.contractRev || 0) + 1;
-                  const iNo = `INV-${(q?.qNo || "").replace(/QUO-?/i,"").trim() || "001"}`;
-                  setPdf({ data: { brand: q?.brand, contact: q?.contact, date: today(), validUntil: q?.validUntil, qNo: q?.qNo, rev: q?.rev || 0, contractRev: nextRev, clauses: q?.clauses || [], iNo, delivery: pr.deliveryDate, ctype: q?.ctype || "Content Creator", lines: q?.lines || [], amendments: pr.amendments || [], total: pr.amount, footer: "Looking forward to working together." }, type: "contract", isRevision: true, nextContractRev: nextRev });
-                }}>
-                Revise Contract
-              </B>
-              <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }} onClick={() => setStatus("production")}>Mark Signed</B>
+              <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => { const q = pr.qd; const nextRev = (q?.contractRev || 0) + 1; setPdf({ data: { brand: q?.brand, contact: q?.contact, date: today(), validUntil: q?.validUntil, qNo: q?.qNo, rev: q?.rev || 0, contractRev: nextRev, clauses: q?.clauses || [], iNo: `INV-${(q?.qNo || "").replace(/QUO-?/i,"").trim() || "001"}`, delivery: pr.deliveryDate, ctype: q?.ctype || "Content Creator", lines: q?.lines || [], amendments: pr.amendments || [], total: pr.amount, footer: "Looking forward to working together." }, type: "contract", isRevision: true, nextContractRev: nextRev }); }}>Revise Contract</B>
+              <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "8px 14px" : "7px 14px" }} onClick={() => setStatus("production")}>Mark Signed</B>
             </>}
 
             {pr.status === "production" && (pr.qd?.retainer ? (() => {
-              // ── Retainer monthly-invoice cycle (verbatim old-app logic) ──
-              const mis      = pr.monthlyInvoices || [];
-              const retMo    = pr.qd?.retMo || 1;
-              const nextN    = mis.length + 1;
-              const allDone  = mis.length >= retMo;
+              const mis = pr.monthlyInvoices || [];
+              const retMo = pr.qd?.retMo || 1;
+              const nextN = mis.length + 1;
+              const allDone = mis.length >= retMo;
               const lastPaid = mis.length > 0 && mis[mis.length - 1].paid;
-              const canNext  = mis.length === 0 || lastPaid;
+              const canNext = mis.length === 0 || lastPaid;
               return (<>
                 {mis.map((inv: any, ii: number) => (
                   <span key={inv.id || ii} style={{ display: "contents" }}>
                     {!inv.paid && (
-                      <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "10px 14px" : "7px 14px" }}
+                      <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "8px 10px" : "7px 10px" }}
                         onClick={() => {
-                          const newMis = mis.map((inv2: any, i2: number) => i2 === ii ? { ...inv2, paid: true } : inv2);
-                          const allPaid = newMis.length >= retMo && newMis.every((v: any) => v.paid);
-                          upP({ monthlyInvoices: newMis, paid: allPaid, status: allPaid ? "paid" : pr.status });
-                        }}>
-                        Mark M{ii + 1} Paid
-                      </B>
+                          const nm = mis.map((i2: any, i: number) => i === ii ? { ...i2, paid: true } : i2);
+                          upP({ monthlyInvoices: nm, paid: nm.length >= retMo && nm.every((v: any) => v.paid), status: nm.length >= retMo && nm.every((v: any) => v.paid) ? "paid" : pr.status });
+                        }}>Mark M{ii + 1} Paid</B>
                     )}
-                    <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "10px 14px" : "7px 14px" }}
-                      onClick={() => upP({ monthlyInvoices: mis.filter((_: any, i2: number) => i2 !== ii), paid: false, status: "production" })}>
-                      Undo M{ii + 1}
-                    </B>
+                    <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "8px 10px" : "7px 10px" }}
+                      onClick={() => upP({ monthlyInvoices: mis.filter((_: any, i: number) => i !== ii), paid: false })}>Undo M{ii + 1}</B>
                   </span>
                 ))}
                 {!allDone && canNext && (
-                  <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }}
+                  <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "8px 14px" : "7px 14px" }}
                     onClick={() => {
                       const q = pr.qd;
-                      const baseINo = `INV-${(q?.qNo || "").replace("QUO", "").trim() || "001"}`;
-                      const iNo = `${baseINo}-M${String(nextN).padStart(2, "0")}`;
                       const skip = ["usage","excl","rush","revision","whitelisting","aspect","raw footage","kill","pinned","link in bio"];
-                      const monthlyLines = (q?.lines || []).map((l: any) => ({
-                        ...l,
-                        amt: skip.some((sk: string) => (l.name || "").toLowerCase().includes(sk))
-                          ? parseFloat(l.amt) || 0
-                          : Math.round((parseFloat(l.amt) || 0) * 0.8),
-                        up: parseFloat(l.up) || 0,
-                      }));
-                      const monthlyAmt = Math.round(monthlyLines.reduce((s2: number, l: any) => s2 + (parseFloat(l.amt) || 0), 0));
-                      const data = { brand: q?.brand, contact: q?.contact, date: today(), qNo: q?.qNo, iNo, delivery: today(), ctype: q?.ctype || "Content Creator", lines: monthlyLines, total: monthlyAmt, retainer: true, retMo: q?.retMo, footer: "Thank you for the pleasure of working together." };
-                      setPdf({ data, type: "invoice", isMonthlyInv: true });
-                    }}>
-                    Create Invoice {nextN}/{retMo}
-                  </B>
+                      const ml = (q?.lines || []).map((l: any) => ({...l, amt: skip.some(s => (l.name || "").toLowerCase().includes(s)) ? parseFloat(l.amt) || 0 : Math.round((parseFloat(l.amt) || 0) * 0.8), up: parseFloat(l.up) || 0}));
+                      const mamt = Math.round(ml.reduce((s: number, l: any) => s + (parseFloat(l.amt) || 0), 0));
+                      const bno = `INV-${(q?.qNo || "").replace("QUO","").trim() || "001"}`;
+                      setPdf({ data: { brand: q?.brand, contact: q?.contact, date: today(), qNo: q?.qNo, iNo: `${bno}-M${String(nextN).padStart(2,"0")}`, delivery: today(), ctype: q?.ctype || "Content Creator", lines: ml, total: mamt, retainer: true, retMo: q?.retMo, footer: "Thank you for the pleasure of working together." }, type: "invoice", isMonthlyInv: true });
+                    }}>Create Invoice {nextN}/{retMo}</B>
                 )}
               </>);
             })() : (
-              <B
-                s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px", opacity: pr.deliveryDate ? 1 : 0.35, cursor: pr.deliveryDate ? "pointer" : "not-allowed" as const }}
-                title={pr.deliveryDate ? "" : "Set a delivery date first"}
-                onClick={() => { if (!pr.deliveryDate) return; setStatus("invoiced"); openPDF("invoice"); }}
-              >
-                Create Invoice
-              </B>
+              <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "8px 14px" : "7px 14px", opacity: pr.deliveryDate ? 1 : 0.35, cursor: pr.deliveryDate ? "pointer" : "not-allowed" as const }} title={pr.deliveryDate ? "" : "Set delivery date first"} onClick={() => { if (pr.deliveryDate) { setStatus("invoiced"); openPDF("invoice"); } }}>Create Invoice</B>
             ))}
 
-            {pr.status === "invoiced" && !pr.paid && (
-              <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }} onClick={() => setStatus("paid")}>Mark Paid</B>
-            )}
+            {pr.status === "invoiced" && !pr.paid && <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "8px 14px" : "7px 14px" }} onClick={() => setStatus("paid")}>Mark Paid</B>}
 
             {pr.paid && !pr.qd?.retainer && <>
-              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "10px 18px" : "7px 14px" }}
-                onClick={() => setRenewT(pr)}>
-                Add Renewal
-              </B>
-              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "10px 18px" : "7px 14px" }}
-                onClick={() => upP({ paid: false, status: "invoiced" })}>
-                Undo Paid
-              </B>
+              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "8px 14px" : "7px 14px" }} onClick={() => setRenewT(pr)}>Add Renewal</B>
+              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "8px 14px" : "7px 14px" }} onClick={() => upP({ paid: false, status: "invoiced" })}>Undo Paid</B>
             </>}
 
             {(pr.renewals || []).map((r: any, ri: number) => (
               <span key={r.id || ri} style={{ display: "contents" }}>
-                {!r.paid && (
-                  <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "10px 14px" : "7px 14px" }}
-                    onClick={() => clientsHook.updateRenewal(cl.id, pr.id, r.id, { paid: true })}>
-                    Mark Renewal {ri + 1} Paid
-                  </B>
-                )}
-                {!r.paid && (
-                  <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "10px 14px" : "7px 14px" }}
-                    onClick={() => clientsHook.deleteRenewal(cl.id, pr.id, r.id)}>
-                    Undo Renewal {ri + 1}
-                  </B>
-                )}
+                {!r.paid && <>
+                  <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => clientsHook.updateRenewal(cl.id, pr.id, r.id, { paid: true })}>Mark R{ri + 1} Paid</B>
+                  <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => clientsHook.deleteRenewal(cl.id, pr.id, r.id)}>Undo R{ri + 1}</B>
+                </>}
               </span>
             ))}
 
-            {!pr.paid && pr.status !== "quoted" && (
-              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "10px 14px" : "7px 14px" }}
-                onClick={() => { const p = prv(pr.status); if (p) setStatus(p); }}>
-                Undo
-              </B>
-            )}
+            {!pr.paid && pr.status !== "quoted" && <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => { const p = prv(pr.status); if (p) setStatus(p); }}>← Undo</B>}
 
-            {["production","invoiced","paid"].includes(pr.status) && pr.qd && (
-              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "10px 14px" : "7px 14px" }}
-                onClick={() => onAmend(pr, cl)}>
-                + Amend
-              </B>
-            )}
+            {["production","invoiced","paid"].includes(pr.status) && pr.qd && <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => onAmend(pr, cl)}>+ Amend</B>}
           </div>
         </div>
       )}

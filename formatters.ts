@@ -7,6 +7,9 @@
 export const fmt = (n: number | null | undefined): string =>
   `€ ${Number(n || 0).toLocaleString("de-DE")}`;
 
+export const fmtE = (n: number): string =>
+  Number(n || 0).toLocaleString("de-DE");
+
 // ─── DATES ───────────────────────────────────────────────────
 export const today = (): string =>
   new Date().toISOString().split("T")[0];
