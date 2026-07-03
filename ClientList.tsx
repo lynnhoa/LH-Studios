@@ -159,7 +159,7 @@ export default function ClientList({
       <I placeholder="Search clients, tags…" value={search} onChange={(e: any) => setSearch(e.target.value)} s={{ marginBottom: 8 }} />
 
       {/* Filter + sort — standard list toolbar: text selects, top right */}
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 14, marginBottom: 11 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 11 }}>
         <TSelWrap>
           <TSel
             value={typeFilter !== "all" ? typeFilter.toLowerCase() : statusFilter}

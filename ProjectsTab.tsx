@@ -495,7 +495,7 @@ export default function ProjectsTab({
       </div>
 
       {/* ── FILTER + SORT — standard list toolbar: text selects, top right ── */}
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 14, marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 16 }}>
         <TSelWrap>
           <TSel value={statusFilter} onChange={(e: any) => setStatusFilter(e.target.value)}>
             {FILTERS.map(([val, lbl]) => <option key={val} value={val}>{`Filter: ${lbl}`}</option>)}
