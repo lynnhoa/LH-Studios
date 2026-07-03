@@ -48,6 +48,9 @@ function RCContent({ card, lang, cleanSecT, rcSecGuards }: any) {
 }
 
 // ── Rate card PDF preview modal ───────────────────────────────
+// Desktop / iPad (≥768px): edit panel + live A4 preview side by side.
+// Mobile (<768px): one full-width pane with a Preview | Edit toggle.
+// Opens in Preview so the card can be checked before saving.
 function RateCardPreview({ card, settings, onSave, onClose }: any) {
   const init  = () => JSON.parse(JSON.stringify(card));
   const [hs,        setHs]        = useState({ hist: [init()], idx: 0 });
@@ -55,6 +58,7 @@ function RateCardPreview({ card, settings, onSave, onClose }: any) {
   const [downloading, setDownloading] = useState(false);
   const [docHeight, setDocHeight] = useState(841);
   const [winW,      setWinW]      = useState(() => window.innerWidth);
+  const [view,      setView]      = useState<"preview" | "edit">("preview");
   const [rcSecGuards, setRcSecGuards] = useState<number[]>([]);
   const [savedClean,  setSavedClean]  = useState(false);
   const [flash,       setFlash]       = useState(false);
@@ -67,7 +71,8 @@ function RateCardPreview({ card, settings, onSave, onClose }: any) {
   const PAGE_H   = 841;
   const CHROME_H = 220;
   const numPages = docHeight > PAGE_H + CHROME_H ? Math.ceil(docHeight / PAGE_H) : 1;
-  const pageScale = winW < 768 ? Math.min(1, (winW - 32) / 595) : 1;
+  const isM      = winW < 768;
+  const pageScale = isM ? Math.min(1, (winW - 32) / 595) : 1;
   const sett = { ...SETTINGS_DEFAULT, ...(settings || {}) };
 
   useEffect(() => {
@@ -134,6 +139,100 @@ function RateCardPreview({ card, settings, onSave, onClose }: any) {
 
   const doSave = () => { onSave(staged); setSavedClean(true); setFlash(true); setTimeout(() => setFlash(false), 2500); };
 
+  const tryClose = () => {
+    if (savedClean) { onClose(); return; }
+    const isDirty = JSON.stringify(staged) !== JSON.stringify(card);
+    isDirty ? setConfirmClose(true) : onClose();
+  };
+
+  // ── shared building blocks ──────────────────────────────────
+  const undoRedoBtn = (dir: "undo" | "redo") => {
+    const can = dir === "undo" ? canUndo : canRedo;
+    return (
+      <button
+        onClick={dir === "undo" ? undo : redo}
+        disabled={!can}
+        style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: `1px solid ${can ? C.rule : "transparent"}`, borderRadius: 2, cursor: can ? "pointer" : "default", color: can ? C.black : C.light, fontSize: 15, flexShrink: 0 }}
+      >{dir === "undo" ? "←" : "→"}</button>
+    );
+  };
+
+  const closeBtn = (
+    <button
+      onClick={tryClose}
+      style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 22, flexShrink: 0 }}
+    >✕</button>
+  );
+
+  const segBtn = (v: "preview" | "edit", label: string) => (
+    <button
+      onClick={() => setView(v)}
+      style={{ flex: 1, minHeight: 38, border: `1px solid ${view === v ? C.black : C.rule}`, background: view === v ? C.black : "transparent", color: view === v ? C.white : C.muted, borderRadius: 2, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.10em", textTransform: "uppercase" as const }}
+    >{label}</button>
+  );
+
+  const editForm = (
+    <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px", WebkitOverflowScrolling: "touch" as any }}>
+      <Lbl>Card Label</Lbl>
+      <I value={staged.label || ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, label: e.target.value }))} s={{ marginBottom: 8 }} />
+      <Lbl>Subtitle</Lbl>
+      <I value={staged.sub || ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, sub: e.target.value }))} s={{ marginBottom: 10 }} />
+      {(staged.sections || []).map((sec: any, si: number) => (
+        <div key={si} style={{ marginBottom: 10, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "8px 10px", background: C.white }}>
+          <I value={sec.t} onChange={(e: any) => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, t: e.target.value }) }))} s={{ marginBottom: 6, fontWeight: "500" }} />
+          {sec.items.map((it: any) => (
+            <div key={it.id} style={{ display: "flex", gap: 5, alignItems: "center", marginBottom: 4 }}>
+              <I value={it.n} onChange={(e: any) => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, items: s.items.map((x: any) => x.id !== it.id ? x : { ...x, n: e.target.value }) }) }))} s={{ flex: 2 }} />
+              <I type="number" value={it.p ?? ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, items: s.items.map((x: any) => x.id !== it.id ? x : { ...x, p: e.target.value === "" ? null : parseFloat(e.target.value) || 0 }) }) }))} s={{ width: 72 }} placeholder="€" />
+              <button onClick={() => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, items: s.items.filter((x: any) => x.id !== it.id) }) }))} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, padding: "0 2px" }}>✕</button>
+            </div>
+          ))}
+        </div>
+      ))}
+      <Lbl>Fine Print</Lbl>
+      <textarea value={staged.fine || ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, fine: e.target.value }))}
+        style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: 16, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 64 }} />
+    </div>
+  );
+
+  const saveBar = (
+    <div style={{ padding: isM ? "10px 16px" : "12px 18px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>
+      {flash && <p style={{ fontSize: TYPE.micro.size, color: C.green, margin: "0 0 7px", letterSpacing: "0.06em" }}>Saved ✓</p>}
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {isM && undoRedoBtn("undo")}
+        {isM && undoRedoBtn("redo")}
+        <B onClick={doSave} s={{ flex: 1, textAlign: "center" as const }}>Save</B>
+      </div>
+    </div>
+  );
+
+  const previewPages = (
+    <div style={{ flex: 1, background: "#888", overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isM ? "20px 12px" : "32px 28px", gap: isM ? 16 : 28, WebkitOverflowScrolling: "touch" as any }}>
+      {Array.from({ length: numPages }, (_, i) => (
+        <div key={i} style={{ width: 595 * pageScale, height: PAGE_H * pageScale, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 24px rgba(0,0,0,0.32)" }}>
+          <div data-pdf-page="true" style={{ width: 595, height: PAGE_H, overflow: "hidden", background: C.bg, position: "relative", transform: pageScale < 1 ? `scale(${pageScale})` : "none", transformOrigin: "top left" }}>
+            <div style={{ position: "absolute", top: -i * PAGE_H, left: 0, width: 595 }}>
+              <RCContent card={staged} lang={pdfLang} cleanSecT={cleanSecT} rcSecGuards={rcSecGuards} />
+            </div>
+            <div style={{ position: "absolute", bottom: 59, left: 0, right: 0, height: 28, background: C.bg, zIndex: 2, pointerEvents: "none" }} />
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, background: C.bg, zIndex: 3, borderBottom: `1px solid ${C.rule}` }}>
+              <div style={{ padding: "13px 62px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 6, letterSpacing: "0.2em", color: C.light, textTransform: "uppercase" as const }}>{sett.company || sett.name || "Lynn Hoa"}</span>
+                <span style={{ fontSize: 6, letterSpacing: "0.2em", color: C.light, textTransform: "uppercase" as const }}>{staged.label || "Rate Card"}</span>
+              </div>
+            </div>
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: C.bg, zIndex: 3, borderTop: `1px solid ${C.rule}` }}>
+              <div style={{ padding: "26px 62px 22px", fontSize: 7, color: C.muted, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>{[sett.email, sett.website].filter(Boolean).join(" · ") || "your@email.com · yourwebsite.com"}</span>
+                {numPages > 1 && <span style={{ letterSpacing: "0.04em", color: C.light }}>{i + 1}</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   return createPortal(
     <>
       {confirmClose && createPortal(
@@ -156,76 +255,48 @@ function RateCardPreview({ card, settings, onSave, onClose }: any) {
       </div>
 
       <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: 9999, display: "flex", flexDirection: "column", fontFamily: SANS }}>
-        {/* Toolbar */}
-        <div style={{ height: 46, borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", padding: "0 14px", gap: 6, flexShrink: 0 }}>
-          <button onClick={undo} disabled={!canUndo} style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: `1px solid ${canUndo ? C.rule : "transparent"}`, borderRadius: 2, cursor: canUndo ? "pointer" : "default", color: canUndo ? C.black : C.light, fontSize: 15 }}>←</button>
-          <button onClick={redo} disabled={!canRedo} style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: `1px solid ${canRedo ? C.rule : "transparent"}`, borderRadius: 2, cursor: canRedo ? "pointer" : "default", color: canRedo ? C.black : C.light, fontSize: 15 }}>→</button>
-          <div style={{ width: 1, height: 20, background: C.rule, margin: "0 4px" }} />
-          <Pill on={pdfLang === "en"} onClick={() => setPdfLang("en")}>EN</Pill>
-          <Pill on={pdfLang === "de"} onClick={() => setPdfLang("de")}>DE</Pill>
-          <div style={{ flex: 1 }} />
-          <B onClick={download} s={{ opacity: downloading ? 0.5 : 1 }}>{downloading ? "Saving…" : "Save PDF"}</B>
-          <button
-            onClick={() => { if (savedClean) { onClose(); return; } const isDirty = JSON.stringify(staged) !== JSON.stringify(card); isDirty ? setConfirmClose(true) : onClose(); }}
-            style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 22, marginLeft: 4 }}
-          >✕</button>
+        {/* ── Toolbar ── */}
+        <div style={{ borderBottom: `1px solid ${C.rule}`, flexShrink: 0 }}>
+          <div style={{ height: 48, display: "flex", alignItems: "center", padding: "0 12px", gap: 6 }}>
+            {isM ? (
+              <>
+                {closeBtn}
+                <div style={{ width: 1, height: 20, background: C.rule, margin: "0 2px" }} />
+                <Pill on={pdfLang === "en"} onClick={() => setPdfLang("en")}>EN</Pill>
+                <Pill on={pdfLang === "de"} onClick={() => setPdfLang("de")}>DE</Pill>
+                <div style={{ flex: 1 }} />
+                <B onClick={download} s={{ opacity: downloading ? 0.5 : 1 }}>{downloading ? "Saving…" : "Save PDF"}</B>
+              </>
+            ) : (
+              <>
+                {undoRedoBtn("undo")}
+                {undoRedoBtn("redo")}
+                <div style={{ width: 1, height: 20, background: C.rule, margin: "0 4px" }} />
+                <Pill on={pdfLang === "en"} onClick={() => setPdfLang("en")}>EN</Pill>
+                <Pill on={pdfLang === "de"} onClick={() => setPdfLang("de")}>DE</Pill>
+                <div style={{ flex: 1 }} />
+                <B onClick={download} s={{ opacity: downloading ? 0.5 : 1 }}>{downloading ? "Saving…" : "Save PDF"}</B>
+                {closeBtn}
+              </>
+            )}
+          </div>
+          {isM && (
+            <div style={{ display: "flex", gap: 6, padding: "0 12px 10px" }}>
+              {segBtn("preview", "Preview")}
+              {segBtn("edit", "Edit")}
+            </div>
+          )}
         </div>
 
+        {/* ── Body ── */}
         <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-          {/* Edit panel */}
-          <div style={{ width: 320, flexShrink: 0, display: "flex", flexDirection: "column", borderRight: `1px solid ${C.rule}` }}>
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px" }}>
-              <Lbl>Card Label</Lbl>
-              <I value={staged.label || ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, label: e.target.value }))} s={{ marginBottom: 8 }} />
-              <Lbl>Subtitle</Lbl>
-              <I value={staged.sub || ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, sub: e.target.value }))} s={{ marginBottom: 10 }} />
-              {(staged.sections || []).map((sec: any, si: number) => (
-                <div key={si} style={{ marginBottom: 10, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "8px 10px", background: C.white }}>
-                  <I value={sec.t} onChange={(e: any) => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, t: e.target.value }) }))} s={{ marginBottom: 6, fontWeight: "500" }} />
-                  {sec.items.map((it: any) => (
-                    <div key={it.id} style={{ display: "flex", gap: 5, alignItems: "center", marginBottom: 4 }}>
-                      <I value={it.n} onChange={(e: any) => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, items: s.items.map((x: any) => x.id !== it.id ? x : { ...x, n: e.target.value }) }) }))} s={{ flex: 2 }} />
-                      <I type="number" value={it.p ?? ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, items: s.items.map((x: any) => x.id !== it.id ? x : { ...x, p: e.target.value === "" ? null : parseFloat(e.target.value) || 0 }) }) }))} s={{ width: 64 }} placeholder="€" />
-                      <button onClick={() => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, items: s.items.filter((x: any) => x.id !== it.id) }) }))} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, padding: 0 }}>✕</button>
-                    </div>
-                  ))}
-                </div>
-              ))}
-              <Lbl>Fine Print</Lbl>
-              <textarea value={staged.fine || ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, fine: e.target.value }))}
-                style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: TYPE.micro.size, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 64 }} />
+          {(!isM || view === "edit") && (
+            <div style={{ width: isM ? "100%" : 320, flexShrink: 0, display: "flex", flexDirection: "column", borderRight: isM ? "none" : `1px solid ${C.rule}` }}>
+              {editForm}
+              {saveBar}
             </div>
-            <div style={{ padding: "12px 18px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>
-              {flash && <p style={{ fontSize: TYPE.micro.size, color: C.green, margin: "0 0 7px", letterSpacing: "0.06em" }}>Saved ✓</p>}
-              <B onClick={doSave} s={{ width: "100%", textAlign: "center" as const }}>Save</B>
-            </div>
-          </div>
-
-          {/* PDF preview */}
-          <div style={{ flex: 1, background: "#888", overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: "32px 28px", gap: 28 }}>
-            {Array.from({ length: numPages }, (_, i) => (
-              <div key={i} style={{ width: 595 * pageScale, height: PAGE_H * pageScale, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 24px rgba(0,0,0,0.32)" }}>
-                <div data-pdf-page="true" style={{ width: 595, height: PAGE_H, overflow: "hidden", background: C.bg, position: "relative", transform: pageScale < 1 ? `scale(${pageScale})` : "none", transformOrigin: "top left" }}>
-                  <div style={{ position: "absolute", top: -i * PAGE_H, left: 0, width: 595 }}>
-                    <RCContent card={staged} lang={pdfLang} cleanSecT={cleanSecT} rcSecGuards={rcSecGuards} />
-                  </div>
-                  <div style={{ position: "absolute", bottom: 59, left: 0, right: 0, height: 28, background: C.bg, zIndex: 2, pointerEvents: "none" }} />
-                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, background: C.bg, zIndex: 3, borderBottom: `1px solid ${C.rule}` }}>
-                    <div style={{ padding: "13px 62px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 6, letterSpacing: "0.2em", color: C.light, textTransform: "uppercase" as const }}>{sett.company || sett.name || "Lynn Hoa"}</span>
-                      <span style={{ fontSize: 6, letterSpacing: "0.2em", color: C.light, textTransform: "uppercase" as const }}>{staged.label || "Rate Card"}</span>
-                    </div>
-                  </div>
-                  <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: C.bg, zIndex: 3, borderTop: `1px solid ${C.rule}` }}>
-                    <div style={{ padding: "26px 62px 22px", fontSize: 7, color: C.muted, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span>{[sett.email, sett.website].filter(Boolean).join(" · ") || "your@email.com · yourwebsite.com"}</span>
-                      {numPages > 1 && <span style={{ letterSpacing: "0.04em", color: C.light }}>{i + 1}</span>}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          )}
+          {(!isM || view === "preview") && previewPages}
         </div>
       </div>
     </>,
@@ -352,12 +423,13 @@ interface ServiceCatalogProps {
   upsertCard: (key: string, card: any) => Promise<string | null>;
   deleteCard: (key: string) => Promise<string | null>;
   settings:   any;
+  isMobile?:  boolean;
 }
 
 const BASE_CATS = ["influencer", "ugc", "editorial"];
 const CAT_LABEL: Record<string, string> = { influencer: "Brand Collaboration", ugc: "UGC", editorial: "Editorial" };
 
-export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings }: ServiceCatalogProps) {
+export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, isMobile = false }: ServiceCatalogProps) {
   const [tab,         setTab]         = useState("influencer");
   const [edit,        setEdit]        = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);
@@ -436,6 +508,20 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings }:
     setShowBuilder(false);
   };
 
+  // Header actions — Edit is the primary daily action
+  const actions = edit ? (
+    <>
+      <B v="sec" onClick={addSection}>+ Section</B>
+      <B onClick={() => setEdit(false)}>Done</B>
+    </>
+  ) : (
+    <>
+      <B v="sec" onClick={() => setShowPreview(true)}>Rate Card PDF</B>
+      <B v="sec" onClick={() => setShowBuilder(true)}>+ Add Card</B>
+      <B onClick={() => setEdit(true)}>Edit</B>
+    </>
+  );
+
   return (
     <div>
       {showBuilder && <AddRateCardModal rc={rc} onSave={saveBuilt} onClose={() => setShowBuilder(false)} />}
@@ -449,31 +535,32 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings }:
       )}
 
       {/* ── HEADER ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 18, gap: 8, flexWrap: "wrap" as const }}>
-        <div>
+      {/* Desktop / iPad: title left, actions right on one line.        */}
+      {/* Mobile: title block, then one calm action row underneath.     */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: isMobile ? 14 : 18, gap: 8 }}>
+        <div style={{ minWidth: 0 }}>
           <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 4px" }}>Service Catalog</h2>
           <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" as const, margin: 0 }}>Single source of truth · Fashion · Beauty · Lifestyle</p>
         </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" as const }}>
-          {edit ? (
-            <>
-              <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={addSection}>+ Section</B>
-              <B onClick={() => setEdit(false)}>Done</B>
-            </>
-          ) : (
-            <>
-              <B v="sec" onClick={() => setShowPreview(true)}>Rate Card PDF</B>
-              <B v="sec" onClick={() => setShowBuilder(true)}>+ Add Card</B>
-              <B onClick={() => setEdit(true)}>Edit</B>
-            </>
-          )}
-        </div>
+        {!isMobile && <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>{actions}</div>}
       </div>
+      {isMobile && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>{actions}</div>
+      )}
 
       {/* ── CATEGORY TABS ── */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" as const, alignItems: "center" }}>
+      {/* Mobile: single row, swipe horizontally — never wraps.         */}
+      <div style={{
+        display:    "flex",
+        gap:        6,
+        marginBottom: 18,
+        alignItems: "center",
+        ...(isMobile
+          ? { overflowX: "auto" as const, flexWrap: "nowrap" as const, WebkitOverflowScrolling: "touch" as any, scrollbarWidth: "none" as any, paddingBottom: 2 }
+          : { flexWrap: "wrap" as const }),
+      }}>
         {tabs.map(k => (
-          <div key={k} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <div key={k} style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
             <Pill on={tab === k} onClick={() => setTab(k)}>{rc[k]?.label || CAT_LABEL[k] || k}</Pill>
             {!BASE_CATS.includes(k) && (
               <button
@@ -506,12 +593,12 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings }:
           {sec.items.map((it: any) => (
             <div key={it.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${C.rule}` }}>
               {edit ? (
-                <div style={{ flex: 1, display: "flex", gap: 6, alignItems: "center" }}>
-                  <I value={it.n}    onChange={(e: any) => upItem(si, it.id, "n",    e.target.value)} s={{ flex: 1 }} />
+                <div style={{ flex: 1, display: "flex", gap: 6, alignItems: "center", flexWrap: isMobile ? "wrap" as const : "nowrap" as const }}>
+                  <I value={it.n}    onChange={(e: any) => upItem(si, it.id, "n",    e.target.value)} s={{ flex: isMobile ? "1 1 100%" : 1 }} />
                   <I value={it.note || ""} onChange={(e: any) => upItem(si, it.id, "note", e.target.value)} s={{ flex: 1 }} placeholder="note" />
-                  <I type="number" value={it.p ?? ""} onChange={(e: any) => upItem(si, it.id, "p", e.target.value)} s={{ width: 60 }} placeholder="€" />
+                  <I type="number" value={it.p ?? ""} onChange={(e: any) => upItem(si, it.id, "p", e.target.value)} s={{ width: 64 }} placeholder="€" />
                   {it.m !== undefined && <I value={it.m || ""} onChange={(e: any) => upItem(si, it.id, "m", e.target.value)} s={{ width: 52 }} />}
-                  <button onClick={() => remItem(si, it.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 13, padding: 0 }}>✕</button>
+                  <button onClick={() => remItem(si, it.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 13, padding: "0 2px" }}>✕</button>
                 </div>
               ) : (
                 <>

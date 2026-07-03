@@ -489,6 +489,7 @@ export default function ManagerApp({
             upsertCard={rateCardsHook.upsertCard}
             deleteCard={rateCardsHook.deleteCard}
             settings={settings}
+            isMobile={isMobile}
           />
         )}
 
