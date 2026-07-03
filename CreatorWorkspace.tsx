@@ -198,8 +198,12 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
               const dayTag    = plannerDayLabel(item.plannerDate);
               const isDone    = ["Delivered","Posted"].includes(item.status);
               const isCreated = ["Created","Reviewed","Delivered","Posted"].includes(item.status);
-              const isPosted  = item.status === "Posted";
-              const showPost  = item.category === "Influencer";
+              // Second checkbox is category-aware: Influencer publishes on own
+              // channels → "posted"; UGC/Editorial hand over files → "delivered".
+              const isInfl    = item.category === "Influencer";
+              const doneLabel = isInfl ? "posted" : "delivered";
+              const doneSt    = isInfl ? "Posted" : "Delivered";
+              const cbDone    = item.status === doneSt;
 
               // Manager status from history
               const mgrStatus = (() => {
@@ -249,14 +253,12 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
                               {isCreated && <span style={{ fontSize: 13, color: C.white, lineHeight: 1, fontWeight: "500" }}>✓</span>}
                             </div>
                           </div>
-                          {showPost && (
-                            <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 3 }}>
-                              <span style={{ fontSize: TYPE.label.size, color: C.light }}>posted</span>
-                              <div onClick={() => { if (!isCreated) return; setItemStatus(item, isPosted ? "Created" : "Posted"); }} style={{ ...cbBox(isPosted, C.green, cbSz), cursor: isCreated ? "pointer" : "default", opacity: isCreated ? 1 : 0.35 }}>
-                                {isPosted && <span style={{ fontSize: 13, color: C.white, lineHeight: 1, fontWeight: "500" }}>✓</span>}
-                              </div>
+                          <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 3 }}>
+                            <span style={{ fontSize: TYPE.label.size, color: C.light }}>{doneLabel}</span>
+                            <div onClick={() => { if (!isCreated) return; setItemStatus(item, cbDone ? "Created" : doneSt); }} style={{ ...cbBox(cbDone, C.green, cbSz), cursor: isCreated ? "pointer" : "default", opacity: isCreated ? 1 : 0.35 }}>
+                              {cbDone && <span style={{ fontSize: 13, color: C.white, lineHeight: 1, fontWeight: "500" }}>✓</span>}
                             </div>
-                          )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -295,14 +297,12 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
                               {isCreated && <span style={{ fontSize: 11, color: C.white, lineHeight: 1, fontWeight: "500" }}>✓</span>}
                             </div>
                           </div>
-                          {showPost && (
-                            <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 3 }}>
-                              <span style={{ fontSize: TYPE.micro.size, color: C.light }}>posted</span>
-                              <div onClick={() => { if (!isCreated) return; setItemStatus(item, isPosted ? "Created" : "Posted"); }} style={{ ...cbBox(isPosted, C.green, cbSz), cursor: isCreated ? "pointer" : "default", opacity: isCreated ? 1 : 0.35 }}>
-                                {isPosted && <span style={{ fontSize: 11, color: C.white, lineHeight: 1, fontWeight: "500" }}>✓</span>}
-                              </div>
+                          <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 3 }}>
+                            <span style={{ fontSize: TYPE.micro.size, color: C.light }}>{doneLabel}</span>
+                            <div onClick={() => { if (!isCreated) return; setItemStatus(item, cbDone ? "Created" : doneSt); }} style={{ ...cbBox(cbDone, C.green, cbSz), cursor: isCreated ? "pointer" : "default", opacity: isCreated ? 1 : 0.35 }}>
+                              {cbDone && <span style={{ fontSize: 11, color: C.white, lineHeight: 1, fontWeight: "500" }}>✓</span>}
                             </div>
-                          )}
+                          </div>
                         </div>
                       </div>
                     </div>
