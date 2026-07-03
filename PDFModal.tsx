@@ -201,15 +201,30 @@ export default function PDFModal({
     }
   };
 
+  // Editing qty or unit price scales the line amount PROPORTIONALLY so that
+  // usage rights, exclusivity, and add-on uplifts baked into `amt` are preserved.
+  //   qty change: amt := amt / oldQty * newQty
+  //   up  change: amt := amt * newUp / oldUp   (falls back to up*qty if oldUp is 0)
   const updStagedLine = (i: number, k: string, v: string) =>
     setStaged((prev: any) => {
       const lines = [...(prev.lines || [])];
-      lines[i] = {
-        ...lines[i], [k]: v,
-        amt: k === "qty" ? (parseFloat(lines[i].up) || 0) * (parseInt(v) || 1)
-           : k === "up"  ? (parseFloat(v) || 0) * (parseInt(lines[i].qty) || 1)
-           : parseFloat(v) || lines[i].amt,
-      };
+      const ln     = lines[i];
+      const curAmt = parseFloat(ln.amt) || 0;
+      let amt = ln.amt;
+      if (k === "qty") {
+        const oldQ = Math.max(1, parseInt(ln.qty) || 1);
+        const newQ = Math.max(1, parseInt(v) || 1);
+        amt = Math.round(curAmt / oldQ * newQ);
+      } else if (k === "up") {
+        const oldU = parseFloat(ln.up) || 0;
+        const newU = Math.max(0, parseFloat(v) || 0);
+        amt = oldU > 0
+          ? Math.round(curAmt * newU / oldU)
+          : Math.round(newU * Math.max(1, parseInt(ln.qty) || 1));
+      } else if (k === "amt") {
+        amt = parseFloat(v) || ln.amt;
+      }
+      lines[i] = { ...ln, [k]: v, amt };
       return { ...prev, lines };
     });
 
@@ -232,7 +247,13 @@ export default function PDFModal({
 
   // ── Default contract clauses (computed from staged) ───────
   const _dc    = s.company || s.name || (isDE ? "Der/Die Auftragnehmer/in" : "The creator");
-  const _total = `€ ${Number((staged.lines || []).reduce((a: number, ln: any) => a + (parseFloat(ln.amt) || 0), 0)).toLocaleString("de-DE")}`;
+  // Contract fee must match the A4Document total: for retainer agreements the
+  // total project fee is (monthly rate after -20%) x months, not the line sum.
+  const _linesSum = (staged.lines || []).reduce((a: number, ln: any) => a + (parseFloat(ln.amt) || 0), 0);
+  const _grand    = staged.retainer && staged.retMo
+    ? Math.round(Math.round(_linesSum * 0.8) * staged.retMo)
+    : _linesSum;
+  const _total = `€ ${Number(_grand).toLocaleString("de-DE")}`;
   const _dd    = (staged.lines || []).length > 0 ? (staged.lines || []).map((ln: any) => `${ln.qty ? ln.qty + "× " : ""}${ln.name}`).join(", ") : null;
 
   const defClauses = type === "contract" ? [

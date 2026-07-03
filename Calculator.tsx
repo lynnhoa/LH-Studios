@@ -98,7 +98,10 @@ export default function Calculator({
         id: uid(), cat: ln.cat || prefill.ctab || "influencer",
         name: ln.name || "", note: ln.note || "",
         qty: ln.qty || 1, up: ln.up || 0, amt: ln.amt || 0,
-        usageLabel: undefined, exclLabel: undefined, addons: [],
+        usageLabel: ln.usageLabel || undefined,
+        exclLabel:  ln.exclLabel  || undefined,
+        addons:     ln.addons     || [],
+        platforms:  ln.platforms  || [],
       }));
     }
     return [];
@@ -117,9 +120,9 @@ export default function Calculator({
   // ── Price computation ─────────────────────────────────────
   const computePrice = () => {
     const item    = bDel >= 0 ? deliverables[bDel] : null;
-    const bQtyN   = parseInt(String(bQty)) || 1;
-    const base    = bNeg !== "" ? parseFloat(bNeg) || 0 : (item?.p || 0);
-    const lb      = base * (bQtyN || 1);
+    const bQtyN   = Math.max(1, parseInt(String(bQty)) || 1);
+    const base    = Math.max(0, bNeg !== "" ? parseFloat(bNeg) || 0 : (item?.p || 0));
+    const lb      = base * bQtyN;
     let vp = 0;
     if (bVol) {
       if (bCat === "editorial") vp = 10;
@@ -153,8 +156,8 @@ export default function Calculator({
       cat:        bCat,
       name:       item?.n || "",
       note:       item?.note || "",
-      qty:        parseInt(String(bQty)) || 1,
-      up:         item?.p || parseFloat(bNeg) || 0,
+      qty:        Math.max(1, parseInt(String(bQty)) || 1),
+      up:         bNeg !== "" ? Math.max(0, parseFloat(bNeg) || 0) : (item?.p || 0),
       amt:        price,
       usageLabel: usageSel?.sentinel ? undefined : usageSel?.l,
       exclLabel:  exclSel?.sentinel  ? undefined : exclSel?.l,
@@ -185,20 +188,31 @@ export default function Calculator({
       : "Content Creator (Influencer)";
     const ctab = cats.length === 1 ? cats[0] : (cats.length > 1 ? "complete" : "influencer");
 
-    const usageItem = items.find(it => it.usageLabel);
+    // Usage period for the whole quote = the LONGEST usage period across all lines
     let mo: number | null = null;
-    if (usageItem?.usageLabel) {
-      const cardKey = usageItem.cat || ctab;
+    items.forEach(it => {
+      if (!it.usageLabel) return;
+      const cardKey = it.cat || ctab;
       const cardRef = (rc && rc[cardKey]) || Object.values(rc || {})[0] || { usage: [] };
-      const found   = (cardRef.usage || []).find((u: any) => u.l === usageItem.usageLabel);
-      if (found && found.mo) mo = found.mo;
-      else { const m = usageItem.usageLabel.match(/(\d+)\s*month/i); if (m) mo = parseInt(m[1]); }
-    }
+      const found   = (cardRef.usage || []).find((u: any) => u.l === it.usageLabel);
+      let itemMo: number | null = null;
+      if (found && found.mo) itemMo = found.mo;
+      else { const m = it.usageLabel.match(/(\d+)\s*month/i); if (m) itemMo = parseInt(m[1]); }
+      if (itemMo && (!mo || itemMo > mo)) mo = itemMo;
+    });
 
     // Merge same name+cat items
+    // Merge only lines that are IDENTICAL in every pricing-relevant way:
+    // same category, name, usage rights, exclusivity, add-ons, and platforms.
+    // Differently-configured lines must stay separate on the PDF.
     const mergedMap = new Map<string, any>();
     items.forEach(it => {
-      const key = `${it.cat}__${it.name}`;
+      const key = [
+        it.cat, it.name,
+        it.usageLabel || "", it.exclLabel || "",
+        [...(it.addons || [])].sort().join("|"),
+        [...(it.platforms || [])].sort().join("|"),
+      ].join("__");
       if (mergedMap.has(key)) {
         const ex = mergedMap.get(key);
         ex.qty = (ex.qty || 1) + (it.qty || 1);
@@ -315,7 +329,7 @@ export default function Calculator({
         {/* Category tabs */}
         <div style={{ display: "flex", gap: 6, marginBottom: 13, flexWrap: "wrap" as const }}>
           {(["influencer","ugc","editorial"] as const).map(k => (
-            <Pill key={k} on={bCat === k} onClick={() => { setBCat(k); setBDel(-1); setBAddons([]); }}>
+            <Pill key={k} on={bCat === k} onClick={() => { setBCat(k); setBDel(-1); setBAddons([]); setBUsage(0); setBExcl(0); setBVol(false); }}>
               {CAT_LABEL[k]}
             </Pill>
           ))}

@@ -129,6 +129,11 @@ interface ComputeInput {
   qty:         number;
 }
 
+// Formula matches Calculator.tsx exactly:
+//   1. base x qty
+//   2. x (1 + (usage% + excl%) / 100)        — additive uplift
+//   3. + flat add-ons; % add-ons apply to the POST-uplift amount
+//   4. single Math.round at the end
 export const computePrice = ({
   baseAmt,
   usagePct,
@@ -136,13 +141,12 @@ export const computePrice = ({
   addons,
   qty,
 }: ComputeInput): number => {
-  const base   = baseAmt * qty;
-  const usage  = Math.round(base * (usagePct / 100));
-  const excl   = Math.round(base * (exclPct  / 100));
+  const base   = Math.max(0, baseAmt) * Math.max(1, qty || 1);
+  const am     = base * (1 + (usagePct + exclPct) / 100);
   const aoAmt  = addons.reduce((sum, ao) => {
     if (ao.flat) return sum + ao.flat;
-    if (ao.pct)  return sum + Math.round(base * (ao.pct / 100));
+    if (ao.pct)  return sum + am * (ao.pct / 100);
     return sum;
   }, 0);
-  return base + usage + excl + aoAmt;
+  return Math.round(am + aoAmt);
 };
