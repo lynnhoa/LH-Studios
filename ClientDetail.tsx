@@ -113,13 +113,8 @@ export default function ClientDetail({
                 <B v="sec" onClick={() => setEditMode(false)}>Cancel</B>
               </>
             : <>
-                <B v="sec" onClick={() => { setEd({ ...cl }); setEditMode(true); }}>Edit</B>
-                <button
-                  onClick={() => deleteClient()}
-                  style={{ fontSize: TYPE.micro.size, color: C.red, border: `1px solid ${C.red}`, padding: "5px 10px", borderRadius: 2, cursor: "pointer", background: "none", fontFamily: SANS, letterSpacing: "0.08em", textTransform: "uppercase" as const }}
-                >
-                  Delete
-                </button>
+                <B v="sec"    onClick={() => { setEd({ ...cl }); setEditMode(true); }} s={{ minWidth: 96 }}>Edit</B>
+                <B v="danger" onClick={() => deleteClient()}                            s={{ minWidth: 96 }}>Delete</B>
               </>
           }
           <button

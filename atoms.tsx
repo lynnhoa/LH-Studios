@@ -53,7 +53,8 @@ export const S = ({ s, ...p }: any) => (
 // ─── BUTTON ──────────────────────────────────────────────────
 // v="pri"   black bg, white text       — primary action
 // v="sec"   transparent bg, rule border — secondary action
-// v="ghost" no border, muted text       — inline / destructive
+// v="ghost"  no border, muted text        — inline / low-emphasis
+// v="danger" red border, red text         — destructive action
 export const B = ({ v = "pri", s, ...p }: any) => {
   const styles: Record<string, any> = {
     pri: {
@@ -70,6 +71,11 @@ export const B = ({ v = "pri", s, ...p }: any) => {
       background:  "none",
       color:       C.muted,
       border:      "none",
+    },
+    danger: {
+      background:  "transparent",
+      color:       C.red,
+      border:      `1px solid ${C.red}`,
     },
   };
 
