@@ -42,7 +42,7 @@ export default function ProductionSection({ pr, clients, cl, upP, isMobile }: Pr
       (pr.qd?.lines || []).forEach((ln: any, li: number) => {
         if (!ln.name) return;
         if (skipD.some((s: string) => ln.name.toLowerCase().includes(s))) return;
-        if (getWsCategory(ln.name) !== cat) return;
+        if (getWsCategory(ln) !== cat) return;
         const qty = parseInt(ln.qty) || 1;
         for (let q = 0; q < qty; q++) {
           const id = `${pr.id}_ln${li}_q${q}`;
@@ -95,7 +95,7 @@ export default function ProductionSection({ pr, clients, cl, upP, isMobile }: Pr
         const isEditorial  = cat === "Editorial";
         const canAct = prog.allCreated;
         const allPosted = prog.total > 0 && prog.posted === prog.total;
-        const catLines = allLines.filter((ln: any) => getWsCategory(ln.name) === cat);
+        const catLines = allLines.filter((ln: any) => getWsCategory(ln) === cat);
 
         // per-line circle data
         const lineCircles = catLines.map((ln: any) => {
@@ -130,7 +130,7 @@ export default function ProductionSection({ pr, clients, cl, upP, isMobile }: Pr
               {lineCircles.map(({ ln, filled, qty, createdCount }: any, lii: number) => (
                 <div key={lii} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6, padding: isMobile ? "8px 10px" : "6px 10px", borderTop: lii > 0 ? `1px solid ${C.rule}` : "none" }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    {isMobile && (() => { const cat2 = getWsCategory(ln.name); const pill = catPill(cat2); return <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 20, ...pill, display: "inline-block", marginBottom: 3 }}>{cat2}</span>; })()}
+                    {isMobile && (() => { const cat2 = getWsCategory(ln); const pill = catPill(cat2); return <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 20, ...pill, display: "inline-block", marginBottom: 3 }}>{cat2}</span>; })()}
                     <p style={{ fontSize: isMobile ? 13 : 10, color: C.black, margin: 0, fontWeight: "500", whiteSpace: "normal" as const, lineHeight: 1.3 }}>{ln.name}</p>
                     {ln.note && <p style={{ fontSize: isMobile ? 11 : 9, color: C.muted, margin: "2px 0 0" }}>{ln.note}</p>}
                   </div>

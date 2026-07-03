@@ -10,8 +10,16 @@ import { today } from "./formatters";
 export const WS_STATUSES = ["Not started", "Created", "Reviewed", "Delivered", "Posted"] as const;
 
 // ── Category helpers ──────────────────────────────────────────
-export function getWsCategory(lineName: string): string {
-  const n = (lineName || "").toLowerCase();
+// Accepts the full line object (preferred) or a bare name string (legacy).
+// Authoritative source: `cat` chosen in the Calculator and stored on the
+// line — Brand Collab → Influencer, UGC → UGC, Editorial → Editorial.
+// Name-keyword heuristic remains only as fallback for old lines without `cat`.
+export function getWsCategory(ln: any): string {
+  const c = (typeof ln === "object" && ln ? ln.cat || "" : "").toLowerCase();
+  if (c === "ugc")       return "UGC";
+  if (c === "editorial") return "Editorial";
+  if (c === "influencer" || c === "hotels") return "Influencer";
+  const n = ((typeof ln === "string" ? ln : ln?.name) || "").toLowerCase();
   if (n.includes("hero") || n.includes("editorial") || n.includes("photo story") || n.includes("mini set") || n.includes("hero image")) return "Editorial";
   if (n.includes("ugc") || n.includes("campaign video")) return "UGC";
   return "Influencer";
@@ -44,7 +52,7 @@ export function getLineGroups(c: any, pr: any): any[] {
     if (!ln.name) return;
     if (SKIP.some(s => ln.name.toLowerCase().includes(s))) return;
     const qty     = parseInt(ln.qty) || 1;
-    const cat     = getWsCategory(ln.name);
+    const cat     = getWsCategory(ln);
     const lineKey = `${li}_${cat}`;
     let grp = groups.find(g => g.lineKey === lineKey);
     if (!grp) { grp = { lineKey, lineName: ln.name, category: cat, items: [] }; groups.push(grp); }
@@ -81,7 +89,7 @@ export function getWsItems(clients: any[]): any[] {
             projectId:    pr.id,
             projectName:  pr.name,
             deadline:     pr.deliveryDate || null,
-            category:     getWsCategory(ln.name),
+            category:     getWsCategory(ln),
             status:       (pr.workspaceStatus || {})[id] || "Not started",
             plannerDate:  (pr.workspacePlanner || {})[id] || null,
             notes:        (pr.workspaceNotes || {})[id] || "",
@@ -152,7 +160,7 @@ export function getCatProgress(pr: any, clients: any[]): Record<string, { total:
     const qty = parseInt(ln.qty) || 1;
     for (let q = 0; q < qty; q++) {
       const id = `${pr.id}_ln${li}_q${q}`;
-      const cat = getWsCategory(ln.name);
+      const cat = getWsCategory(ln);
       const st = (pr.workspaceStatus || {})[id] || "Not started";
       if (!cats[cat]) cats[cat] = { total: 0, created: 0, posted: 0, allCreated: false };
       cats[cat].total++;
