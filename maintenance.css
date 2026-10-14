@@ -1,0 +1,16 @@
+/* ─────────────────────────────────────────────────────────────
+   MAINTENANCE — only what casa-castel.css + cc-cards.css don't have
+   maintenance.css
+   Same tokens as the other apps: cream page, white cards, 0.5px rules,
+   Cormorant titles, Inter text, 10px caps section labels.
+   ───────────────────────────────────────────────────────────── */
+
+/* Page header: title left, the tab's action right (= Rooms / Apartments) */
+.mt-hdr { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:20px; }
+.mt-hdr .cc-h1 { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Empty tab and load problems */
+.mt-empty { font-size:13px; color:var(--cc-stone); font-style:italic; padding:20px 0; }
+.mt-note  { font-size:13px; line-height:1.5; color:var(--cc-charcoal); margin:0 0 6px; }
+.mt-note a { color:#8A6535; text-decoration:underline; text-underline-offset:3px; }
+.mt-muted { font-size:11px; color:var(--cc-taupe); overflow-wrap:anywhere; }
