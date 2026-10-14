@@ -28,7 +28,7 @@
     .ct-loading__spinner { width:32px; height:32px; border:2px solid var(--cc-rule); border-top-color:var(--cc-ink); border-radius:50%; animation:mt-spin .8s linear infinite; }
     @keyframes mt-spin { to { transform:rotate(360deg); } }
   </style>
-  <link rel="stylesheet" href="maintenance.css?v=2026-10-14-A1"/>
+  <link rel="stylesheet" href="maintenance.css?v=2026-10-14-B1"/>
 </head>
 <body class="is-landlord">
 
@@ -61,11 +61,19 @@
 
     <div class="cc-layout" id="appLayout">
       <div class="cc-main" id="appMain">
-        <div class="tab-content" id="tab-renovierung"></div>
-        <div class="tab-content" id="tab-schaden" style="display:none;"></div>
+        <!-- list left · panel right on a laptop; on phone / iPad the panel lies on top -->
+        <div class="mt-split" id="mtSplit">
+          <div class="mt-col">
+            <div class="tab-content" id="tab-renovierung"></div>
+            <div class="tab-content" id="tab-schaden" style="display:none;"></div>
+          </div>
+          <aside class="mt-panel" id="mtPanel" role="dialog" aria-labelledby="mtPanelTitle" hidden></aside>
+        </div>
       </div>
     </div>
   </div>
+
+  <div class="mt-scrim" id="mtScrim" data-mt="close" hidden></div>
 
   <div class="ct-toast" id="ctToast" role="status" aria-live="polite"></div>
   <div class="ct-loading" id="ctLoading"><div class="ct-loading__spinner"></div></div>
@@ -80,7 +88,7 @@
 
   <!-- Same login session + logout + toast as Settlements / Controlling -->
   <script src="controlling-auth.js?v=2026-10-01b"></script>
-  <script src="maintenance.js?v=2026-10-14-A1"></script>
+  <script src="maintenance.js?v=2026-10-14-B1"></script>
 
   <!-- Profile panel (same one as Rentals / Controlling), sharing this page's login session -->
   <script>var sbL = _ctlSupa;</script>
