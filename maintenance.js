@@ -23,8 +23,14 @@
                · Save shows at once and retries once by itself; a toast
                  only when it really failed (the form comes back)
 
-   Bucket B: list, summary, panel (read, edit, new, delete, type switch).
-   Bucket C: documents (photos, upload, Rechnungen → Kosten).
+   Documents (per case, in the panel):
+               Photos  = camera or library, several at once, saved as photos
+                         (shrunk to 2000 px + a small preview in /thumbs/)
+               Upload  = one file + its Type; a Rechnung also gets Betrag and
+                         Rechnungsdatum → Kosten everywhere
+               Edit    = × deletes a file, tapping a file fixes Type / Betrag / date
+               Files are private (bucket maintenance-docs, one folder per case);
+               a tap opens them with a short-lived link.
    ───────────────────────────────────────────────────────────── */
 
 'use strict';
@@ -40,8 +46,10 @@ const MT = {
   loaded: false,
   loadError: null,
   open: {},         // unfolded "Done" groups: { 'schaden|p:4': true }
-  sel: null,        // panel: { id, isNew, edit, draft, snap }
+  sel: null,        // panel: { id, isNew, edit, draft, snap, docEdit, add, fix }
   busy: false,      // a save / delete is running
+  up: null,         // upload running: { caseId, total, done }
+  links: {},        // file path → { url, exp } (short-lived private links)
 };
 
 const MT_KIND = {
@@ -49,6 +57,16 @@ const MT_KIND = {
   schaden:     { title: 'Schäden',       one: 'Schaden',     empty: 'No Schäden yet.',       open: 'Open',    openCount: 'open' },
 };
 const MT_PAID = [['me', 'Me'], ['versicherung', 'Versicherung'], ['mieter', 'Mieter'], ['weg', 'WEG / HV']];
+const MT_DOC = {
+  rechnung:       { label: 'Rechnung',       icon: 'ti-file-invoice' },
+  angebot:        { label: 'Angebot',        icon: 'ti-file-text' },
+  schadenbericht: { label: 'Schadenbericht', icon: 'ti-file-description' },
+  photo:          { label: 'Photo',          icon: 'ti-photo' },
+  other:          { label: 'Other',          icon: 'ti-file' },
+};
+const MT_DOC_ORDER = ['schadenbericht', 'angebot', 'rechnung', 'other', 'photo'];
+const MT_BUCKET = 'maintenance-docs';
+const MT_MAX_MB = 30;
 
 /* ── Small helpers ────────────────────────────────────────── */
 const mtEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -229,7 +247,8 @@ function mtPanelHTML() {
       <div class="mt-ph__ht"><p class="mt-ph__t" id="mtPanelTitle">${mtEsc(title)}</p><p class="mt-ph__s" id="mtPanelSub">${mtEsc(sub)}</p></div>
       <button type="button" class="mt-ph__x" data-mt="close" aria-label="Close"><i class="ti ti-x" aria-hidden="true"></i></button>
     </div>
-    ${s.edit ? mtEditHTML(c, s) : mtReadHTML(c)}`;
+    ${s.edit ? mtEditHTML(c, s) : mtReadHTML(c)}
+    ${s.isNew ? `<section class="mt-sec"><p class="mt-sec__t">Documents</p><p class="mt-docs-empty">Photos and documents can be added after Save.</p></section>` : mtDocsHTML(c)}`;
 }
 
 function mtReadHTML(c) {
@@ -247,7 +266,7 @@ function mtReadHTML(c) {
         ${c.kind === 'schaden' ? f('Paid by', v(mtPaidLabel(c.paid_by))) : ''}
         ${f('Description', v(c.description, 'mt-v--text'), true)}
       </div>
-      <div class="cc-sec-foot"><button type="button" class="cc-foot-btn" data-mt="edit"><i class="ti ti-pencil" aria-hidden="true"></i> Edit</button></div>
+      ${mtDocsBusy(c) ? '' : '<div class="cc-sec-foot"><button type="button" class="cc-foot-btn" data-mt="edit"><i class="ti ti-pencil" aria-hidden="true"></i> Edit</button></div>'}
     </section>`;
 }
 
@@ -313,6 +332,7 @@ function mtRenderPanel() {
   p._key = who;
   // the date field becomes a German field right after it is drawn → note the form after that
   if (MT.sel.edit) { const sel = MT.sel; delete sel.snap; setTimeout(() => { if (MT.sel === sel && sel.edit) sel.snap = mtFormSnap(); }, 0); }
+  mtAfterPanel();
 }
 
 /* What the form says right now (to notice unsaved changes) */
@@ -321,7 +341,9 @@ function mtFormSnap() {
     .map(id => { const el = document.getElementById(id); return el ? el.value : ''; })
     .join('\u0001');
 }
-const mtDirty = () => !!(MT.sel && MT.sel.edit && MT.sel.snap !== undefined && mtFormSnap() !== MT.sel.snap);
+const mtDirty = () => !!(MT.sel && (
+  (MT.sel.edit && MT.sel.snap !== undefined && mtFormSnap() !== MT.sel.snap) ||
+  MT.sel.add || (MT.sel.fix && mtFixChanged())));
 
 /* Type changed in the form: status words, "Paid by" and the new-entry title follow */
 function mtKindChanged() {
@@ -395,7 +417,7 @@ async function mtNew() {
 }
 
 function mtEdit() {
-  if (!MT.sel || MT.sel.isNew) return;
+  if (!MT.sel || MT.sel.isNew || mtDocsBusy(mtCase(MT.sel.id))) return;
   MT.sel = { id: MT.sel.id, isNew: false, edit: true };
   mtRenderPanel();
 }
@@ -461,6 +483,7 @@ async function mtSave() {
 async function mtDelete() {
   const c = MT.sel && !MT.sel.isNew ? mtCase(MT.sel.id) : null;
   if (!c || MT.busy) return;
+  if (MT.up && String(MT.up.caseId) === String(c.id)) { mtSay('Wait until the upload is finished.'); return; }
   const n = MT.docs.filter(d => String(d.case_id) === String(c.id)).length;
   const ok = await mtConfirm({
     title: 'Delete this entry?',
@@ -488,12 +511,371 @@ async function mtDelete() {
     mtSay('Not deleted. Check the connection and try again.');
     return;
   }
-  const paths = docs.map(d => d.file_path).filter(Boolean);
+  const paths = docs.flatMap(mtFilesOf);
   if (paths.length) {
-    try { await sb.storage.from('maintenance-docs').remove(paths); }
+    try { await sb.storage.from(MT_BUCKET).remove(paths); }
     catch (e) { console.warn('[maintenance] files not removed:', e); }
   }
   mtSay('Deleted');
+}
+
+/* ── Documents ────────────────────────────────────────────── */
+const mtThumbPath = p => String(p || '').replace(/^([^/]+)\//, '$1/thumbs/');            // <case>/thumbs/<id>.jpg
+const mtFilesOf = d => (d.doc_type === 'photo' ? [d.file_path, mtThumbPath(d.file_path)] : [d.file_path]).filter(Boolean);
+const mtDocsOf = caseId => MT.docs.filter(d => String(d.case_id) === String(caseId));
+const mtIsImage = f => /^image\//.test(f.type || '') || /\.(jpe?g|png|heic|heif|webp|gif)$/i.test(f.name || '');
+const mtIsPdf = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '');
+const mtLinkNow = p => { const l = MT.links[p]; return l && l.exp > Date.now() + 5000 ? l.url : null; };
+/* Documents are being changed (form open / edit mode / upload) → Details waits */
+const mtDocsBusy = c => !!(MT.sel && (MT.sel.docEdit || MT.sel.add || MT.sel.fix || (c && MT.up && String(MT.up.caseId) === String(c.id))));
+
+/* Rechnung, Angebot … from the file name (you can change it) */
+function mtGuessType(name) {
+  const n = String(name || '').toLowerCase();
+  if (/rechnung|invoice|\bre[-_ .]?\d|\brg[-_ .]?\d/.test(n)) return 'rechnung';
+  if (/angebot|kostenvoranschlag|\bkva?\b|offer|quote/.test(n)) return 'angebot';
+  if (/schaden|bericht|gutachten|report/.test(n)) return 'schadenbericht';
+  return 'rechnung';
+}
+/* The day a photo was taken (file date), else today */
+function mtFileDay(f) {
+  const t = Number(f && f.lastModified);
+  const day = t ? ccDayOf(new Date(t)) : '';
+  return day && day <= ccTodayISO() && day >= '2000-01-01' ? day : ccTodayISO();
+}
+/* Photo → JPEG, longest side max px (null if the browser cannot read it) */
+function mtShrink(file, max, quality) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const k = Math.min(1, max / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+      const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k));
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
+      cv.toBlob(b => resolve(b || null), 'image/jpeg', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
+/* Short-lived private links (1 hour) for the files of the open entry */
+async function mtPrepareLinks(paths) {
+  const need = [...new Set(paths.filter(p => p && !mtLinkNow(p)))];
+  if (!need.length) return;
+  try {
+    const { data, error } = await _ctlSupa.storage.from(MT_BUCKET).createSignedUrls(need, 3600);
+    if (error) throw error;
+    (data || []).forEach(x => { if (x && x.signedUrl && x.path) MT.links[x.path] = { url: x.signedUrl, exp: Date.now() + 3500 * 1000 }; });
+  } catch (e) { console.warn('[maintenance] links:', e); }
+}
+function mtFillThumbs() {
+  document.querySelectorAll('#mtPanel img[data-path]').forEach(img => {
+    if (img.getAttribute('src')) return;
+    const thumb = mtLinkNow(img.dataset.thumb), full = mtLinkNow(img.dataset.path);
+    if (thumb) {
+      img.onerror = () => { const f = mtLinkNow(img.dataset.path); img.onerror = null; if (f) img.src = f; };   // no preview → the photo itself
+      img.src = thumb;
+    } else if (full) img.src = full;
+  });
+}
+function mtAfterPanel() {
+  const c = MT.sel && !MT.sel.isNew ? mtCase(MT.sel.id) : null;
+  if (!c) return;
+  const paths = mtDocsOf(c.id).flatMap(mtFilesOf);
+  mtFillThumbs();
+  if (paths.length) mtPrepareLinks(paths).then(mtFillThumbs);
+}
+
+/* Tap on a file → opens on top of the app (iPhone viewer / new tab) */
+function mtOpenUrl(url) {
+  let w = null;
+  try { w = window.open(url, '_blank'); } catch (e) { w = null; }
+  if (w) { try { w.opener = null; } catch (e) {} return; }
+  location.assign(url);                                   // pop-ups blocked: open it here (Back returns)
+}
+function mtOpenDoc(id) {
+  const d = MT.docs.find(x => String(x.id) === String(id));
+  if (!d) return;
+  const ready = mtLinkNow(d.file_path);
+  if (ready) { mtOpenUrl(ready); return; }
+  let w = null;                                           // open the tab inside the tap, fill it when the link is there
+  try { w = window.open('', '_blank'); } catch (e) { w = null; }
+  mtPrepareLinks([d.file_path]).then(() => {
+    const url = mtLinkNow(d.file_path);
+    if (!url) { try { if (w) w.close(); } catch (e) {} mtSay('The file could not be opened. Try again.'); return; }
+    if (w) { try { w.location.replace(url); return; } catch (e) {} }
+    mtOpenUrl(url);
+  });
+}
+
+/* ── Documents: drawing ── */
+function mtDocsHTML(c) {
+  const s = MT.sel, docs = mtDocsOf(c.id);
+  const byDate = (a, b) => String(a.doc_date || '').localeCompare(String(b.doc_date || '')) || String(a.created_at || '').localeCompare(String(b.created_at || ''));
+  const photos = docs.filter(d => d.doc_type === 'photo').sort(byDate);
+  const files = docs.filter(d => d.doc_type !== 'photo')
+    .sort((a, b) => MT_DOC_ORDER.indexOf(a.doc_type) - MT_DOC_ORDER.indexOf(b.doc_type) || byDate(a, b));
+  const locked = !!s.edit;                                 // Details in edit → documents only to look at
+  const ed = !!s.docEdit && !locked;
+  const up = MT.up && String(MT.up.caseId) === String(c.id) ? MT.up : null;
+
+  let h = '<section class="mt-sec" id="mtDocs"><p class="mt-sec__t">Documents</p>';
+  if (s.add && !locked) h += mtDocFormHTML('mtA', s.add, s.add.name, s.add.isImg, 'add');
+  if (up) h += `<p class="mt-up" role="status"><span class="mt-spin" aria-hidden="true"></span>Uploading ${Math.min(up.done + 1, up.total)} of ${up.total}</p>`;
+  if (!docs.length && !s.add && !up) h += '<p class="mt-docs-empty">No photos or documents yet.</p>';
+  if (photos.length) {
+    h += `<p class="mt-k mt-gl">Photos (${photos.length})</p><div class="mt-pg">` + photos.map(p => `
+      <div class="mt-pt">
+        <button type="button" class="mt-pt__open" data-mt="${ed ? 'none' : 'openDoc'}" data-id="${mtEsc(p.id)}" aria-label="Photo ${mtEsc(mtDate(p.doc_date))}"${ed ? ' tabindex="-1"' : ''}>
+          <img alt="" loading="lazy" data-path="${mtEsc(p.file_path)}" data-thumb="${mtEsc(mtThumbPath(p.file_path))}"/></button>
+        ${ed ? `<button type="button" class="mt-x" data-mt="delDoc" data-id="${mtEsc(p.id)}" aria-label="Delete photo"><i class="ti ti-x" aria-hidden="true"></i></button>` : ''}
+      </div>`).join('') + '</div>';
+  }
+  if (files.length) {
+    h += '<div class="mt-dl">' + files.map(d => (s.fix === String(d.id) && !locked)
+      ? mtDocFormHTML('mtX', { type: d.doc_type, amount: d.amount, date: d.doc_date }, d.file_name || MT_DOC[d.doc_type].label, false, 'fix')
+      : mtDocRowHTML(d, ed)).join('') + '</div>';
+  }
+  if (docs.some(d => d.doc_type === 'rechnung')) h += `<div class="mt-su"><span>Kosten</span><b>${mtEur(mtCost([c.id]))}</b></div>`;
+  if (ed && !s.fix) h += '<p class="mt-hint">Tap a document to change its type, Betrag or date. The × deletes it.</p>';
+  if (!locked && !s.add && !s.fix && !up) {
+    h += ed
+      ? '<div class="cc-sec-foot"><button type="button" class="cc-foot-btn mt-save" data-mt="docsDone">Done</button></div>'
+      : `<div class="cc-sec-foot">
+          <span class="is-left mt-foot-l">
+            <button type="button" class="cc-foot-btn" data-mt="photos"><i class="ti ti-camera" aria-hidden="true"></i> Photos</button>
+            <button type="button" class="cc-foot-btn" data-mt="upload"><i class="ti ti-upload" aria-hidden="true"></i> Upload</button>
+          </span>
+          ${docs.length ? '<button type="button" class="cc-foot-btn" data-mt="docsEdit"><i class="ti ti-pencil" aria-hidden="true"></i> Edit</button>' : '<span aria-hidden="true"></span>'}
+        </div>`;
+  }
+  return h + '</section>';
+}
+
+function mtDocRowHTML(d, ed) {
+  const t = MT_DOC[d.doc_type] || MT_DOC.other;
+  const sub = [d.file_name, mtDate(d.doc_date)].filter(Boolean).map(mtEsc).join(' · ');
+  return `<div class="mt-dr">
+      <button type="button" class="mt-dr__main" data-mt="${ed ? 'fixDoc' : 'openDoc'}" data-id="${mtEsc(d.id)}">
+        <span class="mt-di"><i class="ti ${t.icon}" aria-hidden="true"></i></span>
+        <span class="mt-dn"><span class="mt-dt">${t.label}</span>${sub ? `<span class="mt-ds">${sub}</span>` : ''}</span>
+        ${d.doc_type === 'rechnung' ? `<span class="mt-da">${mtEur(d.amount)}</span>` : ''}
+      </button>
+      ${ed ? `<button type="button" class="mt-x" data-mt="delDoc" data-id="${mtEsc(d.id)}" aria-label="Delete ${t.label}"><i class="ti ti-x" aria-hidden="true"></i></button>` : ''}
+    </div>`;
+}
+
+/* One form for a new file (pre = mtA) and for fixing one (pre = mtX) */
+function mtDocFormHTML(pre, v, name, isImg, mode) {
+  const types = ['rechnung', 'angebot', 'schadenbericht', ...(isImg || v.type === 'photo' ? ['photo'] : []), 'other'];
+  const isRe = v.type === 'rechnung';
+  const amt = v.amount === null || v.amount === undefined || v.amount === '' ? '' : String(v.amount);
+  return `<div class="mt-ab" id="${pre}-form">
+      <div class="mt-fc"><i class="ti ${isImg ? 'ti-photo' : 'ti-file-text'}" aria-hidden="true"></i><span>${mtEsc(name)}</span></div>
+      <div class="mt-grid">
+        <div class="mt-f"><label class="mt-k" for="${pre}-type">Type</label>
+          <select class="mt-in" id="${pre}-type" data-doc-type="${pre}">${types.map(t => `<option value="${t}"${v.type === t ? ' selected' : ''}>${MT_DOC[t].label}</option>`).join('')}</select></div>
+        <div class="mt-f" data-only-re="${pre}"${isRe ? '' : ' hidden'}><label class="mt-k" for="${pre}-amount">Betrag (€)</label>
+          <input class="mt-in" id="${pre}-amount" data-cc-num="2" inputmode="decimal" autocomplete="off" value="${mtEsc(amt)}"/></div>
+        <div class="mt-f"><label class="mt-k" for="${pre}-date" id="${pre}-dateLbl">${isRe ? 'Rechnungsdatum' : 'Date'}</label>
+          <input class="mt-in" id="${pre}-date" type="date" value="${mtEsc(v.date || '')}"/></div>
+      </div>
+      <div class="cc-sec-foot"><span class="cc-foot-right">
+        <button type="button" class="cc-foot-btn" data-mt="${mode}Cancel">Cancel</button>
+        <button type="button" class="cc-foot-btn mt-save" data-mt="${mode}Save">Save</button>
+      </span></div>
+    </div>`;
+}
+/* Type changed in a document form: Betrag only for a Rechnung */
+function mtDocTypeChanged(pre) {
+  const t = document.getElementById(pre + '-type')?.value;
+  const box = document.querySelector(`#mtPanel [data-only-re="${pre}"]`);
+  if (box) box.hidden = t !== 'rechnung';
+  const lbl = document.getElementById(pre + '-dateLbl');
+  if (lbl) lbl.textContent = t === 'rechnung' ? 'Rechnungsdatum' : 'Date';
+}
+/* Read + check a document form → { type, amount, date } or null */
+function mtReadDocForm(pre) {
+  const g = id => document.getElementById(pre + '-' + id);
+  const type = g('type').value;
+  const amtEl = g('amount'), dateEl = g('date');
+  const date = dateEl.value || '';
+  const fail = (el, msg) => { if (el) { el.setAttribute('aria-invalid', 'true'); if (!el.classList.contains('cc-cal')) el.focus(); } mtSay(msg); return null; };
+  let amount = null;
+  if (type === 'rechnung') {
+    const raw = amtEl.value;                               // "1250.5" (German field) or ''
+    if (raw === '' || !isFinite(Number(raw))) return fail(amtEl, 'Enter the Betrag of the Rechnung.');
+    amount = Math.round(Number(raw) * 100) / 100;
+  }
+  if (!date && mtNativeVal(dateEl).trim()) return fail(dateEl, 'Check the date (TT.MM.JJJJ).');
+  if (type === 'rechnung' && !date) return fail(dateEl, 'Enter the Rechnungsdatum.');
+  return { type, amount, date: date || null };
+}
+function mtFixChanged() {
+  const d = MT.docs.find(x => String(x.id) === String(MT.sel && MT.sel.fix));
+  const t = document.getElementById('mtX-type');
+  if (!d || !t) return false;
+  const a = document.getElementById('mtX-amount'), dt = document.getElementById('mtX-date');
+  const amt = t.value === 'rechnung' ? (a && a.value !== '' ? Math.round(Number(a.value) * 100) / 100 : null) : null;
+  const was = d.doc_type === 'rechnung' && d.amount !== null && d.amount !== undefined ? Math.round(Number(d.amount) * 100) / 100 : null;
+  return t.value !== d.doc_type || amt !== was || (dt ? dt.value || null : null) !== (d.doc_date || null);
+}
+
+/* ── Documents: actions ── */
+function mtFileInput(id, accept, multiple, onPick) {
+  let inp = document.getElementById(id);
+  if (!inp) {
+    inp = document.createElement('input');
+    inp.type = 'file'; inp.id = id; inp.accept = accept; inp.multiple = multiple;
+    inp.style.display = 'none'; inp.setAttribute('aria-hidden', 'true');
+    inp.addEventListener('change', () => { const files = [...(inp.files || [])]; inp.value = ''; if (files.length) onPick(files); });
+    document.body.appendChild(inp);
+  }
+  inp.value = '';
+  inp.click();
+}
+const mtOpenCase = () => (MT.sel && !MT.sel.isNew && !MT.sel.edit ? mtCase(MT.sel.id) : null);
+function mtRefresh(caseId) {
+  if (MT.sel && !MT.sel.isNew && String(MT.sel.id) === String(caseId)) mtRenderPanel();
+  mtRender();
+}
+
+/* Photos: camera or library, several at once → saved as photos right away */
+function mtPickPhotos() {
+  if (!mtOpenCase()) return;
+  if (MT.up) { mtSay('Wait until the upload is finished.'); return; }
+  mtFileInput('mtPhotoInput', 'image/*', true, mtAddPhotos);
+}
+async function mtAddPhotos(files) {
+  const c = mtOpenCase();
+  if (!c || MT.up) return;
+  const imgs = files.filter(mtIsImage);
+  if (!imgs.length) { mtSay('Choose photos (JPG, PNG or HEIC).'); return; }
+  MT.up = { caseId: c.id, total: imgs.length, done: 0 };
+  mtRefresh(c.id);
+  let ok = 0;
+  for (const f of imgs) {
+    if (await mtUploadOne(c, f, { type: 'photo', amount: null, date: mtFileDay(f) })) ok++;
+    MT.up.done++;
+    mtRefresh(c.id);
+  }
+  MT.up = null;
+  mtRefresh(c.id);
+  if (ok === imgs.length) mtSay(ok === 1 ? 'Photo saved' : ok + ' photos saved');
+  else mtSay(`${ok} of ${imgs.length} photos saved. Add the others again.`);
+}
+
+/* Upload: one file → its Type (+ Betrag and Rechnungsdatum for a Rechnung) → Save */
+function mtPickFile() {
+  if (!mtOpenCase()) return;
+  if (MT.up) { mtSay('Wait until the upload is finished.'); return; }
+  mtFileInput('mtFileInput', 'application/pdf,image/*', false, files => {
+    const f = files[0], c = mtOpenCase();
+    if (!f || !c) return;
+    if (!mtIsPdf(f) && !mtIsImage(f)) { mtSay('Choose a PDF or a photo.'); return; }
+    if (f.size > MT_MAX_MB * 1024 * 1024) { mtSay(`This file is too big (max ${MT_MAX_MB} MB).`); return; }
+    MT.sel.docEdit = false; MT.sel.fix = null;
+    MT.sel.add = { file: f, name: f.name || 'Document', isImg: mtIsImage(f), type: mtGuessType(f.name), amount: '', date: ccTodayISO() };
+    mtRenderPanel();
+    document.getElementById('mtDocs')?.scrollIntoView({ block: 'nearest' });
+  });
+}
+async function mtAddSave() {
+  const s = MT.sel, c = mtOpenCase();
+  if (!s || !s.add || !c || MT.up) return;
+  const v = mtReadDocForm('mtA');
+  if (!v) return;
+  const add = s.add;
+  s.add = null;
+  MT.up = { caseId: c.id, total: 1, done: 0 };
+  mtRefresh(c.id);
+  const ok = await mtUploadOne(c, add.file, v);
+  MT.up = null;
+  if (!ok && MT.sel && String(MT.sel.id) === String(c.id)) MT.sel.add = { ...add, type: v.type, amount: v.amount ?? '', date: v.date };   // the form comes back
+  mtRefresh(c.id);
+  mtSay(ok ? MT_DOC[v.type].label + ' saved' : 'Not uploaded. Check the connection and try again.');
+}
+
+/* Store one file: shrink a photo → upload (one retry) → its row; nothing is left half-saved */
+async function mtUploadOne(c, file, v) {
+  const sb = _ctlSupa, store = sb.storage.from(MT_BUCKET);
+  const id = mtUuid(), img = mtIsImage(file);
+  let blob = file, ext = (String(file.name || '').match(/\.([a-z0-9]{1,5})$/i) || [, img ? 'jpg' : 'pdf'])[1].toLowerCase();
+  let type = file.type || (mtIsPdf(file) ? 'application/pdf' : 'application/octet-stream');
+  if (img) {
+    const small = await mtShrink(file, 2000, 0.85);
+    if (small) { blob = small; ext = 'jpg'; type = 'image/jpeg'; }
+  }
+  const path = `${c.id}/${id}.${ext}`;
+  const put = (p, b, t) => mtTry(async () => {
+    const r = await store.upload(p, b, { contentType: t, upsert: false, cacheControl: '3600' });
+    if (r && r.error && /exist|duplicate|409/i.test(String(r.error.message || r.error.statusCode || ''))) return {};   // first try did arrive
+    return r;
+  });
+  const up = await put(path, blob, type);
+  if (up.error) { console.error('[maintenance] upload failed:', up.error); return false; }
+  if (v.type === 'photo' && img) {                         // small preview for the photo grid (best effort)
+    const thumb = await mtShrink(file, 360, 0.7);
+    if (thumb) await put(mtThumbPath(path), thumb, 'image/jpeg');
+  }
+  const row = {
+    id, case_id: c.id, doc_type: v.type, file_path: path,
+    file_name: String(file.name || (img ? 'Photo.jpg' : 'Document')).slice(0, 180),
+    amount: v.type === 'rechnung' ? v.amount : null, doc_date: v.date || null,
+  };
+  const ins = await mtTry(() => sb.from('maint_docs').insert(row));
+  if (ins.error) {
+    console.error('[maintenance] document row failed:', ins.error);
+    try { await store.remove([path, mtThumbPath(path)]); } catch (e) {}
+    return false;
+  }
+  MT.docs.push({ ...row, created_at: new Date().toISOString() });
+  return true;
+}
+
+/* Fix a file: Type / Betrag / date */
+async function mtFixSave() {
+  const s = MT.sel, d = s && MT.docs.find(x => String(x.id) === String(s.fix));
+  if (!d) return;
+  const v = mtReadDocForm('mtX');
+  if (!v) return;
+  const before = { doc_type: d.doc_type, amount: d.amount, doc_date: d.doc_date };
+  const patch = { doc_type: v.type, amount: v.type === 'rechnung' ? v.amount : null, doc_date: v.date };
+  Object.assign(d, patch);
+  s.fix = null;
+  mtRefresh(d.case_id);
+  const r = await mtTry(() => _ctlSupa.from('maint_docs').update(patch).eq('id', d.id));
+  if (!r.error) return;
+  console.error('[maintenance] document change failed:', r.error);
+  Object.assign(d, before);
+  if (MT.sel && String(MT.sel.id) === String(d.case_id)) { MT.sel.docEdit = true; MT.sel.fix = String(d.id); }
+  mtRefresh(d.case_id);
+  mtSay('Not saved. Check the connection and save again.');
+}
+
+async function mtDelDoc(id) {
+  const d = MT.docs.find(x => String(x.id) === String(id));
+  if (!d) return;
+  const label = d.doc_type === 'photo' ? 'photo' : MT_DOC[d.doc_type].label;
+  const ok = await mtConfirm({ title: `Delete this ${label}?`, text: `${d.file_name || label} will be deleted for good.`, ok: 'Delete', danger: true });
+  if (!ok) return;
+  const idx = MT.docs.indexOf(d);
+  MT.docs.splice(idx, 1);
+  if (MT.sel && !mtDocsOf(d.case_id).length) MT.sel.docEdit = false;    // nothing left to edit
+  mtRefresh(d.case_id);
+  const sb = _ctlSupa;
+  const r = await mtTry(() => sb.from('maint_docs').delete().eq('id', d.id));
+  if (r.error) {
+    console.error('[maintenance] document delete failed:', r.error);
+    MT.docs.splice(idx, 0, d);
+    mtRefresh(d.case_id);
+    mtSay('Not deleted. Check the connection and try again.');
+    return;
+  }
+  try { await sb.storage.from(MT_BUCKET).remove(mtFilesOf(d)); } catch (e) { console.warn('[maintenance] file not removed:', e); }
 }
 
 /* ── In-app confirm sheet (instead of confirm()) ─────────────
@@ -540,8 +922,24 @@ function mtWire() {
     else if (a === 'cancel') mtCancel();
     else if (a === 'save') mtSave();
     else if (a === 'del') mtDelete();
+    else if (a === 'photos') mtPickPhotos();
+    else if (a === 'upload') mtPickFile();
+    else if (a === 'openDoc') mtOpenDoc(b.dataset.id);
+    else if (a === 'docsEdit') { if (MT.sel) { MT.sel.docEdit = true; MT.sel.fix = null; mtRenderPanel(); } }
+    else if (a === 'docsDone') { if (MT.sel) { MT.sel.docEdit = false; MT.sel.fix = null; mtRenderPanel(); } }
+    else if (a === 'fixDoc') { if (MT.sel) { MT.sel.fix = String(b.dataset.id); mtRenderPanel(); } }
+    else if (a === 'fixCancel') { if (MT.sel) { MT.sel.fix = null; mtRenderPanel(); } }
+    else if (a === 'fixSave') mtFixSave();
+    else if (a === 'delDoc') mtDelDoc(b.dataset.id);
+    else if (a === 'addCancel') { if (MT.sel) { MT.sel.add = null; mtRenderPanel(); } }
+    else if (a === 'addSave') mtAddSave();
   });
-  document.addEventListener('change', e => { if (e.target && e.target.id === 'mtF-kind') mtKindChanged(); });
+  document.addEventListener('change', e => {
+    const t = e.target;
+    if (!t) return;
+    if (t.id === 'mtF-kind') mtKindChanged();
+    else if (t.dataset && t.dataset.docType) mtDocTypeChanged(t.dataset.docType);
+  });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && MT.sel && !document.getElementById('mtConfirm') && !document.getElementById('ccCal')) mtClose();
   });
