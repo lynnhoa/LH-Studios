@@ -9,6 +9,7 @@
 import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import { initials } from "./formatters";
+import { currentQuote, contractNo } from "./docs";
 import AppLogo from "./AppLogo";
 
 // ── Page imports (placeholders until built) ───────────────────
@@ -76,6 +77,7 @@ export default function ManagerApp({
   // ── Navigation helpers ────────────────────────────────────
   const goTo = (n: number) => {
     if (n === NAV_CLIENTS) setClientSelReset(p => p + 1);
+    if (n !== NAV_CALCULATOR) setPrefill(null);   // leaving the Calculator ends Revise / Amend mode
     setNav(n);
     setMenuOpen(false);
   };
@@ -87,7 +89,8 @@ export default function ManagerApp({
   };
 
   const goToCalc = (clientName: string) => {
-    setPrefill({ brand: clientName, contact: "" });
+    const c = (clientsHook.clients || []).find((x: any) => x.name === clientName);
+    setPrefill({ brand: clientName, contact: c?.contact || "", cid: c?.id });
     setNav(NAV_CALCULATOR);
   };
 
@@ -95,13 +98,15 @@ export default function ManagerApp({
   const onRevise = (pr: any, cl: any) => {
     const q = pr.qd;
     if (!q) return;
+    const cur = currentQuote(pr);
     setPrefill({
       brand:     q.brand   || cl.name || "",
       contact:   q.contact || cl.contact || "",
       qNo:       q.qNo,
       ctab:      q.ctab || "influencer",
       isRev:     true,
-      revN:      (q.rev || 0) + 1,
+      // a draft quote is updated in place; a sent one gets the next revision
+      revN:      cur && cur.status === "draft" ? cur.revision : (cur ? cur.revision : (q.rev || 0)) + 1,
       origLines: q.lines || [],
       pid:       pr.id,
       cid:       cl.id,
@@ -121,14 +126,16 @@ export default function ManagerApp({
       isAmend:   true,
       amendN:    (pr.amendments || []).length + 1,
       origLines: q.lines || [],
+      origTotal: pr.amount,
+      contractNo: pr.projectNo ? contractNo(pr.projectNo) : "",
       pid:       pr.id,
       cid:       cl?.id,
     });
     setNav(NAV_CALCULATOR);
   };
 
-  const goToProjects = (qNo?: string) => {
-    setPendingProjectQNo(qNo ?? null);
+  const goToProjects = (projectIdOrQNo?: string) => {
+    setPendingProjectQNo(projectIdOrQNo ?? null);
     setNav(NAV_PROJECTS);
   };
 
@@ -473,13 +480,12 @@ export default function ManagerApp({
             rc={rateCardsHook.rc}
             prefill={prefill}
             clearPrefill={() => setPrefill(null)}
-            onAfterSave={(_brand: string, qNo?: string | null) => {
-              // Save is complete — navigate immediately to Projects tab
-              // with the new project auto-expanded + scrolled.
+            onAfterSave={(projectId: string) => {
+              // Closing the saved document → Projects tab with the project expanded
               setPrefill(null);
-              goToProjects(qNo ?? undefined);
+              goToProjects(projectId);
             }}
-            saveQuote={clientsHook.saveQuote}
+            clientsHook={clientsHook}
           />
         )}
 

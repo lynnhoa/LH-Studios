@@ -3,51 +3,84 @@
 // No UI. No side effects. Import anywhere.
 // ─────────────────────────────────────────────────────────────
 
-// ─── CURRENCY ────────────────────────────────────────────────
-export const fmt = (n: number | null | undefined): string =>
-  `€ ${Number(n || 0).toLocaleString("de-DE")}`;
+// ─── CURRENCY (German format: 1.234,00 €) ────────────────────
+const num2 = (n: number | null | undefined): string =>
+  Number(n || 0).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export const fmtE = (n: number): string =>
-  Number(n || 0).toLocaleString("de-DE");
+export const fmt = (n: number | null | undefined): string => `${num2(n)} €`;
 
-// ─── DATES ───────────────────────────────────────────────────
-export const today = (): string =>
-  new Date().toISOString().split("T")[0];
+// Number only, German format, 2 decimals ("1.234,00")
+export const fmtE = (n: number | null | undefined): string => num2(n);
 
-export const fmtD = (
-  d: string | null | undefined,
-  german?: boolean
-): string => {
-  if (!d) return "—";
-  const [y, m, day] = d.split("-");
-  const mo = german
-    ? ["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"]
-    : ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${day}. ${mo[+m - 1]} ${y}`;
+// Percent, German format ("22,15 %"; whole numbers stay "20 %")
+export const fmtPct = (n: number | null | undefined): string => {
+  const v = Number(n || 0);
+  return `${Number.isInteger(v) ? String(v) : v.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
 };
 
-// Add months to an ISO date string
+// Round to cents
+export const r2 = (n: number): number => Math.round((Number(n) || 0) * 100) / 100;
+
+// ─── DATES (local calendar dates, never shifted by UTC) ──────
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+// Date object → "YYYY-MM-DD" in local time
+export const ymd = (dt: Date): string =>
+  `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
+
+// "YYYY-MM-DD" (or ISO with time) → local Date at midnight, or null
+export const parseYMD = (d: string | null | undefined): Date | null => {
+  if (!d) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d));
+  if (!m) return null;
+  return new Date(+m[1], +m[2] - 1, +m[3]);
+};
+
+export const today = (): string => ymd(new Date());
+
+// "15.03.2026" (German format everywhere; second argument kept for old calls)
+export const fmtD = (d: string | null | undefined, _german?: boolean): string => {
+  const dt = parseYMD(d);
+  if (!dt) return "—";
+  return `${pad2(dt.getDate())}.${pad2(dt.getMonth() + 1)}.${dt.getFullYear()}`;
+};
+
+// Add days to a date string
 export const addD = (d: string, days: number): string | null => {
-  if (!d || !days) return null;
-  const dt = new Date(d);
+  const dt = parseYMD(d);
+  if (!dt || !days) return null;
   dt.setDate(dt.getDate() + days);
-  return dt.toISOString().split("T")[0];
+  return ymd(dt);
 };
 
+// Add months; end of month is clamped (31 Jan + 1 month = 28/29 Feb)
 export const addM = (d: string, m: number): string | null => {
-  if (!d || !m) return null;
-  const dt = new Date(d);
-  dt.setMonth(dt.getMonth() + m);
-  return dt.toISOString().split("T")[0];
+  const dt = parseYMD(d);
+  if (!dt || !m) return null;
+  const day = dt.getDate();
+  const target = new Date(dt.getFullYear(), dt.getMonth() + m, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(day, lastDay));
+  return ymd(target);
 };
 
-// Days remaining until a date (negative = expired)
-export const dLeft = (d: string | null | undefined): number | null =>
-  d
-    ? Math.ceil(
-        (new Date(d).getTime() - new Date().getTime()) / 864e5
-      )
-    : null;
+// Whole days from today to a date (negative = past)
+export const dLeft = (d: string | null | undefined): number | null => {
+  const dt = parseYMD(d);
+  if (!dt) return null;
+  const t = parseYMD(today())!;
+  return Math.round((dt.getTime() - t.getTime()) / 864e5);
+};
+
+// First / last day of the month of a date
+export const monthStart = (d: string): string => {
+  const dt = parseYMD(d) || new Date();
+  return ymd(new Date(dt.getFullYear(), dt.getMonth(), 1));
+};
+export const monthEnd = (d: string): string => {
+  const dt = parseYMD(d) || new Date();
+  return ymd(new Date(dt.getFullYear(), dt.getMonth() + 1, 0));
+};
 
 // ─── IDS ─────────────────────────────────────────────────────
 export const uid = (): string =>
@@ -55,13 +88,13 @@ export const uid = (): string =>
 
 // ─── DOCUMENT NUMBERS ────────────────────────────────────────
 export const deriveContractNo = (qNo: string): string =>
-  `CON-${qNo.replace(/QUO-?/i, "").trim() || "001"}`;
+  `CON-${(qNo || "").replace(/^QUO-?/i, "").trim() || "001"}`;
 
 export const deriveInvoiceNo = (
   iNo: string | undefined,
   qNo: string
 ): string =>
-  iNo || `INV-${qNo.replace(/QUO-?/i, "").trim() || "001"}`;
+  iNo || `INV-${(qNo || "").replace(/^QUO-?/i, "").trim() || "001"}`;
 
 // ─── RATE CARD HELPERS ────────────────────────────────────────
 // A section title is "single" if it is not a meta-section

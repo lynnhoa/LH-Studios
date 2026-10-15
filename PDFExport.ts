@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // PDFExport — html2canvas + jsPDF export logic
-// Called by PDFModal download button.
-// Captures all [data-pdf-page] elements in sequence.
+// Called by the document modal and the rate card preview.
+// Captures the [data-pdf-page] elements inside `root` (or the page).
 // ─────────────────────────────────────────────────────────────
 
 function isMobileDevice(): boolean {
@@ -10,18 +10,20 @@ function isMobileDevice(): boolean {
 }
 
 interface ExportOptions {
-  preview:  any;
-  type:     string;
-  onStart:  () => void;
-  onDone:   () => void;
+  preview:   any;
+  type:      string;
+  onStart:   () => void;
+  onDone:    () => void;
+  root?:     HTMLElement | null;   // only capture pages inside this element
+  filename?: string;               // without .pdf
 }
 
-export async function exportPDF({ preview, type, onStart, onDone }: ExportOptions): Promise<void> {
+export async function exportPDF({ preview, type, onStart, onDone, root, filename }: ExportOptions): Promise<void> {
   const mobile = isMobileDevice();
   const mw     = mobile ? window.open("", "_blank") : null;
 
   const pages = Array.from(
-    document.querySelectorAll("[data-pdf-page]")
+    (root || document).querySelectorAll("[data-pdf-page]")
   ) as HTMLElement[];
 
   if (!pages.length) {
@@ -67,13 +69,16 @@ export async function exportPDF({ preview, type, onStart, onDone }: ExportOption
       type === "amendment" ? (preview.aNo || "AMD") :
       (preview.qNo || type);
 
-    const fname = `${dateStr} ${docNo}`;
+    const fname = filename || `${dateStr} ${docNo}`;
 
     if (mw) {
       mw.location.href = pdf.output("bloburl") as string;
     } else {
       pdf.save(`${fname}.pdf`);
     }
+  } catch (err) {
+    mw?.close();
+    throw err;
   } finally {
     pages.forEach((p, i) => { p.style.transform = savedTransforms[i]; });
     onDone();

@@ -212,6 +212,7 @@ export type WorkspaceStatusHistory = Record<string, { status: string; date: stri
 export interface Project {
   id:                     string;
   clientId:               string;
+  projectNo:              string | null;  // "2026-019" → QUO-2026-019, CON-2026-019, AMD-2026-019-01
   name:                   string;
   status:                 ProjectStatus;
   amount:                 number;
@@ -231,6 +232,7 @@ export interface Project {
   workspaceDeleted:       string[];
   workspacePlanner:       Record<string, string>;
   managerStatus:          Record<string, any>;
+  documents:              DocRecord[];
   createdAt?:             string;
 }
 
@@ -241,11 +243,48 @@ export interface Client {
   contact:   string;
   email:     string;
   agency:    string;
+  street:    string;
+  plz:       string;
+  city:      string;
   country:   string;
+  vatId:     string;
   tags:      string[];
   notes:     string;
   projects:  Project[];
   createdAt?: string;
+}
+
+// ─── DOCUMENTS (frozen rows in `documents`) ───────────────────
+export type DocKind   = "quote" | "contract" | "amendment" | "invoice";
+export type DocStatus = "draft" | "sent" | "signed" | "paid" | "cancelled" | "superseded";
+// invoice subtypes: "project" | "monthly" | "renewal" | "storno"
+
+export interface DocRecord {
+  id:           string;
+  projectId:    string;
+  kind:         DocKind;
+  subtype:      string;
+  docNo:        string;          // "" while an invoice is a draft (number on Finalize)
+  revision:     number;
+  status:       DocStatus;
+  docDate:      string;          // YYYY-MM-DD
+  dueDate:      string | null;
+  periodStart:  string | null;
+  periodEnd:    string | null;
+  sentAt:       string | null;
+  signedAt:     string | null;
+  paidAt:       string | null;
+  net:          number;
+  vatRate:      number;
+  vat:          number;
+  gross:        number;
+  lang:         "en" | "de";
+  data:         any;             // frozen content: lines, clauses, client + sender snapshot …
+  amendmentId:  string | null;
+  renewalId:    string | null;
+  monthNo:      number | null;
+  cancelsId:    string | null;
+  createdAt?:   string;
 }
 
 // ─── CALCULATOR PREFILL ──────────────────────────────────────

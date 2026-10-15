@@ -61,12 +61,12 @@ interface CalcProps {
   rc:          any;
   prefill:     any;
   clearPrefill:() => void;
-  saveQuote:   (doc: any, brand: string, contact: string, isRev: boolean, revN: number, projName?: string, isAmend?: boolean, amendN?: number, origQNo?: string) => Promise<string | null>;
-  onAfterSave: (brand: string, qNo?: string) => void;
+  clientsHook: any;
+  onAfterSave: (projectId: string) => void;
 }
 
 export default function Calculator({
-  isMobile, settings, rc, prefill, clearPrefill, saveQuote, onAfterSave,
+  isMobile, settings, rc, prefill, clearPrefill, clientsHook, onAfterSave,
 }: CalcProps) {
   const isRev   = prefill?.isRev   || false;
   const isAmend = prefill?.isAmend || false;
@@ -173,11 +173,8 @@ export default function Calculator({
   const vu       = new Date(qDate);
   vu.setDate(vu.getDate() + (parseInt(String(vDays)) || 14));
   const validUntil = vu.toISOString().split("T")[0];
-  const qNo = isAmend
-    ? `AMD-${(prefill?.qNo || "").replace(/QUO-?/i,"").trim() || new Date().getFullYear()}-${String(amendN).padStart(2,"0")}`
-    : isRev
-      ? (prefill?.qNo || `QUO-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`)
-      : `QUO-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`;
+  // Numbers come from the database when the document is saved
+  const qNo = isRev ? (prefill?.qNo || "") : "";
 
   // ── Open preview ──────────────────────────────────────────
   const openPreview = () => {
@@ -222,13 +219,26 @@ export default function Calculator({
       }
     });
 
+    const lines = Array.from(mergedMap.values());
+    if (isAmend) {
+      setPdf({
+        kind: "amendment", docNo: "", revision: 0, status: "draft", docDate: qDate, lang: "en",
+        data: {
+          brand, contact, ctype, ctab, lines, footer: "",
+          origTotal: Number(prefill?.origTotal) || 0, amendTotal: subtotal,
+          contractNo: prefill?.contractNo || "", quoteNo: prefill?.qNo || "",
+        },
+      });
+      return;
+    }
     setPdf({
-      brand, contact, date: qDate, validUntil, qNo,
-      rev: isRev ? revN : 0, mo, ctab,
-      lines: Array.from(mergedMap.values()),
-      total: grand, ctype,
-      footer: "Looking forward to working together.",
-      retainer: retOn, retMo: retOn ? retMo : undefined,
+      kind: "quote", docNo: qNo, revision: isRev ? revN : 0, status: "draft", docDate: qDate, lang: "en",
+      data: {
+        brand, contact, date: qDate, validUntil, qNo,
+        rev: isRev ? revN : 0, mo, ctab, lines,
+        total: grand, ctype, footer: "",
+        retainer: retOn, retMo: retOn ? retMo : undefined,
+      },
     });
   };
 
@@ -239,6 +249,7 @@ export default function Calculator({
 
   // ── Lazy PDFModal ─────────────────────────────────────────
   const [PDFModal, setPDFModal] = useState<any>(null);
+  const [saved,    setSaved]    = useState<{ clientId: string; projectId: string; docId: string } | null>(null);
   useEffect(() => {
     if (pdf && !PDFModal) {
       let cancelled = false;
@@ -250,23 +261,46 @@ export default function Calculator({
   }, [pdf, PDFModal]);
 
   if (pdf && PDFModal) {
+    // After the first save the modal shows the saved document (with its number)
+    const sClient  = saved ? (clientsHook.clients || []).find((c: any) => c.id === saved.clientId) : null;
+    const sProject = sClient ? sClient.projects.find((p: any) => p.id === saved!.projectId) : null;
+    const sDoc     = sProject ? (sProject.documents || []).find((d: any) => d.id === saved!.docId) : null;
+    const brandClient = (clientsHook.clients || []).find((c: any) => c.name.trim().toLowerCase() === (brand || "").trim().toLowerCase());
+
+    if (sDoc) {
+      return (
+        <PDFModal
+          key={sDoc.id}
+          doc={sDoc}
+          settings={settings}
+          client={sClient}
+          editable={sDoc.status === "draft"}
+          justSaved={true}
+          note={sDoc.status === "draft" ? "Saved. You can still change this draft; Mark sent in the project locks it." : undefined}
+          onSave={async (next: any) => { await clientsHook.updateDocument(saved!.clientId, saved!.projectId, sDoc.id, next, settings); }}
+          onClose={() => { const pid = saved!.projectId; setPdf(null); setSaved(null); if (onAfterSave) onAfterSave(pid); }}
+        />
+      );
+    }
+
     return (
       <PDFModal
-        data={pdf}
-        type={isRev ? "revised" : isAmend ? "amendment" : "quote"}
-        onClose={() => setPdf(null)}
+        doc={pdf}
         settings={settings}
+        client={brandClient}
+        editable={true}
         isNew={true}
+        note={isAmend ? "The amendment number is assigned when you save." : isRev ? undefined : "The quote number is assigned when you save."}
+        onClose={() => setPdf(null)}
         onSave={async (doc: any) => {
-          const err = await saveQuote(
-            { ...doc, id: uid(), status: isAmend ? "production" : "quoted" },
-            doc.brand, doc.contact, isRev, revN, projName, isAmend, amendN,
-            prefill?.qNo,
-          );
-          if (err) throw new Error(err);
-          // Clear PDFModal first, then navigate
-          setPdf(null);
-          if (onAfterSave) onAfterSave(doc.brand || brand, isAmend ? prefill?.qNo : doc.qNo);
+          const res = await clientsHook.saveQuote({
+            doc, brand: doc.data?.brand || brand, contact: doc.data?.contact || contact,
+            mode: isAmend ? "amend" : isRev ? "revise" : "new",
+            projectName: projName, projectId: prefill?.pid, clientId: prefill?.cid, settings,
+          });
+          if (res.error) throw new Error(res.error);
+          if (res.document) setSaved({ clientId: res.clientId, projectId: res.projectId, docId: res.document.id });
+          if (clearPrefill) clearPrefill();
         }}
       />
     );

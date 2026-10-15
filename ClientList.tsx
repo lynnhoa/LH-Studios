@@ -61,10 +61,11 @@ export default function ClientList({
   const [sortOrder,      setSortOrder]     = useState("recent");
   const [showAdd,        setShowAdd]       = useState(false);
   const [tagI,           setTagI]          = useState("");
-  const [nb,             setNb]            = useState({
+  const EMPTY_CLIENT = {
     name: "", contact: "", email: "", agency: "Direct",
-    country: "Germany", tags: [] as string[], notes: "",
-  });
+    street: "", plz: "", city: "", country: "Germany", vatId: "", tags: [] as string[], notes: "",
+  };
+  const [nb,             setNb]            = useState(EMPTY_CLIENT);
 
   const setSel = (v: string | null) => { setSel_(v); onSelChange(v); };
 
@@ -115,7 +116,7 @@ export default function ClientList({
   const addCl = async () => {
     if (!nb.name.trim()) return;
     await clientsHook.addClient({ ...nb });
-    setNb({ name: "", contact: "", email: "", agency: "Direct", country: "Germany", tags: [], notes: "" });
+    setNb(EMPTY_CLIENT);
     setShowAdd(false);
   };
 
@@ -198,7 +199,11 @@ export default function ClientList({
               <Lbl>Agency / Direct</Lbl>
               <S value={nb.agency} onChange={(e: any) => setNb(p => ({ ...p, agency: e.target.value }))}><option>Direct</option><option>Agency</option></S>
             </div>
+            <div style={{ gridColumn: "1 / -1" }}><Lbl>Street & Number</Lbl><I value={nb.street} onChange={(e: any) => setNb(p => ({ ...p, street: e.target.value }))} placeholder="Musterstraße 12" /></div>
+            <div><Lbl>PLZ</Lbl><I value={nb.plz} onChange={(e: any) => setNb(p => ({ ...p, plz: e.target.value }))} placeholder="10115" /></div>
+            <div><Lbl>City</Lbl><I value={nb.city} onChange={(e: any) => setNb(p => ({ ...p, city: e.target.value }))} placeholder="Berlin" /></div>
             <div><Lbl>Country</Lbl><I value={nb.country} onChange={(e: any) => setNb(p => ({ ...p, country: e.target.value }))} placeholder="Germany" /></div>
+            <div><Lbl>VAT ID (optional)</Lbl><I value={nb.vatId} onChange={(e: any) => setNb(p => ({ ...p, vatId: e.target.value }))} placeholder="DE123456789" /></div>
             <div>
               <Lbl>Tags</Lbl>
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const, marginBottom: 4 }}>

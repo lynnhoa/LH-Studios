@@ -1,15 +1,15 @@
-import PDFModalComponent from "./PDFModal";
 // ─────────────────────────────────────────────────────────────
-// ProjectCard — single project row with docs, actions, status
-// Used in both ClientDetail and ProjectsTab
+// ProjectCard — read-only project card in the Clients tab
+// Documents open read-only; all actions live in the Projects tab.
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
-import { fmt, fmtD, fmtE, addM, today, uid } from "./formatters";
-import { I, B, StatusBadge } from "./atoms";
-import { STATUS } from "./rateCards";
-import RenewalModal from "./RenewalModal";
+import { fmt, fmtD, addM, today } from "./formatters";
+import { B, StatusBadge } from "./atoms";
+import PDFModal from "./PDFModal";
+import { sortDocs, docLabel } from "./docs";
+import type { DocRecord } from "./types";
 
 interface ProjectCardProps {
   pr:               any;
@@ -80,10 +80,9 @@ export default function ProjectCard({
   highlighted, onClearHighlight, showClientName, readOnly,
 }: ProjectCardProps) {
 
-  const [pdf,      setPdf]      = useState<any>(null);
-  const [renewT,   setRenewT]   = useState<any>(null);
-  const [amendT,   setAmendT]   = useState<any>(null);
-  const [open,     setOpen]     = useState(false);  // NEW: expandable
+  const [openDocId, setOpenDocId] = useState<string | null>(null);
+  const [legacyQuote, setLegacyQuote] = useState(false);
+  const [open,     setOpen]     = useState(false);  // expandable
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -93,86 +92,37 @@ export default function ProjectCard({
     }
   }, [highlighted]);
 
-  const upP = (data: any) => clientsHook.updateProject(cl.id, pr.id, data);
-  const setStatus = (st: string) => clientsHook.setProjectStatus(cl.id, pr.id, st as any);
+  const client = (clients || []).find((c: any) => c.id === cl.id) || cl;
+  const docs   = sortDocs((pr.documents || []) as DocRecord[]);
+  const openD  = openDocId ? docs.find(d => d.id === openDocId) : null;
 
-  const nxt = (s: string) => { const i = STATUS.indexOf(s as any); return i < STATUS.length - 1 ? STATUS[i + 1] : null; };
-  const prv = (s: string) => { const i = STATUS.indexOf(s as any); return i > 0 ? STATUS[i - 1] : null; };
-
-  const openPDF = (type: string, lang = "en") => {
-    const q = pr.qd;
-    const iNo = `INV-${(q?.qNo || "").replace(/QUO-?/i,"").trim() || "001"}`;
-    setPdf({
-      data: { brand: q?.brand, contact: q?.contact, date: pr.date || today(), validUntil: q?.validUntil, qNo: q?.qNo, rev: q?.rev || 0, contractRev: q?.contractRev || 0, clauses: q?.clauses || [], iNo, delivery: pr.deliveryDate, ctype: q?.ctype || "Content Creator", lines: q?.lines || [], amendments: pr.amendments || [], total: pr.amount, retainer: q?.retainer, retMo: q?.retMo, footer: type === "invoice" ? "Thank you for the pleasure of working together." : "Looking forward to working together." },
-      type, lang,
-    });
-  };
-
-  // import PDFModal lazily to avoid circular dep at build time
-  const PDFModal = PDFModalComponent;
-
-  // Renewal builder modal (old-app: saveRenewal forces signed:true)
-  if (renewT) {
-    return (
-      <RenewalModal
-        p={renewT}
-        rc={rc}
-        settings={settings}
-        onClose={() => setRenewT(null)}
-        onSave={async (r: any) => {
-          await clientsHook.addRenewal(cl.id, pr.id, { ...r, signed: true });
-          setRenewT(null);
-        }}
-      />
-    );
+  if (openD) {
+    return <PDFModal key={openD.id} doc={openD} settings={settings} client={client} editable={false} onClose={() => setOpenDocId(null)} />;
   }
-
-  // Amendment — rights extension via same builder (mode="amend");
-  // "Open Calculator" escape hatch routes to the classic add-items amend flow.
-  if (amendT) {
-    return (
-      <RenewalModal
-        mode="amend"
-        p={amendT}
-        rc={rc}
-        settings={settings}
-        onClose={() => setAmendT(null)}
-        onCalc={() => { setAmendT(null); onAmend(pr, cl); }}
-        onSave={async (a: any) => {
-          await clientsHook.addAmendment(cl.id, pr.id, a);
-          setAmendT(null);
-        }}
-      />
-    );
-  }
-
-  if (pdf && PDFModal) {
-    // Old-app onSave routing:
-    //  · readOnly (amendment / renewal docs) → no save handler at all
-    //  · official contract revision → bump contractRev, NEVER touch amount
-    //  · own quote/contract/invoice → save qd + recompute amount
-    const onSave = pdf.readOnly
-      ? undefined
-      : pdf.isRevision
-        ? (doc: any) => {
-            upP({ qd: { ...doc, contractRev: pdf.nextContractRev, clauses: doc.clauses || [] } });
-            setPdf(null);
-          }
-        : (doc: any) => {
-            const tot = doc.total || (doc.lines || []).reduce((s: number, l: any) => s + (parseFloat(l.amt) || 0), 0);
-            upP({ qd: { ...doc, clauses: doc.clauses || [] }, amount: tot });
-            setPdf(null);
-          };
+  if (legacyQuote && pr.qd) {
     return (
       <PDFModal
-        data={pdf.data}
-        type={pdf.type}
-        onClose={() => setPdf(null)}
-        settings={settings}
-        onSave={onSave}
+        doc={{ kind: "quote", docNo: pr.qd.qNo || "", revision: pr.qd.rev || 0, status: "sent", docDate: pr.qd.date || pr.date || today(), lang: "en", data: pr.qd }}
+        settings={settings} client={client} editable={false} onClose={() => setLegacyQuote(false)}
       />
     );
   }
+
+  const dotCol = (st: string) => ({ draft: C.light, sent: C.amber, signed: C.green, paid: C.green, cancelled: C.red, superseded: C.rule }[st] ?? C.light);
+  const DocChips = () => (
+    <div style={{ display: "flex", gap: isMobile ? 8 : 5, flexWrap: "wrap" as const }}>
+      {!docs.some(d => d.kind === "quote") && pr.qd && (
+        <B v="sec" onClick={() => setLegacyQuote(true)} s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px" }}>Quote</B>
+      )}
+      {docs.map(d => (
+        <B key={d.id} v="sec" onClick={() => setOpenDocId(d.id)}
+          s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px", gap: 6, color: d.status === "superseded" ? C.light : C.black, textDecoration: d.status === "superseded" || d.status === "cancelled" ? "line-through" : "none" }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotCol(d.status), display: "inline-block", flexShrink: 0 }} />
+          {docLabel(d, pr)}
+        </B>
+      ))}
+    </div>
+  );
 
   const isActive = !pr.paid;
   const statusLabel = pr.paid ? "Paid" : pr.status;
@@ -213,16 +163,7 @@ export default function ProjectCard({
       {["quoted","revised","contracted","production","invoiced","paid"].includes(pr.status) && (
         <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
           <span style={{ fontSize: TYPE.micro.size, color: C.muted, whiteSpace: "nowrap" as const, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>Delivery</span>
-          {readOnly ? (
-            <span style={{ fontSize: TYPE.micro.size, color: C.black }}>{pr.deliveryDate ? fmtD(pr.deliveryDate) : "—"}</span>
-          ) : (
-            <I
-              type="date"
-              value={pr.deliveryDate || ""}
-              onChange={(e: any) => { const nv = e.target.value; if (!nv) return; if (!pr.deliveryDate || nv > pr.deliveryDate) upP({ deliveryDate: nv }); }}
-              s={{ fontSize: TYPE.micro.size, padding: "5px 8px", width: "auto" }}
-            />
-          )}
+          <span style={{ fontSize: TYPE.micro.size, color: C.black }}>{pr.deliveryDate ? fmtD(pr.deliveryDate) : "—"}</span>
         </div>
       )}
 
@@ -261,16 +202,16 @@ export default function ProjectCard({
           {/* Line Items Summary */}
           {pr.qd?.lines && pr.qd.lines.length > 0 && (
             <div style={{ marginBottom: 10 }}>
-              <p style={{ fontFamily: "Lato", fontSize: 9, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: C.light, margin: "0 0 6px" }}>Line Items</p>
+              <p style={{ fontFamily: SANS, fontSize: 9, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: C.light, margin: "0 0 6px" }}>Line Items</p>
               {pr.qd.lines.map((l: any, i: number) => (
                 <div key={l.id ?? i} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: `1px solid ${C.rule}` }}>
                   <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.black }}>{l.name}</span>
-                  <span style={{ fontFamily: SERIF, fontSize: 10.5, color: C.muted }}>€ {fmtE(l.amt || 0)}</span>
+                  <span style={{ fontFamily: SERIF, fontSize: 10.5, color: C.muted }}>{fmt(parseFloat(l.amt) || 0)}</span>
                 </div>
               ))}
               <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0 0" }}>
                 <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.muted }}>Total</span>
-                <span style={{ fontFamily: SERIF, fontSize: 12, color: C.black, fontWeight: "600" }}>€ {fmtE(pr.amount || 0)}</span>
+                <span style={{ fontFamily: SERIF, fontSize: 12, color: C.black, fontWeight: "600" }}>{fmt(pr.amount || 0)}</span>
               </div>
             </div>
           )}
@@ -278,144 +219,16 @@ export default function ProjectCard({
           {/* License Tracker */}
           <ProjectLicenseTracker pr={pr} />
 
-          {/* Documents (Read-Only in ClientDetail) */}
-          {(pr.qd || (pr.amendments || []).length > 0 || (pr.renewals || []).length > 0) && (
+          {/* Documents (read-only) */}
+          {(pr.qd || docs.length > 0) && (
             <div>
-              <p style={{ fontFamily: "Lato", fontSize: 9, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: C.light, margin: "0 0 6px" }}>Documents</p>
-              <div style={{ display: "flex", gap: isMobile ? 8 : 5, flexWrap: "wrap" as const }}>
-                {pr.qd && (
-                  <B v="sec" onClick={() => openPDF("quote")} s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px" }}>
-                    {pr.qd.rev > 0 ? `Quote R${pr.qd.rev}` : "Quote"}
-                  </B>
-                )}
-                {["contracted","production","invoiced","paid"].includes(pr.status) && pr.qd && (
-                  <B v="sec" onClick={() => openPDF("contract")} s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px" }}>
-                    {pr.qd.contractRev > 0 ? `Contract R${pr.qd.contractRev}` : "Contract"}
-                  </B>
-                )}
-                {(pr.amendments || []).map((a: any, ai: number) => (
-                  <B key={ai} v="sec"
-                    s={{ fontSize: TYPE.micro.size, color: a.signed ? C.black : C.amber, borderColor: a.signed ? C.rule : C.amber, padding: isMobile ? "9px 14px" : "5px 10px" }}
-                    onClick={() => setPdf({ data: { brand: pr.qd?.brand, contact: pr.qd?.contact, date: today(), ctype: pr.qd?.ctype || "Content Creator", qNo: pr.qd?.qNo, aNo: a.aNo, lines: a.lines || [], amendTotal: a.amendTotal, origTotal: pr.amount - a.amendTotal }, type: "amendment", readOnly: true })}
-                  >
-                    Amend {ai + 1}{!a.signed ? " · unsigned" : ""}
-                  </B>
-                ))}
-                {["invoiced","paid"].includes(pr.status) && pr.qd && !pr.qd?.retainer && (
-                  <B v="sec" onClick={() => openPDF("invoice")} s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px" }}>Invoice</B>
-                )}
-                {(pr.renewals || []).map((r: any, ri: number) => (
-                  r.doc && <B key={ri} v="sec"
-                    s={{ fontSize: TYPE.micro.size, color: r.paid ? C.black : C.green, borderColor: r.paid ? C.rule : C.green, padding: isMobile ? "9px 14px" : "5px 10px" }}
-                    onClick={() => setPdf({ data: r.doc, type: "renewal", readOnly: true })}
-                  >
-                    Renewal {ri + 1}
-                  </B>
-                ))}
-              </div>
+              <p style={{ fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: C.light, margin: "0 0 6px" }}>Documents</p>
+              <DocChips />
             </div>
           )}
         </div>
       )}
 
-      {/* ── LICENSE TRACKER (Always visible in editable mode) ── */}
-      {!readOnly && <ProjectLicenseTracker pr={pr} />}
-
-      {/* ── DOCUMENTS (Functional, editable mode only) ── */}
-      {!readOnly && (pr.qd || (pr.amendments || []).length > 0 || (pr.renewals || []).length > 0) && (
-        <div style={{ display: "flex", gap: isMobile ? 8 : 5, flexWrap: "wrap" as const, borderTop: `1px solid ${C.rule}`, paddingTop: isMobile ? 10 : 7, marginBottom: isMobile ? 8 : 6 }}>
-          {pr.qd && (
-            <B v="sec" onClick={() => openPDF("quote")} s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px" }}>
-              {pr.qd.rev > 0 ? `Quote R${pr.qd.rev}` : "Quote"}
-            </B>
-          )}
-          {["contracted","production","invoiced","paid"].includes(pr.status) && pr.qd && (
-            <B v="sec" onClick={() => openPDF("contract")} s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px" }}>
-              {pr.qd.contractRev > 0 ? `Contract R${pr.qd.contractRev}` : "Contract"}
-            </B>
-          )}
-          {(pr.amendments || []).map((a: any, ai: number) => (
-            <B key={ai} v="sec"
-              s={{ fontSize: TYPE.micro.size, color: a.signed ? C.black : C.amber, borderColor: a.signed ? C.rule : C.amber, padding: isMobile ? "9px 14px" : "5px 10px" }}
-              onClick={() => setPdf({ data: { brand: pr.qd?.brand, contact: pr.qd?.contact, date: today(), ctype: pr.qd?.ctype || "Content Creator", qNo: pr.qd?.qNo, aNo: a.aNo, lines: a.lines || [], amendTotal: a.amendTotal, origTotal: pr.amount - a.amendTotal }, type: "amendment", readOnly: true })}
-            >
-              Amend {ai + 1}{!a.signed ? " · unsigned" : ""}
-            </B>
-          ))}
-          {["invoiced","paid"].includes(pr.status) && pr.qd && !pr.qd?.retainer && (
-            <B v="sec" onClick={() => openPDF("invoice")} s={{ fontSize: TYPE.micro.size, padding: isMobile ? "9px 14px" : "5px 10px" }}>Invoice</B>
-          )}
-          {(pr.renewals || []).map((r: any, ri: number) => (
-            r.doc && <B key={ri} v="sec"
-              s={{ fontSize: TYPE.micro.size, color: r.paid ? C.black : C.green, borderColor: r.paid ? C.rule : C.green, padding: isMobile ? "9px 14px" : "5px 10px" }}
-              onClick={() => setPdf({ data: r.doc, type: "renewal", readOnly: true })}
-            >
-              Renewal {ri + 1}
-            </B>
-          ))}
-        </div>
-      )}
-
-      {/* ── ACTIONS (Editable mode only) ── */}
-      {!readOnly && (
-        <div style={{ display: "flex", gap: isMobile ? 8 : 5, flexWrap: "wrap" as const, alignItems: "center", paddingTop: isMobile ? 10 : 7, borderTop: `1px solid ${C.rule}` }}>
-
-          {["quoted","revised"].includes(pr.status) && <>
-            <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => onRevise(pr, cl)}>Revise Quote</B>
-            <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }}
-              onClick={() => { setStatus("contracted"); openPDF("contract"); }}>
-              → Contract
-            </B>
-          </>}
-
-          {pr.status === "contracted" && <>
-            <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => {
-              const q = pr.qd; const nextRev = (q?.contractRev || 0) + 1;
-              const iNo = `INV-${(q?.qNo || "").replace(/QUO-?/i,"").trim() || "001"}`;
-              setPdf({ data: { brand: q?.brand, contact: q?.contact, date: today(), validUntil: q?.validUntil, qNo: q?.qNo, rev: q?.rev || 0, contractRev: nextRev, clauses: q?.clauses || [], iNo, delivery: pr.deliveryDate, ctype: q?.ctype || "Content Creator", lines: q?.lines || [], amendments: pr.amendments || [], total: pr.amount, footer: "Looking forward to working together." }, type: "contract", isRevision: true, nextContractRev: nextRev });
-            }}>Revise Contract</B>
-            <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }} onClick={() => setStatus("production")}>Mark Signed</B>
-          </>}
-
-          {pr.status === "production" && (
-            <B
-              s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px", opacity: pr.deliveryDate ? 1 : 0.35, cursor: pr.deliveryDate ? "pointer" : "not-allowed" as const }}
-              onClick={() => { if (!pr.deliveryDate) return; setStatus("invoiced"); openPDF("invoice"); }}
-            >
-              Create Invoice
-            </B>
-          )}
-
-          {pr.status === "invoiced" && !pr.paid && (
-            <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "10px 18px" : "7px 14px" }} onClick={() => setStatus("paid")}>Mark Paid</B>
-          )}
-
-          {pr.paid && !pr.qd?.retainer && <>
-            <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "10px 18px" : "7px 14px" }}
-              onClick={() => setRenewT(pr)}>
-              Add Renewal
-            </B>
-            <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "10px 18px" : "7px 14px" }}
-              onClick={() => upP({ paid: false, status: "invoiced" })}>
-              Undo Paid
-            </B>
-          </>}
-
-          {!pr.paid && pr.status !== "quoted" && (
-            <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "10px 14px" : "7px 14px" }}
-              onClick={() => { const p = prv(pr.status); if (p) setStatus(p); }}>
-              Undo
-            </B>
-          )}
-
-          {["production","invoiced","paid"].includes(pr.status) && pr.qd && (
-            <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "10px 14px" : "7px 14px" }}
-              onClick={() => setAmendT(pr)}>
-              + Amend
-            </B>
-          )}
-        </div>
-      )}
     </div>
   );
 }

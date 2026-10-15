@@ -102,12 +102,12 @@ export default function CreatorProfile({ settings, updateSettings, isMobile }: C
           }}
         />
         <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "7px 0 0", lineHeight: 1.6 }}>
-          {ku ? "No VAT charged on invoices" : "VAT is charged on invoices"}
+          {ku ? "No VAT on invoices — the § 19 note is printed." : `${s.vatRate || 19} % VAT is added to invoices for clients in Germany. EU business clients with a VAT ID get a reverse-charge note, clients outside the EU a "not taxable in Germany" note.`}
         </p>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 9, marginBottom: 9 }}>
         <div><Lbl>Tax Number (Steuernummer)</Lbl><I value={s.steuernummer} onChange={(e: any) => upd("steuernummer", e.target.value)} placeholder="12/345/67890" /></div>
-        {!ku && <div><Lbl>VAT ID (USt-IdNr.)</Lbl><I value={s.ustIdNr} onChange={(e: any) => upd("ustIdNr", e.target.value)} placeholder="DE123456789" /></div>}
+        <div><Lbl>VAT ID (USt-IdNr.)</Lbl><I value={s.ustIdNr} onChange={(e: any) => upd("ustIdNr", e.target.value)} placeholder="DE123456789" /></div>
       </div>
       {!ku && (
         <div style={{ marginBottom: 9 }}>
@@ -121,14 +121,24 @@ export default function CreatorProfile({ settings, updateSettings, isMobile }: C
         </div>
       )}
       <div style={{ marginBottom: 9, marginTop: ku ? 0 : 9 }}>
-        <Lbl>Invoice Tax Note</Lbl>
-        <I
-          value={s.taxNote}
-          onChange={(e: any) => upd("taxNote", e.target.value)}
-          placeholder={ku ? "Gemäß § 19 UStG wird keine Umsatzsteuer berechnet." : "zzgl. 19 % MwSt"}
-        />
-        <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "5px 0 0" }}>Appears on every PDF</p>
+        {ku && <>
+          <Lbl>§ 19 Note (German PDFs)</Lbl>
+          <I
+            value={s.taxNote}
+            onChange={(e: any) => upd("taxNote", e.target.value)}
+            placeholder="Gemäß § 19 UStG wird keine Umsatzsteuer berechnet."
+          />
+          <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "5px 0 0" }}>Printed on German invoices and contracts. English PDFs use the English version.</p>
+        </>}
       </div>
+
+      {(!(s.name || s.company) || !s.street || !s.city || !s.iban) && (
+        <div style={{ marginTop: 16, padding: "11px 14px", background: "#fdf0f0", border: `1px solid ${C.red}`, borderRadius: 2 }}>
+          <p style={{ fontSize: TYPE.label.size, color: C.red, margin: 0 }}>
+            Invoices can't be finalized until your {[!(s.name || s.company) && "name", (!s.street || !s.city) && "address", !s.iban && "IBAN"].filter(Boolean).join(", ")} {(!(s.name || s.company) ? 1 : 0) + ((!s.street || !s.city) ? 1 : 0) + (!s.iban ? 1 : 0) > 1 ? "are" : "is"} filled in.
+          </p>
+        </div>
+      )}
 
       {/* ── AUTOSAVE NOTICE ── */}
       <div style={{ marginTop: 16, padding: "11px 14px", background: "#fdf6ee", border: `1px solid ${C.amber}`, borderRadius: 2 }}>

@@ -8,6 +8,9 @@ import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt, fmtD, today, addM, dLeft } from "./formatters";
 import { S } from "./atoms";
+import PDFModal from "./PDFModal";
+import { downloadDocs } from "./DocPages";
+import { invoiceRows, invoicesCsv, invoiceTypeLabel, docFileName, STATUS_LABEL } from "./docs";
 
 const MO       = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const MO_LONG  = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -29,23 +32,6 @@ function getUsageEnd(pr: any): string | null {
     if (itemMo && (!mo || itemMo > mo)) mo = itemMo;
   });
   return mo ? addM(pr.deliveryDate, mo) : null;
-}
-
-function buildInvoiceRows(clients: any[]) {
-  const rows: any[] = [];
-  clients.forEach((c: any) => {
-    (c.projects || []).forEach((pr: any) => {
-      if (!["invoiced","paid"].includes(pr.status) && !pr.paid) return;
-      const q = pr.qd; if (!q) return;
-      const iNo     = `INV-${(q.qNo || "").replace(/QUO-?/i,"").trim() || "001"}`;
-      const dateStr = pr.date || q.date || "";
-      rows.push({ cid: c.id, cName: c.name, pr, iNo, dateStr,
-        year:  dateStr ? parseInt(dateStr.slice(0,4))   : 0,
-        month: dateStr ? parseInt(dateStr.slice(5,7))-1 : 0 });
-    });
-  });
-  rows.sort((a,b) => b.dateStr.localeCompare(a.dateStr));
-  return rows;
 }
 
 const HBar = ({ pct, color }: { pct: number; color: string }) => (
@@ -424,8 +410,12 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
 
   // ── DRILL: INVOICES ───────────────────────────────────────
   if (drill === "invoices") {
-    const allInvRows  = buildInvoiceRows(clients);
-    const tabRows     = invTab === "unpaid" ? allInvRows.filter((r: any) => !r.pr.paid) : allInvRows.filter((r: any) => r.pr.paid);
+    if (invPdfData) {
+      return <PDFModal doc={invPdfData.doc} settings={settings} client={invPdfData.client} editable={false} onClose={() => setInvPdfData(null)} />;
+    }
+    const allInvRows  = invoiceRows(clients);
+    const isUnpaid    = (r: any) => r.doc.status === "sent" && r.doc.subtype !== "storno";
+    const tabRows     = invTab === "unpaid" ? allInvRows.filter(isUnpaid) : allInvRows.filter((r: any) => r.doc.status === "paid");
     const allInvYears = Array.from(new Set(allInvRows.map((r: any) => r.year))).sort((a: any,b: any) => b - a) as number[];
     const periodOpts  = [{ value: "all", label: "All periods" }];
     allInvYears.forEach(y => { periodOpts.push({ value:`y:${y}`, label:String(y) }); const ms = Array.from(new Set(allInvRows.filter((r: any) => r.year===y).map((r: any) => r.month))).sort((a: any,b: any) => b-a) as number[]; ms.forEach(m => periodOpts.push({ value:`m:${y}:${m}`, label:`  ${MO_SHORT[m]} ${y}` })); });
@@ -434,51 +424,32 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
     filteredInv.forEach((r: any) => { let yg = invGrouped.find(g=>g.year===r.year); if(!yg){yg={year:r.year,months:[]};invGrouped.push(yg);} let mg=yg.months.find(m=>m.month===r.month); if(!mg){mg={month:r.month,rows:[]};yg.months.push(mg);} mg.rows.push(r); });
     invGrouped.sort((a,b)=>b.year-a.year); invGrouped.forEach(yg=>yg.months.sort((a,b)=>b.month-a.month));
     const toggleSel  = (key: string) => setInvSel(prev => { const n=new Set(prev); n.has(key)?n.delete(key):n.add(key); return n; });
-    const openPreview = (r: any) => { const pr=r.pr; const q=pr.qd; setInvPdfData({data:{brand:q?.brand,contact:q?.contact,date:pr.date||today(),qNo:q?.qNo,iNo:r.iNo,delivery:pr.deliveryDate,ctype:q?.ctype||"Content Creator",lines:q?.lines||[],amendments:pr.amendments||[],total:pr.amount,footer:"Thank you for the pleasure of working together."},type:"invoice"}); };
-    const exportCsv  = (rows: any[], label: string) => { const h=["Invoice No.","Client","Project","Income","Date","Status"]; const lines=[h,...rows.map(r=>[r.iNo,r.cName,r.pr.name,`€ ${Number(r.pr.amount).toFixed(2).replace(".",",")}`,r.pr.date||"",r.pr.paid?"paid":"invoiced"])]; const csv=lines.map(row=>row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n"); const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`${label.replace(/[:\s]/g,"_")}.csv`; a.click(); URL.revokeObjectURL(url); };
+    const openPreview = (r: any) => setInvPdfData({ doc: r.doc, client: r.client });
+    const exportCsv  = (rows: any[], label: string) => { const csv = invoicesCsv(rows); const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`${label.replace(/[:\s]/g,"_")}.csv`; a.click(); URL.revokeObjectURL(url); };
 
-    // Selection + bulk PDF (restored from old app)
-    const selRows    = filteredInv.filter((r: any) => invSel.has(r.iNo));
-    const allChecked = filteredInv.length > 0 && filteredInv.every((r: any) => invSel.has(r.iNo));
-    const toggleAll  = () => { if (allChecked) setInvSel(new Set()); else setInvSel(new Set(filteredInv.map((r: any) => r.iNo))); };
+    const selRows    = filteredInv.filter((r: any) => invSel.has(r.key));
+    const allChecked = filteredInv.length > 0 && filteredInv.every((r: any) => invSel.has(r.key));
+    const toggleAll  = () => { if (allChecked) setInvSel(new Set()); else setInvSel(new Set(filteredInv.map((r: any) => r.key))); };
     const doInvBulk  = async (rows: any[]) => {
       if (!rows.length || invBulkStatus) return;
       setInvBulkStatus(`Preparing ${rows.length} invoice${rows.length > 1 ? "s" : ""}…`);
-      const [{ default: html2canvas }, { default: jsPDF }, { default: A4Document }] = await Promise.all([
-        import("html2canvas"), import("jspdf"), import("./A4Document"),
-      ]);
-      const { createRoot } = await import("react-dom/client");
-      const { createElement } = await import("react");
-      for (let i = 0; i < rows.length; i++) {
-        const r = rows[i]; const pr = r.pr; const q = pr.qd;
-        const d = { brand: q?.brand, contact: q?.contact, date: pr.date || today(), qNo: q?.qNo, iNo: r.iNo, delivery: pr.deliveryDate, ctype: q?.ctype || "Content Creator", lines: q?.lines || [], amendments: pr.amendments || [], total: pr.amount, footer: "Thank you for the pleasure of working together." };
-        setInvBulkStatus(`Saving ${i + 1} / ${rows.length} — ${r.iNo}`);
-        const wrap = document.createElement("div");
-        wrap.style.cssText = "position:fixed;left:-9999px;top:0;width:595px;z-index:-1;background:#faf9f7;";
-        document.body.appendChild(wrap);
-        const root = createRoot(wrap);
-        await new Promise<void>(res => { root.render(createElement(A4Document, { d, type: "invoice", lang: "en", settings, extraSigMargin: 0, clauseGuards: [], tRowGuards: [] })); setTimeout(res, 600); });
-        try {
-          const pages = Array.from(wrap.querySelectorAll("[data-pdf-page]")) as HTMLElement[];
-          const pdf = new (jsPDF as any)({ orientation: "portrait", unit: "mm", format: "a4" });
-          const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
-          for (let p = 0; p < pages.length; p++) { if (p > 0) pdf.addPage(); const canvas = await (html2canvas as any)(pages[p], { scale: 2, useCORS: true, backgroundColor: "#faf9f7" }); pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pw, ph); }
-          pdf.save(`${(pr.date || "").replace(/-/g,"_")} ${r.iNo}.pdf`);
-        } finally { root.unmount(); document.body.removeChild(wrap); }
-        if (i < rows.length - 1) await new Promise(res => setTimeout(res, 400));
+      try {
+        await downloadDocs(rows.map((r: any) => ({ doc: r.doc, settings, client: r.client, filename: docFileName(r.doc) })), (msg: string) => setInvBulkStatus(msg));
+      } finally {
+        setInvBulkStatus(null); setInvSel(new Set());
       }
-      setInvBulkStatus(null); setInvSel(new Set());
     };
 
     const tabPillS   = (active: boolean): any => ({padding:"6px 15px",border:`1px solid ${active?C.black:C.rule}`,background:active?C.black:"none",color:active?C.white:C.muted,cursor:"pointer",fontFamily:SANS,fontSize:TYPE.label.size,letterSpacing:"0.1em",textTransform:"uppercase" as const,outline:"none"});
+    const stCol = (st: string) => st === "paid" ? C.green : st === "cancelled" ? C.red : C.amber;
     return (
       <div>
         <DrillBack onClick={() => { setDrill(null); setInvSel(new Set()); }} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 8, flexWrap: "wrap" as const }}>
           <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: 0 }}>Invoices</h2>
           <div style={{ display: "flex" }}>
-            <button onClick={() => { setInvTab("unpaid"); setInvSel(new Set()); }} style={{...tabPillS(invTab==="unpaid"),borderRadius:"2px 0 0 2px"}}>Unpaid <span style={{marginLeft:4,fontSize:TYPE.micro.size,opacity:0.7}}>{allInvRows.filter((r: any)=>!r.pr.paid).length}</span></button>
-            <button onClick={() => { setInvTab("paid");   setInvSel(new Set()); }} style={{...tabPillS(invTab==="paid"),borderRadius:"0 2px 2px 0",borderLeft:"none"}}>Paid <span style={{marginLeft:4,fontSize:TYPE.micro.size,opacity:0.7}}>{allInvRows.filter((r: any)=>r.pr.paid).length}</span></button>
+            <button onClick={() => { setInvTab("unpaid"); setInvSel(new Set()); }} style={{...tabPillS(invTab==="unpaid"),borderRadius:"2px 0 0 2px"}}>Unpaid <span style={{marginLeft:4,fontSize:TYPE.micro.size,opacity:0.7}}>{allInvRows.filter(isUnpaid).length}</span></button>
+            <button onClick={() => { setInvTab("paid");   setInvSel(new Set()); }} style={{...tabPillS(invTab==="paid"),borderRadius:"0 2px 2px 0",borderLeft:"none"}}>Paid <span style={{marginLeft:4,fontSize:TYPE.micro.size,opacity:0.7}}>{allInvRows.filter((r: any)=>r.doc.status==="paid").length}</span></button>
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
@@ -506,24 +477,24 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
                   <button onClick={()=>exportCsv(mg.rows,`${MO_SHORT[mg.month]}_${yg.year}`)} style={{height:22,padding:"0 8px",border:`1px solid ${C.rule}`,borderRadius:2,background:C.bg,cursor:"pointer",fontFamily:SANS,fontSize:TYPE.micro.size,color:C.muted}}>CSV</button>
                 </div>
                 <div style={{borderTop:`1px solid ${C.rule}`}}/>
-                {mg.rows.map((r: any,i: number)=>{
-                  const pr=r.pr; const isChecked=invSel.has(r.iNo);
+                {mg.rows.map((r: any)=>{
+                  const d = r.doc; const isChecked=invSel.has(r.key);
                   return(
-                    <div key={r.iNo+i} style={{display:"flex",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${C.rule}`,gap:10,background:isChecked?"rgba(0,0,0,0.015)":undefined}}>
+                    <div key={r.key} style={{display:"flex",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${C.rule}`,gap:10,background:isChecked?"rgba(0,0,0,0.015)":undefined}}>
                       <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>openPreview(r)}>
                         <div style={{display:"flex",alignItems:"baseline",gap:7,flexWrap:"wrap" as const}}>
-                          <span style={{fontSize:TYPE.body.size,color:C.black,fontWeight:"500"}}>{r.iNo}</span>
+                          <span style={{fontSize:TYPE.body.size,color:C.black,fontWeight:"500"}}>{d.docNo}</span>
                           <span style={{fontSize:TYPE.subtext.size,color:C.muted}}>{r.cName}</span>
-                          <span style={{fontSize:TYPE.subtext.size,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,maxWidth:isMobile?90:200}}>{pr.name}</span>
+                          <span style={{fontSize:TYPE.subtext.size,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,maxWidth:isMobile?90:200}}>{r.pr.name}</span>
                         </div>
-                        <div style={{display:"flex",gap:6,marginTop:3,alignItems:"center"}}>
-                          <span style={{fontSize:TYPE.label.size,color:C.light}}>{fmtD(pr.date)}</span>
-                          <span style={{fontSize:TYPE.label.size,color:pr.paid?C.green:C.amber,border:`1px solid ${pr.paid?C.green:C.amber}`,padding:"2px 7px",borderRadius:2}}>{pr.paid?"Paid":"Invoiced"}</span>
+                        <div style={{display:"flex",gap:6,marginTop:3,alignItems:"center",flexWrap:"wrap" as const}}>
+                          <span style={{fontSize:TYPE.label.size,color:C.light}}>{fmtD(d.docDate)} · {invoiceTypeLabel(d)}</span>
+                          <span style={{fontSize:TYPE.label.size,color:stCol(d.status),border:`1px solid ${stCol(d.status)}`,padding:"2px 7px",borderRadius:2}}>{STATUS_LABEL[d.status as keyof typeof STATUS_LABEL] || d.status}{d.paidAt ? ` · ${fmtD(d.paidAt)}` : ""}</span>
                         </div>
                       </div>
-                      <span style={{fontFamily:SERIF,fontSize:TYPE.sectionHeading.size,color:C.black,flexShrink:0}}>{fmt(pr.amount)}</span>
-                      <button onClick={(e: any)=>{e.stopPropagation();doInvBulk([r]);}} disabled={!!invBulkStatus} title="Download PDF" style={{fontSize:TYPE.micro.size,padding:"4px 9px",border:`1px solid ${C.rule}`,borderRadius:2,background:"none",cursor:invBulkStatus?"default":"pointer",color:C.muted,fontFamily:SANS,letterSpacing:"0.06em",flexShrink:0,whiteSpace:"nowrap" as const,opacity:invBulkStatus?0.4:1}}>Save PDF</button>
-                      <input type="checkbox" checked={isChecked} onChange={()=>toggleSel(r.iNo)} style={{flexShrink:0,cursor:"pointer",accentColor:C.black,width:13,height:13}} onClick={(e: any)=>e.stopPropagation()}/>
+                      <span style={{fontFamily:SERIF,fontSize:TYPE.sectionHeading.size,color:C.black,flexShrink:0}}>{fmt(d.gross)}</span>
+                      <button onClick={(e: any)=>{e.stopPropagation();doInvBulk([r]);}} disabled={!!invBulkStatus} title="Download PDF" style={{fontSize:TYPE.micro.size,padding:"4px 9px",border:`1px solid ${C.rule}`,borderRadius:2,background:"none",cursor:invBulkStatus?"default":"pointer",color:C.muted,fontFamily:SANS,letterSpacing:"0.06em",flexShrink:0,whiteSpace:"nowrap" as const}}>PDF</button>
+                      <input type="checkbox" checked={isChecked} onChange={()=>toggleSel(r.key)} style={{flexShrink:0,cursor:"pointer",accentColor:C.black,width:13,height:13}} onClick={(e: any)=>e.stopPropagation()}/>
                     </div>
                   );
                 })}
@@ -536,7 +507,7 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
             <span style={{fontSize:TYPE.subtext.size,color:C.amber}}>{invSel.size} selected</span>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               <button onClick={()=>setInvSel(new Set())} style={{fontSize:TYPE.label.size,padding:"5px 12px",border:`1px solid ${C.amber}`,borderRadius:2,background:"none",cursor:"pointer",color:C.amber,fontFamily:SANS}}>Clear</button>
-              <button onClick={()=>doInvBulk(selRows)} disabled={!!invBulkStatus} style={{fontSize:TYPE.label.size,padding:"5px 12px",border:"none",borderRadius:2,background:C.black,color:C.white,cursor:invBulkStatus?"default":"pointer",fontFamily:SANS,opacity:invBulkStatus?0.5:1,whiteSpace:"nowrap" as const}}>{invBulkStatus || `↓ Download ${invSel.size} PDF${invSel.size>1?"s":""}`}</button>
+              <button onClick={()=>doInvBulk(selRows)} disabled={!!invBulkStatus} style={{fontSize:TYPE.label.size,padding:"5px 12px",border:"none",borderRadius:2,background:C.black,color:C.white,cursor:invBulkStatus?"default":"pointer",fontFamily:SANS,opacity:invBulkStatus?0.5:1,whiteSpace:"nowrap" as const}}>{invBulkStatus || `↓ Download ${invSel.size} PDF${invSel.size > 1 ? "s" : ""}`}</button>
             </div>
           </div>
         )}
@@ -659,7 +630,7 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
             const h = Math.max(3, Math.round((v/revMax)*44));
             return (
               <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 3 }}>
-                {v > 0 && <span style={{ fontSize: TYPE.micro.size, color: i===nowM?C.green:C.muted }}>{i===nowM?fmt(v).replace("€ ",""):""}</span>}
+                {v > 0 && <span style={{ fontSize: TYPE.micro.size, color: i===nowM?C.green:C.muted }}>{i===nowM?fmt(v).replace(" €",""):""}</span>}
                 <div style={{ width: "100%", background: i===nowM?C.green:v>0?C.black:C.rule, borderRadius: 2, height: `${h}px` }} />
                 <span style={{ fontSize: TYPE.micro.size, color: i===nowM?C.green:C.light, letterSpacing: "0.04em" }}>{MO[i][0]}</span>
               </div>

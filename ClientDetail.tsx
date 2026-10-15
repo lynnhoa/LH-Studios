@@ -59,6 +59,11 @@ export default function ClientDetail({
   };
 
   const deleteClient = async () => {
+    const issued = (cl.projects || []).flatMap((pr: any) => pr.documents || []).filter((d: any) => d.kind === "invoice" && d.status !== "draft").length;
+    if (issued > 0) {
+      window.alert(`"${cl.name}" has ${issued} issued invoice${issued > 1 ? "s" : ""}. Invoices must be kept, so this client can't be deleted.`);
+      return;
+    }
     const nProj = (cl.projects || []).length;
     const msg = `Delete "${cl.name}"${nProj > 0 ? ` and ${nProj} project${nProj > 1 ? "s" : ""} (quotes, contracts, invoices, renewals)` : ""}? This cannot be undone.`;
     if (!window.confirm(msg)) return;
@@ -142,8 +147,16 @@ export default function ClientDetail({
             <S value={ed.agency || "Direct"} onChange={(e: any) => setEd((p: any) => ({ ...p, agency: e.target.value }))}>
               <option>Direct</option><option>Agency</option>
             </S>
+            <Lbl>Street & Number</Lbl>
+            <I value={ed.street || ""} onChange={(e: any) => setEd((p: any) => ({ ...p, street: e.target.value }))} />
+            <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 8 }}>
+              <div><Lbl>PLZ</Lbl><I value={ed.plz || ""} onChange={(e: any) => setEd((p: any) => ({ ...p, plz: e.target.value }))} /></div>
+              <div><Lbl>City</Lbl><I value={ed.city || ""} onChange={(e: any) => setEd((p: any) => ({ ...p, city: e.target.value }))} /></div>
+            </div>
             <Lbl>Country</Lbl>
             <I value={ed.country || ""} onChange={(e: any) => setEd((p: any) => ({ ...p, country: e.target.value }))} />
+            <Lbl>VAT ID (optional)</Lbl>
+            <I value={ed.vatId || ""} onChange={(e: any) => setEd((p: any) => ({ ...p, vatId: e.target.value }))} placeholder="DE123456789" />
             <Lbl>Tags</Lbl>
             <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 4, marginBottom: 5 }}>
               {(ed.tags || []).map((t: string) => <Tag key={t} onRemove={() => setEd((p: any) => ({ ...p, tags: p.tags.filter((x: string) => x !== t) }))}>{t}</Tag>)}
@@ -154,7 +167,9 @@ export default function ClientDetail({
               <B v="sec" onClick={() => { if (tagI.trim()) { setEd((p: any) => ({ ...p, tags: [...(p.tags || []), tagI.trim()] })); setTagI(""); } }} s={{ fontSize: TYPE.micro.size }}>+</B>
             </div>
           </> : <>
-            {[["Contact", cl.contact], ["Email", cl.email], ["Type", cl.agency], ["Country", cl.country]].map(([lbl, val]) => (
+            {[["Contact", cl.contact], ["Email", cl.email], ["Type", cl.agency],
+              ["Address", [cl.street, [cl.plz, cl.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")],
+              ["Country", cl.country], ["VAT ID", cl.vatId]].map(([lbl, val]) => (
               <div key={lbl} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${C.rule}` }}>
                 <span style={{ fontSize: TYPE.subtext.size, color: C.muted }}>{lbl}</span>
                 <span style={{ fontSize: TYPE.subtext.size, color: C.black, fontWeight: "500", maxWidth: "60%", textAlign: "right" as const }}>{val || "—"}</span>

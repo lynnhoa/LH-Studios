@@ -1,28 +1,35 @@
 // ─────────────────────────────────────────────────────────────
 // ProjectsTab — all projects across all clients
-// Expandable rows, filter/sort, docs, full action workflow
+// Expandable rows, filter/sort, documents, full action workflow.
+// Documents are frozen rows; tapping a chip opens the document
+// modal with its status actions (Mark sent, Finalize, Mark paid …).
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE } from "./constants";
-import { fmt, fmtD, fmtE, today, uid, addM } from "./formatters";
-import { I, B, StatusBadge, TSel, TSelWrap } from "./atoms";
-import { STATUS } from "./rateCards";
+import { fmt, fmtD, fmtE, today, addM } from "./formatters";
+import { I, B, Lbl, TSel, TSelWrap } from "./atoms";
 import RenewalModal from "./RenewalModal";
 import ProductionSection from "./ProductionSection";
-
-// ── Lazy PDFModal to avoid circular deps ──────────────────────
-let _PDFModal: any = null;
-const getPDFModal = async () => {
-  if (!_PDFModal) _PDFModal = (await import("./PDFModal")).default;
-  return _PDFModal;
-};
+import PDFModal from "./PDFModal";
+import type { DocAction } from "./PDFModal";
+import {
+  sortDocs, docLabel, currentContract, projectInvoice, monthlyInvoices, nextRetainerMonth,
+  renewalInvoice, amendmentDoc,
+} from "./docs";
+import type { DocRecord } from "./types";
 
 // ── Status color helper ───────────────────────────────────────
 const scol = (s: string) => ({
   invoiced: C.amber, contracted: C.muted, quoted: C.light,
   revised: "#b8a090", production: "#8fa89a", paid: C.green, lead: C.light,
 }[s] ?? C.light);
+
+// Document chip dot colour by status
+const dotCol = (st: string) => ({
+  draft: C.light, sent: C.amber, signed: C.green, paid: C.green, cancelled: C.red, superseded: C.rule,
+}[st] ?? C.light);
 
 // ── License tracker (inline mini) ────────────────────────────
 function LicenseLine({ label, end }: { label: string; end: string }) {
@@ -65,6 +72,31 @@ function ProjectLicenseTracker({ pr }: { pr: any }) {
   );
 }
 
+// ── Small confirm / date dialog for row actions ───────────────
+function RowDialog({ title, text, dateLabel, okLabel, danger, onOk, onCancel }: {
+  title: string; text?: string; dateLabel?: string; okLabel: string; danger?: boolean;
+  onOk: (date: string) => void; onCancel: () => void;
+}) {
+  const [date, setDate] = useState(today());
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(250,249,247,0.88)" }}>
+      <div style={{ background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "24px 28px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)", minWidth: 260, maxWidth: 340 }}>
+        <p style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black, margin: "0 0 8px" }}>{title}</p>
+        {text && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 12px", lineHeight: 1.5 }}>{text}</p>}
+        {dateLabel && <>
+          <Lbl>{dateLabel}</Lbl>
+          <I type="date" value={date} onChange={(e: any) => setDate(e.target.value)} s={{ marginBottom: 14 }} />
+        </>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <B v="sec" onClick={onCancel}>Cancel</B>
+          <B v={danger ? "danger" : "pri"} onClick={() => onOk(date || today())}>{okLabel}</B>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ── Single expandable project row ─────────────────────────────
 function ProjectRow({
   pr, clients, isMobile, isExpanded, onToggle, clientsHook, onRevise, onAmend, onGoToCalc, settings, onModalClosed,
@@ -77,62 +109,105 @@ function ProjectRow({
   settings: any;
   onModalClosed: () => void;
 }) {
-  const [pdf, setPdf] = useState<any>(null);
-  const [renewT, setRenewT] = useState<any>(null);
-  const [amendT, setAmendT] = useState<any>(null);
-  const [PDFModal, setPDFModal] = useState<any>(null);
+  const [openDocId, setOpenDocId] = useState<string | null>(null);
+  const [legacyQuote, setLegacyQuote] = useState(false);
+  const [renewT,    setRenewT]    = useState<any>(null);
+  const [amendT,    setAmendT]    = useState<any>(null);
+  const [busy,      setBusy]      = useState(false);
+  const [rowErr,    setRowErr]    = useState<string | null>(null);
+  const [dialog,    setDialog]    = useState<any>(null);
   const rowRef = useRef<HTMLDivElement>(null);
 
+  // An open document that was deleted (draft removed) → close the modal
   useEffect(() => {
-    if (isExpanded) getPDFModal().then(m => setPDFModal(() => m));
-  }, [isExpanded]);
+    if (openDocId && !(pr.documents || []).some((d: any) => d.id === openDocId)) setOpenDocId(null);
+  }, [openDocId, pr.documents]);
 
-  const cl  = { id: pr._cid, name: pr._cname };
-  const upP = (data: any) => clientsHook.updateProject(cl.id, pr.id, data);
-  const setStatus = (st: string) => clientsHook.setProjectStatus(cl.id, pr.id, st as any);
+  const h      = clientsHook;
+  const cl     = { id: pr._cid, name: pr._cname };
+  const client = clients.find((c: any) => c.id === pr._cid);
+  const cid    = pr._cid;
+  const pid    = pr.id;
+  const upP    = (data: any) => h.updateProject(cid, pid, data);
 
-  const nxt = (s: string) => { const i = STATUS.indexOf(s as any); return i < STATUS.length - 1 ? STATUS[i + 1] : null; };
-  const prv = (s: string) => { const i = STATUS.indexOf(s as any); return i > 0 ? STATUS[i - 1] : null; };
+  const docs    = sortDocs((pr.documents || []) as DocRecord[]);
+  const con     = currentContract(pr);
+  const pInv    = projectInvoice(pr);
+  const isRet   = !!pr.qd?.retainer;
+  const months  = monthlyInvoices(pr);
+  const nextM   = isRet ? nextRetainerMonth(pr) : null;
+  const draftM  = months.find(d => d.status === "draft");
+  const prevM   = months.length ? months[months.length - 1] : null;
 
-  const openPDF = (type: string, overridePr?: any) => {
-    const src   = overridePr || pr;
-    const q     = src.qd;
-    const iNo   = `INV-${(q?.qNo || "").replace(/QUO-?/i,"").trim() || "001"}`;
-    setPdf({
-      data: {
-        brand: q?.brand, contact: q?.contact, date: src.date || today(),
-        validUntil: q?.validUntil, qNo: q?.qNo, rev: q?.rev || 0,
-        contractRev: q?.contractRev || 0, clauses: q?.clauses || [], iNo,
-        delivery: src.deliveryDate, ctype: q?.ctype || "Content Creator",
-        lines: q?.lines || [], amendments: src.amendments || [],
-        total: src.amount, retainer: q?.retainer, retMo: q?.retMo,
-        footer: type === "invoice"
-          ? "Thank you for the pleasure of working together."
-          : "Looking forward to working together.",
-      },
-      type,
-    });
+  // Run a row action; errors show under the action row
+  const act = async (fn: () => Promise<any>) => {
+    if (busy) return;
+    setBusy(true); setRowErr(null);
+    try { await fn(); }
+    catch (e: any) { setRowErr(e?.message || "Something went wrong"); }
+    finally { setBusy(false); }
+  };
+  const openDoc = (d: DocRecord | null | undefined) => { if (d) setOpenDocId(d.id); };
+
+  // ── Status actions for one document (shown in the document modal) ──
+  const docActions = (d: DocRecord): DocAction[] => {
+    const close = () => { setOpenDocId(null); onModalClosed(); };
+    if (d.kind === "quote" && d.status === "draft") return [
+      { key: "sent", label: "Mark sent", kind: "sec", run: () => h.markDocSent(cid, pid, d.id, settings) },
+    ];
+    if (d.kind === "contract") {
+      const sign: DocAction = { key: "signed", label: "Mark signed", kind: "pri", date: "Signed on", run: (dt?: string) => h.markContractSigned(cid, pid, d.id, dt || today(), settings) };
+      if (d.status === "draft") return [{ key: "sent", label: "Mark sent", kind: "sec", run: () => h.markDocSent(cid, pid, d.id, settings) }, sign];
+      if (d.status === "sent")  return [sign];
+      return [];
+    }
+    if (d.kind === "amendment" && d.status === "draft") return [
+      { key: "sent", label: "Mark sent", kind: "sec", run: () => h.markDocSent(cid, pid, d.id, settings) },
+      { key: "remove", label: "Remove amendment", kind: "danger", confirm: "The amendment is removed and its amount is taken off the project.", run: async () => { if (d.amendmentId) await h.removeAmendment(cid, pid, d.amendmentId); else await h.deleteDraftDocument(cid, pid, d.id); close(); } },
+    ];
+    if (d.kind === "invoice" && d.subtype !== "storno") {
+      if (d.status === "draft") return [
+        { key: "delete", label: "Delete draft", kind: "danger", confirm: "The draft is deleted. No invoice number has been used yet.", run: async () => { await h.cancelInvoice(cid, pid, d.id, settings); close(); } },
+        { key: "final", label: "Finalize", kind: "pri", confirm: "This assigns the next invoice number and locks the invoice. Download and send it afterwards.", run: () => h.finalizeInvoice(cid, pid, d.id, settings) },
+      ];
+      if (d.status === "sent") return [
+        { key: "cancel", label: "Cancel invoice", kind: "danger", confirm: "Creates a cancellation invoice (Storno) with its own number. The original stays on file.", run: async () => { const st = await h.cancelInvoice(cid, pid, d.id, settings); if (st) setOpenDocId(st.id); } },
+        { key: "paid", label: "Mark paid", kind: "pri", date: "Paid on", run: (dt?: string) => h.markInvoicePaid(cid, pid, d.id, dt || today()) },
+      ];
+      if (d.status === "paid") return [
+        { key: "cancel", label: "Cancel invoice", kind: "danger", confirm: "Creates a cancellation invoice (Storno) with its own number. The original stays on file.", run: async () => { const st = await h.cancelInvoice(cid, pid, d.id, settings); if (st) setOpenDocId(st.id); } },
+        { key: "unpaid", label: "Mark unpaid", kind: "sec", run: () => h.markInvoiceUnpaid(cid, pid, d.id) },
+      ];
+    }
+    return [];
   };
 
-  // Renewal builder modal (old-app: saveRenewal forces signed:true)
+  const docNote = (d: DocRecord): string | undefined => {
+    if (d.status !== "draft") return undefined;
+    if (d.kind === "invoice")  return "Draft — the invoice number is assigned when you tap Finalize.";
+    if (d.kind === "quote")    return "Draft — editable until you mark it sent. After that, changes become a new revision.";
+    if (d.kind === "contract") return "Draft — editable until it's marked sent or signed.";
+    return "Draft — editable until you mark it sent.";
+  };
+
+  // ── Modals ──
   if (renewT) {
     return (
       <RenewalModal
         p={renewT}
         rc={{}}
         settings={settings}
+        client={client}
         onClose={() => { setRenewT(null); onModalClosed(); }}
-        onSave={async (r: any) => {
-          await clientsHook.addRenewal(cl.id, pr.id, { ...r, signed: true });
+        onSave={async (r: any, doc: any) => {
+          const d = await h.addRenewalWithInvoice(cid, pid, r, doc, settings);
           setRenewT(null);
-          onModalClosed();
+          setOpenDocId(d.id);
         }}
       />
     );
   }
 
-  // Amendment — rights extension via same builder (mode="amend");
-  // "Open Calculator" escape hatch routes to the classic add-items amend flow.
   if (amendT) {
     return (
       <RenewalModal
@@ -140,66 +215,56 @@ function ProjectRow({
         p={amendT}
         rc={{}}
         settings={settings}
+        client={client}
         onClose={() => { setAmendT(null); onModalClosed(); }}
         onCalc={() => { setAmendT(null); onModalClosed(); onAmend(pr, cl); }}
-        onSave={async (a: any) => {
-          await clientsHook.addAmendment(cl.id, pr.id, a);
+        onSave={async (a: any, doc: any) => {
+          const d = await h.addAmendmentWithDoc(cid, pid, a, doc, settings);
           setAmendT(null);
-          onModalClosed();
+          setOpenDocId(d.id);
         }}
       />
     );
   }
 
-  if (pdf && PDFModal) {
-    // Old-app onSave routing:
-    //  · readOnly (amendment / renewal docs) → no save handler at all
-    //  · official contract revision → bump contractRev, NEVER touch amount
-    //  · monthly retainer invoice → append or edit-in-place by index
-    //  · own quote/contract/invoice → save qd + recompute amount
-    const onSave = pdf.readOnly
-      ? undefined
-      : pdf.isRevision
-        ? (doc: any) => {
-            upP({ qd: { ...doc, contractRev: pdf.nextContractRev, clauses: doc.clauses || [] } });
-            setPdf(null);
-          }
-        : pdf.isMonthlyInv
-          ? (doc: any) => {
-              const amount = doc.total || (doc.lines || []).reduce((s: number, l: any) => s + (parseFloat(l.amt) || 0), 0);
-              const mis = pr.monthlyInvoices || [];
-              if (pdf.monthlyIdx !== undefined) {
-                // edit existing monthly invoice in place (old-app semantics)
-                upP({ monthlyInvoices: mis.map((inv: any, ii: number) =>
-                  ii === pdf.monthlyIdx
-                    ? { ...inv, doc, iNo: doc.iNo || inv.iNo, delivery: doc.delivery, amount }
-                    : inv
-                ) });
-              } else {
-                upP({ monthlyInvoices: [...mis, { id: uid(), iNo: doc.iNo || doc.rNo, delivery: doc.delivery, amount, paid: false, doc }] });
-              }
-              setPdf(null);
-            }
-          : (doc: any) => {
-            const tot = doc.total || (doc.lines || []).reduce((s: number, l: any) => s + (parseFloat(l.amt) || 0), 0);
-            upP({ qd: { ...doc, clauses: doc.clauses || [] }, amount: tot });
-            setPdf(null);
-          };
+  const openD = openDocId ? docs.find(d => d.id === openDocId) : null;
+  if (openD) {
     return (
       <PDFModal
-        data={pdf.data}
-        type={pdf.type}
-        onClose={() => { setPdf(null); onModalClosed(); }}
+        key={openD.id}
+        doc={openD}
         settings={settings}
-        onSave={onSave}
+        client={client}
+        editable={openD.status === "draft"}
+        note={docNote(openD)}
+        onSave={async (next) => { await h.updateDocument(cid, pid, openD.id, next, settings); }}
+        actions={docActions(openD)}
+        onClose={() => { setOpenDocId(null); onModalClosed(); }}
+      />
+    );
+  }
+
+  // Old projects without a quote document: show the quote read-only
+  if (legacyQuote && pr.qd) {
+    return (
+      <PDFModal
+        doc={{ kind: "quote", docNo: pr.qd.qNo || "", revision: pr.qd.rev || 0, status: "sent", docDate: pr.qd.date || pr.date || today(), lang: "en", data: pr.qd }}
+        settings={settings} client={client} editable={false}
+        onClose={() => { setLegacyQuote(false); onModalClosed(); }}
       />
     );
   }
 
   const pad = isMobile ? "16px 0" : "12px 0";
+  const hasQuoteDoc = docs.some(d => d.kind === "quote");
+  const amendDocsDraft = (a: any) => { const d = amendmentDoc(pr, a.id); return !d || d.status === "draft"; };
 
   return (
     <div ref={rowRef} data-prid={pr.id} style={{ borderBottom: `1px solid ${C.rule}`, opacity: pr.paid ? 0.55 : 1 }}>
+
+      {dialog && (
+        <RowDialog {...dialog} onCancel={() => setDialog(null)} onOk={(date: string) => { const dg = dialog; setDialog(null); act(() => dg.run(date)); }} />
+      )}
 
       {/* ── COLLAPSED ROW ── */}
       <div onClick={onToggle} style={{ padding: pad, cursor: "pointer" }}>
@@ -218,7 +283,7 @@ function ProjectRow({
             </div>
           </>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 110px 100px", alignItems: "center" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 110px 110px", alignItems: "center" }}>
             <div style={{ minWidth: 0, paddingRight: 12 }}>
               <div style={{ fontSize: TYPE.micro.size, color: C.muted, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr._cname}</div>
               <div style={{ fontSize: TYPE.subtext.size, color: C.black, fontWeight: "500", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr.name}</div>
@@ -250,7 +315,7 @@ function ProjectRow({
                       type="date"
                       value={pr.deliveryDate || ""}
                       onChange={(e: any) => { const nv = e.target.value; if (nv) upP({ deliveryDate: nv }); }}
-                      s={{ width: isMobile ? 120 : 140, fontSize: TYPE.micro.size, padding: "5px 8px" }}
+                      s={{ width: isMobile ? 140 : 150, padding: "5px 8px" }}
                     />
                   </div>
                 ) : pr.deliveryDate ? (
@@ -264,69 +329,51 @@ function ProjectRow({
           {pr.qd && (pr.qd.lines || []).length > 0 && (
             <div style={{ marginBottom: 12 }}>
               <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Deliverables</p>
-              {(pr.qd.lines || []).map((ln: any, li: number) => (
-                <div key={li} style={{ marginBottom: li < (pr.qd.lines || []).length - 1 ? 8 : 0, paddingBottom: li < (pr.qd.lines || []).length - 1 ? 8 : 0, borderBottom: li < (pr.qd.lines || []).length - 1 ? `1px solid ${C.rule}` : "none" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
-                    <span style={{ fontSize: TYPE.body.size, color: C.black, fontWeight: 500 }}>{ln.name}{ln.qty && ln.qty > 1 ? ` × ${ln.qty}` : ""}</span>
-                    {ln.usageLabel && <span style={{ fontSize: 8, color: C.muted, padding: "1px 5px", background: C.light, borderRadius: 2 }}>Usage: {ln.usageLabel}</span>}
+              {(pr.qd.lines || []).map((ln: any, li: number) => {
+                const qty = Math.max(1, parseInt(ln.qty) || 1);
+                const amt = parseFloat(ln.amt) || 0;
+                return (
+                  <div key={li} style={{ marginBottom: li < (pr.qd.lines || []).length - 1 ? 8 : 0, paddingBottom: li < (pr.qd.lines || []).length - 1 ? 8 : 0, borderBottom: li < (pr.qd.lines || []).length - 1 ? `1px solid ${C.rule}` : "none" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3, flexWrap: "wrap" as const }}>
+                      <span style={{ fontSize: TYPE.body.size, color: C.black, fontWeight: 500 }}>{qty > 1 ? `${qty}× ` : ""}{ln.name}</span>
+                      {ln.usageLabel && <span style={{ fontSize: TYPE.micro.size, color: C.muted, padding: "1px 5px", border: `1px solid ${C.rule}`, borderRadius: 2 }}>{ln.usageLabel}</span>}
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: TYPE.label.size }}>
+                      <span style={{ color: C.muted }}>{qty > 1 ? `${fmtE(amt / qty)} € each` : "Rate"}</span>
+                      <span style={{ fontFamily: SERIF, fontSize: TYPE.body.size, color: C.black }}>{fmt(amt)}</span>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: TYPE.label.size }}>
-                    <span style={{ color: C.muted }}>Rate</span>
-                    <span style={{ fontFamily: SERIF, fontSize: TYPE.body.size, color: C.black }}>{fmtE(parseFloat(ln.amt) || 0)} €{ln.qty && ln.qty > 1 ? ` × ${ln.qty}` : ""}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
           {/* 3. BUILD QUOTE */}
           {!pr.qd && (
             <div style={{ marginBottom: 12 }}>
-              <B s={{ fontSize: TYPE.micro.size, padding: "8px 14px", width: "100%" }} onClick={() => onGoToCalc(pr._cname)}>+ Create Quote</B>
+              <B s={{ fontSize: TYPE.micro.size, padding: "8px 14px", width: "100%" }} onClick={() => onGoToCalc(pr._cname)}>+ Create quote</B>
             </div>
           )}
 
           {/* 4. DOCUMENTS */}
-          <div style={{ marginBottom: 12 }}>
-            <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Documents</p>
-            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const }}>
-              {pr.qd && (
-                <B v="sec" s={{ fontSize: TYPE.micro.size, padding: "5px 10px" }} onClick={() => openPDF("quote")}>
-                  {pr.qd.rev > 0 ? `Quote R${pr.qd.rev}` : "Quote"}
-                </B>
-              )}
-              {["contracted","production","invoiced","paid"].includes(pr.status) && pr.qd && (
-                <B v="sec" s={{ fontSize: TYPE.micro.size, padding: "5px 10px" }} onClick={() => openPDF("contract")}>
-                  {pr.qd.contractRev > 0 ? `Contract R${pr.qd.contractRev}` : "Contract"}
-                </B>
-              )}
-              {(pr.amendments || []).map((a: any, ai: number) => (
-                <B key={ai} v="sec" s={{ fontSize: TYPE.micro.size, padding: "5px 10px", color: a.signed ? C.black : C.amber, borderColor: a.signed ? C.rule : C.amber }}
-                  onClick={() => setPdf({ data: { brand: pr.qd?.brand, contact: pr.qd?.contact, date: today(), ctype: pr.qd?.ctype || "Content Creator", qNo: pr.qd?.qNo, aNo: a.aNo, lines: a.lines || [], amendTotal: a.amendTotal, origTotal: pr.amount - a.amendTotal }, type: "amendment", readOnly: true })}>
-                  Amend {ai + 1}{!a.signed ? " · unsigned" : ""}
-                </B>
-              ))}
-              {["invoiced","paid"].includes(pr.status) && pr.qd && (
-                <B v="sec" s={{ fontSize: TYPE.micro.size, padding: "5px 10px" }} onClick={() => openPDF("invoice")}>Invoice</B>
-              )}
-              {(pr.renewals || []).map((r: any, ri: number) => (
-                r.doc && (
-                  <B key={ri} v="sec" s={{ fontSize: TYPE.micro.size, padding: "5px 10px", color: r.paid ? C.black : C.green, borderColor: r.paid ? C.rule : C.green }}
-                    onClick={() => setPdf({ data: r.doc, type: "renewal", readOnly: true })}>
-                    Renewal {ri + 1}
+          {(docs.length > 0 || pr.qd) && (
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Documents</p>
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const }}>
+                {!hasQuoteDoc && pr.qd && (
+                  <B v="sec" s={{ fontSize: TYPE.micro.size, padding: "5px 10px" }} onClick={() => setLegacyQuote(true)}>Quote</B>
+                )}
+                {docs.map(d => (
+                  <B key={d.id} v="sec"
+                    s={{ fontSize: TYPE.micro.size, padding: "5px 10px", gap: 6, color: d.status === "superseded" ? C.light : C.black, textDecoration: d.status === "superseded" || d.status === "cancelled" ? "line-through" : "none" }}
+                    onClick={() => openDoc(d)}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotCol(d.status), display: "inline-block", flexShrink: 0 }} />
+                    {docLabel(d, pr)}
                   </B>
-                )
-              ))}
-              {pr.qd?.retainer && (pr.monthlyInvoices || []).map((inv: any, ii: number) => (
-                inv.doc && (
-                  <B key={ii} v="sec" s={{ fontSize: TYPE.micro.size, padding: "5px 10px", color: inv.paid ? C.black : C.green, borderColor: inv.paid ? C.rule : C.green }}
-                    onClick={() => setPdf({ data: inv.doc, type: "invoice", isMonthlyInv: true, monthlyIdx: ii })}>
-                    Invoice M{String(ii + 1).padStart(2, "0")}
-                  </B>
-                )
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* 5. PRODUCTION SECTION */}
           {pr.status === "production" && (
@@ -348,82 +395,82 @@ function ProjectRow({
           )}
 
           {/* 8. ACTION ROW */}
-          <div style={{ display: "flex", gap: isMobile ? 6 : 5, flexWrap: "wrap" as const, paddingTop: 10, borderTop: `1px solid ${C.rule}` }}>
+          <div style={{ display: "flex", gap: isMobile ? 6 : 5, flexWrap: "wrap" as const, paddingTop: 10, borderTop: `1px solid ${C.rule}`, opacity: busy ? 0.5 : 1 }}>
 
             {["quoted","revised"].includes(pr.status) && <>
-              <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => onRevise(pr, cl)}>Revise Quote</B>
-              <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "8px 14px" : "7px 14px" }} onClick={() => { setStatus("contracted"); openPDF("contract", { ...pr, status: "contracted" }); }}>→ Contract</B>
+              <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => onRevise(pr, cl)}>Revise quote</B>
+              <B s={{ fontSize: TYPE.micro.size }} onClick={() => act(async () => openDoc(await h.createContract(cid, pid, settings)))}>Create contract</B>
             </>}
 
             {pr.status === "contracted" && <>
-              <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => { const q = pr.qd; const nextRev = (q?.contractRev || 0) + 1; setPdf({ data: { brand: q?.brand, contact: q?.contact, date: today(), validUntil: q?.validUntil, qNo: q?.qNo, rev: q?.rev || 0, contractRev: nextRev, clauses: q?.clauses || [], iNo: `INV-${(q?.qNo || "").replace(/QUO-?/i,"").trim() || "001"}`, delivery: pr.deliveryDate, ctype: q?.ctype || "Content Creator", lines: q?.lines || [], amendments: pr.amendments || [], total: pr.amount, footer: "Looking forward to working together." }, type: "contract", isRevision: true, nextContractRev: nextRev }); }}>Revise Contract</B>
-              <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "8px 14px" : "7px 14px" }} onClick={() => setStatus("production")}>Mark Signed</B>
+              <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => act(async () => openDoc(await h.reviseContract(cid, pid, settings)))}>
+                {con?.status === "draft" ? "Edit contract" : "Revise contract"}
+              </B>
+              {con && (
+                <B s={{ fontSize: TYPE.micro.size }} onClick={() => setDialog({ title: "Mark signed", dateLabel: "Signed on", okLabel: "Mark signed", run: (dt: string) => h.markContractSigned(cid, pid, con.id, dt, settings) })}>Mark signed</B>
+              )}
             </>}
 
-            {pr.status === "production" && (pr.qd?.retainer ? (() => {
-              const mis = pr.monthlyInvoices || [];
-              const retMo = pr.qd?.retMo || 1;
-              const nextN = mis.length + 1;
-              const allDone = mis.length >= retMo;
-              const lastPaid = mis.length > 0 && mis[mis.length - 1].paid;
-              const canNext = mis.length === 0 || lastPaid;
-              return (<>
-                {mis.map((inv: any, ii: number) => (
-                  <span key={inv.id || ii} style={{ display: "contents" }}>
-                    {!inv.paid && (
-                      <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "8px 10px" : "7px 10px" }}
-                        onClick={() => {
-                          const nm = mis.map((i2: any, i: number) => i === ii ? { ...i2, paid: true } : i2);
-                          upP({ monthlyInvoices: nm, paid: nm.length >= retMo && nm.every((v: any) => v.paid), status: nm.length >= retMo && nm.every((v: any) => v.paid) ? "paid" : pr.status });
-                        }}>Mark M{ii + 1} Paid</B>
-                    )}
-                    <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "8px 10px" : "7px 10px" }}
-                      onClick={() => upP({ monthlyInvoices: mis.filter((_: any, i: number) => i !== ii), paid: false })}>Undo M{ii + 1}</B>
-                  </span>
-                ))}
-                {!allDone && canNext && (
-                  <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "8px 14px" : "7px 14px" }}
-                    onClick={() => {
-                      const q = pr.qd;
-                      const skip = ["usage","excl","rush","revision","whitelisting","aspect","raw footage","kill","pinned","link in bio"];
-                      const ml = (q?.lines || []).map((l: any) => ({...l, amt: skip.some(s => (l.name || "").toLowerCase().includes(s)) ? parseFloat(l.amt) || 0 : Math.round((parseFloat(l.amt) || 0) * 0.8), up: parseFloat(l.up) || 0}));
-                      const mamt = Math.round(ml.reduce((s: number, l: any) => s + (parseFloat(l.amt) || 0), 0));
-                      const bno = `INV-${(q?.qNo || "").replace("QUO","").trim() || "001"}`;
-                      setPdf({ data: { brand: q?.brand, contact: q?.contact, date: today(), qNo: q?.qNo, iNo: `${bno}-M${String(nextN).padStart(2,"0")}`, delivery: today(), ctype: q?.ctype || "Content Creator", lines: ml, total: mamt, retainer: true, retMo: q?.retMo, footer: "Thank you for the pleasure of working together." }, type: "invoice", isMonthlyInv: true });
-                    }}>Create Invoice {nextN}/{retMo}</B>
-                )}
-              </>);
-            })() : (
-              <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "8px 14px" : "7px 14px", opacity: pr.deliveryDate ? 1 : 0.35, cursor: pr.deliveryDate ? "pointer" : "not-allowed" as const }} title={pr.deliveryDate ? "" : "Set delivery date first"} onClick={() => { if (pr.deliveryDate) { setStatus("invoiced"); openPDF("invoice"); } }}>Create Invoice</B>
-            ))}
+            {pr.status === "production" && !isRet && (
+              pInv && pInv.status === "draft"
+                ? <B s={{ fontSize: TYPE.micro.size }} onClick={() => openDoc(pInv)}>Open invoice draft</B>
+                : <B s={{ fontSize: TYPE.micro.size, opacity: pr.deliveryDate ? 1 : 0.35, cursor: pr.deliveryDate ? "pointer" : "not-allowed" as const }}
+                    title={pr.deliveryDate ? "" : "Set the delivery date first"}
+                    onClick={() => { if (pr.deliveryDate) act(async () => openDoc(await h.createProjectInvoice(cid, pid, settings))); else setRowErr("Set the delivery date first."); }}>
+                    Create invoice
+                  </B>
+            )}
 
-            {pr.status === "invoiced" && !pr.paid && <B s={{ fontSize: TYPE.micro.size, padding: isMobile ? "8px 14px" : "7px 14px" }} onClick={() => setStatus("paid")}>Mark Paid</B>}
+            {pr.status === "production" && isRet && (
+              draftM
+                ? <B s={{ fontSize: TYPE.micro.size }} onClick={() => openDoc(draftM)}>Open M{String(draftM.monthNo || "").padStart(2, "0")} draft</B>
+                : nextM
+                  ? <B s={{ fontSize: TYPE.micro.size }} onClick={() => act(async () => openDoc(await h.createMonthlyInvoice(cid, pid, settings)))}>Create invoice M{String(nextM).padStart(2, "0")}</B>
+                  : null
+            )}
 
-            {pr.paid && !pr.qd?.retainer && <>
-              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "8px 14px" : "7px 14px" }} onClick={() => setRenewT(pr)}>Add Renewal</B>
-              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "8px 14px" : "7px 14px" }} onClick={() => upP({ paid: false, status: "invoiced" })}>Undo Paid</B>
+            {pr.status === "invoiced" && !pr.paid && pInv && (
+              <B s={{ fontSize: TYPE.micro.size }} onClick={() => setDialog({ title: "Mark paid", dateLabel: "Paid on", okLabel: "Mark paid", run: (dt: string) => h.markInvoicePaid(cid, pid, pInv.id, dt) })}>Mark paid</B>
+            )}
+
+            {pr.paid && !isRet && <>
+              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green }} onClick={() => setRenewT(pr)}>Add renewal</B>
+              {pInv && pInv.status === "paid" && (
+                <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber }} onClick={() => setDialog({ title: "Undo paid", text: "The invoice goes back to unpaid.", okLabel: "Undo paid", run: () => h.markInvoiceUnpaid(cid, pid, pInv.id) })}>Undo paid</B>
+              )}
             </>}
 
-            {(pr.renewals || []).map((r: any, ri: number) => (
-              <span key={r.id || ri} style={{ display: "contents" }}>
-                {!r.paid && <>
-                  <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => clientsHook.updateRenewal(cl.id, pr.id, r.id, { paid: true })}>Mark R{ri + 1} Paid</B>
-                  <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => clientsHook.deleteRenewal(cl.id, pr.id, r.id)}>Undo R{ri + 1}</B>
-                </>}
-                {r.paid && (
-                  <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => clientsHook.updateRenewal(cl.id, pr.id, r.id, { paid: false })}>Undo R{ri + 1}</B>
-                )}
-              </span>
-            ))}
+            {(pr.renewals || []).map((r: any, ri: number) => {
+              const inv = renewalInvoice(pr, r.id);
+              if (inv && inv.status !== "draft") return null;
+              return (
+                <B key={r.id || ri} v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber }}
+                  onClick={() => setDialog({ title: `Undo renewal ${ri + 1}`, text: "The renewal and its draft invoice are removed.", okLabel: "Undo renewal", danger: true, run: () => h.removeRenewal(cid, pid, r.id) })}>
+                  Undo R{ri + 1}
+                </B>
+              );
+            })}
 
-            {!pr.paid && pr.status !== "quoted" && <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => { const p = prv(pr.status); if (p) setStatus(p); }}>← Undo</B>}
+            {["revised","contracted","production"].includes(pr.status) && (
+              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted }} onClick={() => setDialog({ title: "Back one step", text: pr.status === "production" ? "The contract goes back to not signed." : pr.status === "contracted" ? "The contract is withdrawn (a draft is deleted, a sent one is kept as replaced)." : "The project goes back to Quoted.", okLabel: "Back one step", run: () => h.undoContract(cid, pid) })}>← Back one step</B>
+            )}
 
-            {["production","invoiced","paid"].includes(pr.status) && pr.qd && <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => setAmendT(pr)}>+ Amend</B>}
+            {["production","invoiced","paid"].includes(pr.status) && pr.qd && (
+              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted }} onClick={() => setAmendT(pr)}>+ Amend</B>
+            )}
 
-            {(pr.amendments || []).map((a: any, ai: number) => (
-              <B key={a.id || ai} v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber, padding: isMobile ? "8px 10px" : "7px 10px" }} onClick={() => clientsHook.deleteAmendment(cl.id, pr.id, a.id)}>Undo Amend {ai + 1}</B>
+            {(pr.amendments || []).map((a: any, ai: number) => amendDocsDraft(a) && (
+              <B key={a.id || ai} v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber }}
+                onClick={() => setDialog({ title: `Undo amendment ${ai + 1}`, text: "The amendment is removed and its amount is taken off the project.", okLabel: "Undo amendment", danger: true, run: () => h.removeAmendment(cid, pid, a.id) })}>
+                Undo amend {ai + 1}
+              </B>
             ))}
           </div>
+
+          {isRet && pr.status === "production" && !draftM && nextM && prevM && prevM.status !== "paid" && (
+            <p style={{ fontSize: TYPE.label.size, color: C.amber, margin: "8px 0 0" }}>M{String(prevM.monthNo || "").padStart(2, "0")} is not paid yet.</p>
+          )}
+          {rowErr && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "8px 0 0" }}>{rowErr}</p>}
         </div>
       )}
     </div>
@@ -458,7 +505,7 @@ export default function ProjectsTab({
   useEffect(() => {
     if (!pendingProjectQNo) return;
     const all = clients.flatMap((c: any) => c.projects.map((pr: any) => ({ ...pr, _cid: c.id })));
-    const match = all.find((pr: any) => pr.qd?.qNo === pendingProjectQNo);
+    const match = all.find((pr: any) => pr.id === pendingProjectQNo || pr.qd?.qNo === pendingProjectQNo);
     if (match) setExpanded(match.id);
     if (onPendingClear) onPendingClear();
   }, [pendingProjectQNo]);

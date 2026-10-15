@@ -8,10 +8,12 @@
 
 import { useState } from "react";
 import { C, SANS, SERIF } from "./constants";
-import { fmt, fmtD, addM, addD, today, uid } from "./formatters";
+import { fmt, fmtD, addM, addD, today } from "./formatters";
 import { I, S, B, Lbl, Pill } from "./atoms";
 import { RENEWAL_OPTS } from "./rateCards";
 import PDFModal from "./PDFModal";
+import { dueFrom } from "./docs";
+import type { DocView } from "./docs";
 
 const CAT_FROM_ID = (id: string) => {
   if (!id) return "";
@@ -19,7 +21,9 @@ const CAT_FROM_ID = (id: string) => {
   return p === "i" ? "Influencer" : p === "u" ? "UGC" : p === "e" ? "Editorial" : p === "h" ? "Hotels" : "";
 };
 
-export default function RenewalModal({ p, onSave, onClose, rc, settings, mode = "renewal", onCalc }: any) {
+// onSave(record, editedDoc) — record = renewal or amendment fields, editedDoc = the
+// previewed document incl. any edits made in the preview (they are kept).
+export default function RenewalModal({ p, onSave, onClose, rc, settings, client, mode = "renewal", onCalc }: any) {
   // mode: "renewal" (default, unchanged) | "amend" — same builder, but the
   // output is an Amendment (rights extension mid-contract, item not re-charged).
   const isAmendMode = mode === "amend";
@@ -82,8 +86,6 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings, mode = 
   const endD = uEnd && eEnd ? (uEnd > eEnd ? uEnd : eEnd) : uEnd || eEnd;
 
   const totalFee = uFee + eFee;
-  const rNo = `RNW-${(q?.qNo || "").replace("QUO", "").trim() || "001"}-${String((p.renewals || []).length + 1).padStart(2, "0")}`;
-  const aNo = `Amend ${(p.amendments || []).length + 1}`;
   const canPreview = base > 0 && (uMode !== "none" || eMode !== "none") && totalFee > 0;
 
   const [showPreview, setShowPreview] = useState(false);
@@ -108,20 +110,13 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings, mode = 
       lines.push({ name: `Exclusivity — ${label}`, note: `${itemsSummary}${pctNote} · ${fmtD(startD)}${eEnd ? ` → ${fmtD(eEnd)}` : ""}`, qty: 1, up: eFee, amt: eFee });
     }
     if (isAmendMode) return {
-      brand: q?.brand, contact: q?.contact, date: today(),
-      aNo, qNo: q?.qNo, ctype: q?.ctype || "Content Creator",
+      brand: q?.brand, contact: q?.contact, ctype: q?.ctype || "Content Creator",
       lines, amendTotal: totalFee, origTotal: p.amount || 0,
-      startDate: startD, endDate: endD,
-      footer: "Looking forward to working together.",
-      type: "amendment",
+      startDate: startD, endDate: endD, footer: "",
     };
     return {
-      brand: q?.brand, contact: q?.contact, date: today(),
-      rNo, qNo: q?.qNo, ctype: q?.ctype || "Content Creator",
-      lines, total: totalFee,
-      startDate: startD, endDate: endD,
-      footer: "Thank you for the pleasure of working together.",
-      type: "renewal",
+      brand: q?.brand, contact: q?.contact, ctype: q?.ctype || "Content Creator",
+      lines, startDate: startD, endDate: endD, footer: "",
     };
   };
 
@@ -137,33 +132,26 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings, mode = 
   );
 
   if (showPreview) {
-    const doc = buildDoc();
-    if (isAmendMode) {
-      // Amendment record — matches addAmendment(Omit<Amendment,"id"|"createdAt">).
-      // signed:false for parity with the calculator amend flow.
-      const amendment = { aNo, lines: doc.lines, amendTotal: totalFee, origTotal: p.amount || 0, signed: false, doc };
-      return (
-        <PDFModal
-          data={doc}
-          type="amendment"
-          settings={settings}
-          isNew={true}
-          onClose={onClose}
-          onSave={() => onSave(amendment)}
-          onSaveClose={onClose}
-        />
-      );
-    }
-    const renewal = { id: uid(), optLabel: [uMode !== "none" ? uOpt?.l : "", eMode !== "none" ? eOpt?.l : ""].filter(Boolean).join(" + ") || "Custom", startDate: startD, endDate: endD, fee: totalFee, rNo, signed: false, paid: false, doc };
+    const data = buildDoc();
+    const d0 = today();
+    const doc: DocView = isAmendMode
+      ? { kind: "amendment", docNo: "", revision: 0, status: "draft", docDate: d0, lang: "en", data }
+      : { kind: "invoice", subtype: "renewal", docNo: "", revision: 0, status: "draft", docDate: d0,
+          dueDate: dueFrom(d0), periodStart: startD, periodEnd: endD, lang: "en", data };
+    const optLabel = [uMode !== "none" ? (uMode === "predefined" ? uOpt?.l : "Custom usage") : "", eMode !== "none" ? (eMode === "predefined" ? eOpt?.l : "Custom exclusivity") : ""].filter(Boolean).join(" + ") || "Custom";
+    const record = isAmendMode
+      ? { aNo: "", lines: data.lines, amendTotal: totalFee, origTotal: p.amount || 0, signed: false, doc: {} }
+      : { optLabel, startDate: startD, endDate: endD, fee: totalFee, rNo: "", signed: true, paid: false, doc: {} };
     return (
       <PDFModal
-        data={doc}
-        type="renewal"
+        doc={doc}
         settings={settings}
+        client={client}
+        editable={true}
         isNew={true}
+        note={isAmendMode ? "The amendment number is assigned when you save." : "Saved as a draft invoice — the invoice number is assigned when you finalize it."}
+        onSave={async (next) => { await onSave(record, next); }}
         onClose={onClose}
-        onSave={() => onSave(renewal)}
-        onSaveClose={onClose}
       />
     );
   }
