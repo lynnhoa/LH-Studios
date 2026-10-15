@@ -2,7 +2,7 @@
 // App.tsx — root component (self-contained auth, no external useAuth)
 // ─────────────────────────────────────────────────────────────
 
-import { Component, useState, useEffect, useRef } from "react";
+import { Component, useState, useEffect, useRef, useMemo } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { useSettings }  from "./useSettings";
 import { useClients }   from "./useClients";
@@ -10,7 +10,8 @@ import { useRateCards } from "./useRateCards";
 import AuthScreen       from "./AuthScreen";
 import ManagerApp       from "./ManagerApp";
 import CreatorApp       from "./CreatorApp";
-import { Loading }      from "./atoms";
+import { Loading, SaveToast, LoadErrorBanner } from "./atoms";
+import { editLock, reloadAll } from "./saveStatus";
 import { supabase, supabaseConfigured } from "./useSupabase";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import type { Role } from "./types";
@@ -181,32 +182,62 @@ export default function App() {
 
 function AppInner() {
   const { userId, role, loading: authLoading, signIn, signOut, switchMode } = useAuth();
-  const { settings, updateSettings } = useSettings(userId);
+  const settingsHook  = useSettings(userId);
   const clientsHook   = useClients(userId);
   const rateCardsHook = useRateCards(userId);
+  const { updateSettings } = settingsHook;
+
+  // settings + "really loaded" flag (PDFs check it before downloading)
+  const settings = useMemo(
+    () => ({ ...settingsHook.settings, __ready: settingsHook.loaded }),
+    [settingsHook.settings, settingsHook.loaded]
+  );
+
+  // Coming back to the app after 30 s or more → reload (not while a document is open for editing)
+  useEffect(() => {
+    let hiddenAt = 0;
+    const onVis = () => {
+      if (document.visibilityState === "hidden") { hiddenAt = Date.now(); return; }
+      if (hiddenAt && Date.now() - hiddenAt > 30000 && !editLock.active()) reloadAll();
+      hiddenAt = 0;
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
 
   if (authLoading) return <Loading />;
   if (!userId) return <AuthScreen onSignIn={signIn} loading={authLoading} />;
 
-  if (role === "manager") {
-    return (
-      <ManagerApp
-        settings={settings}
-        updateSettings={updateSettings}
-        clientsHook={clientsHook}
-        rateCardsHook={rateCardsHook}
-        signOut={signOut}
-        switchMode={switchMode}
-      />
-    );
-  }
+  const banners = (
+    <>
+      {clientsHook.loadError   && <LoadErrorBanner what="Your clients and projects" message={clientsHook.loadError}   onRetry={() => clientsHook.reload()} />}
+      {settingsHook.loadError  && <LoadErrorBanner what="Your profile"              message={settingsHook.loadError}  onRetry={settingsHook.reload} />}
+      {rateCardsHook.loadError && <LoadErrorBanner what="Your rate cards"           message={rateCardsHook.loadError} onRetry={rateCardsHook.reload} />}
+    </>
+  );
 
   return (
-    <CreatorApp
-      settings={settings}
-      clientsHook={clientsHook}
-      signOut={signOut}
-      switchMode={switchMode}
-    />
+    <>
+      {role === "manager" ? (
+        <ManagerApp
+          settings={settings}
+          updateSettings={updateSettings}
+          clientsHook={clientsHook}
+          rateCardsHook={rateCardsHook}
+          signOut={signOut}
+          switchMode={switchMode}
+          banners={banners}
+        />
+      ) : (
+        <CreatorApp
+          settings={settings}
+          clientsHook={clientsHook}
+          signOut={signOut}
+          switchMode={switchMode}
+          banners={banners}
+        />
+      )}
+      <SaveToast />
+    </>
   );
 }

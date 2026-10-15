@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { C, SERIF, TYPE } from "./constants";
+import { StatusBadge } from "./atoms";
 import { fmt, fmtD, dLeft } from "./formatters";
 import { getLineGroups, ccCatLabel, ccCatStyle } from "./wsHelpers";
 
@@ -16,12 +17,9 @@ interface CreatorClientsProps {
   onSelChange?: (id: string | null) => void;
 }
 
-function scol(s: string): string {
-  return ({ invoiced: C.amber, contracted: C.muted, quoted: C.light, revised: C.amber, production: C.blue, paid: C.green, lead: C.light }[s] ?? C.light);
-}
-
 export default function CreatorClients({ clients, isMobile, onSelChange }: CreatorClientsProps) {
-  const [sel, setSel] = useState<string | null>(null);
+  const [sel, setSel_] = useState<string | null>(null);
+  const setSel = (v: string | null) => { setSel_(v); if (onSelChange) onSelChange(v); };   // parent widens the split view
 
   const activeClients = clients.filter(c => c.projects.some((pr: any) => pr.status === "production" || pr.status === "contracted"));
   const pastClients   = clients.filter(c =>
@@ -59,19 +57,19 @@ export default function CreatorClients({ clients, isMobile, onSelChange }: Creat
 
   // ── Detail panel (right side) ─────────────────────────────
   const Detail = ({ c }: { c: any }) => {
-    const allPr = (c.projects || []).slice().sort((a: any,b: any) => (b.createdAt||0) - (a.createdAt||0));
+    const allPr = (c.projects || []).slice().sort((a: any,b: any) => String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
     const totalEarned  = allPr.filter((p: any) => p.status === "paid").reduce((s: number,p: any) => s + (p.amount||0), 0);
     const activePrs    = allPr.filter((p: any) => p.status === "production" || p.status === "contracted");
     return (
       <div style={{ flex: 1, minWidth: 0, overflowY: isMobile ? undefined : "auto", maxHeight: isMobile ? undefined : "calc(100vh - 80px)", paddingLeft: isMobile ? 0 : 4 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
           <div>
-            <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 4px" }}>{c.name}</h2>
+            <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 4px" }}>{c.name}</h2>
             <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: 0 }}>
               {[c.contact, c.email, c.agency && c.agency !== "Direct" ? c.agency : null].filter(Boolean).join(" · ")}
             </p>
           </div>
-          <button onClick={() => setSel(null)} style={{ background: "none", border: "none", cursor: "pointer", color: C.light, fontSize: 18, lineHeight: 1, padding: "2px 0 0 4px" }}>✕</button>
+          <button onClick={() => setSel(null)} style={{ background: "none", border: "none", cursor: "pointer", color: C.light, fontSize: TYPE.amount.size, lineHeight: 1, padding: "2px 0 0 4px", minWidth: 32, minHeight: 32 }}>✕</button>
         </div>
 
         {/* Stats row */}
@@ -95,15 +93,13 @@ export default function CreatorClients({ clients, isMobile, onSelChange }: Creat
           const allItems_  = groups.flatMap((g: any) => g.items);
           const totalDone  = allItems_.filter((it: any) => it.status === "Delivered").length;
           const totalAll   = allItems_.length;
-          const statusLabel = pr.paid ? "Paid" : pr.status;
-          const statusColor = scol(pr.paid ? "paid" : pr.status);
           const dl          = dLeft(pr.deliveryDate);
           const isOD        = pr.status === "production" && pr.deliveryDate && dl !== null && dl < 0;
           return (
             <div key={pr.id} style={{ padding: "10px 0", borderBottom: i < allPr.length - 1 ? `1px solid ${C.rule}` : "none" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 <span style={{ fontSize: TYPE.body.size, color: C.black, fontWeight: "500", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr.name}</span>
-                <span style={{ fontSize: TYPE.micro.size, color: statusColor, border: `1px solid ${statusColor}`, padding: "1px 6px", borderRadius: 2, letterSpacing: "0.07em", textTransform: "uppercase" as const, flexShrink: 0 }}>{statusLabel}</span>
+                <StatusBadge status={pr.paid ? "paid" : pr.status} />
               </div>
               {groups.length > 0 && (
                 <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
@@ -136,8 +132,11 @@ export default function CreatorClients({ clients, isMobile, onSelChange }: Creat
           {pr?.deliveryDate && <span style={{ fontSize: TYPE.body.size, fontWeight: "500", color: C.amber }}>{fmtD(pr.deliveryDate)}</span>}
         </div>
         {pr && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 1px" }}>{pr.name}</p>}
-        {dl !== null && <p style={{ fontSize: TYPE.label.size, color: C.light, margin: "0 0 0" }}>{dl}d left</p>}
-        {!isActive && <p style={{ fontSize: TYPE.label.size, color: C.light, margin: "2px 0 0" }}>Paid</p>}
+        {dl !== null && isActive && <p style={{ fontSize: TYPE.label.size, color: dl < 0 ? C.red : C.light, margin: "0 0 0" }}>{dl < 0 ? `Overdue ${Math.abs(dl)}d` : `${dl}d left`}</p>}
+        {!isActive && (() => {
+          const last = [...c.projects].sort((a: any, b: any) => String(b.date || "").localeCompare(String(a.date || "")))[0];
+          return last ? <p style={{ margin: "4px 0 0" }}><StatusBadge status={last.paid ? "paid" : last.status} /></p> : null;
+        })()}
         {isActive && <LineRows c={c} />}
       </div>
     );

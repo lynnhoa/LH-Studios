@@ -37,32 +37,6 @@ export const SETTINGS_DEFAULT: Settings = {
   taxNote:          "Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.",
 };
 
-// ─── SEED CLIENTS ─────────────────────────────────────────────
-export const SEED_CLIENTS = [
-  {
-    id:       "c1",
-    name:     "Sephora",
-    contact:  "Anna Müller",
-    email:    "anna@sephora.de",
-    agency:   "Direct",
-    country:  "Germany",
-    tags:     ["Beauty", "Fashion"],
-    notes:    "Easy approvals. Fast payer. Potential retainer.",
-    projects: [],
-  },
-  {
-    id:       "c2",
-    name:     "Vogue Germany",
-    contact:  "Sarah Klein",
-    email:    "sarah@vogue.de",
-    agency:   "Direct",
-    country:  "Germany",
-    tags:     ["Editorial", "Fashion"],
-    notes:    "Luxury aesthetic. Needs detailed briefs.",
-    projects: [],
-  },
-];
-
 // ─── RATE CARD SEED DATA ─────────────────────────────────────
 export const RC0: RateCards = {
   influencer: {

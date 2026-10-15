@@ -7,14 +7,14 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE } from "./constants";
-import { I, B, Lbl, Pill } from "./atoms";
-import { today, fmt, r2 } from "./formatters";
+import { C, SANS, SERIF, TYPE, Z } from "./constants";
+import { I, B, Lbl, Pill, ConfirmDialog } from "./atoms";
+import { editLock } from "./saveStatus";
+import { fmt, r2 } from "./formatters";
 import { exportPDF } from "./PDFExport";
 import DocPages from "./DocPages";
-import { clauseContext, clauseTemplates, fillTokens, tokenizeClause } from "./A4Document";
-import { STATUS_LABEL, docFileName, lineAmt, lineQty } from "./docs";
+import { clauseContext, clauseTemplates, fillTokens, tokenizeClause, senderOf } from "./A4Document";
+import { STATUS_LABEL, docFileName, lineAmt, lineQty, profileGaps } from "./docs";
 import type { DocView } from "./docs";
 
 export interface DocAction {
@@ -58,7 +58,7 @@ export default function PDFModal({
   const [downloading,  setDownloading]  = useState(false);
   const [showEdit,     setShowEdit]     = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
-  const [dialog,       setDialog]       = useState<{ action: DocAction; date: string } | null>(null);
+  const [dialog,       setDialog]       = useState<{ action: DocAction } | null>(null);
   const [winW,         setWinW]         = useState(() => window.innerWidth);
 
   const baseRef  = useRef<string>(JSON.stringify({ ...clone(doc), lang: doc.lang || "en" }));
@@ -76,6 +76,9 @@ export default function PDFModal({
     window.addEventListener("resize", fn);
     return () => window.removeEventListener("resize", fn);
   }, []);
+
+  // no background reloads while a document is open
+  useEffect(() => editLock.acquire(), []);
 
   // A fresh document from the parent (after Finalize, Mark paid …):
   // take it over unless the user is in the middle of editing.
@@ -138,7 +141,7 @@ export default function PDFModal({
     finally { setBusy(null); }
   };
   const clickAction = (a: DocAction) => {
-    if (a.date || a.confirm) setDialog({ action: a, date: today() });
+    if (a.date || a.confirm) setDialog({ action: a });
     else runAction(a);
   };
 
@@ -151,6 +154,14 @@ export default function PDFModal({
   // ── Download ────────────────────────────────────────────────
   const download = async () => {
     setErr(null);
+    // never produce a PDF with missing or placeholder sender details
+    if (settings && settings.__ready === false && !current.data?.sender) {
+      setErr("Your profile hasn't loaded yet — try again in a moment."); return;
+    }
+    const sender = senderOf(current, settings);
+    const isInvoice = current.kind === "invoice" && current.subtype !== "storno";
+    const gaps = isInvoice ? profileGaps(sender) : (!(sender.name || sender.company) ? ["name"] : []);
+    if (gaps.length) { setErr(`Add your ${gaps.join(", ")} in Creator Profile first.`); return; }
     try {
       await exportPDF({
         preview: current, type: current.kind, root: pagesRef.current,
@@ -225,7 +236,7 @@ export default function PDFModal({
   const showPreview = !isMobile || !showEdit || !canEdit;
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: 500, display: "flex", flexDirection: "column", fontFamily: SANS }}>
+    <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
 
       {/* ── TOP BAR ── */}
       <div style={{ minHeight: 48, borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", padding: "0 12px", gap: 6, flexShrink: 0 }}>
@@ -360,39 +371,29 @@ export default function PDFModal({
       </div>
 
       {/* ── CONFIRM CLOSE ── */}
-      {confirmClose && createPortal(
-        <div style={{ position: "fixed", inset: 0, zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(250,249,247,0.88)" }}>
-          <div style={{ background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "24px 28px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)", textAlign: "center" as const, minWidth: 240, maxWidth: 340 }}>
-            <p style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black, margin: "0 0 6px" }}>{isNew ? "Save this document?" : "Save before closing?"}</p>
-            <p style={{ fontSize: TYPE.label.size, color: err ? C.red : C.muted, margin: "0 0 18px" }}>{err || (isNew ? "It will be added to the client's project." : "Changes will be lost if you don't save.")}</p>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-              <B onClick={async () => { const ok = await save(); if (ok) { setConfirmClose(false); onClose(); } }}>{saving ? "Saving…" : "Yes, save"}</B>
-              <B v="sec" onClick={() => { setConfirmClose(false); setErr(null); onClose(); }}>No, discard</B>
-            </div>
-          </div>
-        </div>,
-        document.body
+      {confirmClose && (
+        <ConfirmDialog
+          title={isNew ? "Save this document?" : "Save before closing?"}
+          text={isNew ? "It will be added to the client's project." : "Changes will be lost if you don't save."}
+          error={err}
+          okLabel={saving ? "Saving…" : "Yes, save"}
+          cancelLabel="No, discard"
+          onOk={async () => { const ok = await save(); if (ok) { setConfirmClose(false); onClose(); } }}
+          onCancel={() => { setConfirmClose(false); setErr(null); onClose(); }}
+        />
       )}
 
       {/* ── ACTION DIALOG (date / confirm) ── */}
-      {dialog && createPortal(
-        <div style={{ position: "fixed", inset: 0, zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(250,249,247,0.88)" }}>
-          <div style={{ background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "24px 28px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)", minWidth: 260, maxWidth: 340 }}>
-            <p style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black, margin: "0 0 8px" }}>{dialog.action.label}</p>
-            {dialog.action.confirm && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 12px", lineHeight: 1.5 }}>{dialog.action.confirm}</p>}
-            {dialog.action.date && <>
-              <Lbl>{dialog.action.date}</Lbl>
-              <I type="date" value={dialog.date} onChange={(e: any) => setDialog(d => d ? { ...d, date: e.target.value } : d)} s={{ marginBottom: 14 }} />
-            </>}
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <B v="sec" onClick={() => setDialog(null)}>Cancel</B>
-              <B v={dialog.action.kind === "danger" ? "danger" : "pri"} onClick={() => { const dg = dialog; setDialog(null); runAction(dg.action, dg.action.date ? (dg.date || today()) : undefined); }}>
-                {dialog.action.label}
-              </B>
-            </div>
-          </div>
-        </div>,
-        document.body
+      {dialog && (
+        <ConfirmDialog
+          title={dialog.action.label}
+          text={dialog.action.confirm}
+          dateLabel={dialog.action.date}
+          okLabel={dialog.action.label}
+          danger={dialog.action.kind === "danger"}
+          onOk={(date) => { const dg = dialog; setDialog(null); runAction(dg.action, dg.action.date ? date : undefined); }}
+          onCancel={() => setDialog(null)}
+        />
       )}
     </div>
   );

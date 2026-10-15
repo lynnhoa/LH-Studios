@@ -11,7 +11,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import { uid } from "./formatters";
-import { I, B, Lbl, Pill } from "./atoms";
+import { I, B, Lbl, Pill, ConfirmDialog } from "./atoms";
 import { SETTINGS_DEFAULT } from "./rateCards";
 import { exportPDF } from "./PDFExport";
 
@@ -235,18 +235,13 @@ function RateCardPreview({ card, settings, onSave, onClose }: any) {
 
   return createPortal(
     <>
-      {confirmClose && createPortal(
-        <div style={{ position: "fixed", inset: 0, zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(250,249,247,0.88)" }}>
-          <div style={{ background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "24px 28px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)", textAlign: "center" as const, minWidth: 220 }}>
-            <p style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, fontWeight: "normal", color: C.black, margin: "0 0 6px" }}>Save before closing?</p>
-            <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "0 0 18px" }}>Changes will be lost if you don't save.</p>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-              <B onClick={() => { doSave(); setConfirmClose(false); onClose(); }}>Yes, save</B>
-              <B v="sec" onClick={() => { setConfirmClose(false); onClose(); }}>No, discard</B>
-            </div>
-          </div>
-        </div>,
-        document.body
+      {confirmClose && (
+        <ConfirmDialog
+          title="Save before closing?" text="Changes will be lost if you don't save."
+          okLabel="Yes, save" cancelLabel="No, discard"
+          onOk={() => { doSave(); setConfirmClose(false); onClose(); }}
+          onCancel={() => { setConfirmClose(false); onClose(); }}
+        />
       )}
 
       {/* Measure element (hidden) */}
@@ -434,6 +429,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, i
   const [edit,        setEdit]        = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [askRemove,   setAskRemove]   = useState<string | null>(null);
 
   // Base tabs + custom cards (any rc key with a label)
   const tabs = BASE_CATS.filter(k => rc[k]).concat(
@@ -495,11 +491,13 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, i
 
   const upFine = (v: string) => setCard(prev => ({ ...prev, fine: v }));
 
-  const removeCustomCard = (k: string) => {
-    if (window.confirm(`Delete "${rc[k]?.label || k}"?`)) {
-      deleteCard(k);
-      if (tab === k) setTab("influencer");
-    }
+  const removeCustomCard = (k: string) => setAskRemove(k);
+  const confirmRemove = () => {
+    const k = askRemove;
+    setAskRemove(null);
+    if (!k) return;
+    deleteCard(k);
+    if (tab === k) setTab("influencer");
   };
 
   const saveBuilt = (key: string, saved: any) => {
@@ -527,6 +525,10 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, i
 
   return (
     <div>
+      {askRemove && (
+        <ConfirmDialog title={`Delete "${rc[askRemove]?.label || askRemove}"?`} text="This rate card is removed." okLabel="Delete" danger
+          onOk={confirmRemove} onCancel={() => setAskRemove(null)} />
+      )}
       {showBuilder && <AddRateCardModal rc={rc} onSave={saveBuilt} onClose={() => setShowBuilder(false)} />}
       {showPreview && (
         <RateCardPreview

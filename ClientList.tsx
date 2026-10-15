@@ -6,7 +6,7 @@
 import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt, fmtD, addM, uid, today } from "./formatters";
-import { I, S, B, Lbl, Tag, UBadge, TSel, TSelWrap } from "./atoms";
+import { I, S, B, Lbl, Tag, UBadge, TSel, TSelWrap, StatusBadge } from "./atoms";
 import ClientDetail from "./ClientDetail";
 
 interface ClientListProps {
@@ -41,11 +41,6 @@ function usageEnd(pr: any): string | null {
   if (pr.usageEndOverride) return pr.usageEndOverride;
   return mo ? addM(pr.deliveryDate, mo) : null;
 }
-
-const scol = (s: string) => ({
-  invoiced: C.amber, contracted: C.muted, quoted: C.light,
-  revised: "#b8a090", production: "#8fa89a", paid: C.green, lead: C.light,
-}[s] ?? C.light);
 
 export default function ClientList({
   clients, isMobile, settings, rc, selReset, onSelChange,
@@ -231,7 +226,10 @@ export default function ClientList({
 
       {/* Client rows */}
       {filtered.map((c: any) => {
-        const active = c.projects[0];
+        // the client's current project: most active stage first, then the newest
+        const active = [...c.projects].sort((a: any, b: any) =>
+          ((STATUS_PRI[a.paid ? "paid" : a.status] ?? 99) - (STATUS_PRI[b.paid ? "paid" : b.status] ?? 99)) ||
+          String(b.date || "").localeCompare(String(a.date || "")))[0];
         const allRights = c.projects.flatMap((pr: any) => {
           const items: { prName: string; end: string; label: string }[] = [];
           const ue = usageEnd(pr);
@@ -260,9 +258,7 @@ export default function ClientList({
               {active && (
                 <div style={{ textAlign: "right" as const, flexShrink: 0, marginLeft: 12 }}>
                   <p style={{ fontFamily: SERIF, fontSize: isMobile ? TYPE.sectionHeading.size : TYPE.subtext.size, color: C.black, margin: `0 0 ${isMobile ? 5 : 3}px` }}>{fmt(active.amount)}</p>
-                  <span style={{ fontSize: isMobile ? TYPE.label.size : TYPE.micro.size, color: scol(active.paid ? "paid" : active.status), border: `1px solid ${scol(active.paid ? "paid" : active.status)}`, padding: isMobile ? "3px 10px" : "2px 8px", borderRadius: 2, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>
-                    {active.paid ? "Paid" : active.status}
-                  </span>
+                  <StatusBadge status={active.paid ? "paid" : active.status} />
                 </div>
               )}
             </div>

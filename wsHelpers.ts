@@ -4,8 +4,7 @@
 // CreatorDashboard
 // ─────────────────────────────────────────────────────────────
 
-import { C } from "./constants";
-import { today } from "./formatters";
+import { catInfo } from "./constants";
 
 export const WS_STATUSES = ["Not started", "Created", "Reviewed", "Delivered", "Posted"] as const;
 
@@ -25,23 +24,15 @@ export function getWsCategory(ln: any): string {
   return "Influencer";
 }
 
-export function ccCatLabel(cat: string): string {
-  if (cat === "UGC")      return "UGC";
-  if (cat === "Editorial") return "Editorial";
-  return "Collab";
-}
+// One label + colour per category for the whole app (constants.ts)
+export function ccCatLabel(cat: string): string { return catInfo(cat).label; }
 
 export function ccCatStyle(cat: string) {
-  if (cat === "UGC")      return { bg: "#fdf5ee", border: "#e8d8c8", color: C.amber };
-  if (cat === "Editorial") return { bg: "#f0f5f0", border: "#b8d4b8", color: C.green };
-  return { bg: "#f0f0f5", border: "#c8c8e0", color: "#6a6aaa" };
+  const c = catInfo(cat);
+  return { bg: c.bg, border: c.border, color: c.color };
 }
 
-export function wsCatPill(cat: string) {
-  if (cat === "UGC")      return { bg: "#fdf5ee", border: "#e8d8c8", color: C.amber };
-  if (cat === "Editorial") return { bg: "#f0f5f0", border: "#b8d4b8", color: C.green };
-  return { bg: "#f0f0f5", border: "#c8c8e0", color: "#6a6aaa" };
-}
+export const wsCatPill = ccCatStyle;
 
 // ── Line group extraction (for projects view) ─────────────────
 const SKIP = ["usage","excl","rush","revision","whitelisting","aspect","raw footage","kill","pinned","link in bio"];
@@ -118,12 +109,11 @@ export function isOverdue(d: string | null): boolean {
   return new Date(d) < now;
 }
 
+// Short German date for tight lists: "15.03."
 export function fmtDeadline(d: string | null): string {
   if (!d) return "No deadline";
-  const dt   = new Date(d);
-  const day  = dt.getDate();
-  const mo   = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][dt.getMonth()];
-  return `${day} ${mo}`;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+  return m ? `${m[3]}.${m[2]}.` : "—";
 }
 
 export function plannerDayLabel(d: string | null): string | null {

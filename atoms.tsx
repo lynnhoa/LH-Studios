@@ -4,8 +4,11 @@
 // Desktop + iPad + PWA iOS safe.
 // ─────────────────────────────────────────────────────────────
 
-import { C, SANS, SERIF, TYPE } from "./constants";
-import { fmtD, dLeft } from "./formatters";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, expiryColor, expiryTint, Z } from "./constants";
+import { fmtD, dLeft, today } from "./formatters";
+import { saveStatus } from "./saveStatus";
 
 // ─── INPUT ───────────────────────────────────────────────────
 export const I = ({ s, ...p }: any) => (
@@ -260,12 +263,9 @@ export function UBadge({
   if (!end) return null;
   const d   = dLeft(end);
   const exp = d !== null && d < 0;
-  const urgent = d !== null && d >= 0 && d <= 14;
-  const soon   = d !== null && d > 14 && d <= 30;
-
-  const col = exp || urgent ? C.red   : soon ? C.amber : C.green;
-  const bg  = exp || urgent ? "#fdf0f0" : soon ? "#fdf6ee" : "#f0f5f0";
-  const bd  = exp || urgent ? "#e8c8c8" : soon ? "#ead9c0" : "#b8d4b8";
+  const col = expiryColor(d);
+  const bg  = expiryTint(d);
+  const bd  = col;
 
   return (
     <span
@@ -339,21 +339,13 @@ export const Loading = () => (
   </div>
 );
 
-// ─── STATUS COLOR ────────────────────────────────────────────
-export const scol = (s: string): string =>
-  ({
-    invoiced:   C.amber,
-    contracted: C.muted,
-    quoted:     C.light,
-    revised:    "#b8a090",   // old-app rosewood
-    production: "#8fa89a",   // old-app sage
-    paid:       C.green,
-    lead:       C.light,
-  }[s] ?? C.light);
+// ─── STATUS COLOR (one map for the whole app: constants.ts) ──
+export const scol = (s: string): string => STATUS_COLOR[String(s || "").toLowerCase()] ?? C.light;
 
 // ─── STATUS BADGE ────────────────────────────────────────────
 export const StatusBadge = ({ status }: { status: string }) => {
-  const col = scol(status);
+  const key = String(status || "").toLowerCase();
+  const col = scol(key);
   return (
     <span
       style={{
@@ -366,12 +358,109 @@ export const StatusBadge = ({ status }: { status: string }) => {
         letterSpacing: "0.07em",
         textTransform: "uppercase" as const,
         whiteSpace:    "nowrap" as const,
+        display:       "inline-block",
       }}
     >
-      {status}
+      {STATUS_NAME[key] || status}
     </span>
   );
 };
+
+// ─── CATEGORY PILL (one label + colour per category) ─────────
+export const CatPill = ({ cat, onClick, title }: { cat: string; onClick?: () => void; title?: string }) => {
+  const c = catInfo(cat);
+  return (
+    <span onClick={onClick} title={title}
+      style={{ fontSize: TYPE.micro.size, fontFamily: SANS, padding: "2px 8px", borderRadius: 10, border: `1px solid ${c.border}`, background: c.bg, color: c.color, whiteSpace: "nowrap" as const, flexShrink: 0, cursor: onClick ? "pointer" : "default", display: "inline-block" }}>
+      {c.label}
+    </span>
+  );
+};
+
+// ─── TICK BOX (one check box for the whole app) ──────────────
+export const Tick = ({ on, onClick, color = C.black, disabled, size = 22, label }: {
+  on: boolean; onClick?: () => void; color?: string; disabled?: boolean; size?: number; label?: string;
+}) => (
+  <span
+    role="checkbox" aria-checked={on}
+    onClick={(e) => { e.stopPropagation(); if (!disabled && onClick) onClick(); }}
+    style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.35 : 1, userSelect: "none" as const }}
+  >
+    <span style={{ width: size, height: size, borderRadius: 3, border: `1.5px solid ${on ? color : C.light}`, background: on ? color : "transparent", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxSizing: "border-box" as const }}>
+      {on && <span style={{ fontSize: Math.round(size * 0.55), color: C.white, lineHeight: 1, fontWeight: 500 }}>✓</span>}
+    </span>
+    {label && <span style={{ fontSize: TYPE.label.size, fontFamily: SANS, color: C.black }}>{label}</span>}
+  </span>
+);
+
+// ─── SEGMENTED (one toggle group, built from Pills) ──────────
+export function Segmented<T extends string>({ options, value, onChange }: {
+  options: [T, string][]; value: T; onChange: (v: T) => void;
+}) {
+  return (
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const }}>
+      {options.map(([v, label]) => <Pill key={v} on={value === v} onClick={() => onChange(v)}>{label}</Pill>)}
+    </div>
+  );
+}
+
+// ─── CONFIRM DIALOG (one dialog for confirms + date questions) ─
+export const ConfirmDialog = ({ title, text, dateLabel, okLabel, cancelLabel = "Cancel", danger, error, onOk, onCancel }: {
+  title: string; text?: string; dateLabel?: string; okLabel: string; cancelLabel?: string;
+  danger?: boolean; error?: string | null; onOk: (date: string) => void; onCancel: () => void;
+}) => {
+  const [date, setDate] = useState(today());
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, zIndex: Z.dialog, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(250,249,247,0.88)", padding: 16 }}>
+      <div style={{ background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "24px 28px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)", width: "100%", maxWidth: 340 }}>
+        <p style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black, margin: "0 0 8px" }}>{title}</p>
+        {text && <p style={{ fontSize: TYPE.label.size, fontFamily: SANS, color: C.muted, margin: "0 0 12px", lineHeight: 1.5 }}>{text}</p>}
+        {error && <p style={{ fontSize: TYPE.label.size, fontFamily: SANS, color: C.red, margin: "0 0 12px", lineHeight: 1.5 }}>{error}</p>}
+        {dateLabel && <>
+          <Lbl>{dateLabel}</Lbl>
+          <I type="date" value={date} onChange={(e: any) => setDate(e.target.value)} s={{ marginBottom: 14 }} />
+        </>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" as const }}>
+          <B v="sec" onClick={onCancel}>{cancelLabel}</B>
+          <B v={danger ? "danger" : "pri"} onClick={() => onOk(date || today())}>{okLabel}</B>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
+// ─── SAVE TOAST (Saving… / Saved ✓ / Couldn't save) ─────────
+export const SaveToast = () => {
+  const [st, setSt] = useState(saveStatus.get());
+  const [showSaved, setShowSaved] = useState(false);
+  useEffect(() => saveStatus.subscribe(() => setSt(saveStatus.get())), []);
+  useEffect(() => {
+    if (!st.savedAt || st.pending > 0) return;
+    setShowSaved(true);
+    const t = setTimeout(() => setShowSaved(false), 1500);
+    return () => clearTimeout(t);
+  }, [st.savedAt, st.pending]);
+  const base: any = { position: "fixed", left: "50%", bottom: 20, transform: "translateX(-50%)", zIndex: Z.toast, borderRadius: 2, padding: "8px 14px", fontFamily: SANS, fontSize: TYPE.label.size, letterSpacing: "0.04em", boxShadow: "0 2px 12px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 12, maxWidth: "calc(100vw - 32px)" };
+  if (st.error) return (
+    <div style={{ ...base, background: TINT_RED, border: `1px solid ${C.red}`, color: C.red }}>
+      <span>Couldn't save — {st.error}. Your last change was undone.</span>
+      <button onClick={() => saveStatus.clearError()} style={{ background: "none", border: "none", color: C.red, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, textDecoration: "underline" }}>OK</button>
+    </div>
+  );
+  if (st.pending > 0) return <div style={{ ...base, background: C.bg, border: `1px solid ${C.rule}`, color: C.muted }}>Saving…</div>;
+  if (showSaved) return <div style={{ ...base, background: C.bg, border: `1px solid ${C.rule}`, color: C.green }}>Saved ✓</div>;
+  return null;
+};
+const TINT_RED = "#fdf0f0";
+
+// ─── LOAD ERROR BANNER (data could not be loaded) ────────────
+export const LoadErrorBanner = ({ what, message, onRetry }: { what: string; message: string; onRetry: () => void }) => (
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 14px", marginBottom: 14, background: TINT_RED, border: `1px solid ${C.red}`, borderRadius: 2 }}>
+    <span style={{ fontSize: TYPE.label.size, fontFamily: SANS, color: C.red }}>{what} couldn't be loaded ({message}). Tap Retry.</span>
+    <B v="danger" onClick={onRetry} s={{ minHeight: 36, padding: "0 14px" }}>Retry</B>
+  </div>
+);
 
 // ─── CARD ────────────────────────────────────────────────────
 // Generic bordered card container

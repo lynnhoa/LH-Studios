@@ -7,10 +7,11 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
-import { C, SANS, SERIF, TYPE } from "./constants";
-import { initials } from "./formatters";
+import type { ReactNode } from "react";
+import { C, SANS, TYPE, BREAKPOINT } from "./constants";
 import { currentQuote, contractNo } from "./docs";
 import AppLogo from "./AppLogo";
+import { AvatarMenu, NavTab } from "./AppNav";
 
 // ── Page imports (placeholders until built) ───────────────────
 import Dashboard      from "./Dashboard";
@@ -32,8 +33,6 @@ const NAV_PASSWORD   = 5;
 const NAV_CATALOG    = 6;
 const NAV_INVOICES   = 8;
 
-const BREAKPOINT = 768; // iPad standard
-
 interface ManagerAppProps {
   settings:        any;
   updateSettings:  (u: any) => Promise<string | null>;
@@ -41,6 +40,7 @@ interface ManagerAppProps {
   rateCardsHook:   any;
   signOut:         () => Promise<void>;
   switchMode:      () => void;
+  banners?:        ReactNode;
 }
 
 export default function ManagerApp({
@@ -50,9 +50,9 @@ export default function ManagerApp({
   rateCardsHook,
   signOut,
   switchMode,
+  banners,
 }: ManagerAppProps) {
   const [nav,      setNav]      = useState(NAV_DASHBOARD);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [winW,     setWinW]     = useState(() => window.innerWidth);
 
   // ── Prefill state — passed to Calculator from other pages ──
@@ -72,17 +72,20 @@ export default function ManagerApp({
   }, []);
 
   const isMobile = winW < BREAKPOINT;
-  const ini = initials(settings.name || settings.company || "LH");
 
   // ── Navigation helpers ────────────────────────────────────
   const goTo = (n: number) => {
     if (n === NAV_CLIENTS) setClientSelReset(p => p + 1);
     if (n !== NAV_CALCULATOR) setPrefill(null);   // leaving the Calculator ends Revise / Amend mode
     setNav(n);
-    setMenuOpen(false);
   };
 
+  // Navigation by the user (tabs, menu) also ends a dashboard drill context
+  const navTo = (n: number) => { setFromDrill(null); goTo(n); };
+
   const goToDash = () => {
+    setFromDrill(null);
+    setPrefill(null);
     setNav(NAV_DASHBOARD);
     setDashReset(p => p + 1);
     setDashDrill(null);
@@ -145,200 +148,31 @@ export default function ManagerApp({
     setNav(NAV_CLIENTS);
   };
 
-  // ── Avatar menu ───────────────────────────────────────────
+  // ── Avatar menu + tabs (shared with the Creator app) ─────
   const MENU_ITEMS: [string, number][] = [
     ["Creator Profile",  NAV_PROFILE],
     ["Change Password",  NAV_PASSWORD],
     ["Service Catalog",  NAV_CATALOG],
     ["Invoices",         NAV_INVOICES],
   ];
-
-  const AvatarMenu = ({ dropLeft = false }: { dropLeft?: boolean }) => (
-    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-      {menuOpen && (
-        <div
-          style={{ position: "fixed", inset: 0, zIndex: 199 }}
-          onClick={() => setMenuOpen(false)}
-        />
-      )}
-
-      {/* Avatar button */}
-      <button
-        onClick={() => setMenuOpen(m => !m)}
-        title="Account"
-        style={{
-          width:          36,
-          height:         36,
-          borderRadius:   "50%",
-          background:     C.black,
-          color:          C.white,
-          border:         "none",
-          cursor:         "pointer",
-          fontFamily:     SANS,
-          fontSize:       TYPE.micro.size,
-          letterSpacing:  "0.04em",
-          display:        "flex",
-          alignItems:     "center",
-          justifyContent: "center",
-          position:       "relative",
-          zIndex:         200,
-          flexShrink:     0,
-        }}
-      >
-        {ini}
-      </button>
-
-      {/* Dropdown */}
-      {menuOpen && (
-        <div
-          style={{
-            position:  "absolute",
-            ...(dropLeft ? { left: 0 } : { right: 0 }),
-            top:       "calc(100% + 13px)",
-            background: C.bg,
-            border:    `1px solid ${C.rule}`,
-            borderRadius: 2,
-            boxShadow: "0 4px 20px rgba(0,0,0,0.10)",
-            minWidth:  188,
-            zIndex:    200,
-          }}
-        >
-          {/* User info */}
-          <div
-            style={{
-              padding:      "12px 16px 10px",
-              borderBottom: `1px solid ${C.rule}`,
-            }}
-          >
-            <p style={{ fontSize: TYPE.subtext.size, fontFamily: SERIF, color: C.black, margin: "0 0 2px" }}>
-              {settings.name || settings.company || "Lynn Hoa"}
-            </p>
-            <p style={{ fontSize: TYPE.micro.size, fontFamily: SANS, color: C.light, margin: 0, letterSpacing: "0.10em", textTransform: "uppercase" as const }}>
-              Manager · Private
-            </p>
-          </div>
-
-          {/* Menu items */}
-          {MENU_ITEMS.map(([label, idx]) => (
-            <button
-              key={idx}
-              onClick={() => goTo(idx)}
-              style={{
-                display:    "flex",
-                alignItems: "center",
-                width:      "100%",
-                padding:    "11px 16px",
-                background: nav === idx ? "rgba(0,0,0,0.03)" : "none",
-                border:     "none",
-                cursor:     "pointer",
-                textAlign:  "left" as const,
-                fontFamily: SANS,
-                fontSize:   TYPE.label.size,
-                color:      nav === idx ? C.black : C.muted,
-                letterSpacing: "0.04em",
-                boxSizing:  "border-box" as const,
-              }}
-            >
-              {label}
-            </button>
-          ))}
-
-          <div style={{ borderTop: `1px solid ${C.rule}` }} />
-
-          {/* Switch mode */}
-          <button
-            onClick={() => { setMenuOpen(false); switchMode(); }}
-            style={{
-              display:    "flex",
-              alignItems: "center",
-              width:      "100%",
-              padding:    "11px 16px",
-              background: "none",
-              border:     "none",
-              cursor:     "pointer",
-              textAlign:  "left" as const,
-              fontFamily: SANS,
-              fontSize:   TYPE.label.size,
-              color:      C.muted,
-              letterSpacing: "0.04em",
-              boxSizing:  "border-box" as const,
-            }}
-          >
-            Switch to Creator
-          </button>
-
-          <div style={{ borderTop: `1px solid ${C.rule}` }} />
-
-          {/* Sign out */}
-          <button
-            onClick={() => { setMenuOpen(false); signOut(); }}
-            style={{
-              display:    "flex",
-              alignItems: "center",
-              width:      "100%",
-              padding:    "11px 16px",
-              background: "none",
-              border:     "none",
-              cursor:     "pointer",
-              textAlign:  "left" as const,
-              fontFamily: SANS,
-              fontSize:   TYPE.label.size,
-              color:      C.red,
-              letterSpacing: "0.04em",
-              boxSizing:  "border-box" as const,
-            }}
-          >
-            Sign Out
-          </button>
-        </div>
-      )}
-    </div>
+  const avatar = (dropLeft: boolean) => (
+    <AvatarMenu
+      settings={settings}
+      roleLabel="Manager"
+      dropLeft={dropLeft}
+      items={MENU_ITEMS.map(([label, idx]) => ({ key: String(idx), label, active: nav === idx, onClick: () => navTo(idx) }))}
+      switchLabel="Switch to Creator"
+      onSwitch={switchMode}
+      onSignOut={() => { signOut(); }}
+    />
   );
 
-  // ── Primary nav tabs (visible in header) ──────────────────
   const PRIMARY_TABS = [
     { label: "Dashboard",  idx: NAV_DASHBOARD  },
     { label: "Clients",    idx: NAV_CLIENTS    },
     { label: "Projects",   idx: NAV_PROJECTS   },
     { label: "Calculator", idx: NAV_CALCULATOR },
   ];
-
-  const isTabActive = (idx: number) => nav === idx;
-
-  const TabBtn = ({
-    label,
-    idx,
-    height,
-    px,
-  }: {
-    label:  string;
-    idx:    number;
-    height: number;
-    px:     number;
-  }) => (
-    <button
-      onClick={() => goTo(idx)}
-      style={{
-        padding:       `0 ${px}px`,
-        height:        height,
-        background:    "none",
-        border:        "none",
-        borderBottom:  isTabActive(idx)
-          ? `2px solid ${C.black}`
-          : "2px solid transparent",
-        color:         isTabActive(idx) ? C.black : C.muted,
-        cursor:        "pointer",
-        fontFamily:    SANS,
-        fontSize:      TYPE.micro.size,
-        letterSpacing: "0.12em",
-        textTransform: "uppercase" as const,
-        whiteSpace:    "nowrap" as const,
-        flexShrink:    0,
-      }}
-    >
-      {label}
-    </button>
-  );
 
   // ── Content max-width — wider when client detail open ─────
   const contentMaxW =
@@ -376,11 +210,11 @@ export default function ManagerApp({
             >
               <div style={{ display: "flex" }}>
                 {PRIMARY_TABS.map(t => (
-                  <TabBtn key={t.idx} label={t.label} idx={t.idx} height={40} px={10} />
+                  <NavTab key={t.idx} label={t.label} active={nav === t.idx} onClick={() => navTo(t.idx)} height={40} px={10} />
                 ))}
               </div>
               <div style={{ position: "absolute", right: 8 }}>
-                <AvatarMenu dropLeft={false} />
+                {avatar(false)}
               </div>
             </div>
           </>
@@ -397,7 +231,7 @@ export default function ManagerApp({
           >
             {/* Left — avatar */}
             <div style={{ display: "flex", alignItems: "center" }}>
-              <AvatarMenu dropLeft={true} />
+              {avatar(true)}
             </div>
 
             {/* Center — logo */}
@@ -406,7 +240,7 @@ export default function ManagerApp({
             {/* Right — primary tabs */}
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               {PRIMARY_TABS.map(t => (
-                <TabBtn key={t.idx} label={t.label} idx={t.idx} height={56} px={14} />
+                <NavTab key={t.idx} label={t.label} active={nav === t.idx} onClick={() => navTo(t.idx)} height={56} px={14} />
               ))}
             </div>
           </div>
@@ -421,6 +255,7 @@ export default function ManagerApp({
           padding:   isMobile ? "20px 14px" : "28px 20px",
         }}
       >
+        {banners}
         {nav === NAV_DASHBOARD && (
           <Dashboard
             clients={clientsHook.clients}

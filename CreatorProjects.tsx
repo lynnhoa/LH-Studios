@@ -5,6 +5,7 @@
 
 import { useState } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
+import { StatusBadge } from "./atoms";
 import { fmt, fmtD, dLeft } from "./formatters";
 import { getLineGroups, ccCatLabel, ccCatStyle } from "./wsHelpers";
 
@@ -14,10 +15,6 @@ interface CreatorProjectsProps {
 }
 
 const DOT_CAP = 12;
-
-function scol(s: string): string {
-  return ({ invoiced: C.amber, contracted: C.muted, quoted: C.light, revised: C.amber, production: C.blue, paid: C.green, lead: C.light }[s] ?? C.light);
-}
 
 const dotColor  = (st: string) => st === "Delivered" ? C.green : st === "Reviewed" ? C.amber : st === "Finished" ? C.black : C.rule;
 const stColor   = (st: string) => st === "Delivered" ? C.green : st === "Reviewed" ? C.amber : st === "Finished" ? C.black : C.light;
@@ -49,8 +46,8 @@ export default function CreatorProjects({ clients, isMobile }: CreatorProjectsPr
   const allProjects: any[] = [];
   clients.forEach(c => (c.projects || []).forEach((pr: any) => allProjects.push({ ...pr, clientName: c.name, clientId: c.id })));
 
-  const active = allProjects.filter(pr => pr.status === "production" || pr.status === "contracted").sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
-  const done   = allProjects.filter(pr => pr.status === "invoiced" || pr.status === "paid").sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+  const active = allProjects.filter(pr => pr.status === "production" || pr.status === "contracted").sort((a,b) => String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
+  const done   = allProjects.filter(pr => pr.status === "invoiced" || pr.status === "paid").sort((a,b) => String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
   const allIds = [...active, ...done].map(pr => pr.id);
   const allCollapsed = allIds.length > 0 && allIds.every(id => collapsed[id] === true);
 
@@ -71,8 +68,6 @@ export default function CreatorProjects({ clients, isMobile }: CreatorProjectsPr
     const dl         = dLeft(pr.deliveryDate);
     const isOD       = !isDone && pr.deliveryDate && dl !== null && dl < 0;
     const isOpen     = collapsed[pr.id] !== true;
-    const statusLabel = pr.paid ? "Paid" : pr.status;
-    const statusColor = scol(pr.paid ? "paid" : pr.status);
     const scopeSummary = groups.map(g => `${g.items.length}× ${g.lineName.replace(/,.*$/,"").trim()}`).join(" · ");
 
     return (
@@ -84,7 +79,7 @@ export default function CreatorProjects({ clients, isMobile }: CreatorProjectsPr
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
             <span style={{ fontSize: TYPE.body.size, color: C.black, fontWeight: "500", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr.name}</span>
             <span style={{ fontSize: TYPE.label.size, color: C.muted, flexShrink: 0, whiteSpace: "nowrap" as const }}>{pr.clientName}</span>
-            <span style={{ fontSize: TYPE.micro.size, color: statusColor, border: `1px solid ${statusColor}`, padding: "1px 6px", borderRadius: 2, letterSpacing: "0.07em", textTransform: "uppercase" as const, flexShrink: 0 }}>{statusLabel}</span>
+            <StatusBadge status={pr.paid ? "paid" : pr.status} />
             <span style={{ fontSize: TYPE.label.size, color: C.light, flexShrink: 0 }}>{isOpen ? "▾" : "▸"}</span>
           </div>
           {scopeSummary && (
@@ -99,7 +94,7 @@ export default function CreatorProjects({ clients, isMobile }: CreatorProjectsPr
             <span style={{ flex: 1 }} />
             {pr.deliveryDate && <span style={{ fontSize: TYPE.label.size, color: isOD ? C.red : C.amber, fontWeight: isOD ? "500" : "400", flexShrink: 0 }}>{fmtD(pr.deliveryDate)}</span>}
             {pr.deliveryDate && dl !== null && !isDone && !isOD && <span style={{ fontSize: TYPE.label.size, color: C.muted, flexShrink: 0 }}>· {dl}d left</span>}
-            {isOD && <span style={{ fontSize: TYPE.label.size, color: C.red, fontWeight: "500", flexShrink: 0 }}>· Overdue</span>}
+            {isOD && <span style={{ fontSize: TYPE.label.size, color: C.red, fontWeight: "500", flexShrink: 0 }}>· Overdue {Math.abs(dl!)}d</span>}
           </div>
         </div>
 

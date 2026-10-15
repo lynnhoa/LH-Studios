@@ -6,8 +6,9 @@
 // Caller (saveRenewal) forces signed:true on save.
 // ─────────────────────────────────────────────────────────────
 
-import { useState } from "react";
-import { C, SANS, SERIF } from "./constants";
+import { useState, useEffect } from "react";
+import { editLock } from "./saveStatus";
+import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt, fmtD, addM, addD, today } from "./formatters";
 import { I, S, B, Lbl, Pill } from "./atoms";
 import { RENEWAL_OPTS } from "./rateCards";
@@ -27,6 +28,7 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings, client,
   // mode: "renewal" (default, unchanged) | "amend" — same builder, but the
   // output is an Amendment (rights extension mid-contract, item not re-charged).
   const isAmendMode = mode === "amend";
+  useEffect(() => editLock.acquire(), []);
   const q = p.qd;
   // all billable lines from quote + signed amendments
   const origLines  = (q?.lines || []).map((l: any) => ({ ...l, _src: "quote" }));
@@ -121,7 +123,7 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings, client,
   };
 
   const SectionHead = ({ n, title }: any) => (
-    <p style={{ fontSize: 9, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 10px", paddingBottom: 6, borderBottom: `1px solid ${C.rule}` }}>{n} — {title}</p>
+    <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 10px", paddingBottom: 6, borderBottom: `1px solid ${C.rule}` }}>{n} — {title}</p>
   );
   const ModeToggle = ({ val, set }: { val: string; set: (v: any) => void }) => (
     <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
@@ -160,15 +162,15 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings, client,
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ background: C.bg, width: "100%", maxWidth: 520, borderRadius: 2, padding: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.18)", maxHeight: "92vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 style={{ fontFamily: SERIF, fontSize: 17, fontWeight: "normal", margin: 0 }}>{isAmendMode ? "Amendment — Rights Extension" : "Add Renewal"}</h3>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: C.muted }}>✕</button>
+          <h3 style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, fontWeight: "normal", margin: 0 }}>{isAmendMode ? "Amendment — Rights Extension" : "Add Renewal"}</h3>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: TYPE.sectionHeading.size, color: C.muted }}>✕</button>
         </div>
-        <p style={{ fontSize: 10.5, color: C.muted, margin: isAmendMode ? "0 0 6px" : "0 0 16px" }}>Project: <strong style={{ color: C.black }}>{p.name}</strong></p>
+        <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: isAmendMode ? "0 0 6px" : "0 0 16px" }}>Project: <strong style={{ color: C.black }}>{p.name}</strong></p>
         {isAmendMode && (
-          <p style={{ fontSize: 10, color: C.muted, margin: "0 0 16px" }}>
+          <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "0 0 16px" }}>
             Extend usage rights or exclusivity on items already delivered — the item itself is not charged again.{" "}
             {onCalc && (
-              <button onClick={onCalc} style={{ background: "none", border: "none", cursor: "pointer", color: C.black, fontSize: 10, padding: 0, textDecoration: "underline", fontFamily: SANS }}>
+              <button onClick={onCalc} style={{ background: "none", border: "none", cursor: "pointer", color: C.black, fontSize: TYPE.micro.size, padding: 0, textDecoration: "underline", fontFamily: SANS }}>
                 Adding new deliverables instead? Open Calculator →
               </button>
             )}
@@ -178,7 +180,7 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings, client,
         {/* 01 — Deliverables */}
         <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "13px 14px", marginBottom: 12, background: C.white }}>
           <SectionHead n="01" title="Which Deliverables" />
-          <p style={{ fontSize: 9.5, color: C.muted, margin: "0 0 8px" }}>{isAmendMode ? "Select the contracted items the extension applies to. Their prices are the base for % calculation — items are not re-charged." : "Select items the renewal fee applies to. Their prices are the base for % calculation."}</p>
+          <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "0 0 8px" }}>{isAmendMode ? "Select the contracted items the extension applies to. Their prices are the base for % calculation — items are not re-charged." : "Select items the renewal fee applies to. Their prices are the base for % calculation."}</p>
           {allLines.map((l: any, i: number) => {
             const key = l.id || `line_${i}`;
             const max = l.qty || 1;
@@ -190,22 +192,22 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings, client,
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.rule}` }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const }}>
-                    <span style={{ fontSize: 10.5, color: C.black }}>{l.name}</span>
-                    {cat && <span style={{ fontSize: 8, color: C.muted, border: `1px solid ${C.rule}`, padding: "1px 6px", borderRadius: 2, letterSpacing: "0.06em", textTransform: "uppercase" as const, flexShrink: 0 }}>{cat}</span>}
-                    {l._src !== "quote" && <span style={{ fontSize: 8, color: C.amber, border: `1px solid ${C.amber}`, padding: "1px 6px", borderRadius: 2, letterSpacing: "0.06em", flexShrink: 0 }}>{l._src}</span>}
+                    <span style={{ fontSize: TYPE.label.size, color: C.black }}>{l.name}</span>
+                    {cat && <span style={{ fontSize: TYPE.micro.size, color: C.muted, border: `1px solid ${C.rule}`, padding: "1px 6px", borderRadius: 2, letterSpacing: "0.06em", textTransform: "uppercase" as const, flexShrink: 0 }}>{cat}</span>}
+                    {l._src !== "quote" && <span style={{ fontSize: TYPE.micro.size, color: C.amber, border: `1px solid ${C.amber}`, padding: "1px 6px", borderRadius: 2, letterSpacing: "0.06em", flexShrink: 0 }}>{l._src}</span>}
                   </div>
-                  <span style={{ fontSize: 9, color: C.light }}>€{l.up} each · max {max}</span>
+                  <span style={{ fontSize: TYPE.micro.size, color: C.light }}>€{l.up} each · max {max}</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
-                  <button onClick={() => setQty(key, max, qty - 1)} style={{ width: 22, height: 22, border: `1px solid ${C.rule}`, borderRadius: 2, background: "none", cursor: "pointer", fontFamily: SANS, fontSize: 13, color: qty > 0 ? C.black : C.light, lineHeight: 1 }}>−</button>
-                  <span style={{ fontSize: 11, fontFamily: SERIF, minWidth: 16, textAlign: "center", color: qty > 0 ? C.black : C.light }}>{qty}</span>
-                  <button onClick={() => setQty(key, max, qty + 1)} style={{ width: 22, height: 22, border: `1px solid ${C.rule}`, borderRadius: 2, background: "none", cursor: "pointer", fontFamily: SANS, fontSize: 13, color: qty < max ? C.black : C.light, lineHeight: 1 }}>+</button>
+                  <button onClick={() => setQty(key, max, qty - 1)} style={{ width: 22, height: 22, border: `1px solid ${C.rule}`, borderRadius: 2, background: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: qty > 0 ? C.black : C.light, lineHeight: 1 }}>−</button>
+                  <span style={{ fontSize: TYPE.label.size, fontFamily: SERIF, minWidth: 16, textAlign: "center", color: qty > 0 ? C.black : C.light }}>{qty}</span>
+                  <button onClick={() => setQty(key, max, qty + 1)} style={{ width: 22, height: 22, border: `1px solid ${C.rule}`, borderRadius: 2, background: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: qty < max ? C.black : C.light, lineHeight: 1 }}>+</button>
                 </div>
-                <span style={{ fontFamily: SERIF, fontSize: 10, color: qty > 0 ? C.black : C.muted, flexShrink: 0, minWidth: 52, textAlign: "right" }}>{qty > 0 ? fmt(parseFloat(l.up || 0) * qty) : "—"}</span>
+                <span style={{ fontFamily: SERIF, fontSize: TYPE.micro.size, color: qty > 0 ? C.black : C.muted, flexShrink: 0, minWidth: 52, textAlign: "right" }}>{qty > 0 ? fmt(parseFloat(l.up || 0) * qty) : "—"}</span>
               </div>
             );
           })}
-          {base > 0 && <p style={{ fontSize: 10, color: C.muted, margin: "8px 0 0", textAlign: "right" }}>Base: <strong style={{ color: C.black, fontFamily: SERIF }}>{fmt(base)}</strong></p>}
+          {base > 0 && <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "8px 0 0", textAlign: "right" }}>Base: <strong style={{ color: C.black, fontFamily: SERIF }}>{fmt(base)}</strong></p>}
         </div>
 
         {/* 02 — Usage Rights */}
@@ -216,7 +218,7 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings, client,
             <S value={uIdx} onChange={(e: any) => setUIdx(parseInt(e.target.value))} s={{ marginBottom: 6 }}>
               {RENEWAL_OPTS.usage.map((o, i) => <option key={i} value={i}>{o.l}{o.pct > 0 ? ` (+${o.pct}%)` : ""}</option>)}
             </S>
-            {base > 0 && <p style={{ fontSize: 10, color: C.muted, margin: 0 }}>Fee: <strong style={{ color: C.black, fontFamily: SERIF }}>{fmt(uFee)}</strong> ({uOpt.pct}% of {fmt(base)})</p>}
+            {base > 0 && <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: 0 }}>Fee: <strong style={{ color: C.black, fontFamily: SERIF }}>{fmt(uFee)}</strong> ({uOpt.pct}% of {fmt(base)})</p>}
           </>}
           {uMode === "custom" && <>
             <Lbl>Reference rate <span style={{ fontWeight: "normal", color: C.light }}>(for pro-rata calculation)</span></Lbl>
@@ -238,7 +240,7 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings, client,
                 <option value="months">Months</option>
               </S>
             </div>
-            {uCustomDays && uOpt.pct > 0 && base > 0 && <p style={{ fontSize: 9.5, color: C.muted, margin: "0 0 6px" }}>Pro-rata: {parseInt(uCustomDays) || 0}d / {uOpt.mo * 30}d × {uOpt.pct}% = {Math.round(((parseInt(uCustomDays) || 0) / (uOpt.mo * 30)) * uOpt.pct)}% of {fmt(base)}</p>}
+            {uCustomDays && uOpt.pct > 0 && base > 0 && <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "0 0 6px" }}>Pro-rata: {parseInt(uCustomDays) || 0}d / {uOpt.mo * 30}d × {uOpt.pct}% = {Math.round(((parseInt(uCustomDays) || 0) / (uOpt.mo * 30)) * uOpt.pct)}% of {fmt(base)}</p>}
             <I type="number" placeholder="Fee (€)" value={uCustomFee} onChange={(e: any) => setUCustomFee(e.target.value)} />
           </>}
         </div>
@@ -251,7 +253,7 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings, client,
             <S value={eIdx} onChange={(e: any) => setEIdx(parseInt(e.target.value))} s={{ marginBottom: 6 }}>
               {RENEWAL_OPTS.excl.map((o, i) => <option key={i} value={i}>{o.l}{o.pct > 0 ? ` (+${o.pct}%)` : ""}</option>)}
             </S>
-            {base > 0 && <p style={{ fontSize: 10, color: C.muted, margin: 0 }}>Fee: <strong style={{ color: C.black, fontFamily: SERIF }}>{fmt(eFee)}</strong> ({eOpt.pct}% of {fmt(base)})</p>}
+            {base > 0 && <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: 0 }}>Fee: <strong style={{ color: C.black, fontFamily: SERIF }}>{fmt(eFee)}</strong> ({eOpt.pct}% of {fmt(base)})</p>}
           </>}
           {eMode === "custom" && <>
             <Lbl>Reference rate <span style={{ fontWeight: "normal", color: C.light }}>(for pro-rata calculation)</span></Lbl>
@@ -273,7 +275,7 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings, client,
                 <option value="months">Months</option>
               </S>
             </div>
-            {eCustomDays && eOpt.pct > 0 && base > 0 && <p style={{ fontSize: 9.5, color: C.muted, margin: "0 0 6px" }}>Pro-rata: {parseInt(eCustomDays) || 0}d / {eOpt.mo * 30}d × {eOpt.pct}% = {Math.round(((parseInt(eCustomDays) || 0) / (eOpt.mo * 30)) * eOpt.pct)}% of {fmt(base)}</p>}
+            {eCustomDays && eOpt.pct > 0 && base > 0 && <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "0 0 6px" }}>Pro-rata: {parseInt(eCustomDays) || 0}d / {eOpt.mo * 30}d × {eOpt.pct}% = {Math.round(((parseInt(eCustomDays) || 0) / (eOpt.mo * 30)) * eOpt.pct)}% of {fmt(base)}</p>}
             <I type="number" placeholder="Fee (€)" value={eCustomFee} onChange={(e: any) => setECustomFee(e.target.value)} />
           </>}
         </div>
@@ -283,13 +285,13 @@ export default function RenewalModal({ p, onSave, onClose, rc, settings, client,
           <SectionHead n="04" title="Dates" />
           <Lbl>Start Date</Lbl>
           <I type="date" value={startD} onChange={(e: any) => setStartD(e.target.value)} s={{ marginBottom: 6 }} />
-          {endD && <p style={{ fontSize: 10, color: C.muted, margin: 0 }}>End date: <strong style={{ color: C.black }}>{fmtD(endD)}</strong></p>}
+          {endD && <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: 0 }}>End date: <strong style={{ color: C.black }}>{fmtD(endD)}</strong></p>}
         </div>
 
         {/* Total */}
         <div style={{ padding: "9px 12px", border: `1px solid ${C.rule}`, borderRadius: 2, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <span style={{ fontSize: 10, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>{isAmendMode ? "Amendment Total" : "Renewal Total"}</span>
-          <span style={{ fontFamily: SERIF, fontSize: 18 }}>{fmt(totalFee)}</span>
+          <span style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>{isAmendMode ? "Amendment Total" : "Renewal Total"}</span>
+          <span style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size }}>{fmt(totalFee)}</span>
         </div>
 
         <div style={{ display: "flex", gap: 7, justifyContent: "flex-end" }}>

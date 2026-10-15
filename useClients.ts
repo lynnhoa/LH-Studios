@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "./useSupabase";
 import { uid, today, monthStart, monthEnd, r2 } from "./formatters";
-import { SEED_CLIENTS } from "./rateCards";
+import { registerReloader } from "./saveStatus";
 import {
   quoteNo, contractNo, amendNo, invoiceNo, projectNoFrom, pnoFromQNo, yearOf,
   docMoney, linesSum, senderSnapshot, clientSnapshot, profileGaps, dueFrom,
@@ -22,6 +22,8 @@ interface UseClientsReturn {
   clients:      Client[];
   loading:      boolean;
   error:        string | null;
+  loadError:    string | null;      // data could not be loaded (shown with Retry)
+  reload:       () => Promise<void>;
 
   // Client ops
   addClient:    (c: Omit<Client, "id" | "projects" | "createdAt">) => Promise<string | null>;
@@ -264,6 +266,7 @@ export function useClients(userId: string | null): UseClientsReturn {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Ref always points to latest clients — used inside saveQuote
   // so the brand-matching lookup never uses a stale closure.
@@ -293,26 +296,8 @@ export function useClients(userId: string | null): UseClientsReturn {
     const docRows = results[5]?.data;
 
     const err = results[0]?.error || results[1]?.error || results[2]?.error || results[3]?.error || results[4]?.error || results[5]?.error;
-    if (err) { setError(err.message); setLoading(false); return; }
-
-    // Seed clients if first login
-    if (!cRows || cRows.length === 0) {
-      const seeds = SEED_CLIENTS.map(c => ({
-        id:      uid(),
-        user_id: userId,
-        name:    c.name,
-        contact: c.contact,
-        email:   c.email,
-        agency:  c.agency,
-        country: c.country,
-        tags:    c.tags,
-        notes:   c.notes,
-      }));
-      await supabase.from("clients").insert(seeds);
-      setClients(seeds.map(s => ({ ...s, projects: [] })) as unknown as Client[]);
-      setLoading(false);
-      return;
-    }
+    if (err) { setError(err.message); setLoadError(err.message); setLoading(false); return; }
+    setLoadError(null);
 
     // Assemble tree: clients → projects → amendments / renewals / deliverables
     const amendments:   Record<string, Amendment[]>   = {};
@@ -362,6 +347,9 @@ export function useClients(userId: string | null): UseClientsReturn {
   }, [userId]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // After a failed save (or when the app comes back) reload what is really stored
+  useEffect(() => registerReloader(() => { fetchAll(); }), [fetchAll]);
 
   // ─── LOCAL STATE HELPERS ─────────────────────────────────
   const updateClientLocal = (id: string, fn: (c: Client) => Client) =>
@@ -1309,7 +1297,7 @@ export function useClients(userId: string | null): UseClientsReturn {
   };
 
   return {
-    clients, loading, error,
+    clients, loading, error, loadError, reload: fetchAll,
     addClient, updateClient, deleteClient,
     addProject, updateProject, deleteProject, setProjectStatus,
     addAmendment, updateAmendment, deleteAmendment,

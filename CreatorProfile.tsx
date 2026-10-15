@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { C, SANS, SERIF, TYPE } from "./constants";
-import { I, B, Lbl } from "./atoms";
+import { I, B, Lbl, Segmented } from "./atoms";
 import { SETTINGS_DEFAULT } from "./rateCards";
 
 interface CreatorProfileProps {
@@ -26,13 +26,8 @@ export default function CreatorProfile({ settings, updateSettings, isMobile }: C
   );
 
   const Toggle = ({ val, opt, labels, onChange }: { val: any; opt: any[]; labels: string[]; onChange: (v: any) => void }) => (
-    <div style={{ display: "flex", gap: 7, marginTop: 5 }}>
-      {opt.map((o, i) => (
-        <button key={String(o)} onClick={() => onChange(o)}
-          style={{ padding: "6px 14px", border: `1px solid ${String(val) === String(o) ? C.black : C.rule}`, background: String(val) === String(o) ? C.black : C.bg, color: String(val) === String(o) ? C.white : C.muted, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, borderRadius: 2 }}>
-          {labels[i]}
-        </button>
-      ))}
+    <div style={{ marginTop: 5 }}>
+      <Segmented options={opt.map((o, i) => [String(o), labels[i]] as [string, string])} value={String(val)} onChange={onChange} />
     </div>
   );
 

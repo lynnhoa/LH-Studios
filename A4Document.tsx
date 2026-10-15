@@ -5,7 +5,7 @@
 // Header + footer are added per page by DocPages.
 // ─────────────────────────────────────────────────────────────
 
-import { C, SANS, SERIF } from "./constants";
+import { C, SANS, SERIF, CATEGORY } from "./constants";
 import { fmt, fmtD } from "./formatters";
 import { SETTINGS_DEFAULT } from "./rateCards";
 import {
@@ -160,7 +160,7 @@ export default function A4Document({
     </div>
   );
 
-  const catBadge: Record<string, string> = { influencer: "Brand Collaboration", ugc: "UGC", editorial: "Editorial", hotels: "Hotels" };
+  const catBadge: Record<string, string> = Object.fromEntries(Object.entries(CATEGORY).map(([k, v]) => [k, v.long]));
   const TRow = ({ ln, prevLn, idx }: any) => {
     const showCat = !!(ln.cat && catBadge[ln.cat] && ln.cat !== prevLn?.cat);
     const subDetails = [ln.usageLabel, ln.exclLabel, ...(ln.addons || []), ...(ln.platforms || [])].filter(Boolean);

@@ -4,14 +4,7 @@
 
 import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt } from "./formatters";
-
-const CAT_LABEL: Record<string, string> = {
-  influencer: "Brand Collaboration",
-  ugc:        "UGC",
-  editorial:  "Editorial",
-  complete:   "Mixed",
-  hotels:     "Hotels",
-};
+import { CatPill } from "./atoms";
 
 interface LineItemRowProps {
   item:     any;
@@ -30,18 +23,7 @@ export default function LineItemRow({ item, onRemove }: LineItemRowProps) {
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* Category badge + name */}
         <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
-          <span style={{
-            fontSize:      TYPE.micro.size,
-            color:         C.white,
-            background:    C.muted,
-            padding:       "2px 8px",
-            borderRadius:  2,
-            textTransform: "uppercase" as const,
-            letterSpacing: "0.07em",
-            flexShrink:    0,
-          }}>
-            {CAT_LABEL[item.cat] || item.cat}
-          </span>
+          <CatPill cat={item.cat} />
           <span style={{ fontSize: TYPE.subtext.size, color: C.black }}>
             {item.qty > 1 ? `${item.qty}× ` : ""}{item.name}
           </span>
@@ -86,7 +68,7 @@ export default function LineItemRow({ item, onRemove }: LineItemRowProps) {
             border:     "none",
             cursor:     "pointer",
             color:      C.light,
-            fontSize:   14,
+            fontSize:   TYPE.body.size,
             padding:    0,
             lineHeight: 1,
           }}

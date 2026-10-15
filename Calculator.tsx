@@ -7,7 +7,8 @@ import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt, today, uid } from "./formatters";
 import { isSingle } from "./formatters";
-import { I, S, B, Lbl, Tag, Pill } from "./atoms";
+import { I, S, B, Lbl, Tag, Pill, Tick, CatPill } from "./atoms";
+import { catInfo } from "./constants";
 import LineItemRow from "./LineItemRow";
 import PriceSummary from "./PriceSummary";
 
@@ -50,9 +51,9 @@ AO.complete = [...AO.influencer, ...AO.ugc, ...AO.editorial]
 AO.hotels = AO.complete;
 
 const CAT_LABEL: Record<string, string> = {
-  influencer: "Brand Collabs",
-  ugc:        "UGC",
-  editorial:  "Editorial",
+  influencer: catInfo("influencer").label,
+  ugc:        catInfo("ugc").label,
+  editorial:  catInfo("editorial").label,
 };
 
 interface CalcProps {
@@ -324,7 +325,7 @@ export default function Calculator({
             <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
               <span style={{ fontSize: TYPE.micro.size, color: C.black, display: "flex", alignItems: "center", gap: 6 }}>
                 {ln.qty > 1 ? `${ln.qty}× ` : ""}{ln.name}
-                {ln.cat && <span style={{ fontSize: 8, color: C.white, background: ln.cat === "ugc" ? C.amber : ln.cat === "editorial" ? "#8fa89a" : C.muted, padding: "1px 6px", borderRadius: 2, letterSpacing: "0.05em" }}>{({ influencer: "Influencer", ugc: "UGC", editorial: "Editorial" } as Record<string,string>)[ln.cat] || ln.cat}</span>}
+                {ln.cat && <CatPill cat={ln.cat} />}
               </span>
               <span style={{ fontSize: TYPE.micro.size, fontFamily: SERIF, color: C.muted, flexShrink: 0, marginLeft: 8 }}>{fmt(ln.amt)}</span>
             </div>
@@ -443,10 +444,9 @@ export default function Calculator({
             <Lbl>Negotiated Rate <span style={{ fontWeight: "normal", color: C.light }}>(overrides card)</span></Lbl>
             <I type="number" placeholder="€" value={bNeg} onChange={(e: any) => setBNeg(e.target.value)} />
           </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: TYPE.micro.size, cursor: "pointer", paddingBottom: 8, whiteSpace: "nowrap" as const }}>
-            <input type="checkbox" checked={bVol} onChange={(e: any) => setBVol(e.target.checked)} />
-            Vol. disc.
-          </label>
+          <span style={{ paddingBottom: 10, whiteSpace: "nowrap" as const }}>
+            <Tick on={bVol} onClick={() => setBVol(v => !v)} size={18} label="Vol. disc." />
+          </span>
         </div>
 
         {/* Line total + Add button */}

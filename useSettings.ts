@@ -1,17 +1,23 @@
 // ─────────────────────────────────────────────────────────────
 // useSettings — profiles table CRUD
-// Fetches and updates the creator's business profile (settings)
+// Fetches and updates the creator's business profile (settings).
+// Typing is saved 0,7 s after you stop, one save at a time, so a
+// fast-typed IBAN can never be stored half-finished.
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "./useSupabase";
 import { SETTINGS_DEFAULT } from "./rateCards";
+import { registerReloader } from "./saveStatus";
 import type { Settings } from "./types";
 
 interface UseSettingsReturn {
-  settings:    Settings;
-  loading:     boolean;
-  error:       string | null;
+  settings:       Settings;
+  loading:        boolean;
+  loaded:         boolean;          // profile really came from the database
+  error:          string | null;
+  loadError:      string | null;
+  reload:         () => void;
   updateSettings: (updates: Partial<Settings>) => Promise<string | null>;
 }
 
@@ -34,7 +40,7 @@ function rowToSettings(row: any): Settings {
     kleinunternehmer: row.kleinunternehmer ?? true,
     steuernummer:     row.steuernummer     ?? "",
     ustIdNr:          row.ust_id_nr        ?? "",
-    vatRate:          row.vat_rate         ?? 19,
+    vatRate:          Number(row.vat_rate ?? 19),
     taxNote:          row.tax_note         ?? SETTINGS_DEFAULT.taxNote,
   };
 }
@@ -64,80 +70,101 @@ function settingsToRow(s: Partial<Settings>): Record<string, any> {
 }
 
 export function useSettings(userId: string | null): UseSettingsReturn {
-  const [settings, setSettings] = useState<Settings>({ ...SETTINGS_DEFAULT });
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState<string | null>(null);
+  const [settings,  setSettings]  = useState<Settings>({ ...SETTINGS_DEFAULT });
+  const [loading,   setLoading]   = useState(true);
+  const [loaded,    setLoaded]    = useState(false);
+  const [error,     setError]     = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [tick,      setTick]      = useState(0);   // bump to reload
 
-  // ── Fetch on mount / userId change ───────────────────────
+  // pending changes waiting to be saved
+  const pending  = useRef<Partial<Settings>>({});
+  const timer    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inFlight = useRef<Promise<void> | null>(null);
+
+  const reload = useCallback(() => setTick(t => t + 1), []);
+  useEffect(() => registerReloader(reload), [reload]);
+
+  // ── Fetch on mount / userId change / reload ──────────────
   useEffect(() => {
     if (!userId) {
       setSettings({ ...SETTINGS_DEFAULT });
       setLoading(false);
+      setLoaded(false);
       return;
     }
-
+    let cancelled = false;
     setLoading(true);
     supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
-      .single()
-      .then(async (res) => {
-        const data = res?.data;
-        const error = res?.error;
-
-        if (data) {
-          setSettings(rowToSettings(data));
+      .maybeSingle()
+      .then(async (res: any) => {
+        if (cancelled) return;
+        if (res?.error) {
+          // could not load — keep what we have, show Retry, never invent empty data
+          setLoadError(res.error.message);
           setLoading(false);
           return;
         }
-
-        // Profile missing (new user or table was recreated) — create one
-        if (error?.code === "PGRST116" || !data) {
-          const { error: insertErr } = await supabase
-            .from("profiles")
-            .insert({ id: userId })
-            .single();
-          if (insertErr) {
-            // Insert may fail if row already exists (race condition) — that's OK
-            console.warn("[LH Studio] Profile insert:", insertErr.message);
-          }
-          setSettings({ ...SETTINGS_DEFAULT });
-        } else if (error) {
-          setError(error.message);
+        setLoadError(null);
+        if (res?.data) {
+          setSettings({ ...rowToSettings(res.data), ...pending.current });
+          setLoaded(true);
+          setLoading(false);
+          return;
         }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("[LH Studio] Profile fetch failed:", err);
+        // no profile row yet (first login) — create one
+        const { error: insertErr } = await supabase.from("profiles").insert({ id: userId });
+        if (insertErr) console.warn("[LH Studio] Profile insert:", insertErr.message);
+        if (cancelled) return;
         setSettings({ ...SETTINGS_DEFAULT });
+        setLoaded(true);
         setLoading(false);
       });
+    return () => { cancelled = true; };
+  }, [userId, tick]);
+
+  // ── Save the collected changes (one request at a time) ───
+  const flush = useCallback(async (): Promise<void> => {
+    if (!userId) return;
+    if (inFlight.current) await inFlight.current;          // wait for the previous save
+    const patch = pending.current;
+    if (Object.keys(patch).length === 0) return;
+    pending.current = {};
+    const run = (async () => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ ...settingsToRow(patch), updated_at: new Date().toISOString() })
+        .eq("id", userId);
+      if (error) setError(error.message);
+    })();
+    inFlight.current = run;
+    await run;
+    inFlight.current = null;
   }, [userId]);
 
-  // ── Update settings ───────────────────────────────────────
+  // ── Update settings (shown at once, saved after typing stops) ─
   const updateSettings = useCallback(
     async (updates: Partial<Settings>): Promise<string | null> => {
       if (!userId) return "Not authenticated";
-
-      // Optimistic local update
       setSettings(s => ({ ...s, ...updates }));
-
-      const { error } = await supabase
-        .from("profiles")
-        .update({ ...settingsToRow(updates), updated_at: new Date().toISOString() })
-        .eq("id", userId);
-
-      if (error) {
-        // Revert on failure
-        setError(error.message);
-        return error.message;
-      }
-
+      pending.current = { ...pending.current, ...updates };
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => { timer.current = null; flush(); }, 700);
       return null;
     },
-    [userId]
+    [userId, flush]
   );
 
-  return { settings, loading, error, updateSettings };
+  // save anything still waiting when the screen closes or the app goes to the background
+  useEffect(() => {
+    const now = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } flush(); };
+    const onHide = () => { if (document.visibilityState === "hidden") now(); };
+    document.addEventListener("visibilitychange", onHide);
+    return () => { document.removeEventListener("visibilitychange", onHide); if (timer.current || Object.keys(pending.current).length) now(); };
+  }, [flush]);
+
+  return { settings, loading, loaded, error, loadError, reload, updateSettings };
 }

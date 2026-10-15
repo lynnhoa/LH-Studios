@@ -4,8 +4,8 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef } from "react";
-import { C, SANS, SERIF, TYPE } from "./constants";
-import { fmt, fmtD, addM, today } from "./formatters";
+import { C, SANS, SERIF, TYPE, expiryColor, expiryTint } from "./constants";
+import { fmt, fmtD, addM, today, dLeft } from "./formatters";
 import { B, StatusBadge } from "./atoms";
 import PDFModal from "./PDFModal";
 import { sortDocs, docLabel } from "./docs";
@@ -27,19 +27,13 @@ interface ProjectCardProps {
   readOnly?:        boolean;  // NEW: ClientDetail (read-only) vs ProjectsTab (editable)
 }
 
-function scol(s: string): string {
-  return ({ invoiced: C.amber, contracted: C.muted, quoted: C.light, revised: "#b8a090", production: "#8fa89a", paid: C.green, lead: C.light }[s] ?? C.light);
-}
-
 // ── License tracker mini ──────────────────────────────────
 function LicenseLine({ label, end }: { label: string; end: string }) {
-  const d = Math.ceil((new Date(end).getTime() - new Date().getTime()) / 864e5);
-  const expired  = d < 0;
-  const expiring = !expired && d <= 7;
-  const col = expired ? C.red : expiring ? C.amber : C.green;
-  const bg  = expired ? "#fdf0f0" : expiring ? "#fdf6ee" : "#f0f5f0";
-  const bd  = expired ? C.red    : expiring ? C.amber   : C.green;
-  const txt = expired ? `+${Math.abs(d)}d expired` : expiring ? `${d}d left` : `${d}d`;
+  const d   = dLeft(end) ?? 0;
+  const col = expiryColor(d);
+  const bg  = expiryTint(d);
+  const bd  = col;
+  const txt = d < 0 ? `${Math.abs(d)}d expired` : `${d}d left`;
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 8px", background: bg, border: `1px solid ${bd}`, borderRadius: 2, marginBottom: 3 }}>
       <span style={{ fontSize: TYPE.micro.size, color: col, fontWeight: "500" }}>{label}</span>
@@ -175,26 +169,26 @@ export default function ProjectCard({
           <div style={{ marginBottom: 10 }}>
             {pr.qd?.date && (
               <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
-                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.muted }}>Quote date</span>
-                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.black }}>{fmtD(pr.qd.date)}</span>
+                <span style={{ fontFamily: SANS, fontSize: TYPE.label.size, color: C.muted }}>Quote date</span>
+                <span style={{ fontFamily: SANS, fontSize: TYPE.label.size, color: C.black }}>{fmtD(pr.qd.date)}</span>
               </div>
             )}
             {pr.deliveryDate && (
               <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
-                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.muted }}>Delivery</span>
-                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.black }}>{fmtD(pr.deliveryDate)}</span>
+                <span style={{ fontFamily: SANS, fontSize: TYPE.label.size, color: C.muted }}>Delivery</span>
+                <span style={{ fontFamily: SANS, fontSize: TYPE.label.size, color: C.black }}>{fmtD(pr.deliveryDate)}</span>
               </div>
             )}
             {pr.qd?.validUntil && (
               <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
-                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.muted }}>Valid until</span>
-                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.black }}>{fmtD(pr.qd.validUntil)}</span>
+                <span style={{ fontFamily: SANS, fontSize: TYPE.label.size, color: C.muted }}>Valid until</span>
+                <span style={{ fontFamily: SANS, fontSize: TYPE.label.size, color: C.black }}>{fmtD(pr.qd.validUntil)}</span>
               </div>
             )}
             {pr.notes && (
               <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
-                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.muted }}>Notes</span>
-                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.black, textAlign: "right", maxWidth: "55%" }}>{pr.notes}</span>
+                <span style={{ fontFamily: SANS, fontSize: TYPE.label.size, color: C.muted }}>Notes</span>
+                <span style={{ fontFamily: SANS, fontSize: TYPE.label.size, color: C.black, textAlign: "right", maxWidth: "55%" }}>{pr.notes}</span>
               </div>
             )}
           </div>
@@ -202,16 +196,16 @@ export default function ProjectCard({
           {/* Line Items Summary */}
           {pr.qd?.lines && pr.qd.lines.length > 0 && (
             <div style={{ marginBottom: 10 }}>
-              <p style={{ fontFamily: SANS, fontSize: 9, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: C.light, margin: "0 0 6px" }}>Line Items</p>
+              <p style={{ fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: C.light, margin: "0 0 6px" }}>Line Items</p>
               {pr.qd.lines.map((l: any, i: number) => (
                 <div key={l.id ?? i} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: `1px solid ${C.rule}` }}>
-                  <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.black }}>{l.name}</span>
-                  <span style={{ fontFamily: SERIF, fontSize: 10.5, color: C.muted }}>{fmt(parseFloat(l.amt) || 0)}</span>
+                  <span style={{ fontFamily: SANS, fontSize: TYPE.label.size, color: C.black }}>{l.name}</span>
+                  <span style={{ fontFamily: SERIF, fontSize: TYPE.label.size, color: C.muted }}>{fmt(parseFloat(l.amt) || 0)}</span>
                 </div>
               ))}
               <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0 0" }}>
-                <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.muted }}>Total</span>
-                <span style={{ fontFamily: SERIF, fontSize: 12, color: C.black, fontWeight: "600" }}>{fmt(pr.amount || 0)}</span>
+                <span style={{ fontFamily: SANS, fontSize: TYPE.label.size, color: C.muted }}>Total</span>
+                <span style={{ fontFamily: SERIF, fontSize: TYPE.subtext.size, color: C.black, fontWeight: "600" }}>{fmt(pr.amount || 0)}</span>
               </div>
             </div>
           )}

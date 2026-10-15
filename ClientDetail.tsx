@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt, fmtD, addM, today, uid } from "./formatters";
-import { I, S, B, Lbl, Tag } from "./atoms";
+import { I, S, B, Lbl, Tag, ConfirmDialog } from "./atoms";
 import ProjectCard from "./ProjectCard";
 
 interface ClientDetailProps {
@@ -50,6 +50,7 @@ export default function ClientDetail({
   const [delConfirm,    setDelConfirm]    = useState<string | null>(null);
   const [editPrName,    setEditPrName]    = useState<string | null>(null);
   const [editPrNameVal, setEditPrNameVal] = useState("");
+  const [askDelete,     setAskDelete]     = useState<null | { blocked: boolean; text: string }>(null);
 
   const f = financials(cl);
 
@@ -58,15 +59,17 @@ export default function ClientDetail({
     setEditMode(false);
   };
 
-  const deleteClient = async () => {
+  const deleteClient = () => {
     const issued = (cl.projects || []).flatMap((pr: any) => pr.documents || []).filter((d: any) => d.kind === "invoice" && d.status !== "draft").length;
     if (issued > 0) {
-      window.alert(`"${cl.name}" has ${issued} issued invoice${issued > 1 ? "s" : ""}. Invoices must be kept, so this client can't be deleted.`);
+      setAskDelete({ blocked: true, text: `"${cl.name}" has ${issued} issued invoice${issued > 1 ? "s" : ""}. Invoices must be kept, so this client can't be deleted.` });
       return;
     }
     const nProj = (cl.projects || []).length;
-    const msg = `Delete "${cl.name}"${nProj > 0 ? ` and ${nProj} project${nProj > 1 ? "s" : ""} (quotes, contracts, invoices, renewals)` : ""}? This cannot be undone.`;
-    if (!window.confirm(msg)) return;
+    setAskDelete({ blocked: false, text: `${nProj > 0 ? `This also deletes ${nProj} project${nProj > 1 ? "s" : ""} with their quotes, contracts and drafts. ` : ""}This cannot be undone.` });
+  };
+  const confirmDelete = async () => {
+    setAskDelete(null);
     await clientsHook.deleteClient(cl.id);
     setSel(null);
   };
@@ -103,12 +106,17 @@ export default function ClientDetail({
       paddingLeft: isMobile ? 0 : 4,
     }}>
 
+      {askDelete && (askDelete.blocked
+        ? <ConfirmDialog title="Can't delete this client" text={askDelete.text} okLabel="OK" onOk={() => setAskDelete(null)} onCancel={() => setAskDelete(null)} />
+        : <ConfirmDialog title={`Delete "${cl.name}"?`} text={askDelete.text} okLabel="Delete" danger onOk={confirmDelete} onCancel={() => setAskDelete(null)} />
+      )}
+
       {/* ── HEADER ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: isMobile ? 18 : 14, gap: 8, flexWrap: "wrap" as const }}>
         <div style={{ minWidth: 0 }}>
           {editMode
-            ? <I value={ed.name} onChange={(e: any) => setEd((p: any) => ({ ...p, name: e.target.value }))} s={{ fontSize: isMobile ? 20 : 18, fontFamily: SERIF, marginBottom: 4 }} />
-            : <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 26 : TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 6px" }}>{cl.name}</h2>
+            ? <I value={ed.name} onChange={(e: any) => setEd((p: any) => ({ ...p, name: e.target.value }))} s={{ fontFamily: SERIF, marginBottom: 4 }} />
+            : <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 6px" }}>{cl.name}</h2>
           }
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const }}>
             {cl.tags?.map((t: string) => <Tag key={t}>{t}</Tag>)}
@@ -127,7 +135,7 @@ export default function ClientDetail({
           }
           <button
             onClick={() => { setSel(null); setEditMode(false); }}
-            style={{ background: "none", border: "none", cursor: "pointer", color: C.light, fontSize: isMobile ? 22 : 18, lineHeight: 1, padding: "2px 0 0 4px" }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: C.light, fontSize: TYPE.amount.size, lineHeight: 1, padding: "2px 0 0 4px", minWidth: 32, minHeight: 32 }}
           >✕</button>
         </div>
       </div>

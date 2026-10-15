@@ -2,9 +2,10 @@
 // PriceSummary — total, retainer toggle, reset, preview
 // ─────────────────────────────────────────────────────────────
 
+import { useState } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt } from "./formatters";
-import { I, B } from "./atoms";
+import { I, B, Tick, ConfirmDialog } from "./atoms";
 
 interface PriceSummaryProps {
   subtotal:       number;
@@ -23,8 +24,13 @@ export default function PriceSummary({
   onRetToggle, onRetMoChange,
   onReset, onPreview, isRev,
 }: PriceSummaryProps) {
+  const [askReset, setAskReset] = useState(false);
   return (
     <>
+      {askReset && (
+        <ConfirmDialog title="Start over?" text="All items in this quote are removed." okLabel="Reset" danger
+          onOk={() => { setAskReset(false); onReset(); }} onCancel={() => setAskReset(false)} />
+      )}
       {/* ── RETAINER TOGGLE ── */}
       <div style={{
         display:     "flex",
@@ -35,16 +41,7 @@ export default function PriceSummary({
         border:      `1px solid ${C.rule}`,
         borderRadius: 2,
       }}>
-        <input
-          type="checkbox"
-          id="ret"
-          checked={retOn}
-          onChange={onRetToggle}
-          style={{ cursor: "pointer", accentColor: C.black }}
-        />
-        <label htmlFor="ret" style={{ fontSize: TYPE.label.size, cursor: "pointer", fontFamily: SANS, color: C.black }}>
-          Retainer{retOn ? " (−20%)" : ""}
-        </label>
+        <Tick on={retOn} onClick={onRetToggle} size={18} label={`Retainer${retOn ? " (−20 %)" : ""}`} />
         {retOn && <>
           <I
             type="number"
@@ -53,7 +50,7 @@ export default function PriceSummary({
             onChange={(e: any) => onRetMoChange(parseInt(e.target.value) || 6)}
             s={{ width: 50 }}
           />
-          <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>months</span>
+          <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>months · total shown per month</span>
         </>}
       </div>
 
@@ -80,7 +77,7 @@ export default function PriceSummary({
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
         <B
           v="sec"
-          onClick={() => { if (window.confirm("Reset all items and start over?")) onReset(); }}
+          onClick={() => setAskReset(true)}
         >
           Reset
         </B>

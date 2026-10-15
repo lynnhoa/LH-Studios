@@ -3,8 +3,8 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { C, SANS, SERIF, TYPE } from "./constants";
-import { fmt, fmtD, dLeft } from "./formatters";
+import { C, SANS, SERIF, TYPE, catInfo } from "./constants";
+import { fmt, fmtD, dLeft, today } from "./formatters";
 import { getWsItems, getAllDelivered, isOverdue, isThisWeek, wsCatPill } from "./wsHelpers";
 
 interface CreatorDashboardProps {
@@ -18,7 +18,7 @@ export default function CreatorDashboard({ clients, isMobile }: CreatorDashboard
   const [drill, setDrill] = useState<"output" | null>(null);
 
   const todayDate = new Date();
-  const todayStr  = todayDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  const todayStr  = `${todayDate.toLocaleDateString("en-GB", { weekday: "long" })} · ${fmtD(today())}`;
   const nowY      = todayDate.getFullYear();
   const nowM      = todayDate.getMonth();
 
@@ -57,7 +57,7 @@ export default function CreatorDashboard({ clients, isMobile }: CreatorDashboard
   const cats = ["Influencer","UGC","Editorial"];
   const catCounts  = cats.map(cat => ({ cat, count: open.filter(it => it.category === cat).length }));
   const catMax     = Math.max(...catCounts.map(c => c.count), 1);
-  const catLabel   = (cat: string) => cat === "Influencer" ? "Collab" : cat;
+  const catLabel   = (cat: string) => catInfo(cat).label;
   const clientCounts = clientNames
     .map(n => ({ name: n, count: open.filter(it => it.clientName === n).length }))
     .sort((a,b) => b.count - a.count).slice(0, 5);
@@ -188,7 +188,7 @@ export default function CreatorDashboard({ clients, isMobile }: CreatorDashboard
                 <span style={{ fontSize: TYPE.label.size, color: C.muted }}>{c.count}</span>
               </div>
               <div style={{ height: 3, background: C.rule, borderRadius: 2 }}>
-                <div style={{ height: 3, width: `${(c.count/catMax)*100}%`, background: c.cat === "Influencer" ? "#185FA5" : c.cat === "UGC" ? C.amber : C.green, borderRadius: 2 }} />
+                <div style={{ height: 3, width: `${(c.count/catMax)*100}%`, background: catInfo(c.cat).color, borderRadius: 2 }} />
               </div>
             </div>
           ))}

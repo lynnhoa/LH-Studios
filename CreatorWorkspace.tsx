@@ -5,10 +5,11 @@
 
 import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE } from "./constants";
+import { C, SANS, SERIF, TYPE, catInfo } from "./constants";
+import { Segmented, Tick, CatPill } from "./atoms";
 import { fmtD, today } from "./formatters";
 import {
-  WS_STATUSES, getWsItems, wsCatPill,
+  WS_STATUSES, getWsItems,
   isOverdue, isThisWeek, fmtDeadline, plannerDayLabel,
 } from "./wsHelpers";
 
@@ -151,7 +152,7 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
     });
   } else if (group === "Category") {
     ["Influencer","UGC","Editorial"].forEach(cat => {
-      groups.push({ key: cat, label: cat.toUpperCase(), items: activeItems.filter(it => it.category === cat) });
+      groups.push({ key: cat, label: catInfo(cat).label.toUpperCase(), items: activeItems.filter(it => it.category === cat) });
     });
   } else {
     WS_STATUSES.forEach(st => {
@@ -161,27 +162,17 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
 
   const deadlineColor = (item: any) => isOverdue(item.deadline) ? C.red : isThisWeek(item.deadline) ? C.amber : C.muted;
 
-  // ── Checkbox style ────────────────────────────────────────
-  const cbBox = (checked: boolean, color: string, size: number) => ({
-    width: size, height: size, borderRadius: 3,
-    border: `1.5px solid ${checked ? color : C.rule}`,
-    background: checked ? color : "transparent",
-    display: "flex", alignItems: "center", justifyContent: "center",
-    cursor: "pointer", flexShrink: 0,
-  });
-
   return (
     <div>
       {/* Header */}
       <div style={{ marginBottom: 16 }}>
         <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 14px" }}>Workspace</h2>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 12 }}>
-          {(["Urgency","Client","Category","Status"] as const).map(g => (
-            <button key={g} onClick={() => setGroup(g)}
-              style={{ padding: "5px 14px", border: `1px solid ${group === g ? C.black : C.rule}`, borderRadius: 2, background: group === g ? C.black : "none", color: group === g ? C.white : C.muted, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, letterSpacing: "0.08em" }}>
-              {g}
-            </button>
-          ))}
+        <div style={{ marginBottom: 12 }}>
+          <Segmented
+            options={[["Urgency","Urgency"],["Client","Client"],["Category","Category"],["Status","Status"]]}
+            value={group}
+            onChange={(g) => setGroup(g as any)}
+          />
         </div>
         <input placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)}
           style={{ width: "100%", padding: "7px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.black, borderRadius: 2, outline: "none", boxSizing: "border-box" as const }} />
@@ -210,7 +201,6 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
             <div style={{ borderTop: `1px solid ${C.rule}`, marginBottom: 4 }} />
 
             {isOpen && g.items.map(item => {
-              const catStyle  = wsCatPill(item.category);
               const isEditing = editingId === item.id;
               const isNoting  = noteId === item.id;
               const dlColor   = deadlineColor(item);
@@ -236,7 +226,7 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
                 return null;
               })();
 
-              const cbSz = isMobile ? 26 : 20;
+              const cbSz = isMobile ? 26 : 22;
 
               return (
                 <div key={item.id} style={{ borderBottom: `1px solid ${C.rule}`, opacity: isDone ? 0.6 : 1 }}>
@@ -245,7 +235,7 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0, flex: 1 }}>
                           <span style={{ fontSize: TYPE.micro.size, fontWeight: "500", color: C.black, letterSpacing: "0.07em", textTransform: "uppercase" as const, flexShrink: 0 }}>{item.clientName}</span>
-                          <span onClick={() => setItemCat(item)} title="Tap to change category" style={{ fontSize: TYPE.micro.size, padding: "1px 7px", border: `1px solid ${catStyle.border}`, borderRadius: 10, color: catStyle.color, background: catStyle.bg, flexShrink: 0, cursor: "pointer" }}>{item.category}</span>
+                          <CatPill cat={item.category} onClick={() => setItemCat(item)} title="Tap to change category" />
                         </div>
                         <span style={{ fontSize: TYPE.label.size, color: dlColor, fontWeight: dlColor === C.red ? "600" : "400", flexShrink: 0, marginLeft: 8 }}>{fmtDeadline(item.deadline)}</span>
                       </div>
@@ -268,15 +258,11 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
                         <div style={{ display: "flex", gap: 12, flexShrink: 0 }}>
                           <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 3 }}>
                             <span style={{ fontSize: TYPE.label.size, color: C.light }}>created</span>
-                            <div onClick={() => setItemStatus(item, isCreated ? "Not started" : "Created")} style={cbBox(isCreated, C.black, cbSz)}>
-                              {isCreated && <span style={{ fontSize: 13, color: C.white, lineHeight: 1, fontWeight: "500" }}>✓</span>}
-                            </div>
+                            <Tick on={isCreated} size={cbSz} onClick={() => setItemStatus(item, isCreated ? "Not started" : "Created")} />
                           </div>
                           <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 3 }}>
                             <span style={{ fontSize: TYPE.label.size, color: C.light }}>{doneLabel}</span>
-                            <div onClick={() => { if (!isCreated) return; setItemStatus(item, cbDone ? "Created" : doneSt); }} style={{ ...cbBox(cbDone, C.green, cbSz), cursor: isCreated ? "pointer" : "default", opacity: isCreated ? 1 : 0.35 }}>
-                              {cbDone && <span style={{ fontSize: 13, color: C.white, lineHeight: 1, fontWeight: "500" }}>✓</span>}
-                            </div>
+                            <Tick on={cbDone} size={cbSz} color={C.green} disabled={!isCreated} onClick={() => setItemStatus(item, cbDone ? "Created" : doneSt)} />
                           </div>
                         </div>
                       </div>
@@ -299,7 +285,7 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
                               {item.name}
                             </span>
                           )}
-                          <span onClick={() => setItemCat(item)} title="Tap to change category" style={{ fontSize: TYPE.micro.size, padding: "2px 7px", border: `1px solid ${catStyle.border}`, borderRadius: 10, color: catStyle.color, background: catStyle.bg, flexShrink: 0, cursor: "pointer" }}>{item.category}</span>
+                          <CatPill cat={item.category} onClick={() => setItemCat(item)} title="Tap to change category" />
                         </div>
                         {item.lineNote && <span style={{ fontSize: TYPE.label.size, color: C.muted, display: "block", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{item.lineNote}</span>}
                         {item.notes && !isNoting && <span onClick={() => { setNoteId(item.id); setNoteVal(item.notes); }} style={{ fontSize: TYPE.label.size, color: C.amber, display: "block", marginTop: 1, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{item.notes}</span>}
@@ -312,15 +298,11 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
                         <div style={{ display: "flex", gap: 12 }}>
                           <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 3 }}>
                             <span style={{ fontSize: TYPE.micro.size, color: C.light }}>created</span>
-                            <div onClick={() => setItemStatus(item, isCreated ? "Not started" : "Created")} style={cbBox(isCreated, C.black, cbSz)}>
-                              {isCreated && <span style={{ fontSize: 11, color: C.white, lineHeight: 1, fontWeight: "500" }}>✓</span>}
-                            </div>
+                            <Tick on={isCreated} size={cbSz} onClick={() => setItemStatus(item, isCreated ? "Not started" : "Created")} />
                           </div>
                           <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 3 }}>
                             <span style={{ fontSize: TYPE.micro.size, color: C.light }}>{doneLabel}</span>
-                            <div onClick={() => { if (!isCreated) return; setItemStatus(item, cbDone ? "Created" : doneSt); }} style={{ ...cbBox(cbDone, C.green, cbSz), cursor: isCreated ? "pointer" : "default", opacity: isCreated ? 1 : 0.35 }}>
-                              {cbDone && <span style={{ fontSize: 11, color: C.white, lineHeight: 1, fontWeight: "500" }}>✓</span>}
-                            </div>
+                            <Tick on={cbDone} size={cbSz} color={C.green} disabled={!isCreated} onClick={() => setItemStatus(item, cbDone ? "Created" : doneSt)} />
                           </div>
                         </div>
                       </div>

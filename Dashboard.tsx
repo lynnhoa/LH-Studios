@@ -5,9 +5,9 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
-import { C, SANS, SERIF, TYPE } from "./constants";
+import { C, SANS, SERIF, TYPE, STATUS_COLOR, EXPIRY_WARN_DAYS, expiryColor } from "./constants";
 import { fmt, fmtD, today, addM, dLeft } from "./formatters";
-import { S } from "./atoms";
+import { TSel, TSelWrap, Pill, Tick, StatusBadge } from "./atoms";
 import PDFModal from "./PDFModal";
 import { downloadDocs } from "./DocPages";
 import { invoiceRows, invoicesCsv, invoiceTypeLabel, docFileName, STATUS_LABEL } from "./docs";
@@ -123,7 +123,6 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
   };
 
   const STATUS_ORDER: Record<string,number> = { production:0, contracted:1, invoiced:2, quoted:3, revised:4 };
-  const STATUS_COLOR: Record<string,string> = { quoted:C.amber, revised:C.amber, contracted:C.amber, production:C.black, invoiced:C.green };
   const NEXT_ACTION:  Record<string,string> = { quoted:"Awaiting client feedback", revised:"Awaiting client feedback", contracted:"Awaiting signature", production:"In production", invoiced:"Awaiting payment" };
 
   const filteredProjects = (() => {
@@ -151,7 +150,7 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
             <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" as const }}>
               <span style={{ fontSize: TYPE.body.size, color: C.black, fontWeight: "500" }}>{pr.cName}</span>
               <span style={{ fontSize: TYPE.subtext.size, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, maxWidth: isMobile ? 90 : 200 }}>{pr.name}</span>
-              <span style={{ fontSize: TYPE.micro.size, color: col, border: `1px solid ${col}`, padding: "1px 5px", borderRadius: 2, letterSpacing: "0.06em", textTransform: "uppercase" as const }}>{pr.status}</span>
+              <StatusBadge status={pr.status} />
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 3, alignItems: "center", flexWrap: "wrap" as const }}>
               <span style={{ fontSize: TYPE.label.size, color: C.light }}>{next}</span>
@@ -170,12 +169,12 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
         <DrillTitle title="Active Projects" value={fmt(totalActive)} />
         <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: "-10px 0 16px" }}>{filteredProjects.length} of {activeProjects.length} project{activeProjects.length !== 1 ? "s" : ""} in progress</p>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 5, marginBottom: 16 }}>
-          <S value={pFilter} onChange={(e: any) => setPFilter(e.target.value)} s={{ padding: "5px 10px" }}>
-            {[["all","All"],["production","Production"],["contracted","Contracted"],["invoiced","Invoiced"],["quoted","Quoted"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-          </S>
-          <S value={pSort} onChange={(e: any) => setPSort(e.target.value)} s={{ padding: "5px 10px" }}>
-            {[["status","By Stage"],["amount_hi","Amount ↓"],["amount_lo","Amount ↑"],["delivery","Delivery"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-          </S>
+          <TSelWrap><TSel value={pFilter} onChange={(e: any) => setPFilter(e.target.value)}>
+            {[["all","All"],["production","Production"],["contracted","Contracted"],["invoiced","Invoiced"],["quoted","Quoted"]].map(([v,l]) => <option key={v} value={v}>{`Filter: ${l}`}</option>)}
+          </TSel></TSelWrap>
+          <TSelWrap><TSel value={pSort} onChange={(e: any) => setPSort(e.target.value)}>
+            {[["status","By Stage"],["amount_hi","Amount ↓"],["amount_lo","Amount ↑"],["delivery","Delivery"]].map(([v,l]) => <option key={v} value={v}>{`Sort: ${l}`}</option>)}
+          </TSel></TSelWrap>
         </div>
         {filteredProjects.length === 0 && <p style={{ fontSize: TYPE.subtext.size, color: C.muted }}>No projects match this filter.</p>}
         {needsAction.length > 0 && <><p style={{ fontSize: TYPE.label.size, color: C.red, letterSpacing: "0.1em", textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "600" }}>Needs your action</p>{needsAction.map((pr: any,i: number) => <Row key={i} pr={pr} />)}</>}
@@ -209,13 +208,13 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
         <DrillTitle title="Revenue" value={fmt(rev)} />
         <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: "-10px 0 16px" }}>{paid.length} paid project{paid.length !== 1 ? "s" : ""} · all time</p>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 5, marginBottom: 20 }}>
-          <S value={revYear} onChange={(e: any) => setRevYear(e.target.value)} s={{ padding: "5px 10px" }}>
-            <option value="all">All years</option>
-            {allYears.map((y: number) => <option key={y} value={String(y)}>{y}</option>)}
-          </S>
-          <S value={revSort} onChange={(e: any) => setRevSort(e.target.value)} s={{ padding: "5px 10px" }}>
-            {[["date_new","Newest first"],["date_old","Oldest first"],["amount_hi","Amount ↓"],["amount_lo","Amount ↑"],["client","Client A→Z"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-          </S>
+          <TSelWrap><TSel value={revYear} onChange={(e: any) => setRevYear(e.target.value)}>
+            <option value="all">Year: All</option>
+            {allYears.map((y: number) => <option key={y} value={String(y)}>{`Year: ${y}`}</option>)}
+          </TSel></TSelWrap>
+          <TSelWrap><TSel value={revSort} onChange={(e: any) => setRevSort(e.target.value)}>
+            {[["date_new","Newest first"],["date_old","Oldest first"],["amount_hi","Amount ↓"],["amount_lo","Amount ↑"],["client","Client A→Z"]].map(([v,l]) => <option key={v} value={v}>{`Sort: ${l}`}</option>)}
+          </TSel></TSelWrap>
         </div>
         {revSorted.length === 0 && <p style={{ fontSize: TYPE.subtext.size, color: C.muted }}>No paid projects yet.</p>}
         {revGroups.map(yg => (
@@ -290,14 +289,13 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
     const usageLics    = allLicenses.filter((r: any) => r.type === "usage");
     const exclLics     = allLicenses.filter((r: any) => r.type === "excl");
     const tabLics      = licTab === "usage" ? usageLics : exclLics;
-    const urgentRows   = tabLics.filter((r: any) => { const d = dLeft(r.end); return d !== null && d <= 7 && needsAtt(r); });
-    const activeRows   = tabLics.filter((r: any) => { const d = dLeft(r.end); return (d === null || d > 7) && needsAtt(r); });
+    const urgentRows   = tabLics.filter((r: any) => { const d = dLeft(r.end); return d !== null && d <= EXPIRY_WARN_DAYS && needsAtt(r); });
+    const activeRows   = tabLics.filter((r: any) => { const d = dLeft(r.end); return (d === null || d > EXPIRY_WARN_DAYS) && needsAtt(r); });
     const actionedRows = tabLics.filter((r: any) => !needsAtt(r));
     const SL: Record<string,string> = { ignored:"Ignored", takendown:"Taken down", renewal:"Renewal pending" };
-    const tabPillS = (active: boolean): any => ({ padding:"6px 15px", border:`1px solid ${active?C.black:C.rule}`, background:active?C.black:"none", color:active?C.white:C.muted, cursor:"pointer", fontFamily:SANS, fontSize:TYPE.label.size, letterSpacing:"0.1em", textTransform:"uppercase" as const, outline:"none" });
     const LicRow = ({ r }: { r: any }) => {
-      const d = dLeft(r.end); const isExpired = d!==null&&d<0; const isExpiring = d!==null&&d>=0&&d<=7; const act = licenseActions[r.key]||""; const isActioned = ACTIONED.includes(act);
-      const daysText = isExpired ? `+${Math.abs(d!)}d expired` : isExpiring ? `${d}d left` : `${d}d`; const dCol = isExpired ? C.red : isExpiring ? C.amber : C.green;
+      const d = dLeft(r.end); const isExpired = d!==null&&d<0; const isExpiring = d!==null&&d>=0&&d<=EXPIRY_WARN_DAYS; const act = licenseActions[r.key]||""; const isActioned = ACTIONED.includes(act);
+      const daysText = isExpired ? `${Math.abs(d!)}d expired` : `${d}d left`; const dCol = expiryColor(d);
       return (
         <div style={{ padding: "10px 0", borderBottom: `1px solid ${C.rule}`, opacity: isActioned ? 0.5 : 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -330,8 +328,10 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: 0 }}>License Tracker</h2>
           <div style={{ display: "flex" }}>
-            <button onClick={() => setLicTab("usage")} style={{ ...tabPillS(licTab==="usage"), borderRadius: "2px 0 0 2px" }}>Usage Rights <span style={{ marginLeft: 4, fontSize: TYPE.micro.size, opacity: 0.7 }}>{usageLics.length}</span></button>
-            <button onClick={() => setLicTab("excl")}  style={{ ...tabPillS(licTab==="excl"),  borderRadius: "0 2px 2px 0", borderLeft: "none" }}>Exclusivity <span style={{ marginLeft: 4, fontSize: TYPE.micro.size, opacity: 0.7 }}>{exclLics.length}</span></button>
+            <div style={{ display: "flex", gap: 6 }}>
+              <Pill on={licTab==="usage"} onClick={() => setLicTab("usage")}>Usage Rights · {usageLics.length}</Pill>
+              <Pill on={licTab==="excl"}  onClick={() => setLicTab("excl")}>Exclusivity · {exclLics.length}</Pill>
+            </div>
           </div>
         </div>
         <p style={{ fontSize: TYPE.subtext.size, color: C.muted, marginBottom: 16, lineHeight: 1.6 }}>{licTab === "usage" ? "Track when brands' usage rights expire." : "Track exclusivity periods."}</p>
@@ -355,7 +355,7 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
         {sorted.map((pr: any, i: number) => {
           const daysSent = pr.date ? Math.floor((Date.now() - new Date(pr.date).getTime()) / 86400000) : null;
           const expiry   = pr.qd?.validUntil; const daysLeft = expiry ? Math.ceil((new Date(expiry).getTime() - Date.now()) / 86400000) : null; const expired = daysLeft !== null && daysLeft < 0;
-          const expiryCol = expired ? C.red : daysLeft !== null && daysLeft <= 7 ? C.amber : C.green;
+          const expiryCol = expiryColor(daysLeft);
           return (
             <div key={i} onClick={() => goToProject(pr.cName, pr.qd?.qNo)} style={{ display: "flex", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.rule}`, gap: 10, cursor: "pointer" }}>
               <span style={{ fontSize: TYPE.subtext.size, color: ageCol(daysSent), flexShrink: 0, minWidth: 32, fontWeight: "500" }}>{daysSent !== null ? `${daysSent}d` : "—"}</span>
@@ -440,7 +440,6 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
       }
     };
 
-    const tabPillS   = (active: boolean): any => ({padding:"6px 15px",border:`1px solid ${active?C.black:C.rule}`,background:active?C.black:"none",color:active?C.white:C.muted,cursor:"pointer",fontFamily:SANS,fontSize:TYPE.label.size,letterSpacing:"0.1em",textTransform:"uppercase" as const,outline:"none"});
     const stCol = (st: string) => st === "paid" ? C.green : st === "cancelled" ? C.red : C.amber;
     return (
       <div>
@@ -448,20 +447,21 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 8, flexWrap: "wrap" as const }}>
           <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: 0 }}>Invoices</h2>
           <div style={{ display: "flex" }}>
-            <button onClick={() => { setInvTab("unpaid"); setInvSel(new Set()); }} style={{...tabPillS(invTab==="unpaid"),borderRadius:"2px 0 0 2px"}}>Unpaid <span style={{marginLeft:4,fontSize:TYPE.micro.size,opacity:0.7}}>{allInvRows.filter(isUnpaid).length}</span></button>
-            <button onClick={() => { setInvTab("paid");   setInvSel(new Set()); }} style={{...tabPillS(invTab==="paid"),borderRadius:"0 2px 2px 0",borderLeft:"none"}}>Paid <span style={{marginLeft:4,fontSize:TYPE.micro.size,opacity:0.7}}>{allInvRows.filter((r: any)=>r.doc.status==="paid").length}</span></button>
+            <div style={{ display: "flex", gap: 6 }}>
+              <Pill on={invTab==="unpaid"} onClick={() => { setInvTab("unpaid"); setInvSel(new Set()); }}>Unpaid · {allInvRows.filter(isUnpaid).length}</Pill>
+              <Pill on={invTab==="paid"}   onClick={() => { setInvTab("paid");   setInvSel(new Set()); }}>Paid · {allInvRows.filter((r: any)=>r.doc.status==="paid").length}</Pill>
+            </div>
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <select value={invYear} onChange={(e: any)=>{setInvYear(e.target.value);setInvSel(new Set());}} style={{height:34,padding:"0 8px",border:`1px solid ${C.rule}`,borderRadius:2,background:C.bg,fontFamily:SANS,fontSize:16,color:C.black,outline:"none"}}>
-            {periodOpts.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          <TSelWrap>
+            <TSel value={invYear} onChange={(e: any)=>{setInvYear(e.target.value);setInvSel(new Set());}} s={{ textAlignLast: "left" as const }}>
+              {periodOpts.map(o=><option key={o.value} value={o.value}>{`Period: ${o.label.trim()}`}</option>)}
+            </TSel>
+          </TSelWrap>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {filteredInv.length > 0 && (
-              <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: TYPE.label.size, color: C.muted }}>
-                <input type="checkbox" checked={allChecked} onChange={toggleAll} style={{ cursor: "pointer", accentColor: C.black, width: 13, height: 13 }} />
-                Select all
-              </label>
+              <Tick on={allChecked} onClick={toggleAll} size={18} label="Select all" />
             )}
             <button onClick={()=>exportCsv(filteredInv,invYear==="all"?"all_invoices":invYear)} style={{height:28,padding:"0 10px",border:`1px solid ${C.rule}`,borderRadius:2,background:C.bg,cursor:"pointer",fontFamily:SANS,fontSize:TYPE.label.size,color:C.muted}}>Export CSV</button>
           </div>
@@ -494,7 +494,7 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
                       </div>
                       <span style={{fontFamily:SERIF,fontSize:TYPE.sectionHeading.size,color:C.black,flexShrink:0}}>{fmt(d.gross)}</span>
                       <button onClick={(e: any)=>{e.stopPropagation();doInvBulk([r]);}} disabled={!!invBulkStatus} title="Download PDF" style={{fontSize:TYPE.micro.size,padding:"4px 9px",border:`1px solid ${C.rule}`,borderRadius:2,background:"none",cursor:invBulkStatus?"default":"pointer",color:C.muted,fontFamily:SANS,letterSpacing:"0.06em",flexShrink:0,whiteSpace:"nowrap" as const}}>PDF</button>
-                      <input type="checkbox" checked={isChecked} onChange={()=>toggleSel(r.key)} style={{flexShrink:0,cursor:"pointer",accentColor:C.black,width:13,height:13}} onClick={(e: any)=>e.stopPropagation()}/>
+                      <Tick on={isChecked} onClick={()=>toggleSel(r.key)} size={18} />
                     </div>
                   );
                 })}
@@ -518,14 +518,14 @@ export default function Dashboard({ clients, isMobile, settings, resetKey, drill
   // ── MAIN DASHBOARD ────────────────────────────────────────
   const ACTIONED   = ["ignored","takendown","renewal"];
   const needsAttFn = (r: any) => !ACTIONED.includes(licenseActions[r.key] || "");
-  const urgentLics = allLicenses.filter((r: any) => needsAttFn(r) && (dLeft(r.end)??999) <= 7);
+  const urgentLics = allLicenses.filter((r: any) => needsAttFn(r) && (dLeft(r.end)??999) <= EXPIRY_WARN_DAYS);
   const allClear   = urgentLics.length === 0;
   const hasRed     = urgentLics.some((r: any) => (dLeft(r.end)??0) < 0);
   const stages     = [
-    { label:"Production", count: activeProjects.filter((pr: any) => pr.status==="production").length, color: C.blue  },
-    { label:"Invoiced",   count: activeProjects.filter((pr: any) => pr.status==="invoiced").length,   color: C.amber },
-    { label:"Contracted", count: activeProjects.filter((pr: any) => pr.status==="contracted").length, color: C.amber },
-    { label:"Quoted",     count: activeProjects.filter((pr: any) => pr.status==="quoted"||pr.status==="revised").length, color: C.light },
+    { label:"Production", count: activeProjects.filter((pr: any) => pr.status==="production").length, color: STATUS_COLOR.production },
+    { label:"Invoiced",   count: activeProjects.filter((pr: any) => pr.status==="invoiced").length,   color: STATUS_COLOR.invoiced },
+    { label:"Contracted", count: activeProjects.filter((pr: any) => pr.status==="contracted").length, color: STATUS_COLOR.contracted },
+    { label:"Quoted",     count: activeProjects.filter((pr: any) => pr.status==="quoted"||pr.status==="revised").length, color: STATUS_COLOR.quoted },
   ].filter(s => s.count > 0);
   const stageTotal = activeProjects.length || 1;
 

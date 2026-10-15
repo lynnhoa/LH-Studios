@@ -4,7 +4,7 @@
 // connections. Cache is updated in the background on each visit.
 // ─────────────────────────────────────────────────────────────
 
-const CACHE_NAME = "lh-studio-v1";
+const CACHE_NAME = "lh-studio-v2";   // bump to drop old cached app files
 
 // App shell — cached on install so the PWA opens offline
 const APP_SHELL = [

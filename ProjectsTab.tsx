@@ -6,10 +6,9 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE } from "./constants";
-import { fmt, fmtD, fmtE, today, addM } from "./formatters";
-import { I, B, Lbl, TSel, TSelWrap } from "./atoms";
+import { C, SERIF, TYPE, expiryColor, expiryTint } from "./constants";
+import { fmt, fmtD, fmtE, today, addM, dLeft } from "./formatters";
+import { I, B, TSel, TSelWrap, StatusBadge, ConfirmDialog } from "./atoms";
 import RenewalModal from "./RenewalModal";
 import ProductionSection from "./ProductionSection";
 import PDFModal from "./PDFModal";
@@ -20,12 +19,6 @@ import {
 } from "./docs";
 import type { DocRecord } from "./types";
 
-// ── Status color helper ───────────────────────────────────────
-const scol = (s: string) => ({
-  invoiced: C.amber, contracted: C.muted, quoted: C.light,
-  revised: "#b8a090", production: "#8fa89a", paid: C.green, lead: C.light,
-}[s] ?? C.light);
-
 // Document chip dot colour by status
 const dotCol = (st: string) => ({
   draft: C.light, sent: C.amber, signed: C.green, paid: C.green, cancelled: C.red, superseded: C.rule,
@@ -33,12 +26,11 @@ const dotCol = (st: string) => ({
 
 // ── License tracker (inline mini) ────────────────────────────
 function LicenseLine({ label, end }: { label: string; end: string }) {
-  const d   = Math.ceil((new Date(end).getTime() - new Date().getTime()) / 864e5);
-  const exp = d < 0; const expiring = !exp && d <= 7;
-  const col = exp ? C.red : expiring ? C.amber : C.green;
-  const bg  = exp ? "#fdf0f0" : expiring ? "#fdf6ee" : "#f0f5f0";
-  const bd  = exp ? C.red : expiring ? C.amber : C.green;
-  const txt = exp ? `+${Math.abs(d)}d expired` : expiring ? `${d}d left` : `${d}d`;
+  const d   = dLeft(end) ?? 0;
+  const col = expiryColor(d);
+  const bg  = expiryTint(d);
+  const bd  = col;
+  const txt = d < 0 ? `${Math.abs(d)}d expired` : `${d}d left`;
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 8px", background: bg, border: `1px solid ${bd}`, borderRadius: 2, marginBottom: 3 }}>
       <span style={{ fontSize: TYPE.micro.size, color: col, fontWeight: "500" }}>{label}</span>
@@ -69,31 +61,6 @@ function ProjectLicenseTracker({ pr }: { pr: any }) {
       {activeUE   && <LicenseLine label="Usage Rights" end={activeUE}   />}
       {activeExcl && <LicenseLine label="Exclusivity"  end={activeExcl} />}
     </div>
-  );
-}
-
-// ── Small confirm / date dialog for row actions ───────────────
-function RowDialog({ title, text, dateLabel, okLabel, danger, onOk, onCancel }: {
-  title: string; text?: string; dateLabel?: string; okLabel: string; danger?: boolean;
-  onOk: (date: string) => void; onCancel: () => void;
-}) {
-  const [date, setDate] = useState(today());
-  return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(250,249,247,0.88)" }}>
-      <div style={{ background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "24px 28px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)", minWidth: 260, maxWidth: 340 }}>
-        <p style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black, margin: "0 0 8px" }}>{title}</p>
-        {text && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 12px", lineHeight: 1.5 }}>{text}</p>}
-        {dateLabel && <>
-          <Lbl>{dateLabel}</Lbl>
-          <I type="date" value={date} onChange={(e: any) => setDate(e.target.value)} s={{ marginBottom: 14 }} />
-        </>}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <B v="sec" onClick={onCancel}>Cancel</B>
-          <B v={danger ? "danger" : "pri"} onClick={() => onOk(date || today())}>{okLabel}</B>
-        </div>
-      </div>
-    </div>,
-    document.body
   );
 }
 
@@ -263,7 +230,11 @@ function ProjectRow({
     <div ref={rowRef} data-prid={pr.id} style={{ borderBottom: `1px solid ${C.rule}`, opacity: pr.paid ? 0.55 : 1 }}>
 
       {dialog && (
-        <RowDialog {...dialog} onCancel={() => setDialog(null)} onOk={(date: string) => { const dg = dialog; setDialog(null); act(() => dg.run(date)); }} />
+        <ConfirmDialog
+          title={dialog.title} text={dialog.text} dateLabel={dialog.dateLabel} okLabel={dialog.okLabel} danger={dialog.danger}
+          onCancel={() => setDialog(null)}
+          onOk={(date: string) => { const dg = dialog; setDialog(null); act(() => dg.run(date)); }}
+        />
       )}
 
       {/* ── COLLAPSED ROW ── */}
@@ -277,7 +248,7 @@ function ProjectRow({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <span style={{ fontSize: TYPE.body.size, color: C.black, fontWeight: "500", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr.name}</span>
-                <span style={{ fontSize: TYPE.micro.size, color: scol(pr.paid ? "paid" : pr.status), border: `1px solid ${scol(pr.paid ? "paid" : pr.status)}`, padding: "2px 7px", borderRadius: 2, letterSpacing: "0.07em", textTransform: "uppercase" as const, display: "inline-block", marginTop: 3 }}>{pr.paid ? "Paid" : pr.status}</span>
+                <span style={{ display: "inline-block", marginTop: 3 }}><StatusBadge status={pr.paid ? "paid" : pr.status} /></span>
               </div>
               <span style={{ fontSize: TYPE.label.size, color: C.muted, flexShrink: 0, marginLeft: 12 }}>{pr.deliveryDate ? fmtD(pr.deliveryDate) : "—"}</span>
             </div>
@@ -287,7 +258,7 @@ function ProjectRow({
             <div style={{ minWidth: 0, paddingRight: 12 }}>
               <div style={{ fontSize: TYPE.micro.size, color: C.muted, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr._cname}</div>
               <div style={{ fontSize: TYPE.subtext.size, color: C.black, fontWeight: "500", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr.name}</div>
-              <span style={{ fontSize: TYPE.micro.size, color: scol(pr.paid ? "paid" : pr.status), border: `1px solid ${scol(pr.paid ? "paid" : pr.status)}`, padding: "2px 7px", borderRadius: 2, letterSpacing: "0.07em", textTransform: "uppercase" as const, display: "inline-block", marginTop: 3 }}>{pr.paid ? "Paid" : pr.status}</span>
+              <span style={{ display: "inline-block", marginTop: 3 }}><StatusBadge status={pr.paid ? "paid" : pr.status} /></span>
             </div>
             <div style={{ fontSize: TYPE.micro.size, color: C.muted, textAlign: "right" as const, paddingRight: 12 }}>{pr.deliveryDate ? fmtD(pr.deliveryDate) : "—"}</div>
             <div style={{ fontFamily: SERIF, fontSize: TYPE.subtext.size, color: C.black, textAlign: "right" as const }}>{fmt(pr.amount)}</div>
@@ -524,11 +495,11 @@ export default function ProjectsTab({
 
   const active = all.filter((pr: any) => !pr.paid).sort((a: any, b: any) => {
     if (sortOrder === "amount")  return b.amount - a.amount;
-    if (sortOrder === "oldest")  return a.date > b.date ? 1 : -1;
-    return (b.createdAt || 0) - (a.createdAt || 0);
+    if (sortOrder === "oldest")  return String(a.date || "").localeCompare(String(b.date || ""));
+    return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
   });
 
-  const done  = all.filter((pr: any) => pr.paid).sort((a: any, b: any) => b.date > a.date ? 1 : -1);
+  const done  = all.filter((pr: any) => pr.paid).sort((a: any, b: any) => String(b.date || "").localeCompare(String(a.date || "")));
 
   const FILTERS = [["all","All"],["production","Production"],["invoiced","Invoiced"],["contracted","Contracted"],["quoted","Quoted"]];
   const filteredActive = statusFilter === "all"

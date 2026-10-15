@@ -122,31 +122,12 @@ export const getUsageMo = (qd: any): number | null => {
   return null;
 };
 
-// ─── STATUS COLOR ────────────────────────────────────────────
-import { C } from "./constants";
+// ─── STATUS COLOR / CATEGORY LABEL (one source: constants.ts) ─
+import { C, STATUS_COLOR, catInfo } from "./constants";
 
-export const scol = (s: string): string =>
-  ({
-    invoiced:   C.amber,
-    contracted: C.muted,
-    quoted:     C.light,
-    revised:    "#b8a090",   // old-app rosewood
-    production: "#8fa89a",   // old-app sage
-    paid:       C.green,
-    lead:       C.light,
-  }[s] || C.light);
+export const scol = (s: string): string => STATUS_COLOR[String(s || "").toLowerCase()] || C.light;
 
-// ─── CATEGORY LABEL ──────────────────────────────────────────
-export const catLabel = (cat: string): string =>
-  ({
-    influencer: "Brand Collaboration",
-    ugc:        "UGC",
-    editorial:  "Editorial",
-    hotels:     "Hotels",
-    Influencer: "Collab",
-    UGC:        "UGC",
-    Editorial:  "Editorial",
-  }[cat] || cat);
+export const catLabel = (cat: string): string => catInfo(cat).label;
 
 // ─── INITIALS ────────────────────────────────────────────────
 export const initials = (nameOrCompany: string): string => {
