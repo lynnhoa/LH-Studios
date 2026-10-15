@@ -110,7 +110,9 @@ export default function ClientList({
 
   const addCl = async () => {
     if (!nb.name.trim()) return;
-    await clientsHook.addClient({ ...nb });
+    // one client per brand name — no duplicates
+    if ((clientsHook.clients || []).some((c: any) => c.name.trim().toLowerCase() === nb.name.trim().toLowerCase())) return;
+    await clientsHook.addClient({ ...nb, name: nb.name.trim() });
     setNb(EMPTY_CLIENT);
     setShowAdd(false);
   };
@@ -187,7 +189,11 @@ export default function ClientList({
         <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: 14, marginBottom: 12, background: C.white }}>
           <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const, margin: "0 0 10px" }}>New Client</p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
-            <div><Lbl>Brand Name *</Lbl><I value={nb.name} onChange={(e: any) => setNb(p => ({ ...p, name: e.target.value }))} placeholder="Sephora" /></div>
+            <div><Lbl>Brand Name *</Lbl><I value={nb.name} onChange={(e: any) => setNb(p => ({ ...p, name: e.target.value }))} placeholder="Sephora" />
+              {nb.name.trim() && (clientsHook.clients || []).some((c: any) => c.name.trim().toLowerCase() === nb.name.trim().toLowerCase()) && (
+                <p style={{ fontSize: TYPE.label.size, color: C.amber, margin: "5px 0 0" }}>A client with this name already exists.</p>
+              )}
+            </div>
             <div><Lbl>Contact</Lbl><I value={nb.contact} onChange={(e: any) => setNb(p => ({ ...p, contact: e.target.value }))} placeholder="Anna Müller" /></div>
             <div><Lbl>Email</Lbl><I value={nb.email} onChange={(e: any) => setNb(p => ({ ...p, email: e.target.value }))} type="email" placeholder="anna@brand.com" /></div>
             <div>

@@ -1,60 +1,19 @@
 // ─────────────────────────────────────────────────────────────
 // Calculator — quote builder
-// New quote, revision, amendment — all in one component
+// New quote, revision, amendment — all in one component.
+// Every price comes from the rate cards (Service Catalog).
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect } from "react";
-import { C, SANS, SERIF, TYPE } from "./constants";
-import { fmt, today, uid } from "./formatters";
-import { isSingle } from "./formatters";
+import { useState, useEffect, useMemo } from "react";
+import { C, SANS, SERIF, TYPE, catInfo, TINT } from "./constants";
+import { fmt, today, uid, addD } from "./formatters";
 import { I, S, B, Lbl, Tag, Pill, Tick, CatPill } from "./atoms";
-import { catInfo } from "./constants";
 import LineItemRow from "./LineItemRow";
 import PriceSummary from "./PriceSummary";
-
-// ── Add-ons per category ──────────────────────────────────────
-const AO: Record<string, any[]> = {
-  influencer: [
-    { id: "ao_i1", n: "Additional Story frame",   flat: 50  },
-    { id: "ao_i2", n: "Link in bio",              flat: 100 },
-    { id: "ao_i3", n: "Whitelisting / boosting",  pct:  30  },
-    { id: "ao_i4", n: "Rush delivery",            pct:  25  },
-    { id: "ao_i5", n: "Pinned post",              flat: 100 },
-    { id: "ao_i6", n: "Additional revision",      flat: 50  },
-    { id: "ao_i7", n: "Aspect ratio adaptation",  flat: 65  },
-    { id: "ao_i8", n: "Raw footage",              pct:  30  },
-    { id: "ao_i9", n: "Kill fee",                 pct:  50  },
-  ],
-  ugc: [
-    { id: "ao_u1", n: "Hook / CTA variation",     flat: 80  },
-    { id: "ao_u2", n: "Whitelisting / boosting",  pct:  30  },
-    { id: "ao_u3", n: "Rush delivery",            pct:  25  },
-    { id: "ao_u4", n: "Additional revision",      flat: 80  },
-    { id: "ao_u5", n: "Aspect ratio adaptation",  flat: 65  },
-    { id: "ao_u6", n: "Raw footage",              pct:  30  },
-    { id: "ao_u7", n: "Kill fee",                 pct:  50  },
-    { id: "ao_u8", n: "Pinned post",              flat: 100 },
-  ],
-  editorial: [
-    { id: "ao_e1", n: "Additional image",         flat: 200 },
-    { id: "ao_e2", n: "Additional video cut",     flat: 300 },
-    { id: "ao_e3", n: "Whitelisting / boosting",  flat: 300 },
-    { id: "ao_e4", n: "Rush delivery",            pct:  30  },
-    { id: "ao_e5", n: "Additional revision",      flat: 150 },
-    { id: "ao_e6", n: "Aspect ratio adaptation",  flat: 65  },
-    { id: "ao_e7", n: "Raw footage",              pct:  30  },
-    { id: "ao_e8", n: "Kill fee",                 pct:  50  },
-  ],
-};
-AO.complete = [...AO.influencer, ...AO.ugc, ...AO.editorial]
-  .filter((a, i, ar) => ar.findIndex((b: any) => b.id === a.id) === i);
-AO.hotels = AO.complete;
-
-const CAT_LABEL: Record<string, string> = {
-  influencer: catInfo("influencer").label,
-  ugc:        catInfo("ugc").label,
-  editorial:  catInfo("editorial").label,
-};
+import {
+  normalizeCards, pricingCats, cardChoices, cardAddons, priceLine, optLabel, addonPriceText,
+  pctText, BASE_CARD_KEYS,
+} from "./pricing";
 
 interface CalcProps {
   isMobile:    boolean;
@@ -66,166 +25,200 @@ interface CalcProps {
   onAfterSave: (projectId: string) => void;
 }
 
+// Card name for pills and line labels
+const catTitle = (rc: any, key: string) =>
+  BASE_CARD_KEYS.includes(key) ? catInfo(key).label : (rc?.[key]?.label || key);
+
+const NEW_CLIENT = "__new";
+
 export default function Calculator({
-  isMobile, settings, rc, prefill, clearPrefill, clientsHook, onAfterSave,
+  isMobile, settings, rc: rawRc, prefill, clearPrefill, clientsHook, onAfterSave,
 }: CalcProps) {
+  const rc      = useMemo(() => normalizeCards(rawRc), [rawRc]);
   const isRev   = prefill?.isRev   || false;
   const isAmend = prefill?.isAmend || false;
+  const locked  = isRev || isAmend;              // client + project are fixed
   const revN    = prefill?.revN    || 1;
   const amendN  = prefill?.amendN  || 1;
 
-  const [brand,    setBrand]    = useState(prefill?.brand   || "");
-  const [contact,  setContact]  = useState(prefill?.contact || "");
-  const [projName, setProjName] = useState("");
-  const [qDate,    setQDate]    = useState(today());
-  const [vDays,    setVDays]    = useState(14);
+  // ── Client + project ──────────────────────────────────────
+  const clientList = useMemo(
+    () => [...(clientsHook.clients || [])].sort((a: any, b: any) => a.name.localeCompare(b.name)),
+    [clientsHook.clients]
+  );
+  const initialClient = (() => {
+    if (prefill?.cid) return prefill.cid;
+    const byName = prefill?.brand && clientList.find((c: any) => c.name.trim().toLowerCase() === String(prefill.brand).trim().toLowerCase());
+    if (byName) return byName.id;
+    return clientList.length ? "" : NEW_CLIENT;
+  })();
+  const [clientSel, setClientSel] = useState<string>(initialClient);
+  const [newName,   setNewName]   = useState(initialClient === NEW_CLIENT ? (prefill?.brand || "") : "");
+  const [contact,   setContact]   = useState(prefill?.contact || "");
+  const [target,    setTarget]    = useState<string>(!locked && prefill?.pid ? prefill.pid : "new");
+  const [projName,  setProjName]  = useState(prefill?.projectName && isRev ? prefill.projectName : "");
+  const [qDate,     setQDate]     = useState(today());
+  const [vDays,     setVDays]     = useState<number | string>(prefill?.validDays || 14);
+  const [formErr,   setFormErr]   = useState<string | null>(null);
+
+  const selClient = clientList.find((c: any) => c.id === clientSel);
+  const dupe = clientSel === NEW_CLIENT && newName.trim()
+    ? clientList.find((c: any) => c.name.trim().toLowerCase() === newName.trim().toLowerCase())
+    : null;
+  const brandName = locked ? (prefill?.brand || selClient?.name || "") : selClient ? selClient.name : newName.trim();
+  const leads = selClient ? (selClient.projects || []).filter((p: any) => p.status === "lead" && !p.qd) : [];
+  const leadSel = leads.find((p: any) => p.id === target);
+
+  const pickClient = (v: string) => {
+    setClientSel(v);
+    setFormErr(null);
+    const c = clientList.find((x: any) => x.id === v);
+    setContact(c ? (c.contact || "") : "");
+    setTarget("new");
+  };
 
   // ── Item builder state ────────────────────────────────────
-  const [bCat,       setBCat]       = useState("influencer");
-  const [bDel,       setBDel]       = useState(-1);
+  const cats = pricingCats(rc);
+  const [bCat,       setBCat]       = useState(() => (prefill?.ctab && cats.includes(prefill.ctab) ? prefill.ctab : cats[0]) || "influencer");
+  const [bSel,       setBSel]       = useState("");
   const [bQty,       setBQty]       = useState<number | string>(1);
   const [bUsage,     setBUsage]     = useState(0);
   const [bExcl,      setBExcl]      = useState(0);
   const [bNeg,       setBNeg]       = useState("");
   const [bVol,       setBVol]       = useState(false);
-  const [bAddons,    setBAddons]    = useState<string[]>([]);
-  const [bAoSel,     setBaAoSel]    = useState("");
+  const [bAddons,    setBAddons]    = useState<{ key: string; months: number }[]>([]);
   const [bPlatforms, setBPlatforms] = useState<string[]>([]);
 
-  // ── Line items ────────────────────────────────────────────
-  const [items, setItems] = useState<any[]>(() => {
-    if (prefill?.isRev && prefill?.origLines?.length) {
-      return prefill.origLines.map((ln: any) => ({
-        id: uid(), cat: ln.cat || prefill.ctab || "influencer",
-        name: ln.name || "", note: ln.note || "",
-        qty: ln.qty || 1, up: ln.up || 0, amt: ln.amt || 0,
-        usageLabel: ln.usageLabel || undefined,
-        exclLabel:  ln.exclLabel  || undefined,
-        addons:     ln.addons     || [],
-        platforms:  ln.platforms  || [],
-      }));
-    }
-    return [];
-  });
+  const card      = rc[bCat] || rc[cats[0]] || { sections: [], usage: [], excl: [] };
+  const choices   = cardChoices(card);
+  const delivs    = choices.filter(c => c.kind === "deliverable");
+  const packs     = choices.filter(c => c.kind === "package");
+  const choice    = choices.find(c => c.key === bSel);
+  const addonList = cardAddons(card);
+  const usageOpts = card.usage || [];
+  const exclOpts  = card.excl  || [];
 
-  const [retOn, setRetOn] = useState(false);
-  const [retMo, setRetMo] = useState(6);
-  const [pdf,   setPdf]   = useState<any>(null);
-
-  const card        = rc[bCat] || rc.influencer;
-  const deliverables = card.sections
-    .filter((s: any) => isSingle(s.t))
-    .flatMap((s: any) => s.items);
-  const addonList = AO[bCat] || [];
-
-  // ── Price computation ─────────────────────────────────────
-  const computePrice = () => {
-    const item    = bDel >= 0 ? deliverables[bDel] : null;
-    const bQtyN   = Math.max(1, parseInt(String(bQty)) || 1);
-    const base    = Math.max(0, bNeg !== "" ? parseFloat(bNeg) || 0 : (item?.p || 0));
-    const lb      = base * bQtyN;
-    let vp = 0;
-    if (bVol) {
-      if (bCat === "editorial") vp = 10;
-      else if (bQtyN >= 10)    vp = 20;
-      else if (bQtyN >= 3)     vp = 15;
-    }
-    const av       = lb * (1 - vp / 100);
-    const usagePct = card.usage[bUsage]?.sentinel ? 0 : (card.usage[bUsage]?.pct || 0);
-    const exclPct  = card.excl[bExcl]?.sentinel   ? 0 : (card.excl[bExcl]?.pct  || 0);
-    const am       = av * (1 + (usagePct + exclPct) / 100);
-    let at = 0;
-    bAddons.forEach(aid => {
-      const a = addonList.find((x: any) => x.id === aid);
-      if (!a) return;
-      if (a.flat) at += a.flat;
-      else if (a.pct) at += am * a.pct / 100;
-    });
-    return Math.round(am + at);
+  const switchCat = (k: string) => {
+    setBCat(k); setBSel(""); setBAddons([]); setBUsage(0); setBExcl(0); setBVol(false); setBNeg("");
   };
 
-  const canAdd = bDel >= 0;
+  // ── Line items ────────────────────────────────────────────
+  const [items, setItems] = useState<any[]>(() =>
+    isRev && prefill?.origLines?.length
+      ? prefill.origLines.map((ln: any) => ({ ...ln, id: uid(), cat: ln.cat || prefill.ctab || "influencer" }))
+      : []
+  );
+  const [retOn, setRetOn] = useState<boolean>(isRev ? !!prefill?.retainer : false);
+  const [retMo, setRetMo] = useState<number>(isRev && prefill?.retMo ? Number(prefill.retMo) : 6);
+  const [pdf,   setPdf]   = useState<any>(null);
+
+  // ── Price of the line being built ─────────────────────────
+  const usageSel = usageOpts[bUsage];
+  const exclSel  = exclOpts[bExcl];
+  const calc = choice
+    ? priceLine({
+        unit:     bNeg !== "" ? Math.max(0, parseFloat(bNeg) || 0) : (choice.item.p ?? 0),
+        qty:      Math.max(1, parseInt(String(bQty)) || 1),
+        cat:      bCat,
+        vol:      bVol,
+        usagePct: usageSel && !usageSel.sentinel ? Number(usageSel.pct) || 0 : 0,
+        exclPct:  exclSel  && !exclSel.sentinel  ? Number(exclSel.pct)  || 0 : 0,
+        addons:   bAddons
+          .map(a => ({ addon: addonList.find((x: any) => x.key === a.key), months: a.months }))
+          .filter(x => !!x.addon),
+      })
+    : null;
+
+  const addAddon = (key: string) => {
+    if (!key || bAddons.some(a => a.key === key)) return;
+    const a = addonList.find((x: any) => x.key === key);
+    const months = a?.perMonth ? Math.max(1, Number(usageSel?.mo) || 1) : 1;
+    setBAddons(p => [...p, { key, months }]);
+  };
 
   const addItem = () => {
-    if (!canAdd) return;
-    const item     = deliverables[bDel];
-    const price    = computePrice();
-    const usageSel = card.usage[bUsage];
-    const exclSel  = card.excl[bExcl];
+    if (!choice || !calc) return;
     setItems(prev => [...prev, {
-      id:         uid(),
-      cat:        bCat,
-      name:       item?.n || "",
-      note:       item?.note || "",
-      qty:        Math.max(1, parseInt(String(bQty)) || 1),
-      up:         bNeg !== "" ? Math.max(0, parseFloat(bNeg) || 0) : (item?.p || 0),
-      amt:        price,
-      usageLabel: usageSel?.sentinel ? undefined : usageSel?.l,
-      exclLabel:  exclSel?.sentinel  ? undefined : exclSel?.l,
-      addons:     bAddons.map(aid => addonList.find((x: any) => x.id === aid)?.n).filter(Boolean),
-      platforms:  bPlatforms,
+      id:          uid(),
+      cat:         bCat,
+      ...(BASE_CARD_KEYS.includes(bCat) ? {} : { catLabel: catTitle(rc, bCat) }),
+      kind:        choice.kind,
+      name:        choice.item.n || "",
+      note:        choice.item.note || "",
+      ...(choice.kind === "package" ? { includes: (choice.item.includes || []).filter((x: any) => x?.n).map((x: any) => ({ n: x.n, qty: Number(x.qty) || 1 })) } : {}),
+      qty:         calc.qty,
+      up:          calc.unit,
+      listPrice:   choice.item.p ?? 0,
+      base:        calc.base,
+      volPct:      calc.volPct,
+      usageLabel:  usageSel && !usageSel.sentinel ? optLabel(usageSel) : undefined,
+      usagePct:    usageSel && !usageSel.sentinel ? Number(usageSel.pct) || 0 : 0,
+      usageMo:     usageSel && !usageSel.sentinel ? Number(usageSel.mo) || 0 : 0,
+      exclLabel:   exclSel && !exclSel.sentinel ? optLabel(exclSel) : undefined,
+      exclPct:     exclSel && !exclSel.sentinel ? Number(exclSel.pct) || 0 : 0,
+      exclMo:      exclSel && !exclSel.sentinel ? Number(exclSel.mo) || 0 : 0,
+      addons:      calc.addons.map(a => a.months ? `${a.n} (${a.months} ${a.months === 1 ? "month" : "months"})` : a.n),
+      addonDetail: calc.addons,
+      platforms:   bPlatforms,
+      amt:         calc.amt,
     }]);
-    setBDel(-1); setBQty(1); setBUsage(0); setBExcl(0); setBNeg("");
+    setBSel(""); setBQty(1); setBUsage(0); setBExcl(0); setBNeg("");
     setBAddons([]); setBVol(false); setBPlatforms([]);
   };
 
-  const subtotal = items.reduce((s, it) => s + it.amt, 0);
-  const grand    = Math.round(subtotal * (1 - (retOn ? 20 : 0) / 100));
-  const vu       = new Date(qDate);
-  vu.setDate(vu.getDate() + (parseInt(String(vDays)) || 14));
-  const validUntil = vu.toISOString().split("T")[0];
-  // Numbers come from the database when the document is saved
-  const qNo = isRev ? (prefill?.qNo || "") : "";
+  const subtotal   = items.reduce((s, it) => s + (Number(it.amt) || 0), 0);
+  const grand      = retOn ? Math.round(subtotal * 0.8) : subtotal;
+  const validUntil = addD(qDate, parseInt(String(vDays)) || 14);
+  const qNo        = isRev ? (prefill?.qNo || "") : "";
 
   // ── Open preview ──────────────────────────────────────────
   const openPreview = () => {
-    const cats  = [...new Set(items.map(it => it.cat))];
-    const ctype = cats.length > 1       ? "Content Creator"
-      : cats[0] === "ugc"               ? "UGC Creator"
-      : cats[0] === "editorial"         ? "Editorial Content Creator"
+    if (!brandName) { setFormErr("Choose a client first (or ＋ New client with a name)."); return; }
+    setFormErr(null);
+    const catsUsed = [...new Set(items.map(it => it.cat))];
+    const ctype = catsUsed.length > 1          ? "Content Creator"
+      : catsUsed[0] === "ugc"                  ? "UGC Creator"
+      : catsUsed[0] === "editorial"            ? "Editorial Content Creator"
+      : catsUsed[0] === "hotels"               ? "Content Creator (Hospitality)"
+      : catsUsed[0] && !BASE_CARD_KEYS.includes(catsUsed[0]) ? (rc[catsUsed[0]]?.label || "Content Creator")
       : "Content Creator (Influencer)";
-    const ctab = cats.length === 1 ? cats[0] : (cats.length > 1 ? "complete" : "influencer");
+    const ctab = catsUsed.length === 1 ? catsUsed[0] : (catsUsed.length > 1 ? "complete" : "influencer");
 
-    // Usage period for the whole quote = the LONGEST usage period across all lines
+    // Usage period for the whole quote = the longest usage period of any line
     let mo: number | null = null;
     items.forEach(it => {
-      if (!it.usageLabel) return;
-      const cardKey = it.cat || ctab;
-      const cardRef = (rc && rc[cardKey]) || Object.values(rc || {})[0] || { usage: [] };
-      const found   = (cardRef.usage || []).find((u: any) => u.l === it.usageLabel);
-      let itemMo: number | null = null;
-      if (found && found.mo) itemMo = found.mo;
-      else { const m = it.usageLabel.match(/(\d+)\s*month/i); if (m) itemMo = parseInt(m[1]); }
-      if (itemMo && (!mo || itemMo > mo)) mo = itemMo;
+      let m = Number(it.usageMo) || 0;
+      if (!m && it.usageLabel) { const x = String(it.usageLabel).match(/(\d+)\s*month/i); if (x) m = parseInt(x[1]); }
+      if (m && (!mo || m > mo)) mo = m;
     });
 
-    // Merge same name+cat items
-    // Merge only lines that are IDENTICAL in every pricing-relevant way:
-    // same category, name, usage rights, exclusivity, add-ons, and platforms.
-    // Differently-configured lines must stay separate on the PDF.
-    const mergedMap = new Map<string, any>();
+    // Merge only lines that are identical in every pricing-relevant way
+    const merged = new Map<string, any>();
     items.forEach(it => {
       const key = [
-        it.cat, it.name,
-        it.usageLabel || "", it.exclLabel || "",
-        [...(it.addons || [])].sort().join("|"),
-        [...(it.platforms || [])].sort().join("|"),
+        it.cat, it.kind || "", it.name, it.up, it.usageLabel || "", it.exclLabel || "",
+        [...(it.addons || [])].sort().join("|"), [...(it.platforms || [])].sort().join("|"),
       ].join("__");
-      if (mergedMap.has(key)) {
-        const ex = mergedMap.get(key);
-        ex.qty = (ex.qty || 1) + (it.qty || 1);
-        ex.amt = (ex.amt || 0) + (it.amt || 0);
-      } else {
-        mergedMap.set(key, { ...it });
-      }
+      const ex = merged.get(key);
+      if (ex) {
+        ex.qty  = (ex.qty || 1) + (it.qty || 1);
+        ex.amt  = (ex.amt || 0) + (it.amt || 0);
+        if (typeof ex.base === "number" || typeof it.base === "number") ex.base = (Number(ex.base) || 0) + (Number(it.base) || 0);
+        if (Array.isArray(ex.addonDetail) && Array.isArray(it.addonDetail)) {
+          ex.addonDetail = ex.addonDetail.map((a: any) => {
+            const b = it.addonDetail.find((x: any) => x.n === a.n);
+            return b ? { ...a, amt: (Number(a.amt) || 0) + (Number(b.amt) || 0) } : a;
+          });
+        }
+      } else merged.set(key, { ...it });
     });
+    const lines = Array.from(merged.values());
 
-    const lines = Array.from(mergedMap.values());
     if (isAmend) {
       setPdf({
         kind: "amendment", docNo: "", revision: 0, status: "draft", docDate: qDate, lang: "en",
         data: {
-          brand, contact, ctype, ctab, lines, footer: "",
+          brand: brandName, contact, ctype, ctab, lines, footer: "",
           origTotal: Number(prefill?.origTotal) || 0, amendTotal: subtotal,
           contractNo: prefill?.contractNo || "", quoteNo: prefill?.qNo || "",
         },
@@ -235,7 +228,7 @@ export default function Calculator({
     setPdf({
       kind: "quote", docNo: qNo, revision: isRev ? revN : 0, status: "draft", docDate: qDate, lang: "en",
       data: {
-        brand, contact, date: qDate, validUntil, qNo,
+        brand: brandName, contact, date: qDate, validUntil, qNo,
         rev: isRev ? revN : 0, mo, ctab, lines,
         total: grand, ctype, footer: "",
         retainer: retOn, retMo: retOn ? retMo : undefined,
@@ -244,7 +237,8 @@ export default function Calculator({
   };
 
   const reset = () => {
-    setItems([]); setBrand(""); setContact(""); setProjName(""); setRetOn(false);
+    setItems([]); setRetOn(false); setFormErr(null);
+    setClientSel(clientList.length ? "" : NEW_CLIENT); setNewName(""); setContact(""); setProjName(""); setTarget("new");
     if (clearPrefill) clearPrefill();
   };
 
@@ -264,9 +258,8 @@ export default function Calculator({
   if (pdf && PDFModal) {
     // After the first save the modal shows the saved document (with its number)
     const sClient  = saved ? (clientsHook.clients || []).find((c: any) => c.id === saved.clientId) : null;
-    const sProject = sClient ? sClient.projects.find((p: any) => p.id === saved!.projectId) : null;
+    const sProject = sClient ? sClient.projects.find((p: any) => p.id === saved.projectId) : null;
     const sDoc     = sProject ? (sProject.documents || []).find((d: any) => d.id === saved!.docId) : null;
-    const brandClient = (clientsHook.clients || []).find((c: any) => c.name.trim().toLowerCase() === (brand || "").trim().toLowerCase());
 
     if (sDoc) {
       return (
@@ -288,24 +281,31 @@ export default function Calculator({
       <PDFModal
         doc={pdf}
         settings={settings}
-        client={brandClient}
+        client={selClient || dupe || undefined}
         editable={true}
         isNew={true}
         note={isAmend ? "The amendment number is assigned when you save." : isRev ? undefined : "The quote number is assigned when you save."}
         onClose={() => setPdf(null)}
         onSave={async (doc: any) => {
           const res = await clientsHook.saveQuote({
-            doc, brand: doc.data?.brand || brand, contact: doc.data?.contact || contact,
+            doc, brand: brandName, contact: doc.data?.contact || contact,
             mode: isAmend ? "amend" : isRev ? "revise" : "new",
-            projectName: projName, projectId: prefill?.pid, clientId: prefill?.cid, settings,
+            projectName: projName || leadSel?.name || "",
+            projectId: locked ? prefill?.pid : (leadSel ? leadSel.id : undefined),
+            clientId:  locked ? prefill?.cid : (selClient?.id || dupe?.id),
+            settings,
           });
           if (res.error) throw new Error(res.error);
           if (res.document) setSaved({ clientId: res.clientId, projectId: res.projectId, docId: res.document.id });
+          setItems([]); setRetOn(false);
           if (clearPrefill) clearPrefill();
         }}
       />
     );
   }
+
+  const usageText = (o: any) => optLabel(o);
+  const choiceText = (c: any) => `${c.item.n}${c.item.p !== null && c.item.p !== undefined ? ` — € ${c.item.p}` : c.item.m ? ` — ${c.item.m}` : ""}`;
 
   return (
     <div>
@@ -313,9 +313,19 @@ export default function Calculator({
       <div style={{ marginBottom: 18 }}>
         <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 6px", color: C.black }}>Calculator</h2>
         <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" as const, margin: 0 }}>
-          {isAmend ? `Amendment ${amendN} — ${prefill?.qNo || ""}` : isRev ? `Revising ${prefill?.qNo} — R${revN}` : "Build a Quote"}
+          {isAmend ? "Amendment" : isRev ? "Revision" : "Build a Quote"}
         </p>
       </div>
+
+      {/* ── MODE BANNER (revise / amend) ── */}
+      {locked && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 14px", marginBottom: 16, background: TINT.amber, border: `1px solid ${C.amber}`, borderRadius: 2 }}>
+          <span style={{ fontSize: TYPE.label.size, color: C.amber }}>
+            {isAmend ? `Amendment ${amendN} to ${prefill?.qNo || "the project"}` : `Revising ${prefill?.qNo || ""} · R${revN}`} · {brandName}
+          </span>
+          <B v="sec" onClick={reset} s={{ minHeight: 34, padding: "0 14px" }}>Exit</B>
+        </div>
+      )}
 
       {/* ── ORIGINAL LINES (amendment) ── */}
       {isAmend && prefill?.origLines?.length > 0 && (
@@ -325,61 +335,113 @@ export default function Calculator({
             <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
               <span style={{ fontSize: TYPE.micro.size, color: C.black, display: "flex", alignItems: "center", gap: 6 }}>
                 {ln.qty > 1 ? `${ln.qty}× ` : ""}{ln.name}
-                {ln.cat && <CatPill cat={ln.cat} />}
+                {ln.cat && <CatPill cat={ln.cat} label={ln.catLabel} />}
               </span>
               <span style={{ fontSize: TYPE.micro.size, fontFamily: SERIF, color: C.muted, flexShrink: 0, marginLeft: 8 }}>{fmt(ln.amt)}</span>
             </div>
           ))}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingTop: 7, marginTop: 2 }}>
             <span style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" as const }}>Original Total</span>
-            <span style={{ fontSize: TYPE.subtext.size, fontFamily: SERIF, color: C.black }}>{fmt(prefill.origLines.reduce((s: number, l: any) => s + (l.amt || 0), 0))}</span>
+            <span style={{ fontSize: TYPE.subtext.size, fontFamily: SERIF, color: C.black }}>{fmt(Number(prefill.origTotal) || prefill.origLines.reduce((s: number, l: any) => s + (l.amt || 0), 0))}</span>
           </div>
         </div>
       )}
 
-      {/* ── BRAND / CONTACT / DATE ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginBottom: 9 }}>
-        <div><Lbl>Brand / Company</Lbl><I value={brand} onChange={(e: any) => setBrand(e.target.value)} placeholder="Sephora" /></div>
-        <div><Lbl>Contact Name</Lbl><I value={contact} onChange={(e: any) => setContact(e.target.value)} placeholder="Anna Müller" /></div>
-      </div>
-      <div style={{ marginBottom: 9 }}>
-        <Lbl>Project Name <span style={{ fontWeight: "normal", color: C.light }}>(optional)</span></Lbl>
-        <I value={projName} onChange={(e: any) => setProjName(e.target.value)} placeholder="e.g. Spring Campaign 2026" />
-      </div>
+      {/* ── CLIENT / CONTACT / PROJECT ── */}
+      {!locked && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 9, marginBottom: 9 }}>
+            <div>
+              <Lbl>Client</Lbl>
+              <S value={clientSel} onChange={(e: any) => pickClient(e.target.value)}>
+                <option value="">— Select client —</option>
+                {clientList.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <option value={NEW_CLIENT}>＋ New client</option>
+              </S>
+            </div>
+            <div><Lbl>Contact Name</Lbl><I value={contact} onChange={(e: any) => setContact(e.target.value)} placeholder="Anna Müller" /></div>
+          </div>
+          {clientSel === NEW_CLIENT && (
+            <div style={{ marginBottom: 9 }}>
+              <Lbl>New client — Brand / Company</Lbl>
+              <I value={newName} onChange={(e: any) => { setNewName(e.target.value); setFormErr(null); }} placeholder="Brand name" />
+              {dupe && (
+                <p style={{ fontSize: TYPE.label.size, color: C.amber, margin: "5px 0 0" }}>
+                  "{dupe.name}" already exists — the quote will be added to that client.{" "}
+                  <button onClick={() => pickClient(dupe.id)} style={{ background: "none", border: "none", padding: 0, color: C.amber, textDecoration: "underline", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size }}>Select it</button>
+                </p>
+              )}
+            </div>
+          )}
+          {leads.length > 0 && (
+            <div style={{ marginBottom: 9 }}>
+              <Lbl>Project</Lbl>
+              <S value={target} onChange={(e: any) => setTarget(e.target.value)}>
+                <option value="new">New project</option>
+                {leads.map((l: any) => <option key={l.id} value={l.id}>Lead: {l.name}</option>)}
+              </S>
+            </div>
+          )}
+          <div style={{ marginBottom: 9 }}>
+            <Lbl>Project Name <span style={{ fontWeight: "normal", color: C.light }}>(optional)</span></Lbl>
+            <I value={projName} onChange={(e: any) => setProjName(e.target.value)} placeholder={leadSel ? leadSel.name : "e.g. Spring Campaign 2026"} />
+          </div>
+        </>
+      )}
+      {locked && (
+        <div style={{ marginBottom: 9 }}>
+          <Lbl>Contact Name</Lbl>
+          <I value={contact} onChange={(e: any) => setContact(e.target.value)} />
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 9, marginBottom: 20 }}>
         <div>
-          <Lbl>Quote Date</Lbl>
+          <Lbl>{isAmend ? "Amendment Date" : "Quote Date"}</Lbl>
           <I type="date" value={qDate} onChange={(e: any) => setQDate(e.target.value)} s={{ WebkitAppearance: "none" as const }} />
         </div>
-        <div>
-          <Lbl>Valid for (days)</Lbl>
-          <I type="number" value={vDays} onChange={(e: any) => setVDays(e.target.value)} />
-        </div>
+        {!isAmend && (
+          <div>
+            <Lbl>Valid for (days)</Lbl>
+            <I type="number" value={vDays} onChange={(e: any) => setVDays(e.target.value)} />
+          </div>
+        )}
       </div>
 
       {/* ── ITEM BUILDER ── */}
       <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "16px 18px", marginBottom: 16, background: C.white }}>
         <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 13px" }}>Add Item</p>
 
-        {/* Category tabs */}
+        {/* Category tabs — one per rate card */}
         <div style={{ display: "flex", gap: 6, marginBottom: 13, flexWrap: "wrap" as const }}>
-          {(["influencer","ugc","editorial"] as const).map(k => (
-            <Pill key={k} on={bCat === k} onClick={() => { setBCat(k); setBDel(-1); setBAddons([]); setBUsage(0); setBExcl(0); setBVol(false); }}>
-              {CAT_LABEL[k]}
-            </Pill>
+          {cats.map(k => (
+            <Pill key={k} on={bCat === k} onClick={() => switchCat(k)}>{catTitle(rc, k)}</Pill>
           ))}
         </div>
 
-        {/* Deliverable + Qty */}
+        {/* Deliverable / package + Qty */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 80px", gap: 8, marginBottom: 9 }}>
           <div>
-            <Lbl>Deliverable</Lbl>
-            <S value={bDel} onChange={(e: any) => setBDel(parseInt(e.target.value))}>
-              <option value={-1}>— Select deliverable —</option>
-              {deliverables.map((it: any, i: number) => (
-                <option key={i} value={i}>{it.n}{it.p ? ` — € ${it.p}` : ""}</option>
-              ))}
+            <Lbl>Deliverable or package</Lbl>
+            <S value={bSel} onChange={(e: any) => setBSel(e.target.value)}>
+              <option value="">— Select —</option>
+              {delivs.length > 0 && (
+                <optgroup label="Deliverables">
+                  {delivs.map(c => <option key={c.key} value={c.key}>{choiceText(c)}</option>)}
+                </optgroup>
+              )}
+              {packs.length > 0 && (
+                <optgroup label="Packages">
+                  {packs.map(c => <option key={c.key} value={c.key}>{choiceText(c)}</option>)}
+                </optgroup>
+              )}
             </S>
+            {choice?.kind === "package" && (
+              <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "5px 0 0" }}>
+                {choice.item.includes?.length
+                  ? `Includes ${choice.item.includes.map((x: any) => `${x.qty || 1}× ${x.n}`).join(", ")}`
+                  : "No contents set — the Workspace shows it as one item. Add contents in the Service Catalog."}
+              </p>
+            )}
           </div>
           <div>
             <Lbl>Qty</Lbl>
@@ -390,22 +452,19 @@ export default function Calculator({
           </div>
         </div>
 
-        {/* Usage + Exclusivity */}
+        {/* Usage + Exclusivity (from this rate card) */}
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8, marginBottom: 9 }}>
           <div>
             <Lbl>Usage Rights</Lbl>
             <S value={bUsage} onChange={(e: any) => setBUsage(parseInt(e.target.value))}>
-              {card.usage.map((u: any, i: number) => <option key={i} value={i}>{u.l}</option>)}
+              {usageOpts.map((u: any, i: number) => <option key={i} value={i}>{usageText(u)}</option>)}
             </S>
             {/* Platform toggles */}
-            <div style={{ display: "flex", gap: 3, flexWrap: "wrap" as const, marginTop: 5 }}>
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const, marginTop: 6 }}>
               {(["Instagram","TikTok","YouTube","Other"] as const).map(p => {
                 const on = bPlatforms.includes(p);
                 return (
-                  <button key={p} type="button"
-                    onClick={() => setBPlatforms(pr => on ? pr.filter(x => x !== p) : [...pr, p])}
-                    style={{ padding: "3px 8px", border: `1px solid ${on ? C.black : C.rule}`, background: on ? C.black : C.bg, color: on ? C.white : C.muted, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.05em", borderRadius: 2 }}
-                  >{p}</button>
+                  <Pill key={p} on={on} onClick={() => setBPlatforms(pr => on ? pr.filter(x => x !== p) : [...pr, p])}>{p}</Pill>
                 );
               })}
             </div>
@@ -413,35 +472,48 @@ export default function Calculator({
           <div>
             <Lbl>Exclusivity</Lbl>
             <S value={bExcl} onChange={(e: any) => setBExcl(parseInt(e.target.value))}>
-              {card.excl.map((e: any, i: number) => <option key={i} value={i}>{e.l}</option>)}
+              {exclOpts.map((e: any, i: number) => <option key={i} value={i}>{usageText(e)}</option>)}
             </S>
           </div>
         </div>
 
-        {/* Add-ons */}
-        <div style={{ marginBottom: 9 }}>
-          <Lbl>Add-ons</Lbl>
-          <S value={bAoSel} onChange={(e: any) => { const v = e.target.value; if (v && !bAddons.includes(v)) setBAddons(p => [...p, v]); setBaAoSel(""); }} s={{ marginBottom: 5 }}>
-            <option value="">— Select add-on —</option>
-            {addonList.filter((a: any) => !bAddons.includes(a.id)).map((a: any) => (
-              <option key={a.id} value={a.id}>{a.n}{a.flat ? ` +€${a.flat}` : a.pct ? ` +${a.pct}%` : ""}</option>
-            ))}
-          </S>
-          {bAddons.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 4 }}>
-              {bAddons.map(aid => {
-                const a = addonList.find((x: any) => x.id === aid);
-                if (!a) return null;
-                return <Tag key={aid} onRemove={() => setBAddons(p => p.filter(x => x !== aid))}>{a.n}</Tag>;
-              })}
-            </div>
-          )}
-        </div>
+        {/* Add-ons (from this rate card) */}
+        {addonList.length > 0 && (
+          <div style={{ marginBottom: 9 }}>
+            <Lbl>Add-ons</Lbl>
+            <S value="" onChange={(e: any) => addAddon(e.target.value)} s={{ marginBottom: 5 }}>
+              <option value="">— Select add-on —</option>
+              {addonList.filter((a: any) => !bAddons.some(x => x.key === a.key)).map((a: any) => (
+                <option key={a.key} value={a.key}>{a.n} {addonPriceText(a)}</option>
+              ))}
+            </S>
+            {bAddons.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
+                {bAddons.map(sel => {
+                  const a = addonList.find((x: any) => x.key === sel.key);
+                  if (!a) return null;
+                  return (
+                    <span key={sel.key} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <Tag onRemove={() => setBAddons(p => p.filter(x => x.key !== sel.key))}>{a.n}</Tag>
+                      {a.perMonth && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: TYPE.label.size, color: C.muted }}>
+                          <I type="number" min={1} value={sel.months} s={{ width: 56, height: 34, padding: "0 8px" }}
+                            onChange={(e: any) => { const v = Math.max(1, parseInt(e.target.value) || 1); setBAddons(p => p.map(x => x.key === sel.key ? { ...x, months: v } : x)); }} />
+                          months
+                        </span>
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Negotiated rate + volume discount */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "flex-end", marginBottom: 12 }}>
           <div>
-            <Lbl>Negotiated Rate <span style={{ fontWeight: "normal", color: C.light }}>(overrides card)</span></Lbl>
+            <Lbl>Negotiated Rate <span style={{ fontWeight: "normal", color: C.light }}>(per unit, overrides card)</span></Lbl>
             <I type="number" placeholder="€" value={bNeg} onChange={(e: any) => setBNeg(e.target.value)} />
           </div>
           <span style={{ paddingBottom: 10, whiteSpace: "nowrap" as const }}>
@@ -450,13 +522,23 @@ export default function Calculator({
         </div>
 
         {/* Line total + Add button */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: `1px solid ${C.rule}` }}>
-          <span style={{ fontSize: TYPE.label.size, color: C.muted }}>
-            Line total: <strong style={{ color: canAdd ? C.black : C.light, fontFamily: SERIF, fontSize: TYPE.sectionHeading.size }}>{canAdd ? fmt(computePrice()) : "—"}</strong>
-          </span>
-          <B onClick={addItem} s={{ paddingLeft: 20, paddingRight: 20, opacity: canAdd ? 1 : 0.4, cursor: canAdd ? "pointer" : "default" as const }}>
-            + Add to Quote
-          </B>
+        <div style={{ paddingTop: 12, borderTop: `1px solid ${C.rule}` }}>
+          {calc && (
+            <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 8px", lineHeight: 1.6 }}>
+              Base {fmt(calc.base)}{calc.volPct ? ` (vol. −${pctText(calc.volPct)})` : ""}
+              {calc.usagePct ? ` · usage +${pctText(calc.usagePct)}` : ""}
+              {calc.exclPct ? ` · exclusivity +${pctText(calc.exclPct)}` : ""}
+              {calc.addons.map(a => ` · ${a.n} ${fmt(a.amt)}`).join("")}
+            </p>
+          )}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: TYPE.label.size, color: C.muted }}>
+              Line total: <strong style={{ color: calc ? C.black : C.light, fontFamily: SERIF, fontSize: TYPE.sectionHeading.size }}>{calc ? fmt(calc.amt) : "—"}</strong>
+            </span>
+            <B onClick={addItem} s={{ paddingLeft: 20, paddingRight: 20, opacity: calc ? 1 : 0.4, cursor: calc ? "pointer" : "default" as const }}>
+              + Add to Quote
+            </B>
+          </div>
         </div>
       </div>
 
@@ -473,17 +555,27 @@ export default function Calculator({
             ))}
           </div>
 
-          <PriceSummary
-            subtotal={subtotal}
-            grand={grand}
-            retOn={retOn}
-            retMo={retMo}
-            onRetToggle={() => setRetOn(v => !v)}
-            onRetMoChange={(n: number) => setRetMo(n)}
-            onReset={reset}
-            onPreview={openPreview}
-            isRev={isRev}
-          />
+          {!isAmend && (
+            <PriceSummary
+              subtotal={subtotal}
+              grand={grand}
+              retOn={retOn}
+              retMo={retMo}
+              onRetToggle={() => setRetOn(v => !v)}
+              onRetMoChange={(n: number) => setRetMo(n)}
+              onReset={reset}
+              onPreview={openPreview}
+              isRev={isRev}
+            />
+          )}
+          {isAmend && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "12px 16px", border: `1px solid ${C.rule}`, borderRadius: 2, marginBottom: 14 }}>
+              <span style={{ fontSize: TYPE.label.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>Amendment total</span>
+              <span style={{ fontFamily: SERIF, fontSize: TYPE.amount.size }}>{fmt(subtotal)}</span>
+            </div>
+          )}
+          {isAmend && <B onClick={openPreview} s={{ width: "100%" }}>Preview Amendment</B>}
+          {formErr && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "10px 0 0" }}>{formErr}</p>}
         </>
       ) : (
         <div style={{ textAlign: "center" as const, padding: "36px 0", borderTop: `1px solid ${C.rule}` }}>

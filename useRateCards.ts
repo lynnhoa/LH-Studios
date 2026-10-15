@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "./useSupabase";
 import { RC0 } from "./rateCards";
+import { normalizeCard, normalizeCards } from "./pricing";
 import { registerReloader } from "./saveStatus";
 import type { RateCards, RateCard, CategoryKey } from "./types";
 
@@ -36,7 +37,7 @@ function rowToCard(row: any): { key: CategoryKey; card: RateCard } {
 }
 
 export function useRateCards(userId: string | null): UseRateCardsReturn {
-  const [rc,      setRc]      = useState<RateCards>({ ...RC0 });
+  const [rc,      setRc]      = useState<RateCards>(() => normalizeCards(RC0));
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -53,7 +54,7 @@ export function useRateCards(userId: string | null): UseRateCardsReturn {
   // ── Fetch on mount / userId change ───────────────────────
   useEffect(() => {
     if (!userId) {
-      setRc({ ...RC0 });
+      setRc(normalizeCards(RC0));
       setLoading(false);
       return;
     }
@@ -95,7 +96,7 @@ export function useRateCards(userId: string | null): UseRateCardsReturn {
             .insert(seeds);
 
           if (seedError) setError(seedError.message);
-          setRc({ ...RC0 });
+          setRc(normalizeCards(RC0));
           setLoading(false);
           return;
         }
@@ -104,7 +105,7 @@ export function useRateCards(userId: string | null): UseRateCardsReturn {
         const built: Partial<RateCards> = {};
         for (const row of data) {
           const { key, card } = rowToCard(row);
-          built[key] = card;
+          built[key] = normalizeCard(card);   // section types, clean option labels (nothing is written)
         }
         setRc({ ...(built as RateCards), ...pending.current });
         setLoading(false);
@@ -158,8 +159,9 @@ export function useRateCards(userId: string | null): UseRateCardsReturn {
       if (!userId) return "Not authenticated";
 
       // Shown at once, saved after typing stops
-      setRc(prev => ({ ...prev, [key]: card }));
-      pending.current = { ...pending.current, [key]: card };
+      const clean = normalizeCard(card);
+      setRc(prev => ({ ...prev, [key]: clean }));
+      pending.current = { ...pending.current, [key]: clean };
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => { timer.current = null; flush(); }, 700);
       return null;

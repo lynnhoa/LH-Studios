@@ -15,7 +15,7 @@ interface ClientDetailProps {
   settings:         any;
   rc:               any;
   clientsHook:      any;
-  onGoToCalc:       (name: string) => void;
+  onGoToCalc:       (name: string, leadId?: string) => void;
   onRevise:         (pr: any, cl: any) => void;
   onAmend:          (pr: any, cl: any) => void;
   setSel:           (id: string | null) => void;

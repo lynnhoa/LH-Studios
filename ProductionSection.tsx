@@ -11,7 +11,7 @@
 
 import { C, TYPE, TINT } from "./constants";
 import { fmtD, today } from "./formatters";
-import { getWsCategory, getCatProgress } from "./wsHelpers";
+import { getWsCategory, getCatProgress, wsLines, wsItemIds } from "./wsHelpers";
 import { CatPill, Tick } from "./atoms";
 
 const GREEN_BG     = TINT.green;
@@ -35,19 +35,14 @@ export default function ProductionSection({ pr, clients, cl, upP, isMobile }: Pr
     const k = cat.toLowerCase();
     const base = { managerStatus: { ...ms, [k]: { ...(ms[k] || {}), [field]: true, [field + "Date"]: today() } } };
     if (field === "delivered") {
-      const skipD = ["usage","excl","rush","revision","whitelisting","aspect","raw footage","kill","pinned","link in bio"];
       const newWs   = { ...(pr.workspaceStatus || {}) };
       const newHist = { ...(pr.workspaceStatusHistory || {}) };
-      (pr.qd?.lines || []).forEach((ln: any, li: number) => {
-        if (!ln.name) return;
-        if (skipD.some((s: string) => ln.name.toLowerCase().includes(s))) return;
-        if (getWsCategory(ln) !== cat) return;
-        const qty = parseInt(ln.qty) || 1;
-        for (let q = 0; q < qty; q++) {
-          const id = `${pr.id}_ln${li}_q${q}`;
+      wsLines(pr).forEach(w => {
+        if (getWsCategory(w.line) !== cat) return;
+        wsItemIds(w).forEach(id => {
           newWs[id] = "Delivered";
           newHist[id] = [...((pr.workspaceStatusHistory || {})[id] || []), { status: "Delivered", date: today() }];
-        }
+        });
       });
       upP({ ...base, workspaceStatus: newWs, workspaceStatusHistory: newHist });
     } else {
@@ -55,10 +50,8 @@ export default function ProductionSection({ pr, clients, cl, upP, isMobile }: Pr
     }
   };
 
-  const skip = ["usage","excl","rush","revision","whitelisting","aspect","raw footage","kill","pinned","link in bio"];
-  const allLines = (pr.qd?.lines || [])
-    .map((ln: any, li: number) => ({ ...ln, _li: li }))
-    .filter((ln: any) => ln.name && !skip.some((s: string) => ln.name.toLowerCase().includes(s)));
+  // work lines (packages already expanded into their contents)
+  const allLines = wsLines(pr).map(w => ({ ...w.line, name: w.name, qty: w.qty, _key: w.key }));
 
   const chkBox = (checked: boolean, color: string, readOnly: boolean, onClick: () => void) => (
     <Tick on={checked} color={color} size={isMobile ? 22 : 18} disabled={readOnly && !checked} onClick={!readOnly && !checked ? onClick : undefined} />
@@ -91,17 +84,17 @@ export default function ProductionSection({ pr, clients, cl, upP, isMobile }: Pr
         const lineCircles = catLines.map((ln: any) => {
           const qty = parseInt(ln.qty) || 1;
           const filled = Array.from({ length: qty }, (_, q) => {
-            const id = `${pr.id}_ln${ln._li}_q${q}`;
+            const id = `${ln._key}_q${q}`;
             const st = (pr.workspaceStatus || {})[id] || "Not started";
             return ["Created","Reviewed","Delivered","Posted"].includes(st);
           });
           const postedAll = Array.from({ length: qty }, (_, q) => {
-            const id = `${pr.id}_ln${ln._li}_q${q}`;
+            const id = `${ln._key}_q${q}`;
             return (pr.workspaceStatus || {})[id] === "Posted";
           });
           const lastPostedDate = postedAll.every(Boolean) && postedAll.length > 0 ? (() => {
             let d = "";
-            for (let q = 0; q < qty; q++) { const id = `${pr.id}_ln${ln._li}_q${q}`; const sd = (pr.workspaceStatus || {})[id + "_date"]; if (sd && sd > d) d = sd; }
+            for (let q = 0; q < qty; q++) { const id = `${ln._key}_q${q}`; const sd = (pr.workspaceStatus || {})[id + "_date"]; if (sd && sd > d) d = sd; }
             return d;
           })() : null;
           return { ln, filled, qty, createdCount: filled.filter(Boolean).length, postedAll: postedAll.every(Boolean) && postedAll.length > 0, lastPostedDate };

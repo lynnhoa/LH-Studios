@@ -66,13 +66,14 @@ function ProjectLicenseTracker({ pr }: { pr: any }) {
 
 // ── Single expandable project row ─────────────────────────────
 function ProjectRow({
-  pr, clients, isMobile, isExpanded, onToggle, clientsHook, onRevise, onAmend, onGoToCalc, settings, onModalClosed,
+  pr, clients, isMobile, isExpanded, onToggle, clientsHook, onRevise, onAmend, onGoToCalc, settings, onModalClosed, rc,
 }: {
   pr: any; clients: any[]; isMobile: boolean; isExpanded: boolean;
   onToggle: () => void; clientsHook: any;
   onRevise: (pr: any, cl: any) => void;
   onAmend: (pr: any, cl: any) => void;
-  onGoToCalc: (name: string) => void;
+  onGoToCalc: (name: string, leadId?: string) => void;
+  rc?:        any;
   settings: any;
   onModalClosed: () => void;
 }) {
@@ -162,7 +163,7 @@ function ProjectRow({
     return (
       <RenewalModal
         p={renewT}
-        rc={{}}
+        rc={rc || {}}
         settings={settings}
         client={client}
         onClose={() => { setRenewT(null); onModalClosed(); }}
@@ -180,7 +181,7 @@ function ProjectRow({
       <RenewalModal
         mode="amend"
         p={amendT}
-        rc={{}}
+        rc={rc || {}}
         settings={settings}
         client={client}
         onClose={() => { setAmendT(null); onModalClosed(); }}
@@ -322,7 +323,7 @@ function ProjectRow({
           {/* 3. BUILD QUOTE */}
           {!pr.qd && (
             <div style={{ marginBottom: 12 }}>
-              <B s={{ fontSize: TYPE.micro.size, padding: "8px 14px", width: "100%" }} onClick={() => onGoToCalc(pr._cname)}>+ Create quote</B>
+              <B s={{ fontSize: TYPE.micro.size, padding: "8px 14px", width: "100%" }} onClick={() => onGoToCalc(pr._cname, pr.id)}>+ Create quote</B>
             </div>
           )}
 
@@ -457,7 +458,7 @@ interface ProjectsTabProps {
   clientsHook:      any;
   onRevise:         (pr: any, cl: any) => void;
   onAmend:          (pr: any, cl: any) => void;
-  onGoToCalc:       (name: string) => void;
+  onGoToCalc:       (name: string, leadId?: string) => void;
   pendingProjectQNo:string | null;
   onPendingClear:   () => void;
 }
@@ -575,6 +576,7 @@ export default function ProjectsTab({
             onRevise={onRevise}
             onAmend={onAmend}
             onGoToCalc={onGoToCalc}
+            rc={rc}
             settings={settings}
             onModalClosed={() => setScrollTrigger(t => t + 1)}
           />
@@ -603,6 +605,7 @@ export default function ProjectsTab({
               onRevise={onRevise}
               onAmend={onAmend}
               onGoToCalc={onGoToCalc}
+              rc={rc}
               settings={settings}
               onModalClosed={() => setScrollTrigger(t => t + 1)}
             />

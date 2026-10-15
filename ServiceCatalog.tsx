@@ -1,22 +1,47 @@
 // ─────────────────────────────────────────────────────────────
-// ServiceCatalog — single source of truth for pricing
-// Base tabs (Brand Collaboration / UGC / Editorial) + custom cards
-// Edit mode: inline item name, note, price, modifier, delete —
-// every change auto-saved to Supabase.
-// "Rate Card PDF" opens the A4 preview (EN/DE, Save PDF) for the
-// current tab. "+ Add Card" builds a custom card from catalog items.
+// ServiceCatalog — the only price source for the whole app.
+// Cards: Brand Collab / UGC / Editorial / Hotels + custom cards.
+// Every section has a type (deliverables, packages, usage rights,
+// exclusivity, add-ons, info). Usage + exclusivity percentages are
+// edited here once and used by the Calculator, the rate-card PDF
+// and the renewal builder. Edits save automatically.
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE } from "./constants";
+import { C, SANS, SERIF, TYPE, Z, catInfo } from "./constants";
 import { uid } from "./formatters";
-import { I, B, Lbl, Pill, ConfirmDialog } from "./atoms";
+import { I, S, B, Lbl, Pill, Tick, ConfirmDialog } from "./atoms";
 import { SETTINGS_DEFAULT } from "./rateCards";
 import { exportPDF } from "./PDFExport";
+import {
+  normalizeCard, sectionKind, KIND_LABEL, optName, pctText, addonPriceText, BASE_CARD_KEYS,
+} from "./pricing";
+import type { SectionKind } from "./pricing";
+
+const cardTitle = (rc: any, k: string) => BASE_CARD_KEYS.includes(k) ? catInfo(k).label : (rc?.[k]?.label || k);
+const cleanSecT = (t: string) => String(t || "").replace(/\s*[—–-]\s*added to base rate.*$/i, "").replace(/\s*[—–-]\s*\d+%[^"<]*/g, "").replace(/^Volume Discount\s*[&]\s*/i, "").trim();
+const money = (p: any) => `€ ${Number(p).toLocaleString("de-DE")}`;
+
+// Rows a section shows (usage / exclusivity come from the options)
+function sectionRows(card: any, sec: any): { key: string; n: string; note?: string; price: string }[] {
+  const kind = sectionKind(sec);
+  if (kind === "usage" || kind === "exclusivity") {
+    const opts = (kind === "usage" ? card.usage : card.excl) || [];
+    return opts.filter((o: any) => !o.sentinel).map((o: any, i: number) => ({
+      key: `o${i}`, n: optName(o.l), price: Number(o.pct) > 0 ? `+${pctText(o.pct)}` : "included",
+    }));
+  }
+  return (sec.items || []).map((it: any, i: number) => ({
+    key: it.id || `i${i}`,
+    n: it.n,
+    note: [it.note, kind === "packages" && it.includes?.length ? `Includes ${it.includes.map((x: any) => `${x.qty || 1}× ${x.n}`).join(", ")}` : ""].filter(Boolean).join(" · "),
+    price: kind === "addons" ? addonPriceText(it) : it.p !== null && it.p !== undefined ? money(it.p) : (it.m || ""),
+  }));
+}
 
 // ── Rate card A4 content ──────────────────────────────────────
-function RCContent({ card, lang, cleanSecT, rcSecGuards }: any) {
+function RCContent({ card, lang, rcSecGuards }: any) {
   const l = lang === "de";
   return (
     <div style={{ padding: "90px 62px 130px", fontSize: 9.5, lineHeight: 1.5, fontFamily: SANS, color: C.black, background: C.bg }}>
@@ -24,391 +49,307 @@ function RCContent({ card, lang, cleanSecT, rcSecGuards }: any) {
         <h1 style={{ fontFamily: SERIF, fontSize: 19, fontWeight: "normal", margin: "0 0 4px" }}>{l ? "Preisliste" : "Rate Card"}</h1>
         <p style={{ fontSize: 7.5, color: C.muted, margin: 0 }}>{card.sub}</p>
       </div>
-      {(card.sections || []).map((sec: any, si: number) => (
-        <div key={si} data-rcsec={si} style={{ marginBottom: 14, paddingTop: rcSecGuards?.[si] || 0 }}>
-          <p style={{ fontSize: 6.5, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: C.muted, margin: "0 0 3px", paddingBottom: "3px", borderBottom: `1px solid ${C.rule}` }}>
-            {cleanSecT(sec.t)}
-          </p>
-          {sec.items.map((it: any) => (
-            <div key={it.id} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${C.rule}` }}>
-              <div>
-                <span style={{ fontSize: 8.5 }}>{it.n}</span>
-                {it.note && <span style={{ fontSize: 7, color: C.light, display: "block" }}>{it.note}</span>}
+      {(card.sections || []).map((sec: any, si: number) => {
+        const rows = sectionRows(card, sec);
+        if (!rows.length) return null;
+        return (
+          <div key={si} data-rcsec={si} style={{ marginBottom: 14, paddingTop: rcSecGuards?.[si] || 0 }}>
+            <p style={{ fontSize: 6.5, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: C.muted, margin: "0 0 3px", paddingBottom: "3px", borderBottom: `1px solid ${C.rule}` }}>
+              {cleanSecT(sec.t)}{sectionKind(sec) === "usage" || sectionKind(sec) === "exclusivity" ? (l ? " — auf den Grundpreis" : " — added to base rate") : ""}
+            </p>
+            {rows.map(r => (
+              <div key={r.key} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${C.rule}` }}>
+                <div>
+                  <span style={{ fontSize: 8.5 }}>{r.n}</span>
+                  {r.note && <span style={{ fontSize: 7, color: C.light, display: "block" }}>{r.note}</span>}
+                </div>
+                <span style={{ fontFamily: SERIF, fontSize: 8.5, whiteSpace: "nowrap" as const, marginLeft: 12 }}>{r.price}</span>
               </div>
-              <span style={{ fontFamily: SERIF, fontSize: 8.5, whiteSpace: "nowrap" as const, marginLeft: 12 }}>
-                {it.p != null ? `€ ${it.p.toLocaleString("de-DE")}` : it.m || ""}
-              </span>
-            </div>
-          ))}
-        </div>
-      ))}
+            ))}
+          </div>
+        );
+      })}
       {card.fine && <p style={{ fontSize: 7.5, color: C.muted, lineHeight: 1.7, marginTop: 14 }}>{card.fine}</p>}
     </div>
   );
 }
 
-// ── Rate card PDF preview modal ───────────────────────────────
-// Desktop / iPad (≥768px): edit panel + live A4 preview side by side.
-// Mobile (<768px): one full-width pane with a Preview | Edit toggle.
-// Opens in Preview so the card can be checked before saving.
-function RateCardPreview({ card, settings, onSave, onClose }: any) {
-  const init  = () => JSON.parse(JSON.stringify(card));
-  const [hs,        setHs]        = useState({ hist: [init()], idx: 0 });
-  const [pdfLang,   setPdfLang]   = useState("en");
-  const [downloading, setDownloading] = useState(false);
-  const [docHeight, setDocHeight] = useState(841);
-  const [winW,      setWinW]      = useState(() => window.innerWidth);
-  const [view,      setView]      = useState<"preview" | "edit">("preview");
-  const [rcSecGuards, setRcSecGuards] = useState<number[]>([]);
-  const [savedClean,  setSavedClean]  = useState(false);
-  const [flash,       setFlash]       = useState(false);
-  const [confirmClose, setConfirmClose] = useState(false);
+// ── A4 pages with header / footer (preview + PDF capture) ─────
+function RCPages({ card, lang, settings, scale = 1 }: any) {
+  const PAGE_H = 841;
   const measureRef = useRef<HTMLDivElement>(null);
-
-  const staged   = hs.hist[hs.idx];
-  const canUndo  = hs.idx > 0;
-  const canRedo  = hs.idx < hs.hist.length - 1;
-  const PAGE_H   = 841;
-  const CHROME_H = 220;
-  const numPages = docHeight > PAGE_H + CHROME_H ? Math.ceil(docHeight / PAGE_H) : 1;
-  const isM      = winW < 768;
-  const pageScale = isM ? Math.min(1, (winW - 32) / 595) : 1;
+  const [docHeight, setDocHeight] = useState(PAGE_H);
+  const [guards, setGuards] = useState<number[]>([]);
   const sett = { ...SETTINGS_DEFAULT, ...(settings || {}) };
 
   useEffect(() => {
-    const fn = () => setWinW(window.innerWidth);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
-
-  useEffect(() => {
-    setRcSecGuards([]);
+    setGuards([]);
     const el = measureRef.current;
     if (!el) return;
     const calc = () => {
       const h = el.offsetHeight;
       if (h > 100) setDocHeight(h);
       const secEls = Array.from(el.querySelectorAll("[data-rcsec]")) as HTMLElement[];
-      if (secEls.length > 0) {
-        const newGuards = Array(secEls.length).fill(0);
-        const guardedPages = new Set<number>();
-        secEls.forEach(secEl => {
-          const idx    = parseInt(secEl.getAttribute("data-rcsec") || "0", 10);
-          const bottom = secEl.offsetTop + secEl.offsetHeight;
-          const pageNum = Math.floor(secEl.offsetTop / PAGE_H);
-          const bottomInPage = bottom - pageNum * PAGE_H;
-          if (bottomInPage > PAGE_H - 80 && !guardedPages.has(pageNum)) {
-            newGuards[idx] = Math.max(0, PAGE_H + 52 - secEl.offsetTop);
-            guardedPages.add(pageNum);
-          }
-        });
-        setRcSecGuards(prev => {
-          if (newGuards.length !== prev.length) return newGuards;
-          const next = newGuards.map((v, i) => Math.max(v, prev[i]));
-          return next.some((v, i) => v !== prev[i]) ? next : prev;
-        });
-      }
+      if (!secEls.length) return;
+      const next: number[] = [];
+      const guarded = new Set<number>();
+      secEls.forEach(secEl => {
+        const idx = parseInt(secEl.getAttribute("data-rcsec") || "0", 10);
+        const page = Math.floor(secEl.offsetTop / PAGE_H);
+        const bottomInPage = secEl.offsetTop + secEl.offsetHeight - page * PAGE_H;
+        if (bottomInPage > PAGE_H - 80 && !guarded.has(page)) { next[idx] = Math.max(0, PAGE_H + 52 - secEl.offsetTop); guarded.add(page); }
+      });
+      setGuards(prev => {
+        const merged = next.map((v, i) => Math.max(v || 0, prev[i] || 0));
+        return merged.length === prev.length && merged.every((v, i) => v === prev[i]) ? prev : merged;
+      });
     };
     calc();
+    if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(calc);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [staged, pdfLang]);
+  }, [card, lang]);
 
-  const setStaged = (fn: any) => {
-    setSavedClean(false);
-    setHs(prev => {
-      const curr = prev.hist[prev.idx];
-      const newD = typeof fn === "function" ? fn(curr) : fn;
-      const next = [...prev.hist.slice(0, prev.idx + 1), JSON.parse(JSON.stringify(newD))];
-      return { hist: next, idx: next.length - 1 };
-    });
-  };
-
-  const undo = () => { const ni = Math.max(0, hs.idx - 1); if (ni !== hs.idx) setHs(p => ({ ...p, idx: ni })); };
-  const redo = () => { const ni = Math.min(hs.hist.length - 1, hs.idx + 1); if (ni !== hs.idx) setHs(p => ({ ...p, idx: ni })); };
-
-  const cleanSecT = (t: string) => t.replace(/\s*[—–-]\s*\d+%[^"<]*/g, "").replace(/^Volume Discount\s*[&]\s*/i, "").trim();
-
-  const download = () => exportPDF({
-    preview: { ...staged, ctype: staged.label || "Rate Card" },
-    type:    "ratecard",
-    onStart: () => setDownloading(true),
-    onDone:  () => setDownloading(false),
-  });
-
-  const doSave = () => { onSave(staged); setSavedClean(true); setFlash(true); setTimeout(() => setFlash(false), 2500); };
-
-  const tryClose = () => {
-    if (savedClean) { onClose(); return; }
-    const isDirty = JSON.stringify(staged) !== JSON.stringify(card);
-    isDirty ? setConfirmClose(true) : onClose();
-  };
-
-  // ── shared building blocks ──────────────────────────────────
-  const undoRedoBtn = (dir: "undo" | "redo") => {
-    const can = dir === "undo" ? canUndo : canRedo;
-    return (
-      <button
-        onClick={dir === "undo" ? undo : redo}
-        disabled={!can}
-        style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: `1px solid ${can ? C.rule : "transparent"}`, borderRadius: 2, cursor: can ? "pointer" : "default", color: can ? C.black : C.light, fontSize: 15, flexShrink: 0 }}
-      >{dir === "undo" ? "←" : "→"}</button>
-    );
-  };
-
-  const closeBtn = (
-    <button
-      onClick={tryClose}
-      style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 22, flexShrink: 0 }}
-    >✕</button>
-  );
-
-  const segBtn = (v: "preview" | "edit", label: string) => (
-    <button
-      onClick={() => setView(v)}
-      style={{ flex: 1, minHeight: 38, border: `1px solid ${view === v ? C.black : C.rule}`, background: view === v ? C.black : "transparent", color: view === v ? C.white : C.muted, borderRadius: 2, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.10em", textTransform: "uppercase" as const }}
-    >{label}</button>
-  );
-
-  const editForm = (
-    <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px", WebkitOverflowScrolling: "touch" as any }}>
-      <Lbl>Card Label</Lbl>
-      <I value={staged.label || ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, label: e.target.value }))} s={{ marginBottom: 8 }} />
-      <Lbl>Subtitle</Lbl>
-      <I value={staged.sub || ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, sub: e.target.value }))} s={{ marginBottom: 10 }} />
-      {(staged.sections || []).map((sec: any, si: number) => (
-        <div key={si} style={{ marginBottom: 10, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "8px 10px", background: C.white }}>
-          <I value={sec.t} onChange={(e: any) => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, t: e.target.value }) }))} s={{ marginBottom: 6, fontWeight: "500" }} />
-          {sec.items.map((it: any) => (
-            <div key={it.id} style={{ display: "flex", gap: 5, alignItems: "center", marginBottom: 4 }}>
-              <I value={it.n} onChange={(e: any) => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, items: s.items.map((x: any) => x.id !== it.id ? x : { ...x, n: e.target.value }) }) }))} s={{ flex: 2 }} />
-              <I type="number" value={it.p ?? ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, items: s.items.map((x: any) => x.id !== it.id ? x : { ...x, p: e.target.value === "" ? null : parseFloat(e.target.value) || 0 }) }) }))} s={{ width: 72 }} placeholder="€" />
-              <button onClick={() => setStaged((p: any) => ({ ...p, sections: p.sections.map((s: any, i: number) => i !== si ? s : { ...s, items: s.items.filter((x: any) => x.id !== it.id) }) }))} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, padding: "0 2px" }}>✕</button>
-            </div>
-          ))}
-        </div>
-      ))}
-      <Lbl>Fine Print</Lbl>
-      <textarea value={staged.fine || ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, fine: e.target.value }))}
-        style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: 16, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 64 }} />
-    </div>
-  );
-
-  const saveBar = (
-    <div style={{ padding: isM ? "10px 16px" : "12px 18px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>
-      {flash && <p style={{ fontSize: TYPE.micro.size, color: C.green, margin: "0 0 7px", letterSpacing: "0.06em" }}>Saved ✓</p>}
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        {isM && undoRedoBtn("undo")}
-        {isM && undoRedoBtn("redo")}
-        <B onClick={doSave} s={{ flex: 1, textAlign: "center" as const }}>Save</B>
+  const numPages = docHeight > PAGE_H + 220 ? Math.ceil(docHeight / PAGE_H) : 1;
+  return (
+    <>
+      <div ref={measureRef} style={{ position: "fixed", top: 0, left: -9999, width: 595, visibility: "hidden", pointerEvents: "none", zIndex: -1 }}>
+        <RCContent card={card} lang={lang} rcSecGuards={guards} />
       </div>
-    </div>
-  );
-
-  const previewPages = (
-    <div style={{ flex: 1, background: "#888", overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isM ? "20px 12px" : "32px 28px", gap: isM ? 16 : 28, WebkitOverflowScrolling: "touch" as any }}>
       {Array.from({ length: numPages }, (_, i) => (
-        <div key={i} style={{ width: 595 * pageScale, height: PAGE_H * pageScale, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 24px rgba(0,0,0,0.32)" }}>
-          <div data-pdf-page="true" style={{ width: 595, height: PAGE_H, overflow: "hidden", background: C.bg, position: "relative", transform: pageScale < 1 ? `scale(${pageScale})` : "none", transformOrigin: "top left" }}>
+        <div key={i} style={{ width: 595 * scale, height: PAGE_H * scale, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 24px rgba(0,0,0,0.32)" }}>
+          <div data-pdf-page="true" style={{ width: 595, height: PAGE_H, overflow: "hidden", background: C.bg, position: "relative", transform: scale < 1 ? `scale(${scale})` : "none", transformOrigin: "top left" }}>
             <div style={{ position: "absolute", top: -i * PAGE_H, left: 0, width: 595 }}>
-              <RCContent card={staged} lang={pdfLang} cleanSecT={cleanSecT} rcSecGuards={rcSecGuards} />
+              <RCContent card={card} lang={lang} rcSecGuards={guards} />
             </div>
             <div style={{ position: "absolute", bottom: 59, left: 0, right: 0, height: 28, background: C.bg, zIndex: 2, pointerEvents: "none" }} />
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, background: C.bg, zIndex: 3, borderBottom: `1px solid ${C.rule}` }}>
               <div style={{ padding: "13px 62px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 6, letterSpacing: "0.2em", color: C.light, textTransform: "uppercase" as const }}>{sett.company || sett.name || "Lynn Hoa"}</span>
-                <span style={{ fontSize: 6, letterSpacing: "0.2em", color: C.light, textTransform: "uppercase" as const }}>{staged.label || "Rate Card"}</span>
+                <span style={{ fontSize: 6, letterSpacing: "0.2em", color: C.light, textTransform: "uppercase" as const }}>{card.label || "Rate Card"}</span>
               </div>
             </div>
             <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: C.bg, zIndex: 3, borderTop: `1px solid ${C.rule}` }}>
               <div style={{ padding: "26px 62px 22px", fontSize: 7, color: C.muted, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>{[sett.email, sett.website].filter(Boolean).join(" · ") || "your@email.com · yourwebsite.com"}</span>
+                <span>{[sett.email, sett.website].filter(Boolean).join(" · ")}</span>
                 {numPages > 1 && <span style={{ letterSpacing: "0.04em", color: C.light }}>{i + 1}</span>}
               </div>
             </div>
           </div>
         </div>
       ))}
-    </div>
+    </>
   );
+}
+
+// ── Full-screen shell: panel left, live A4 preview right ──────
+// (one level: everything about a card happens in this one window)
+function CardShell({ title, card, settings, panel, footer, onClose }: any) {
+  const [lang, setLang] = useState("en");
+  const [winW, setWinW] = useState(() => window.innerWidth);
+  const [view, setView] = useState<"edit" | "preview">("edit");
+  const [busy, setBusy] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const fn = () => setWinW(window.innerWidth);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+  const isM = winW < 768;
+  const scale = isM ? Math.min(1, (winW - 32) / 595) : 1;
+  const download = () => exportPDF({
+    preview: { ...card, ctype: card.label || "Rate Card" }, type: "ratecard",
+    root: previewRef.current || undefined, filename: `Rate Card – ${card.label || "Card"}`,
+    onStart: () => setBusy(true), onDone: () => setBusy(false),
+  } as any);
 
   return createPortal(
-    <>
-      {confirmClose && (
-        <ConfirmDialog
-          title="Save before closing?" text="Changes will be lost if you don't save."
-          okLabel="Yes, save" cancelLabel="No, discard"
-          onOk={() => { doSave(); setConfirmClose(false); onClose(); }}
-          onCancel={() => { setConfirmClose(false); onClose(); }}
-        />
-      )}
-
-      {/* Measure element (hidden) */}
-      <div ref={measureRef} style={{ position: "fixed", top: 0, left: -9999, width: 595, visibility: "hidden", pointerEvents: "none", zIndex: -1 }}>
-        <RCContent card={staged} lang={pdfLang} cleanSecT={cleanSecT} rcSecGuards={rcSecGuards} />
-      </div>
-
-      <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: 9999, display: "flex", flexDirection: "column", fontFamily: SANS }}>
-        {/* ── Toolbar ── */}
-        <div style={{ borderBottom: `1px solid ${C.rule}`, flexShrink: 0 }}>
-          <div style={{ height: 48, display: "flex", alignItems: "center", padding: "0 12px", gap: 6 }}>
-            {isM ? (
-              <>
-                {closeBtn}
-                <div style={{ width: 1, height: 20, background: C.rule, margin: "0 2px" }} />
-                <Pill on={pdfLang === "en"} onClick={() => setPdfLang("en")}>EN</Pill>
-                <Pill on={pdfLang === "de"} onClick={() => setPdfLang("de")}>DE</Pill>
-                <div style={{ flex: 1 }} />
-                <B onClick={download} s={{ opacity: downloading ? 0.5 : 1 }}>{downloading ? "Saving…" : "Save PDF"}</B>
-              </>
-            ) : (
-              <>
-                {undoRedoBtn("undo")}
-                {undoRedoBtn("redo")}
-                <div style={{ width: 1, height: 20, background: C.rule, margin: "0 4px" }} />
-                <Pill on={pdfLang === "en"} onClick={() => setPdfLang("en")}>EN</Pill>
-                <Pill on={pdfLang === "de"} onClick={() => setPdfLang("de")}>DE</Pill>
-                <div style={{ flex: 1 }} />
-                <B onClick={download} s={{ opacity: downloading ? 0.5 : 1 }}>{downloading ? "Saving…" : "Save PDF"}</B>
-                {closeBtn}
-              </>
-            )}
+    <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
+      <div style={{ borderBottom: `1px solid ${C.rule}`, flexShrink: 0 }}>
+        <div style={{ height: 52, display: "flex", alignItems: "center", padding: "0 12px", gap: 8 }}>
+          <button onClick={onClose} aria-label="Close" style={{ width: 36, height: 36, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: TYPE.amount.size }}>✕</button>
+          <span style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{title}</span>
+          <div style={{ flex: 1 }} />
+          <Pill on={lang === "en"} onClick={() => setLang("en")}>EN</Pill>
+          <Pill on={lang === "de"} onClick={() => setLang("de")}>DE</Pill>
+          <B onClick={download} s={{ opacity: busy ? 0.5 : 1, minHeight: 36 }}>{busy ? "Saving…" : "Save PDF"}</B>
+        </div>
+        {isM && (
+          <div style={{ display: "flex", gap: 6, padding: "0 12px 10px" }}>
+            <Pill on={view === "edit"} onClick={() => setView("edit")}>Edit</Pill>
+            <Pill on={view === "preview"} onClick={() => setView("preview")}>Preview</Pill>
           </div>
-          {isM && (
-            <div style={{ display: "flex", gap: 6, padding: "0 12px 10px" }}>
-              {segBtn("preview", "Preview")}
-              {segBtn("edit", "Edit")}
-            </div>
-          )}
-        </div>
-
-        {/* ── Body ── */}
-        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-          {(!isM || view === "edit") && (
-            <div style={{ width: isM ? "100%" : 320, flexShrink: 0, display: "flex", flexDirection: "column", borderRight: isM ? "none" : `1px solid ${C.rule}` }}>
-              {editForm}
-              {saveBar}
-            </div>
-          )}
-          {(!isM || view === "preview") && previewPages}
-        </div>
+        )}
       </div>
-    </>,
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        {(!isM || view === "edit") && (
+          <div style={{ width: isM ? "100%" : 380, flexShrink: 0, display: "flex", flexDirection: "column", borderRight: isM ? "none" : `1px solid ${C.rule}` }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px", WebkitOverflowScrolling: "touch" as any }}>{panel}</div>
+            {footer && <div style={{ padding: "12px 18px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>{footer}</div>}
+          </div>
+        )}
+        {(!isM || view === "preview") && (
+          <div ref={previewRef} style={{ flex: 1, background: "#888", overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isM ? "20px 12px" : "32px 28px", gap: isM ? 16 : 28 }}>
+            <RCPages card={card} lang={lang} settings={settings} scale={scale} />
+          </div>
+        )}
+      </div>
+    </div>,
     document.body
   );
 }
 
-// ── Add Rate Card modal ───────────────────────────────────────
-function AddRateCardModal({ rc, onSave, onClose }: any) {
-  const CAT_KEYS  = ["influencer","ugc","editorial"];
-  const CAT_LABEL: Record<string,string> = { influencer:"Brand Collaboration", ugc:"UGC", editorial:"Editorial" };
-  const [baseCat,     setBaseCat]     = useState<string | null>(null);
-  const [customName,  setCustomName]  = useState("");
-  const [sections,    setSections]    = useState<any[]>([]);
-  const [fine,        setFine]        = useState("");
-  const [showPreview, setShowPreview] = useState(false);
+// ── Rate Card PDF (label, subtitle, fine print + live preview) ─
+function RateCardPreview({ card, settings, onSave, onClose }: any) {
+  const [staged, setStaged] = useState(() => JSON.parse(JSON.stringify(card)));
+  const [askClose, setAskClose] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const dirty = JSON.stringify(staged) !== JSON.stringify(card);
+  const save = () => { onSave(staged); setFlash(true); setTimeout(() => setFlash(false), 1800); };
+  const close = () => (dirty && !flash ? setAskClose(true) : onClose());
+  return (
+    <>
+      {askClose && (
+        <ConfirmDialog title="Save before closing?" text="Changes will be lost if you don't save." okLabel="Yes, save" cancelLabel="No, discard"
+          onOk={() => { onSave(staged); setAskClose(false); onClose(); }} onCancel={() => { setAskClose(false); onClose(); }} />
+      )}
+      <CardShell
+        title={`Rate Card PDF — ${staged.label || ""}`}
+        card={staged}
+        settings={settings}
+        onClose={close}
+        panel={
+          <>
+            <Lbl>Card Label</Lbl>
+            <I value={staged.label || ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, label: e.target.value }))} s={{ marginBottom: 10 }} />
+            <Lbl>Subtitle</Lbl>
+            <I value={staged.sub || ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, sub: e.target.value }))} s={{ marginBottom: 10 }} />
+            <Lbl>Fine Print</Lbl>
+            <textarea value={staged.fine || ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, fine: e.target.value }))}
+              style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: TYPE.sectionHeading.size, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 96 }} />
+            <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "12px 0 0", lineHeight: 1.6 }}>Items, prices and percentages are edited in the catalog (Edit).</p>
+          </>
+        }
+        footer={
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {flash && <span style={{ fontSize: TYPE.label.size, color: C.green }}>Saved ✓</span>}
+            <div style={{ flex: 1 }} />
+            <B onClick={save} s={{ opacity: dirty ? 1 : 0.5 }}>Save</B>
+          </div>
+        }
+      />
+    </>
+  );
+}
 
-  const allItems = CAT_KEYS.flatMap(k => (rc[k]?.sections || []).flatMap((sec: any) => sec.items.map((it: any) => ({ ...it, _cat: k }))));
-  const catItems = (cat: string) => cat === "other" ? allItems : allItems.filter((it: any) => it._cat === cat);
+// ── Add Card (one window: builder + live preview) ─────────────
+function AddCardModal({ rc, settings, onSave, onClose }: any) {
+  const [name,    setName]    = useState("");
+  const [base,    setBase]    = useState<string>("");     // "" = empty card
+  const [card,    setCard]    = useState<any>(() => normalizeCard({ label: "", sub: "", sections: [], fine: "", usage: rc.influencer?.usage || [], excl: rc.influencer?.excl || [] }));
+  const [err,     setErr]     = useState<string | null>(null);
+  const [askClose, setAskClose] = useState(false);
+  const allKeys = Object.keys(rc || {});
 
-  const initBuilder = (cat: string) => {
-    setBaseCat(cat);
-    const headings: Record<string,string[]> = {
-      influencer: ["01 — Brand Collaboration","02 — Packages","03 — Usage Rights","04 — Add-ons"],
-      ugc:        ["01 — UGC Creation","02 — Packages","03 — Usage Rights","04 — Add-ons"],
-      editorial:  ["01 — Editorial","02 — Packages","03 — Usage Rights","04 — Add-ons"],
-      other:      ["01 — Services","02 — Packages","03 — Usage Rights","04 — Add-ons"],
-    };
-    setSections((headings[cat] || headings.other).map(h => ({ id: uid(), t: h, items: [] })));
-    setFine(rc[cat]?.fine || rc.influencer?.fine || "");
+  // every item of a type across all cards, for "+ Add item"
+  const library = (kind: SectionKind) => {
+    const seen = new Set<string>();
+    return allKeys.flatMap(k => (rc[k]?.sections || [])
+      .filter((s: any) => sectionKind(s) === kind)
+      .flatMap((s: any) => (s.items || []).map((it: any) => ({ ...it, _from: cardTitle(rc, k) }))))
+      .filter((it: any) => { const key = `${it.n}|${it.p}|${it.pct}`; if (seen.has(key)) return false; seen.add(key); return true; });
   };
 
-  const label    = baseCat === "other" ? (customName || "Custom") : CAT_LABEL[baseCat || ""] || "";
-  const catKey   = baseCat === "other" ? (customName.toLowerCase().replace(/\s+/g,"_") || "custom") : (baseCat || "custom");
-  const builtCard = { label, sub: rc[baseCat || ""]?.sub || label, sections, fine, usage: rc[baseCat || ""]?.usage || rc.influencer?.usage || [], excl: rc[baseCat || ""]?.excl || rc.influencer?.excl || [] };
+  const startFrom = (k: string) => {
+    setBase(k);
+    if (!k) { setCard((c: any) => normalizeCard({ ...c, sections: [], fine: "" })); return; }
+    const src = JSON.parse(JSON.stringify(rc[k]));
+    setCard((c: any) => normalizeCard({
+      ...src, label: c.label, sub: c.sub || src.sub,
+      sections: (src.sections || []).map((s: any) => ({ ...s, id: uid(), items: (s.items || []).map((it: any) => ({ ...it, id: uid() })) })),
+    }));
+  };
 
-  if (showPreview) return <RateCardPreview card={builtCard} settings={null} onSave={(saved: any) => { onSave(catKey, saved); }} onClose={() => setShowPreview(false)} />;
+  const upSec = (si: number, fn: (s: any) => any) => setCard((c: any) => ({ ...c, sections: c.sections.map((s: any, i: number) => i === si ? fn(s) : s) }));
+  const display = { ...card, label: name || "New card", sub: card.sub || name };
+
+  const save = () => {
+    const label = name.trim();
+    if (!label) { setErr("Give the card a name."); return; }
+    if (!card.sections.some((s: any) => ["deliverables", "packages"].includes(sectionKind(s)) && (s.items || []).length)) {
+      setErr("Add at least one deliverable or package."); return;
+    }
+    // always a NEW card — base cards are never overwritten
+    const slug = label.toLowerCase().normalize("NFKD").replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "") || "card";
+    let key = `custom-${slug}`;
+    for (let n = 2; rc[key] || BASE_CARD_KEYS.includes(key); n++) key = `custom-${slug}-${n}`;
+    onSave(key, { ...card, label, sub: card.sub || label });
+  };
+
+  const panel = (
+    <>
+      <Lbl>Card name</Lbl>
+      <I value={name} onChange={(e: any) => { setName(e.target.value); setErr(null); }} placeholder="e.g. Campaign Bundle" s={{ marginBottom: 12 }} />
+      <Lbl>Start from</Lbl>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 14 }}>
+        <Pill on={base === ""} onClick={() => startFrom("")}>Empty</Pill>
+        {allKeys.map(k => <Pill key={k} on={base === k} onClick={() => startFrom(k)}>{cardTitle(rc, k)}</Pill>)}
+      </div>
+      {card.sections.map((sec: any, si: number) => {
+        const kind = sectionKind(sec);
+        const optionKind = kind === "usage" || kind === "exclusivity";
+        const lib = optionKind ? [] : library(kind).filter((it: any) => !(sec.items || []).some((x: any) => x.n === it.n && x.p === it.p));
+        return (
+          <div key={sec.id || si} style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "10px 12px", marginBottom: 10, background: C.white }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
+              <I value={sec.t} onChange={(e: any) => upSec(si, s => ({ ...s, t: e.target.value }))} s={{ flex: 1 }} />
+              <button onClick={() => setCard((c: any) => ({ ...c, sections: c.sections.filter((_: any, i: number) => i !== si) }))} title="Remove section" style={{ background: "none", border: "none", cursor: "pointer", color: C.red, fontSize: TYPE.body.size, minWidth: 32, minHeight: 32 }}>✕</button>
+            </div>
+            <p style={{ fontSize: TYPE.micro.size, color: C.light, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 6px" }}>{KIND_LABEL[kind]}</p>
+            {optionKind ? (
+              <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: 0 }}>Percentages come from the card's {kind === "usage" ? "usage" : "exclusivity"} options (edit them after saving).</p>
+            ) : (sec.items || []).map((it: any) => (
+              <div key={it.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
+                <span style={{ fontSize: TYPE.label.size }}>{it.n}</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: TYPE.label.size, color: C.muted, fontFamily: SERIF }}>{kind === "addons" ? addonPriceText(it) : it.p != null ? money(it.p) : it.m || ""}</span>
+                  <button onClick={() => upSec(si, s => ({ ...s, items: s.items.filter((x: any) => x.id !== it.id) }))} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: TYPE.label.size, minWidth: 28, minHeight: 28 }}>✕</button>
+                </span>
+              </div>
+            ))}
+            {lib.length > 0 && (
+              <S value="" onChange={(e: any) => { const it = lib.find((x: any) => `${x._from}|${x.id}` === e.target.value); if (it) { const { _from, ...clean } = it; upSec(si, s => ({ ...s, items: [...(s.items || []), { ...clean, id: uid() }] })); } }} s={{ marginTop: 8 }}>
+                <option value="">+ Add item…</option>
+                {lib.map((it: any) => <option key={`${it._from}|${it.id}`} value={`${it._from}|${it.id}`}>{it.n}{it.p != null ? ` — € ${it.p}` : ""} · {it._from}</option>)}
+              </S>
+            )}
+          </div>
+        );
+      })}
+      <S value="" onChange={(e: any) => { const kind = e.target.value as SectionKind; if (kind) setCard((c: any) => ({ ...c, sections: [...c.sections, { id: uid(), t: KIND_LABEL[kind], kind, items: [] }] })); }}>
+        <option value="">+ Add section…</option>
+        {(Object.keys(KIND_LABEL) as SectionKind[]).map(k => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+      </S>
+      {err && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "10px 0 0" }}>{err}</p>}
+    </>
+  );
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{ background: C.bg, width: "100%", maxWidth: 600, borderRadius: 2, padding: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.18)", maxHeight: "92vh", overflowY: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h3 style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, fontWeight: "normal", margin: 0 }}>Add Rate Card</h3>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: C.muted }}>✕</button>
-        </div>
-
-        {!baseCat ? (
-          <>
-            <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 14px" }}>Choose a base category or start custom:</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-              {CAT_KEYS.map(k => (
-                <button key={k} onClick={() => initBuilder(k)}
-                  style={{ padding: "14px 12px", border: `1px solid ${C.rule}`, borderRadius: 2, background: C.white, cursor: "pointer", fontFamily: SANS, textAlign: "left" as const }}>
-                  <p style={{ fontSize: TYPE.subtext.size, color: C.black, margin: "0 0 3px", fontWeight: "500" }}>{CAT_LABEL[k]}</p>
-                  <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: 0 }}>{rc[k]?.sections?.length || 0} sections · {(rc[k]?.sections || []).reduce((s: number, sec: any) => s + sec.items.length, 0)} items</p>
-                </button>
-              ))}
-              <button onClick={() => initBuilder("other")}
-                style={{ padding: "14px 12px", border: `1px solid ${C.rule}`, borderRadius: 2, background: C.white, cursor: "pointer", fontFamily: SANS, textAlign: "left" as const }}>
-                <p style={{ fontSize: TYPE.subtext.size, color: C.black, margin: "0 0 3px", fontWeight: "500" }}>Custom / Other</p>
-                <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: 0 }}>Pick from all categories</p>
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            {baseCat === "other" && (
-              <div style={{ marginBottom: 12 }}>
-                <Lbl>Card Name</Lbl>
-                <I value={customName} onChange={(e: any) => setCustomName(e.target.value)} placeholder="e.g. Hotels, Campaign Bundle…" />
-              </div>
-            )}
-            {sections.map((sec, si) => {
-              const available = catItems(baseCat).filter((it: any) => !sec.items.find((s: any) => s.id === it.id));
-              return (
-                <div key={sec.id} style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "11px 12px", marginBottom: 10, background: C.white }}>
-                  <div style={{ display: "flex", gap: 7, alignItems: "center", marginBottom: 8 }}>
-                    <I value={sec.t} onChange={(e: any) => setSections(prev => prev.map((s, i) => i !== si ? s : { ...s, t: e.target.value }))} s={{ flex: 1, fontWeight: "500" }} />
-                    <button onClick={() => setSections(prev => prev.filter((_, i) => i !== si))} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, fontSize: 13, padding: 0 }}>✕</button>
-                  </div>
-                  {sec.items.map((it: any) => (
-                    <div key={it.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
-                      <div>
-                        <span style={{ fontSize: TYPE.label.size }}>{it.n}</span>
-                        {it.note && <span style={{ fontSize: TYPE.micro.size, color: C.muted, display: "block" }}>{it.note}</span>}
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8 }}>
-                        <span style={{ fontSize: TYPE.label.size, fontFamily: SERIF, color: C.muted }}>{it.p != null ? `€ ${it.p}` : it.m || ""}</span>
-                        <button onClick={() => setSections(prev => prev.map((s, i) => i !== si ? s : { ...s, items: s.items.filter((x: any) => x.id !== it.id) }))} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, padding: 0 }}>✕</button>
-                      </div>
-                    </div>
-                  ))}
-                  {available.length > 0 && (
-                    <select onChange={(e: any) => { const it = available.find((x: any) => x.id === e.target.value); if (it) setSections(prev => prev.map((s, i) => i !== si ? s : { ...s, items: [...s.items, { id: uid(), n: it.n, note: it.note || "", p: it.p, m: it.m }] })); e.target.value = ""; }}
-                      style={{ marginTop: 7, width: "100%", padding: "6px 8px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: TYPE.micro.size, color: C.muted, borderRadius: 2, outline: "none" }}>
-                      <option value="">+ Add item from Service Catalog…</option>
-                      {available.map((it: any) => <option key={it.id} value={it.id}>{it.n}{it.p != null ? ` — € ${it.p}` : ""}</option>)}
-                    </select>
-                  )}
-                </div>
-              );
-            })}
-            <button onClick={() => setSections(prev => [...prev, { id: uid(), t: `0${prev.length + 1} — New Section`, items: [] }])}
-              style={{ fontSize: TYPE.micro.size, color: C.muted, background: "none", border: "none", cursor: "pointer", padding: "0 0 12px", fontFamily: SANS, textDecoration: "underline", textDecorationColor: C.rule }}>
-              + Add section
-            </button>
-            <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: `1px solid ${C.rule}` }}>
-              <B v="sec" onClick={() => setBaseCat(null)}>← Back</B>
-              <div style={{ display: "flex", gap: 8 }}>
-                <B v="sec" onClick={onClose}>Cancel</B>
-                <B onClick={() => setShowPreview(true)} s={{ opacity: sections.some(s => s.items.length > 0) ? 1 : 0.4 }}>Preview & Save</B>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+    <>
+      {askClose && (
+        <ConfirmDialog title="Discard this card?" text="It hasn't been saved." okLabel="Discard" danger
+          onOk={() => { setAskClose(false); onClose(); }} onCancel={() => setAskClose(false)} />
+      )}
+      <CardShell
+        title="Add Rate Card"
+        card={display}
+        settings={settings}
+        onClose={() => (name || card.sections.length ? setAskClose(true) : onClose())}
+        panel={panel}
+        footer={<div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><B v="sec" onClick={() => (name || card.sections.length ? setAskClose(true) : onClose())}>Cancel</B><B onClick={save}>Save card</B></div>}
+      />
+    </>
   );
 }
 
@@ -421,135 +362,80 @@ interface ServiceCatalogProps {
   isMobile?:  boolean;
 }
 
-const BASE_CATS = ["influencer", "ugc", "editorial"];
-const CAT_LABEL: Record<string, string> = { influencer: "Brand Collaboration", ugc: "UGC", editorial: "Editorial" };
-
 export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, isMobile = false }: ServiceCatalogProps) {
   const [tab,         setTab]         = useState("influencer");
   const [edit,        setEdit]        = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [askRemove,   setAskRemove]   = useState<string | null>(null);
+  const [askSection,  setAskSection]  = useState<number | null>(null);
 
-  // Base tabs + custom cards (any rc key with a label)
-  const tabs = BASE_CATS.filter(k => rc[k]).concat(
-    Object.keys(rc).filter(k => !BASE_CATS.includes(k) && k !== "hotels" && rc[k]?.label)
-  );
-  const card = rc[tab] || rc.influencer;
+  const tabs = [...BASE_CARD_KEYS.filter(k => rc[k]), ...Object.keys(rc).filter(k => !BASE_CARD_KEYS.includes(k) && rc[k]?.label).sort()];
+  const card = normalizeCard(rc[tab] || rc.influencer);
 
-  const setCard = (fn: (c: any) => any) => {
-    const updated = fn(card);
-    upsertCard(tab, updated);
-  };
+  const setCard = (fn: (c: any) => any) => upsertCard(tab, fn(card));
+  const upSec   = (si: number, fn: (s: any) => any) => setCard(c => ({ ...c, sections: c.sections.map((s: any, i: number) => i === si ? fn(s) : s) }));
+  const upItem  = (si: number, id: string, patch: any) => upSec(si, s => ({ ...s, items: s.items.map((it: any) => it.id === id ? { ...it, ...patch } : it) }));
+  const remItem = (si: number, id: string) => upSec(si, s => ({ ...s, items: s.items.filter((it: any) => it.id !== id) }));
+  const addItem = (si: number, kind: SectionKind) => upSec(si, s => ({
+    ...s,
+    items: [...s.items, kind === "addons" ? { id: uid(), n: "New add-on", note: "", p: 50, pct: null, perMonth: false, info: false }
+      : kind === "info" ? { id: uid(), n: "New line", note: "", p: null, m: "" }
+      : kind === "packages" ? { id: uid(), n: "New package", note: "", p: 0, includes: [] }
+      : { id: uid(), n: "New item", note: "", p: 0 }],
+  }));
+  const optKey = (kind: SectionKind) => (kind === "usage" ? "usage" : "excl");
+  const upOpt  = (kind: SectionKind, i: number, patch: any) => setCard(c => ({ ...c, [optKey(kind)]: c[optKey(kind)].map((o: any, j: number) => j === i ? { ...o, ...patch } : o) }));
+  const remOpt = (kind: SectionKind, i: number) => setCard(c => ({ ...c, [optKey(kind)]: c[optKey(kind)].filter((_: any, j: number) => j !== i) }));
+  const addOpt = (kind: SectionKind) => setCard(c => ({ ...c, [optKey(kind)]: [...c[optKey(kind)], { l: kind === "usage" ? "Paid ads — 1 month" : "Category — 1 month", pct: 0, mo: 1 }] }));
 
-  const upItem = (si: number, id: string, f: string, v: string) =>
-    setCard(prev => ({
-      ...prev,
-      sections: prev.sections.map((sc: any, i: number) =>
-        i !== si ? sc : {
-          ...sc,
-          items: sc.items.map((it: any) =>
-            it.id !== id ? it : { ...it, [f]: f === "p" ? (v === "" ? null : parseFloat(v) || 0) : v }
-          ),
-        }
-      ),
-    }));
-
-  const remItem = (si: number, id: string) =>
-    setCard(prev => ({
-      ...prev,
-      sections: prev.sections.map((sc: any, i: number) =>
-        i !== si ? sc : { ...sc, items: sc.items.filter((it: any) => it.id !== id) }
-      ),
-    }));
-
-  const addItem = (si: number) =>
-    setCard(prev => ({
-      ...prev,
-      sections: prev.sections.map((sc: any, i: number) =>
-        i !== si ? sc : { ...sc, items: [...sc.items, { id: uid(), n: "New item", note: "", p: 0 }] }
-      ),
-    }));
-
-  const upSecTitle = (si: number, v: string) =>
-    setCard(prev => ({
-      ...prev,
-      sections: prev.sections.map((sc: any, i: number) => i !== si ? sc : { ...sc, t: v }),
-    }));
-
-  const addSection = () =>
-    setCard(prev => ({
-      ...prev,
-      sections: [...(prev.sections || []), { id: uid(), t: "New Section", items: [] }],
-    }));
-
-  const remSection = (si: number) =>
-    setCard(prev => ({
-      ...prev,
-      sections: prev.sections.filter((_: any, i: number) => i !== si),
-    }));
-
-  const upFine = (v: string) => setCard(prev => ({ ...prev, fine: v }));
-
-  const removeCustomCard = (k: string) => setAskRemove(k);
   const confirmRemove = () => {
-    const k = askRemove;
-    setAskRemove(null);
+    const k = askRemove; setAskRemove(null);
     if (!k) return;
     deleteCard(k);
     if (tab === k) setTab("influencer");
   };
+  const saveBuilt = (key: string, built: any) => { upsertCard(key, built); setTab(key); setShowBuilder(false); };
 
-  const saveBuilt = (key: string, saved: any) => {
-    upsertCard(key, saved);
-    setTab(key);
-    setShowBuilder(false);
-  };
-
-  // ── Header action styles ────────────────────────────────────
-  // Quiet text links for secondary actions; one compact solid
-  // button for the primary action. Links keep a 44px touch
-  // target via invisible vertical padding.
   const LinkBtn = ({ onClick, children }: any) => (
-    <button
-      onClick={onClick}
-      style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, padding: "17px 0", lineHeight: 1, flexShrink: 0 }}
-    >{children}</button>
+    <button onClick={onClick} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, padding: "17px 0", lineHeight: 1, flexShrink: 0 }}>{children}</button>
   );
   const CompactB = ({ onClick, children }: any) => (
-    <button
-      onClick={onClick}
-      style={{ background: C.black, color: C.white, border: "none", borderRadius: 2, minHeight: 36, padding: "0 16px", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.10em", textTransform: "uppercase" as const, flexShrink: 0 }}
-    >{children}</button>
+    <button onClick={onClick} style={{ background: C.black, color: C.white, border: "none", borderRadius: 2, minHeight: 36, padding: "0 16px", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.10em", textTransform: "uppercase" as const, flexShrink: 0 }}>{children}</button>
   );
+  const smallX = (onClick: () => void, title = "Remove") => (
+    <button onClick={onClick} title={title} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: TYPE.body.size, minWidth: 32, minHeight: 32, flexShrink: 0 }}>✕</button>
+  );
+  const deliverableNames = card.sections.filter((s: any) => sectionKind(s) === "deliverables").flatMap((s: any) => (s.items || []).map((it: any) => it.n)).filter(Boolean);
 
   return (
     <div>
       {askRemove && (
-        <ConfirmDialog title={`Delete "${rc[askRemove]?.label || askRemove}"?`} text="This rate card is removed." okLabel="Delete" danger
+        <ConfirmDialog title={`Delete "${rc[askRemove]?.label || askRemove}"?`} text="This rate card is removed. Quotes already made keep their prices." okLabel="Delete" danger
           onOk={confirmRemove} onCancel={() => setAskRemove(null)} />
       )}
-      {showBuilder && <AddRateCardModal rc={rc} onSave={saveBuilt} onClose={() => setShowBuilder(false)} />}
-      {showPreview && (
-        <RateCardPreview
-          card={card}
-          settings={settings}
-          onSave={(saved: any) => upsertCard(tab, saved)}
-          onClose={() => setShowPreview(false)}
-        />
+      {askSection !== null && (
+        <ConfirmDialog title={`Remove "${cleanSecT(card.sections[askSection]?.t)}"?`} text="The section and its items are removed from this card." okLabel="Remove" danger
+          onOk={() => { const si = askSection; setAskSection(null); setCard(c => ({ ...c, sections: c.sections.filter((_: any, i: number) => i !== si) })); }}
+          onCancel={() => setAskSection(null)} />
       )}
+      {showBuilder && <AddCardModal rc={rc} settings={settings} onSave={saveBuilt} onClose={() => setShowBuilder(false)} />}
+      {showPreview && <RateCardPreview card={card} settings={settings} onSave={(saved: any) => upsertCard(tab, saved)} onClose={() => setShowPreview(false)} />}
 
       {/* ── HEADER ── */}
       <div>
         <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 4px" }}>Service Catalog</h2>
-        <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" as const, margin: "0 0 6px" }}>Fashion · Beauty · Lifestyle</p>
+        <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" as const, margin: "0 0 6px" }}>The only price list — the Calculator uses it</p>
       </div>
 
-      {/* ── ACTION ROW — quiet links left, compact primary right ── */}
+      {/* ── ACTION ROW ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 18, borderBottom: `1px solid ${C.rule}`, marginBottom: 14 }}>
         {edit ? (
           <>
-            <LinkBtn onClick={addSection}>+ Section</LinkBtn>
+            <S value="" onChange={(e: any) => { const kind = e.target.value as SectionKind; if (kind) setCard(c => ({ ...c, sections: [...c.sections, { id: uid(), t: KIND_LABEL[kind], kind, items: [] }] })); }} s={{ width: "auto", minWidth: 150, height: 36, margin: "6px 0" }}>
+              <option value="">+ Section…</option>
+              {(Object.keys(KIND_LABEL) as SectionKind[]).map(k => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+            </S>
             <div style={{ flex: 1 }} />
             <CompactB onClick={() => setEdit(false)}>Done</CompactB>
           </>
@@ -563,84 +449,139 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, i
         )}
       </div>
 
-      {/* ── CATEGORY TABS ── */}
-      {/* Mobile: single row, swipe horizontally — never wraps.         */}
-      <div style={{
-        display:    "flex",
-        gap:        6,
-        marginBottom: 18,
-        alignItems: "center",
-        ...(isMobile
-          ? { overflowX: "auto" as const, flexWrap: "nowrap" as const, WebkitOverflowScrolling: "touch" as any, scrollbarWidth: "none" as any, paddingBottom: 2 }
-          : { flexWrap: "wrap" as const }),
-      }}>
+      {/* ── CARD TABS ── */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 18, alignItems: "center", ...(isMobile ? { overflowX: "auto" as const, flexWrap: "nowrap" as const, WebkitOverflowScrolling: "touch" as any, paddingBottom: 2 } : { flexWrap: "wrap" as const }) }}>
         {tabs.map(k => (
           <div key={k} style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
-            <Pill on={tab === k} onClick={() => setTab(k)}>{rc[k]?.label || CAT_LABEL[k] || k}</Pill>
-            {!BASE_CATS.includes(k) && (
-              <button
-                onClick={() => removeCustomCard(k)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: C.light, fontSize: 11, padding: "0 2px", lineHeight: 1 }}
-                title="Delete"
-              >✕</button>
-            )}
+            <Pill on={tab === k} onClick={() => setTab(k)}>{cardTitle(rc, k)}</Pill>
+            {!BASE_CARD_KEYS.includes(k) && smallX(() => setAskRemove(k), "Delete card")}
           </div>
         ))}
       </div>
 
       {/* ── SECTIONS ── */}
-      {(card.sections || []).map((sec: any, si: number) => (
-        <div key={si} style={{ marginBottom: 14 }}>
-          {/* Section title */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
-            {edit ? (
-              <div style={{ display: "flex", gap: 6, flex: 1, alignItems: "center" }}>
-                <I value={sec.t} onChange={(e: any) => upSecTitle(si, e.target.value)} s={{ flex: 1 }} />
-                <button onClick={() => remSection(si)} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, fontSize: 13, padding: 0 }}>✕</button>
-              </div>
-            ) : (
-              <span style={{ fontSize: TYPE.label.size, color: C.muted, letterSpacing: "0.09em", textTransform: "uppercase" as const, border: `1px solid ${C.rule}`, padding: "3px 9px", borderRadius: 2 }}>{sec.t}</span>
-            )}
-            {edit && <B v="sec" onClick={() => addItem(si)} s={{ fontSize: TYPE.micro.size, marginLeft: 6 }}>+ Add</B>}
-          </div>
-
-          {/* Items */}
-          {sec.items.map((it: any) => (
-            <div key={it.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${C.rule}` }}>
+      {card.sections.map((sec: any, si: number) => {
+        const kind = sectionKind(sec);
+        const optionKind = kind === "usage" || kind === "exclusivity";
+        const opts = optionKind ? card[optKey(kind)] : [];
+        return (
+          <div key={sec.id || si} style={{ marginBottom: 16 }}>
+            {/* Section title */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
               {edit ? (
-                <div style={{ flex: 1, display: "flex", gap: 6, alignItems: "center", flexWrap: isMobile ? "wrap" as const : "nowrap" as const }}>
-                  <I value={it.n}    onChange={(e: any) => upItem(si, it.id, "n",    e.target.value)} s={{ flex: isMobile ? "1 1 100%" : 1 }} />
-                  <I value={it.note || ""} onChange={(e: any) => upItem(si, it.id, "note", e.target.value)} s={{ flex: 1 }} placeholder="note" />
-                  <I type="number" value={it.p ?? ""} onChange={(e: any) => upItem(si, it.id, "p", e.target.value)} s={{ width: 64 }} placeholder="€" />
-                  {it.m !== undefined && <I value={it.m || ""} onChange={(e: any) => upItem(si, it.id, "m", e.target.value)} s={{ width: 52 }} />}
-                  <button onClick={() => remItem(si, it.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 13, padding: "0 2px" }}>✕</button>
-                </div>
-              ) : (
                 <>
-                  <div>
-                    <p style={{ fontSize: TYPE.body.size, color: C.black, margin: "0 0 3px" }}>{it.n}</p>
-                    {it.note && <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: 0 }}>{it.note}</p>}
-                  </div>
-                  <span style={{ fontFamily: SERIF, fontSize: TYPE.label.size, color: C.black, whiteSpace: "nowrap" as const, marginLeft: 12 }}>
-                    {it.m && <span style={{ fontSize: TYPE.micro.size, color: C.muted, marginRight: 5 }}>{it.m}</span>}
-                    {it.p != null ? `€ ${it.p.toLocaleString("de-DE")}` : ""}
-                  </span>
+                  <I value={sec.t} onChange={(e: any) => upSec(si, s => ({ ...s, t: e.target.value }))} s={{ flex: 1 }} />
+                  <span style={{ fontSize: TYPE.micro.size, color: C.light, letterSpacing: "0.06em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>{KIND_LABEL[kind]}</span>
+                  {smallX(() => setAskSection(si), "Remove section")}
                 </>
+              ) : (
+                <span style={{ fontSize: TYPE.label.size, color: C.muted, letterSpacing: "0.09em", textTransform: "uppercase" as const, border: `1px solid ${C.rule}`, padding: "3px 9px", borderRadius: 2 }}>{cleanSecT(sec.t)}</span>
               )}
             </div>
-          ))}
-        </div>
-      ))}
+
+            {/* Usage / exclusivity: one list of options with months and % */}
+            {optionKind && (edit ? (
+              <>
+                {opts.map((o: any, i: number) => o.sentinel ? null : (
+                  <div key={i} style={{ display: "flex", gap: 6, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${C.rule}`, flexWrap: isMobile ? "wrap" as const : "nowrap" as const }}>
+                    <I value={optName(o.l)} onChange={(e: any) => upOpt(kind, i, { l: e.target.value })} s={{ flex: isMobile ? "1 1 100%" : 1 }} />
+                    <I type="number" min={0} value={o.mo} onChange={(e: any) => upOpt(kind, i, { mo: Math.max(0, parseInt(e.target.value) || 0) })} s={{ width: 64 }} />
+                    <span style={{ fontSize: TYPE.label.size, color: C.muted }}>mo.</span>
+                    <I type="number" min={0} value={o.pct} onChange={(e: any) => upOpt(kind, i, { pct: Math.max(0, parseFloat(e.target.value) || 0) })} s={{ width: 72 }} />
+                    <span style={{ fontSize: TYPE.label.size, color: C.muted }}>%</span>
+                    {smallX(() => remOpt(kind, i))}
+                  </div>
+                ))}
+                <B v="sec" onClick={() => addOpt(kind)} s={{ marginTop: 8, minHeight: 36 }}>+ Option</B>
+                <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "6px 0 0" }}>0 % = included. Used by the Calculator, the PDF and renewals.</p>
+              </>
+            ) : sectionRows(card, sec).map(r => (
+              <div key={r.key} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${C.rule}` }}>
+                <span style={{ fontSize: TYPE.body.size }}>{r.n}</span>
+                <span style={{ fontFamily: SERIF, fontSize: TYPE.label.size, whiteSpace: "nowrap" as const, marginLeft: 12 }}>{r.price}</span>
+              </div>
+            )))}
+
+            {/* Items */}
+            {!optionKind && (sec.items || []).map((it: any) => (
+              <div key={it.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.rule}` }}>
+                {edit ? (
+                  <>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: isMobile ? "wrap" as const : "nowrap" as const }}>
+                      <I value={it.n} onChange={(e: any) => upItem(si, it.id, { n: e.target.value })} s={{ flex: isMobile ? "1 1 100%" : 1 }} />
+                      <I value={it.note || ""} onChange={(e: any) => upItem(si, it.id, { note: e.target.value })} s={{ flex: 1 }} placeholder="note" />
+                      {kind === "info" ? (
+                        <I value={it.m || ""} onChange={(e: any) => upItem(si, it.id, { m: e.target.value })} s={{ width: 110 }} placeholder="text" />
+                      ) : kind === "addons" ? (
+                        <>
+                          <S value={it.pct !== null && it.pct !== undefined && (it.p === null || it.p === undefined) ? "pct" : "eur"}
+                             onChange={(e: any) => upItem(si, it.id, e.target.value === "pct" ? { pct: it.pct ?? 30, p: null } : { p: it.p ?? 50, pct: null })} s={{ width: 70 }}>
+                            <option value="eur">€</option>
+                            <option value="pct">%</option>
+                          </S>
+                          <I type="number" min={0}
+                             value={it.p !== null && it.p !== undefined ? it.p : (it.pct ?? "")}
+                             onChange={(e: any) => { const v = Math.max(0, parseFloat(e.target.value) || 0); upItem(si, it.id, it.p !== null && it.p !== undefined ? { p: v } : { pct: v }); }} s={{ width: 72 }} />
+                        </>
+                      ) : (
+                        <I type="number" min={0} value={it.p ?? ""} onChange={(e: any) => upItem(si, it.id, { p: e.target.value === "" ? null : Math.max(0, parseFloat(e.target.value) || 0) })} s={{ width: 80 }} placeholder="€" />
+                      )}
+                      {smallX(() => remItem(si, it.id))}
+                    </div>
+                    {kind === "addons" && (
+                      <div style={{ display: "flex", gap: 16, marginTop: 6, flexWrap: "wrap" as const }}>
+                        <Tick on={!!it.perMonth} onClick={() => upItem(si, it.id, { perMonth: !it.perMonth })} size={18} label="per month" />
+                        <Tick on={!!it.info} onClick={() => upItem(si, it.id, { info: !it.info })} size={18} label="info only (not charged)" />
+                      </div>
+                    )}
+                    {kind === "packages" && (
+                      <div style={{ marginTop: 6 }}>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, alignItems: "center" }}>
+                          <span style={{ fontSize: TYPE.label.size, color: C.muted }}>Includes:</span>
+                          {(it.includes || []).map((inc: any, k: number) => (
+                            <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: TYPE.label.size, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "2px 4px 2px 8px" }}>
+                              <input type="number" min={1} value={inc.qty || 1}
+                                onChange={(e: any) => upItem(si, it.id, { includes: it.includes.map((x: any, j: number) => j === k ? { ...x, qty: Math.max(1, parseInt(e.target.value) || 1) } : x) })}
+                                style={{ width: 44, fontSize: TYPE.sectionHeading.size, border: "none", background: "transparent", fontFamily: SANS }} />
+                              × {inc.n}
+                              {smallX(() => upItem(si, it.id, { includes: it.includes.filter((_: any, j: number) => j !== k) }))}
+                            </span>
+                          ))}
+                          {deliverableNames.length > 0 && (
+                            <S value="" onChange={(e: any) => { const n = e.target.value; if (n) upItem(si, it.id, { includes: [...(it.includes || []), { n, qty: 1 }] }); }} s={{ width: "auto", minWidth: 170, height: 36 }}>
+                              <option value="">+ Add content…</option>
+                              {deliverableNames.map((n: string) => <option key={n} value={n}>{n}</option>)}
+                            </S>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <p style={{ fontSize: TYPE.body.size, color: C.black, margin: "0 0 3px" }}>{it.n}{kind === "addons" && it.info ? <span style={{ fontSize: TYPE.micro.size, color: C.light, marginLeft: 6, letterSpacing: "0.06em", textTransform: "uppercase" as const }}>info</span> : null}</p>
+                      {it.note && <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: 0 }}>{it.note}</p>}
+                      {kind === "packages" && it.includes?.length > 0 && <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: "2px 0 0" }}>Includes {it.includes.map((x: any) => `${x.qty || 1}× ${x.n}`).join(", ")}</p>}
+                    </div>
+                    <span style={{ fontFamily: SERIF, fontSize: TYPE.label.size, color: C.black, whiteSpace: "nowrap" as const, marginLeft: 12 }}>
+                      {kind === "addons" ? addonPriceText(it) : it.p !== null && it.p !== undefined ? money(it.p) : (it.m || "")}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ))}
+            {edit && !optionKind && <B v="sec" onClick={() => addItem(si, kind)} s={{ marginTop: 8, minHeight: 36 }}>+ Add</B>}
+          </div>
+        );
+      })}
 
       {/* ── FINE PRINT ── */}
       {edit ? (
         <div style={{ marginTop: 10 }}>
           <Lbl>Fine Print</Lbl>
-          <textarea
-            value={card.fine || ""}
-            onChange={(e: any) => upFine(e.target.value)}
-            style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: 16, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 64 }}
-          />
+          <textarea value={card.fine || ""} onChange={(e: any) => setCard(c => ({ ...c, fine: e.target.value }))}
+            style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: TYPE.sectionHeading.size, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 64 }} />
         </div>
       ) : (
         <p style={{ fontSize: TYPE.label.size, color: C.muted, lineHeight: 1.75, marginTop: 10 }}>{card.fine}</p>

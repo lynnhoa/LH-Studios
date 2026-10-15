@@ -48,9 +48,9 @@ export default function PriceSummary({
             min={1}
             value={retMo}
             onChange={(e: any) => onRetMoChange(parseInt(e.target.value) || 6)}
-            s={{ width: 50 }}
+            s={{ width: 56 }}
           />
-          <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>months · total shown per month</span>
+          <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>months</span>
         </>}
       </div>
 
@@ -61,16 +61,25 @@ export default function PriceSummary({
         padding:      "12px 16px",
         marginBottom: 14,
       }}>
-        {retOn && (
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${C.rule}` }}>
-            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>Subtotal</span>
+        {retOn ? <>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>Items per month</span>
             <span style={{ fontSize: TYPE.label.size, color: C.muted }}>{fmt(subtotal)}</span>
           </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${C.rule}` }}>
+            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>Monthly fee (−20 %)</span>
+            <span style={{ fontSize: TYPE.label.size, color: C.black }}>{fmt(grand)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <span style={{ fontSize: TYPE.label.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>Total · {retMo} months</span>
+            <span style={{ fontFamily: SERIF, fontSize: TYPE.amount.size, color: C.black }}>{fmt(grand * retMo)}</span>
+          </div>
+        </> : (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <span style={{ fontSize: TYPE.label.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>Total (EUR)</span>
+            <span style={{ fontFamily: SERIF, fontSize: TYPE.amount.size, color: C.black }}>{fmt(grand)}</span>
+          </div>
         )}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <span style={{ fontSize: TYPE.label.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>Total (EUR)</span>
-          <span style={{ fontFamily: SERIF, fontSize: TYPE.amount.size, color: C.black }}>{fmt(grand)}</span>
-        </div>
       </div>
 
       {/* ── ACTIONS ── */}

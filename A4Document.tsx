@@ -163,7 +163,9 @@ export default function A4Document({
   const catBadge: Record<string, string> = Object.fromEntries(Object.entries(CATEGORY).map(([k, v]) => [k, v.long]));
   const TRow = ({ ln, prevLn, idx }: any) => {
     const showCat = !!(ln.cat && catBadge[ln.cat] && ln.cat !== prevLn?.cat);
-    const subDetails = [ln.usageLabel, ln.exclLabel, ...(ln.addons || []), ...(ln.platforms || [])].filter(Boolean);
+    const includes   = ln.kind === "package" && Array.isArray(ln.includes) && ln.includes.length
+      ? `${l ? "Enthält" : "Includes"} ${ln.includes.map((x: any) => `${x.qty || 1}× ${x.n}`).join(", ")}` : "";
+    const subDetails = [includes, ln.usageLabel, ln.exclLabel, ...(ln.addons || []), ...(ln.platforms || [])].filter(Boolean);
     const qty  = lineQty(ln);
     const amt  = lineAmt(ln);
     const unit = Math.round((amt / qty) * 100) / 100;

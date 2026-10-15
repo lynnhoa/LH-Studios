@@ -10,7 +10,7 @@ import { uid, today, monthStart, monthEnd, r2 } from "./formatters";
 import { registerReloader } from "./saveStatus";
 import {
   quoteNo, contractNo, amendNo, invoiceNo, projectNoFrom, pnoFromQNo, yearOf,
-  docMoney, linesSum, senderSnapshot, clientSnapshot, profileGaps, dueFrom,
+  docMoney, docNet, linesSum, senderSnapshot, clientSnapshot, profileGaps, dueFrom,
   currentQuote, currentContract, projectInvoice, monthlyInvoices, nextRetainerMonth,
 } from "./docs";
 import type {
@@ -811,8 +811,8 @@ export function useClients(userId: string | null): UseClientsReturn {
   };
 
   // Project working copy amount from quote/contract content
-  const amountOf = (data: any): number =>
-    data?.retainer && data?.retMo ? Math.round(linesSum(data.lines || []) * 0.8) : linesSum(data?.lines || []);
+  // Project value = the whole contract (retainer: monthly fee × months)
+  const amountOf = (data: any): number => docNet("quote", data);
 
   // Make sure a project has a project number (old projects: from their quote number)
   const ensureProjectNo = async (clientId: string, project: Project): Promise<string> => {
@@ -925,6 +925,25 @@ export function useClients(userId: string | null): UseClientsReturn {
             qd: { ...(project.qd || {}), ...d.data } as any,
             amount: amountOf(d.data),
             ...(rev > 0 ? { status: "revised" as ProjectStatus } : {}),
+          });
+          return { error: null, projectId: project.id, clientId: client.id, document: d };
+        }
+
+        // ── New quote for an existing lead: fill that project ─
+        if (project && project.status === "lead" && !project.qd && client) {
+          const docDate = doc.docDate || today();
+          const year    = yearOf(docDate);
+          const pno     = projectNoFrom(year, await nextNumber(`project:${year}`));
+          const qNo     = quoteNo(pno);
+          const content = { ...data, qNo, rev: 0 };
+          const name    = projectName?.trim() || project.name || brand || "Untitled Project";
+          await writeProject(client.id, project.id, {
+            projectNo: pno, name, status: "quoted" as ProjectStatus, amount: amountOf(content), date: docDate, qd: content as any,
+          });
+          const d = await insertDoc(client.id, project.id, {
+            kind: "quote", docNo: qNo, revision: 0, status: "draft",
+            docDate, lang: doc.lang || "en", data: content,
+            ...money("quote", content, settings, client),
           });
           return { error: null, projectId: project.id, clientId: client.id, document: d };
         }

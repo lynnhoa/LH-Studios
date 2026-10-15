@@ -1,152 +1,215 @@
 // ─────────────────────────────────────────────────────────────
-// PRICING — rates, rules, add-ons, usage/exclusivity tables
-// No UI. No side effects. Import anywhere.
+// PRICING — the rate card is the only price source.
+// No UI. No side effects. Used by the Calculator, the Service
+// Catalog, the rate-card PDF and the renewal builder.
 // ─────────────────────────────────────────────────────────────
 
-import type { UsageOption, ExclOption } from "./types";
+import { r2, addM, addD, today } from "./formatters";
+import { RENEWAL_OPTS } from "./rateCards";
 
-// ─── USAGE RIGHTS — per category ─────────────────────────────
-export const USAGE_INFLUENCER: UsageOption[] = [
-  { l: "— Select usage rights —",        pct: 0,   mo: 0,  sentinel: true },
-  { l: "Organic — 3 months (included)",   pct: 0,   mo: 3  },
-  { l: "Organic — 12 months (included)",  pct: 0,   mo: 12 },
-  { l: "Paid ads — 1 month (+30%)",       pct: 30,  mo: 1  },
-  { l: "Paid ads — 3 months (+60%)",      pct: 60,  mo: 3  },
-  { l: "Paid ads — 6 months (+100%)",     pct: 100, mo: 6  },
-  { l: "Paid ads — 12 months (+150%)",    pct: 150, mo: 12 },
-];
+// ─── SECTION TYPES ───────────────────────────────────────────
+export type SectionKind = "deliverables" | "packages" | "usage" | "exclusivity" | "addons" | "info";
 
-export const USAGE_UGC: UsageOption[] = [
-  { l: "— Select usage rights —",        pct: 0,   mo: 0,  sentinel: true },
-  { l: "Organic — 3 months (included)",   pct: 0,   mo: 3  },
-  { l: "Organic — 12 months (included)",  pct: 0,   mo: 12 },
-  { l: "Paid ads — 1 month (+20%)",       pct: 20,  mo: 1  },
-  { l: "Paid ads — 3 months (+50%)",      pct: 50,  mo: 3  },
-  { l: "Paid ads — 6 months (+80%)",      pct: 80,  mo: 6  },
-  { l: "Paid ads — 12 months (+120%)",    pct: 120, mo: 12 },
-];
-
-export const USAGE_EDITORIAL: UsageOption[] = [
-  { l: "— Select usage rights —",        pct: 0,   mo: 0,  sentinel: true },
-  { l: "Organic — 3 months (included)",   pct: 0,   mo: 3  },
-  { l: "Organic — 12 months (included)",  pct: 0,   mo: 12 },
-  { l: "Paid ads — 1 month (+30%)",       pct: 30,  mo: 1  },
-  { l: "Paid ads — 3 months (+60%)",      pct: 60,  mo: 3  },
-  { l: "Paid ads — 6 months (+100%)",     pct: 100, mo: 6  },
-  { l: "Paid ads — 12 months (+150%)",    pct: 150, mo: 12 },
-];
-
-export const USAGE_BY_CAT: Record<string, UsageOption[]> = {
-  influencer: USAGE_INFLUENCER,
-  ugc:        USAGE_UGC,
-  editorial:  USAGE_EDITORIAL,
-  hotels:     USAGE_INFLUENCER,
+export const KIND_LABEL: Record<SectionKind, string> = {
+  deliverables: "Deliverables",
+  packages:     "Packages",
+  usage:        "Usage rights",
+  exclusivity:  "Exclusivity",
+  addons:       "Add-ons",
+  info:         "Info (not priced)",
 };
 
-// ─── EXCLUSIVITY — per category ───────────────────────────────
-export const EXCL_INFLUENCER: ExclOption[] = [
-  { l: "— Select exclusivity —",             pct: 0,   mo: 0, sentinel: true },
-  { l: "Category — 1 month (+30%)",          pct: 30,  mo: 1  },
-  { l: "Category — 3 months (+60%)",         pct: 60,  mo: 3  },
-  { l: "Full — 1 month (+75%)",              pct: 75,  mo: 1  },
-  { l: "Full — 3 months (+125%)",            pct: 125, mo: 3  },
-];
-
-export const EXCL_UGC: ExclOption[] = [
-  { l: "— Select exclusivity —",             pct: 0,   mo: 0, sentinel: true },
-  { l: "Category — 1 month (+25%)",          pct: 25,  mo: 1  },
-  { l: "Category — 3 months (+50%)",         pct: 50,  mo: 3  },
-  { l: "Full — 1 month (+50%)",              pct: 50,  mo: 1  },
-  { l: "Full — 3 months (+100%)",            pct: 100, mo: 3  },
-];
-
-export const EXCL_EDITORIAL: ExclOption[] = [
-  { l: "— Select exclusivity —",             pct: 0,   mo: 0, sentinel: true },
-  { l: "Category — 1 month (+30%)",          pct: 30,  mo: 1  },
-  { l: "Category — 3 months (+60%)",         pct: 60,  mo: 3  },
-  { l: "Full — 1 month (+75%)",              pct: 75,  mo: 1  },
-  { l: "Full — 3 months (+125%)",            pct: 125, mo: 3  },
-];
-
-export const EXCL_BY_CAT: Record<string, ExclOption[]> = {
-  influencer: EXCL_INFLUENCER,
-  ugc:        EXCL_UGC,
-  editorial:  EXCL_EDITORIAL,
-  hotels:     EXCL_INFLUENCER,
-};
-
-// ─── ADD-ONS — shared pool, all categories ────────────────────
-export const AO_SHARED = [
-  { id: "ao1",  n: "Additional Story frame",               note: "per frame",                         flat: 50  },
-  { id: "ao2",  n: "Link in bio",                          note: "per week",                          flat: 100 },
-  { id: "ao3",  n: "Whitelisting / boosting",              note: "Ads through Lynn's account",        pct:  30  },
-  { id: "ao4",  n: "Rush delivery",                        note: "Under 5 business days",             pct:  25  },
-  { id: "ao5",  n: "Pinned post",                          note: "Post kept pinned",                  flat: 100 },
-  { id: "ao6a", n: "Brand Collaboration — Additional revision", note: "per round · 1 included",      flat: 50  },
-  { id: "ao6b", n: "UGC — Additional revision",            note: "per round · 1 included",           flat: 80  },
-  { id: "ao6c", n: "Editorial — Additional revision",      note: "per round · 1 included",           flat: 150 },
-  { id: "ao7",  n: "Aspect ratio adaptation",              note: "per format",                        flat: 65  },
-  { id: "ao8",  n: "Raw footage",                          note: "Unedited files",                    pct:  30  },
-  { id: "ao9",  n: "Kill fee",                             note: "If cancelled after production",     pct:  50  },
-  { id: "ao10", n: "Hook / CTA variation",                 note: "Additional version of same video",  flat: 80  },
-  { id: "ao11", n: "Additional image",                     note: "Same concept and set",              flat: 200 },
-  { id: "ao12", n: "Additional video cut",                 note: "",                                  flat: 300 },
-  { id: "ao13", n: "Additional location",                  note: "Additional venue or setting",       flat: 150 },
-];
-
-// ─── DISCOUNT RULES ───────────────────────────────────────────
-export const DISCOUNT_RULES = {
-  volUgcInfluencer3:  15, // 3+ pieces same deliverable → 15% off
-  volUgcInfluencer10: 20, // 10+ pieces → 20% off
-  editorialPackage:   10, // any package → 10% off
-  retainer:           20, // monthly retainer → 20% off per month
-};
-
-// ─── RENEWAL OPTIONS ─────────────────────────────────────────
-export const RENEWAL_OPTS: Record<string, any[]> = {
-  usage: [
-    { l: "Organic — 3 months",       mo: 3,  pct: 0   },
-    { l: "Organic — 12 months",      mo: 12, pct: 0   },
-    { l: "Paid ads — 1 month",       mo: 1,  pct: 30  },
-    { l: "Paid ads — 3 months",      mo: 3,  pct: 60  },
-    { l: "Paid ads — 6 months",      mo: 6,  pct: 100 },
-    { l: "Paid ads — 12 months",     mo: 12, pct: 150 },
-  ],
-  excl: [
-    { l: "Category exclusivity — 1 month",  mo: 1,  pct: 30  },
-    { l: "Category exclusivity — 3 months", mo: 3,  pct: 60  },
-    { l: "Full exclusivity — 1 month",      mo: 1,  pct: 75  },
-    { l: "Full exclusivity — 3 months",     mo: 3,  pct: 125 },
-  ],
-};
-
-// ─── PRICE COMPUTATION ────────────────────────────────────────
-interface ComputeInput {
-  baseAmt:     number;
-  usagePct:    number;
-  exclPct:     number;
-  addons:      { flat?: number; pct?: number }[];
-  qty:         number;
+// Cards made before section types existed: infer the type from the title once
+export function sectionKind(sec: any): SectionKind {
+  if (sec?.kind && KIND_LABEL[sec.kind as SectionKind]) return sec.kind;
+  const t = String(sec?.t || "").toLowerCase();
+  if (t.includes("package"))                              return "packages";
+  if (t.includes("usage"))                                return "usage";
+  if (t.includes("exclusiv"))                             return "exclusivity";
+  if (/add-?ons?\b/.test(t))                              return "addons";
+  if (t.includes("ambassador") || t.includes("retainer")) return "info";
+  return "deliverables";
 }
 
-// Formula matches Calculator.tsx exactly:
-//   1. base x qty
-//   2. x (1 + (usage% + excl%) / 100)        — additive uplift
-//   3. + flat add-ons; % add-ons apply to the POST-uplift amount
-//   4. single Math.round at the end
-export const computePrice = ({
-  baseAmt,
-  usagePct,
-  exclPct,
-  addons,
-  qty,
-}: ComputeInput): number => {
-  const base   = Math.max(0, baseAmt) * Math.max(1, qty || 1);
-  const am     = base * (1 + (usagePct + exclPct) / 100);
-  const aoAmt  = addons.reduce((sum, ao) => {
-    if (ao.flat) return sum + ao.flat;
-    if (ao.pct)  return sum + am * (ao.pct / 100);
-    return sum;
-  }, 0);
-  return Math.round(am + aoAmt);
+// ─── PERCENT HELPERS ─────────────────────────────────────────
+const PCT_RE = /([+−-]?\s*\d+(?:[.,]\d+)?)\s*%/;
+export const parsePct = (s: any): number | null => {
+  const m = PCT_RE.exec(String(s ?? ""));
+  return m ? Math.abs(parseFloat(m[1].replace(/[\s+−-]/g, "").replace(",", "."))) : null;
+};
+export const pctText = (p: number) => `${String(r2(Number(p) || 0)).replace(".", ",")} %`;
+
+// Usage / exclusivity option: the label is stored without the price part
+export const optName  = (l: any) => String(l ?? "").replace(/\s*\((?:\+?\s*\d+(?:[.,]\d+)?\s*%|included)\)\s*$/i, "").trim();
+export const optLabel = (o: any) =>
+  !o ? "" : o.sentinel ? String(o.l) : Number(o.pct) > 0 ? `${optName(o.l)} (+${pctText(o.pct)})` : `${optName(o.l)} (included)`;
+
+// ─── NORMALIZE (idempotent) ──────────────────────────────────
+function normItem(it: any, kind: SectionKind) {
+  const out: any = { ...it };
+  out.p = out.p === null || out.p === undefined || out.p === "" ? null : (Number(out.p) || 0);
+  if (kind === "addons") {
+    if (out.pct === undefined || out.pct === "") {
+      const pc = out.p === null ? parsePct(out.m) : null;
+      out.pct = pc;
+    } else if (out.pct !== null) out.pct = Number(out.pct) || 0;
+    if (out.perMonth === undefined) out.perMonth = /\/\s*mo/i.test(String(out.m || ""));
+    if (out.info === undefined)     out.info     = /kill\s*fee/i.test(String(out.n || ""));
+  }
+  if (kind === "packages" && !Array.isArray(out.includes)) out.includes = [];
+  return out;
+}
+
+function normOpts(arr: any[], sentinelLabel: string) {
+  const list = (arr || []).map((o: any) =>
+    o?.sentinel ? { ...o } : { ...o, l: optName(o?.l), pct: Number(o?.pct) || 0, mo: Number(o?.mo) || 0 }
+  );
+  if (!list.some((o: any) => o.sentinel)) list.unshift({ l: sentinelLabel, pct: 0, mo: 0, sentinel: true });
+  return list;
+}
+
+export function normalizeCard(card: any) {
+  if (!card) return card;
+  return {
+    ...card,
+    sections: (card.sections || []).map((s: any) => {
+      const kind = sectionKind(s);
+      return { ...s, kind, items: (s.items || []).map((it: any) => normItem(it, kind)) };
+    }),
+    usage: normOpts(card.usage, "— Select usage rights —"),
+    excl:  normOpts(card.excl,  "— Select exclusivity —"),
+  };
+}
+
+export function normalizeCards(rc: any) {
+  const out: any = {};
+  Object.entries(rc || {}).forEach(([k, v]) => { out[k] = normalizeCard(v); });
+  return out;
+}
+
+// ─── CARD LOOKUPS ────────────────────────────────────────────
+export const BASE_CARD_KEYS = ["influencer", "ugc", "editorial", "hotels"];
+
+export interface CardChoice { key: string; kind: "deliverable" | "package"; item: any; section: string; }
+
+// Everything that can be quoted from a card
+export function cardChoices(card: any): CardChoice[] {
+  const out: CardChoice[] = [];
+  (card?.sections || []).forEach((s: any, si: number) => {
+    const kind = sectionKind(s);
+    if (kind !== "deliverables" && kind !== "packages") return;
+    (s.items || []).forEach((it: any, ii: number) => {
+      if (!it?.n) return;
+      out.push({ key: it.id || `${si}_${ii}`, kind: kind === "packages" ? "package" : "deliverable", item: it, section: s.t || "" });
+    });
+  });
+  return out;
+}
+
+export function cardAddons(card: any): any[] {
+  return (card?.sections || [])
+    .filter((s: any) => sectionKind(s) === "addons")
+    .flatMap((s: any, si: number) => (s.items || []).map((it: any, ii: number) => ({ ...it, key: it.id || `a${si}_${ii}` })))
+    .filter((it: any) => it.n && !it.info);
+}
+
+// Card keys that can be quoted, base cards first, then custom cards
+export function pricingCats(rc: any): string[] {
+  const keys = Object.keys(rc || {}).filter(k => cardChoices(rc[k]).length > 0);
+  return [...BASE_CARD_KEYS.filter(k => keys.includes(k)), ...keys.filter(k => !BASE_CARD_KEYS.includes(k)).sort()];
+}
+
+// Add-on price text for menus and the rate card
+export const addonPriceText = (a: any) =>
+  a.p !== null && a.p !== undefined ? `€ ${a.p}${a.perMonth ? " / month" : ""}`
+  : a.pct !== null && a.pct !== undefined ? `+${pctText(a.pct)}${a.perMonth ? " / month" : ""}`
+  : (a.m || "");
+
+// ─── LINE PRICING ────────────────────────────────────────────
+export function volPct(cat: string, qty: number, on: boolean): number {
+  if (!on) return 0;
+  if (cat === "editorial") return 10;
+  if (qty >= 10) return 20;
+  if (qty >= 3)  return 15;
+  return 0;
+}
+
+export interface AddonPick { addon: any; months?: number; }
+
+export interface LineCalc {
+  unit: number; qty: number; gross: number; volPct: number; base: number;
+  usagePct: number; exclPct: number; uplifted: number;
+  addons: { n: string; amt: number; months?: number }[];
+  amt: number;
+}
+
+export function priceLine(a: { unit: number; qty: number; cat: string; vol: boolean; usagePct: number; exclPct: number; addons: AddonPick[] }): LineCalc {
+  const unit     = Math.max(0, Number(a.unit) || 0);
+  const qty      = Math.max(1, Math.round(Number(a.qty) || 1));
+  const gross    = unit * qty;
+  const vp       = volPct(a.cat, qty, a.vol);
+  const base     = r2(gross * (1 - vp / 100));
+  const usagePct = Number(a.usagePct) || 0;
+  const exclPct  = Number(a.exclPct)  || 0;
+  const uplifted = r2(base * (1 + (usagePct + exclPct) / 100));
+  const addons   = (a.addons || []).map(({ addon, months }) => {
+    const m   = addon.perMonth ? Math.max(1, Math.round(Number(months) || 1)) : 1;
+    const amt = addon.p !== null && addon.p !== undefined
+      ? r2((Number(addon.p) || 0) * m)
+      : r2(uplifted * (Number(addon.pct) || 0) / 100 * m);
+    return { n: addon.n, amt, ...(addon.perMonth ? { months: m } : {}) };
+  });
+  const amt = Math.round(uplifted + addons.reduce((s, x) => s + x.amt, 0));
+  return { unit, qty, gross, volPct: vp, base, usagePct, exclPct, uplifted, addons, amt };
+}
+
+// ─── RENEWALS ────────────────────────────────────────────────
+// Base price of a quote line (before usage / exclusivity / add-ons)
+export function lineBase(ln: any): number {
+  if (typeof ln?.base === "number") return ln.base;
+  const u = typeof ln?.usagePct === "number" ? ln.usagePct : (parsePct(ln?.usageLabel) ?? 0);
+  const e = typeof ln?.exclPct  === "number" ? ln.exclPct  : (parsePct(ln?.exclLabel)  ?? 0);
+  const addons = Array.isArray(ln?.addonDetail) ? ln.addonDetail.reduce((s: number, x: any) => s + (Number(x.amt) || 0), 0) : 0;
+  return r2(Math.max(0, (Number(ln?.amt) || 0) - addons) / (1 + (u + e) / 100));
+}
+
+// Options for a renewal, from the line's own rate card
+export function renewalOptions(rc: any, cat: string, kind: "usage" | "excl"): any[] {
+  const card = rc?.[cat] || rc?.influencer;
+  const list = (card?.[kind] || []).filter((o: any) => !o.sentinel);
+  return list.length ? list : (RENEWAL_OPTS as any)[kind];
+}
+
+// Percent of the same option on another card (same name, else same months + same type)
+export function pctOn(rc: any, cat: string, kind: "usage" | "excl", opt: any): number {
+  const list: any[] = rc?.[cat]?.[kind] || [];
+  const name = optName(opt?.l).toLowerCase();
+  const byName = list.find(o => !o.sentinel && optName(o.l).toLowerCase() === name);
+  if (byName) return Number(byName.pct) || 0;
+  const type = (l: string) => /paid/i.test(l) ? "paid" : /organic/i.test(l) ? "organic" : /full/i.test(l) ? "full" : /categ/i.test(l) ? "category" : "";
+  const sameType = list.find(o => !o.sentinel && Number(o.mo) === Number(opt?.mo) && type(o.l) === type(opt?.l || ""));
+  return sameType ? Number(sameType.pct) || 0 : Number(opt?.pct) || 0;
+}
+
+// When the current license ends (usage), across the original quote and renewals
+export function licenseEnd(pr: any): string | null {
+  const usageMo = (() => {
+    let mo = 0;
+    (pr?.qd?.lines || []).forEach((ln: any) => {
+      const m = /(\d+)\s*month/i.exec(String(ln.usageLabel || ""));
+      if (m && /paid/i.test(String(ln.usageLabel))) mo = Math.max(mo, parseInt(m[1]));
+    });
+    return mo;
+  })();
+  let end: string | null = pr?.usageEndOverride || (pr?.deliveryDate && usageMo ? addM(pr.deliveryDate, usageMo) : null);
+  (pr?.renewals || []).forEach((r: any) => {
+    if (r.type === "excl") return;
+    if (r.endDate && (!end || r.endDate > end)) end = r.endDate;
+  });
+  return end;
+}
+
+export const renewalStart = (pr: any): string => {
+  const end = licenseEnd(pr);
+  return end ? addD(end, 1) : today();
 };

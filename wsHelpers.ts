@@ -34,27 +34,48 @@ export function ccCatStyle(cat: string) {
 
 export const wsCatPill = ccCatStyle;
 
-// ── Line group extraction (for projects view) ─────────────────
+// ── Work lines: what has to be produced for a project ────────
+// One entry per deliverable line; a package with contents becomes
+// one entry per included deliverable. Item ids: `${key}_q${n}`.
 const SKIP = ["usage","excl","rush","revision","whitelisting","aspect","raw footage","kill","pinned","link in bio"];
 
+export interface WorkLine { key: string; li: number; name: string; note: string; qty: number; cat: string; line: any; }
+
+export function wsLines(pr: any): WorkLine[] {
+  const out: WorkLine[] = [];
+  (pr?.qd?.lines || []).forEach((ln: any, li: number) => {
+    if (!ln?.name) return;
+    if (SKIP.some(s => ln.name.toLowerCase().includes(s))) return;
+    const qty  = parseInt(ln.qty) || 1;
+    const incl = Array.isArray(ln.includes) ? ln.includes.filter((x: any) => x && x.n) : [];
+    if (ln.kind === "package" && incl.length) {
+      incl.forEach((inc: any, k: number) => {
+        out.push({ key: `${pr.id}_ln${li}_p${k}`, li, name: inc.n, note: ln.name, qty: (parseInt(inc.qty) || 1) * qty, cat: ln.cat, line: { ...ln, name: inc.n } });
+      });
+      return;
+    }
+    out.push({ key: `${pr.id}_ln${li}`, li, name: ln.name, note: ln.note || "", qty, cat: ln.cat, line: ln });
+  });
+  return out;
+}
+
+export const wsItemIds = (w: WorkLine): string[] => Array.from({ length: w.qty }, (_, q) => `${w.key}_q${q}`);
+
+// ── Line groups (projects view) ───────────────────────────────
 export function getLineGroups(c: any, pr: any): any[] {
   const groups: any[] = [];
-  (pr.qd?.lines || []).forEach((ln: any, li: number) => {
-    if (!ln.name) return;
-    if (SKIP.some(s => ln.name.toLowerCase().includes(s))) return;
-    const qty     = parseInt(ln.qty) || 1;
-    const cat     = getWsCategory(ln);
-    const lineKey = `${li}_${cat}`;
+  wsLines(pr).forEach(w => {
+    const cat     = getWsCategory(w.line);
+    const lineKey = `${w.key}_${cat}`;
     let grp = groups.find(g => g.lineKey === lineKey);
-    if (!grp) { grp = { lineKey, lineName: ln.name, category: cat, items: [] }; groups.push(grp); }
-    for (let q = 0; q < qty; q++) {
-      const id = `${pr.id}_ln${li}_q${q}`;
+    if (!grp) { grp = { lineKey, lineName: w.name, category: cat, items: [] }; groups.push(grp); }
+    wsItemIds(w).forEach((id, q) => {
       grp.items.push({
         id,
-        name:   (pr.workspaceNames || {})[id] || ln.name + (qty > 1 ? ` ${q + 1}` : ""),
+        name:   (pr.workspaceNames || {})[id] || w.name + (w.qty > 1 ? ` ${q + 1}` : ""),
         status: (pr.workspaceStatus || {})[id] || "Not started",
       });
-    }
+    });
   });
   return groups;
 }
@@ -64,28 +85,25 @@ export function getWsItems(clients: any[]): any[] {
   const items: any[] = [];
   clients.forEach(c => {
     c.projects.filter((pr: any) => pr.status === "production").forEach((pr: any) => {
-      (pr.qd?.lines || []).forEach((ln: any, li: number) => {
-        if (!ln.name) return;
-        if (SKIP.some(s => ln.name.toLowerCase().includes(s))) return;
-        const qty = parseInt(ln.qty) || 1;
-        for (let q = 0; q < qty; q++) {
-          const id = `${pr.id}_ln${li}_q${q}`;
+      wsLines(pr).forEach(w => {
+        wsItemIds(w).forEach((id, q) => {
+          const defaultName = w.name + (w.qty > 1 ? ` ${q + 1}` : "");
           items.push({
             id,
-            name:         (pr.workspaceNames || {})[id] || ln.name + (qty > 1 ? ` ${q + 1}` : ""),
-            defaultName:  ln.name + (qty > 1 ? ` ${q + 1}` : ""),
-            lineNote:     ln.note || "",
+            name:         (pr.workspaceNames || {})[id] || defaultName,
+            defaultName,
+            lineNote:     w.note || "",
             clientId:     c.id,
             clientName:   c.name,
             projectId:    pr.id,
             projectName:  pr.name,
             deadline:     pr.deliveryDate || null,
-            category:     getWsCategory(ln),
+            category:     getWsCategory(w.line),
             status:       (pr.workspaceStatus || {})[id] || "Not started",
             plannerDate:  (pr.workspacePlanner || {})[id] || null,
             notes:        (pr.workspaceNotes || {})[id] || "",
           });
-        }
+        });
       });
     });
   });
@@ -142,21 +160,16 @@ export function getAllDelivered(clients: any[], allItems: any[]) {
 export function getCatProgress(pr: any, clients: any[]): Record<string, { total: number; created: number; posted: number; allCreated: boolean }> {
   const cl = clients.find((c: any) => c.projects.some((p: any) => p.id === pr.id));
   if (!cl) return {};
-  const skip = ["usage","excl","rush","revision","whitelisting","aspect","raw footage","kill","pinned","link in bio"];
   const cats: Record<string, { total: number; created: number; posted: number; allCreated: boolean }> = {};
-  (pr.qd?.lines || []).forEach((ln: any, li: number) => {
-    if (!ln.name) return;
-    if (skip.some((s: string) => ln.name.toLowerCase().includes(s))) return;
-    const qty = parseInt(ln.qty) || 1;
-    for (let q = 0; q < qty; q++) {
-      const id = `${pr.id}_ln${li}_q${q}`;
-      const cat = getWsCategory(ln);
+  wsLines(pr).forEach(w => {
+    const cat = getWsCategory(w.line);
+    wsItemIds(w).forEach(id => {
       const st = (pr.workspaceStatus || {})[id] || "Not started";
       if (!cats[cat]) cats[cat] = { total: 0, created: 0, posted: 0, allCreated: false };
       cats[cat].total++;
       if (["Created","Reviewed","Delivered","Posted"].includes(st)) cats[cat].created++;
       if (st === "Posted") cats[cat].posted++;
-    }
+    });
   });
   Object.keys(cats).forEach(k => { cats[k].allCreated = cats[k].total > 0 && cats[k].created === cats[k].total; });
   return cats;

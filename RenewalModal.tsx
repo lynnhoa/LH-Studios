@@ -1,304 +1,283 @@
 // ─────────────────────────────────────────────────────────────
-// RenewalModal — usage rights / exclusivity renewal builder
-// Verbatim port of old App.tsx lines 2078–2322.
-// Output renewal record (old-app authoritative shape):
-//   { id, optLabel, startDate, endDate, fee, rNo, signed:false, paid:false, doc }
-// Caller (saveRenewal) forces signed:true on save.
+// RenewalModal — usage rights / exclusivity renewal (or a rights
+// extension as an amendment). One window: builder on the left,
+// the live document on the right. Percentages come from each
+// line's own rate card; the base is the line's base price (before
+// earlier usage / exclusivity / add-ons). Saving creates the draft
+// invoice (renewal) or the draft amendment; the caller opens it.
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { editLock } from "./saveStatus";
-import { C, SANS, SERIF, TYPE } from "./constants";
-import { fmt, fmtD, addM, addD, today } from "./formatters";
-import { I, S, B, Lbl, Pill } from "./atoms";
-import { RENEWAL_OPTS } from "./rateCards";
-import PDFModal from "./PDFModal";
+import { C, SANS, SERIF, TYPE, Z } from "./constants";
+import { fmt, fmtD, addM, addD, today, r2 } from "./formatters";
+import { I, S, B, Lbl, Pill, CatPill } from "./atoms";
+import DocPages from "./DocPages";
 import { dueFrom } from "./docs";
 import type { DocView } from "./docs";
+import { normalizeCards, lineBase, renewalOptions, pctOn, optName, pctText, renewalStart } from "./pricing";
 
-const CAT_FROM_ID = (id: string) => {
-  if (!id) return "";
-  const p = id.charAt(0);
-  return p === "i" ? "Influencer" : p === "u" ? "UGC" : p === "e" ? "Editorial" : p === "h" ? "Hotels" : "";
-};
+type Mode = "none" | "predefined" | "custom";
 
-// onSave(record, editedDoc) — record = renewal or amendment fields, editedDoc = the
-// previewed document incl. any edits made in the preview (they are kept).
-export default function RenewalModal({ p, onSave, onClose, rc, settings, client, mode = "renewal", onCalc }: any) {
-  // mode: "renewal" (default, unchanged) | "amend" — same builder, but the
-  // output is an Amendment (rights extension mid-contract, item not re-charged).
+export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, client, mode = "renewal", onCalc }: any) {
   const isAmendMode = mode === "amend";
+  const rc = useMemo(() => normalizeCards(rawRc), [rawRc]);
   useEffect(() => editLock.acquire(), []);
   const q = p.qd;
-  // all billable lines from quote + signed amendments
-  const origLines  = (q?.lines || []).map((l: any) => ({ ...l, _src: "quote" }));
-  const amendLines = (p.amendments || []).filter((a: any) => a.signed).flatMap((a: any) =>
-    (a.lines || []).map((l: any) => ({ ...l, _src: `Amend ${a.aNo}` }))
-  );
-  const allLines = [...origLines, ...amendLines].filter((l: any) => l.amt > 0);
-  const catLabel = CAT_FROM_ID;
 
-  // 01 deliverables — qty stepper (0 = not selected, max = qty in quote)
+  // all billable lines from the quote + signed amendments
+  const allLines = useMemo(() => {
+    const orig  = (q?.lines || []).map((l: any) => ({ ...l, _src: "quote" }));
+    const amend = (p.amendments || []).filter((a: any) => a.signed).flatMap((a: any) => (a.lines || []).map((l: any) => ({ ...l, _src: a.aNo || "Amendment" })));
+    return [...orig, ...amend].filter((l: any) => Number(l.amt) > 0).map((l: any, i: number) => ({
+      ...l, _key: l.id || `line_${i}`, _unitBase: r2(lineBase(l) / Math.max(1, parseInt(l.qty) || 1)),
+    }));
+  }, [q, p.amendments]);
+
+  // ── 01 which deliverables ──
   const [selQty, setSelQty] = useState<Record<string, number>>({});
-  const setQty = (key: string, max: number, val: number) =>
-    setSelQty(p => ({ ...p, [key]: Math.max(0, Math.min(max, val)) }));
-  // Per-unit effective price = line amount / line qty, so usage rights,
-  // exclusivity, and add-on uplifts baked into amt are carried into the
-  // renewal base. Falls back to `up` if amt is missing.
-  const base = allLines.reduce((s: number, l: any, i: number) => {
-    const key = l.id || `line_${i}`;
-    const qty = selQty[key] || 0;
-    if (!qty) return s;
-    const lineAmt = parseFloat(l.amt) || 0;
-    const lineQty = Math.max(1, parseInt(l.qty) || 1);
-    const unit = lineAmt > 0 ? lineAmt / lineQty : (parseFloat(l.up) || 0);
-    return s + unit * qty;
-  }, 0);
+  const setQty = (key: string, max: number, val: number) => setSelQty(s => ({ ...s, [key]: Math.max(0, Math.min(max, val)) }));
+  const selected = allLines.filter((l: any) => (selQty[l._key] || 0) > 0).map((l: any) => ({ l, qty: selQty[l._key], base: r2(l._unitBase * selQty[l._key]) }));
+  const base = r2(selected.reduce((s: number, x: any) => s + x.base, 0));
+  const mainCat = selected[0]?.l.cat || q?.ctab || allLines[0]?.cat || "influencer";
 
-  // 02 usage rights
-  const [uMode, setUMode]             = useState<"predefined" | "custom" | "none">("none");
-  const [uIdx, setUIdx]               = useState(0);
-  const [uCustomDays, setUCustomDays] = useState("");
-  const [uCustomUnit, setUCustomUnit] = useState<"days" | "months">("days");
-  const [uCustomFee, setUCustomFee]   = useState("");
-  const uOpt = RENEWAL_OPTS.usage[uIdx];
-  const uFee = uMode === "predefined" ? Math.round(base * (uOpt.pct / 100)) : uMode === "custom" ? parseFloat(uCustomFee) || 0 : 0;
+  // ── 02 usage / 03 exclusivity (options from the line's own card) ──
+  const uOpts = renewalOptions(rc, rc[mainCat] ? mainCat : "influencer", "usage");
+  const eOpts = renewalOptions(rc, rc[mainCat] ? mainCat : "influencer", "excl");
+  const [uMode, setUMode] = useState<Mode>("none");
+  const [eMode, setEMode] = useState<Mode>("none");
+  const [uIdx, setUIdx] = useState(() => Math.max(0, uOpts.findIndex((o: any) => Number(o.pct) > 0)));
+  const [eIdx, setEIdx] = useState(0);
+  const [uN, setUN] = useState(""); const [uUnit, setUUnit] = useState<"months" | "days">("months");
+  const [eN, setEN] = useState(""); const [eUnit, setEUnit] = useState<"months" | "days">("months");
+  const [uFeeIn, setUFeeIn] = useState<string | null>(null);   // manual override (custom)
+  const [eFeeIn, setEFeeIn] = useState<string | null>(null);
+  const uOpt = uOpts[Math.min(uIdx, uOpts.length - 1)];
+  const eOpt = eOpts[Math.min(eIdx, eOpts.length - 1)];
 
-  // 03 exclusivity
-  const [eMode, setEMode]             = useState<"predefined" | "custom" | "none">("none");
-  const [eIdx, setEIdx]               = useState(0);
-  const [eCustomDays, setECustomDays] = useState("");
-  const [eCustomUnit, setECustomUnit] = useState<"days" | "months">("days");
-  const [eCustomFee, setECustomFee]   = useState("");
-  const eOpt = RENEWAL_OPTS.excl[eIdx];
-  const eFee = eMode === "predefined" ? Math.round(base * (eOpt.pct / 100)) : eMode === "custom" ? parseFloat(eCustomFee) || 0 : 0;
-
-  // 04 dates
-  const [startD, setStartD] = useState(today());
-  const calcEnd = (mode: string, opt: any, customDays: string, customUnit: string) => {
-    if (mode === "predefined") return addM(startD, opt.mo);
-    if (mode === "custom") {
-      const n = parseInt(customDays) || 0;
-      return customUnit === "days" ? addD(startD, n) : addM(startD, n);
-    }
-    return null;
+  // fee for a set of lines: each line uses its own card's % for the chosen option
+  const feeFor = (kind: "usage" | "excl", opt: any, factor: number) =>
+    Math.round(selected.reduce((s: number, x: any) => s + x.base * pctOn(rc, x.l.cat || mainCat, kind, opt) / 100 * factor, 0));
+  const factorOf = (opt: any, n: string, unit: "months" | "days") => {
+    const v = parseInt(n) || 0;
+    const refMo = Number(opt?.mo) || 1;
+    return unit === "months" ? v / refMo : v / (refMo * 30);
   };
-  const uEnd = calcEnd(uMode, uOpt, uCustomDays, uCustomUnit);
-  const eEnd = calcEnd(eMode, eOpt, eCustomDays, eCustomUnit);
+  const uCalc = uMode === "predefined" ? feeFor("usage", uOpt, 1) : uMode === "custom" ? feeFor("usage", uOpt, factorOf(uOpt, uN, uUnit)) : 0;
+  const eCalc = eMode === "predefined" ? feeFor("excl", eOpt, 1) : eMode === "custom" ? feeFor("excl", eOpt, factorOf(eOpt, eN, eUnit)) : 0;
+  const uFee = uMode === "custom" && uFeeIn !== null ? Math.max(0, parseFloat(uFeeIn) || 0) : uCalc;
+  const eFee = eMode === "custom" && eFeeIn !== null ? Math.max(0, parseFloat(eFeeIn) || 0) : eCalc;
+
+  // ── 04 dates: start = day after the current license ends ──
+  const [startD, setStartD] = useState(() => renewalStart(p));
+  const endOf = (m: Mode, opt: any, n: string, unit: "months" | "days") =>
+    m === "predefined" ? addM(startD, Number(opt?.mo) || 0)
+    : m === "custom" ? (unit === "months" ? addM(startD, parseInt(n) || 0) : addD(startD, parseInt(n) || 0))
+    : null;
+  const uEnd = endOf(uMode, uOpt, uN, uUnit);
+  const eEnd = endOf(eMode, eOpt, eN, eUnit);
   const endD = uEnd && eEnd ? (uEnd > eEnd ? uEnd : eEnd) : uEnd || eEnd;
-
   const totalFee = uFee + eFee;
-  const canPreview = base > 0 && (uMode !== "none" || eMode !== "none") && totalFee > 0;
+  const canSave = base > 0 && (uMode !== "none" || eMode !== "none") && totalFee > 0;
 
-  const [showPreview, setShowPreview] = useState(false);
-
-  const buildDoc = () => {
+  // ── the document being built (shown live on the right) ──
+  const doc: DocView = useMemo(() => {
+    const items = selected.map((x: any) => `${x.qty}× ${x.l.name}`).join(", ");
     const lines: any[] = [];
-    const selLines = allLines.filter((_l: any, i: number) => { const key = _l.id || `line_${i}`; return (selQty[key] || 0) > 0; });
-    const itemsSummary = selLines.map((_l: any, i: number) => {
-      const key = _l.id || `line_${i}`;
-      const qty = selQty[key] || 0;
-      const cat = _l.cat === "influencer" ? "Influencer" : _l.cat === "ugc" ? "UGC" : _l.cat === "editorial" ? "Editorial" : "";
-      return `${qty}× ${_l.name}${cat ? ` [${cat}]` : ""}`;
-    }).join(", ");
-    if (uMode !== "none" && uFee > 0) {
-      const label = uMode === "predefined" ? uOpt.l : `Custom (${uCustomDays} ${uCustomUnit})`;
-      const pctNote = uMode === "predefined" && uOpt.pct > 0 ? ` · ${fmt(base)} × ${uOpt.pct}% = ${fmt(uFee)}` : "";
-      lines.push({ name: `Usage Rights — ${label}`, note: `${itemsSummary}${pctNote} · ${fmtD(startD)}${uEnd ? ` → ${fmtD(uEnd)}` : ""}`, qty: 1, up: uFee, amt: uFee });
-    }
-    if (eMode !== "none" && eFee > 0) {
-      const label = eMode === "predefined" ? eOpt.l : `Custom (${eCustomDays} ${eCustomUnit})`;
-      const pctNote = eMode === "predefined" && eOpt.pct > 0 ? ` · ${fmt(base)} × ${eOpt.pct}% = ${fmt(eFee)}` : "";
-      lines.push({ name: `Exclusivity — ${label}`, note: `${itemsSummary}${pctNote} · ${fmtD(startD)}${eEnd ? ` → ${fmtD(eEnd)}` : ""}`, qty: 1, up: eFee, amt: eFee });
-    }
-    if (isAmendMode) return {
-      brand: q?.brand, contact: q?.contact, ctype: q?.ctype || "Content Creator",
-      lines, amendTotal: totalFee, origTotal: p.amount || 0,
-      startDate: startD, endDate: endD, footer: "",
+    const lineFor = (title: string, m: Mode, opt: any, n: string, unit: string, fee: number, end: string | null, kind: "usage" | "excl") => {
+      const label = m === "predefined" ? optName(opt?.l) : `${n} ${unit}`;
+      const pctNote = m === "predefined"
+        ? ` · ${fmt(base)} × ${pctText(pctOn(rc, mainCat, kind, opt))}`
+        : ` · pro rata of ${optName(opt?.l)}`;
+      lines.push({ name: `${title} — ${label}`, note: `${items}${pctNote} · ${fmtD(startD)}${end ? ` → ${fmtD(end)}` : ""}`, qty: 1, up: fee, amt: fee });
     };
-    return {
-      brand: q?.brand, contact: q?.contact, ctype: q?.ctype || "Content Creator",
-      lines, startDate: startD, endDate: endD, footer: "",
-    };
+    if (uMode !== "none" && uFee > 0) lineFor("Usage Rights", uMode, uOpt, uN, uUnit, uFee, uEnd, "usage");
+    if (eMode !== "none" && eFee > 0) lineFor("Exclusivity", eMode, eOpt, eN, eUnit, eFee, eEnd, "excl");
+    const common = { brand: q?.brand, contact: q?.contact, ctype: q?.ctype || "Content Creator", lines, startDate: startD, endDate: endD, footer: "" };
+    const d0 = today();
+    return isAmendMode
+      ? { kind: "amendment", docNo: "", revision: 0, status: "draft", docDate: d0, lang: "en", data: { ...common, amendTotal: totalFee, origTotal: p.amount || 0 } }
+      : { kind: "invoice", subtype: "renewal", docNo: "", revision: 0, status: "draft", docDate: d0, dueDate: dueFrom(d0), periodStart: startD, periodEnd: endD || startD, lang: "en", data: common };
+  }, [selected.map((x: any) => `${x.l._key}:${x.qty}`).join(","), uMode, eMode, uIdx, eIdx, uN, eN, uUnit, eUnit, uFee, eFee, startD, endD]);
+
+  const [lang, setLang]     = useState("en");
+  const [winW, setWinW]     = useState(() => window.innerWidth);
+  const [view, setView]     = useState<"edit" | "preview">("edit");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr]       = useState<string | null>(null);
+  useEffect(() => {
+    const fn = () => setWinW(window.innerWidth);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+  const isM = winW < 768;
+  const scale = isM ? Math.min(1, (winW - 32) / 595) : 1;
+
+  const save = async () => {
+    if (!canSave || saving) return;
+    setSaving(true); setErr(null);
+    const optLabelText = [
+      uMode !== "none" ? (uMode === "predefined" ? optName(uOpt?.l) : `Usage ${uN} ${uUnit}`) : "",
+      eMode !== "none" ? (eMode === "predefined" ? optName(eOpt?.l) : `Exclusivity ${eN} ${eUnit}`) : "",
+    ].filter(Boolean).join(" + ") || "Renewal";
+    const record = isAmendMode
+      ? { aNo: "", lines: doc.data.lines, amendTotal: totalFee, origTotal: p.amount || 0, signed: false, doc: {} }
+      : { optLabel: optLabelText, type: uMode !== "none" ? "usage" : "excl", startDate: startD, endDate: endD, fee: totalFee, rNo: "", signed: true, paid: false, doc: {} };
+    try { await onSave(record, { ...doc, lang: lang as any }); }
+    catch (e: any) { setErr(e?.message || "Save failed"); setSaving(false); }
   };
 
-  const SectionHead = ({ n, title }: any) => (
-    <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 10px", paddingBottom: 6, borderBottom: `1px solid ${C.rule}` }}>{n} — {title}</p>
+  // plain render helpers (not components) so inputs keep focus while typing
+  const section = (n: string, title: string, children: any) => (
+    <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "12px 14px", marginBottom: 12, background: C.white }}>
+      <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 10px", paddingBottom: 6, borderBottom: `1px solid ${C.rule}` }}>{n} — {title}</p>
+      {children}
+    </div>
   );
-  const ModeToggle = ({ val, set }: { val: string; set: (v: any) => void }) => (
-    <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+  const modeToggle = (val: Mode, set: (v: Mode) => void) => (
+    <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
       <Pill on={val === "none"} onClick={() => set("none")}>None</Pill>
-      <Pill on={val === "predefined"} onClick={() => set("predefined")}>Predefined</Pill>
+      <Pill on={val === "predefined"} onClick={() => set("predefined")}>From rate card</Pill>
       <Pill on={val === "custom"} onClick={() => set("custom")}>Custom</Pill>
     </div>
   );
-
-  if (showPreview) {
-    const data = buildDoc();
-    const d0 = today();
-    const doc: DocView = isAmendMode
-      ? { kind: "amendment", docNo: "", revision: 0, status: "draft", docDate: d0, lang: "en", data }
-      : { kind: "invoice", subtype: "renewal", docNo: "", revision: 0, status: "draft", docDate: d0,
-          dueDate: dueFrom(d0), periodStart: startD, periodEnd: endD, lang: "en", data };
-    const optLabel = [uMode !== "none" ? (uMode === "predefined" ? uOpt?.l : "Custom usage") : "", eMode !== "none" ? (eMode === "predefined" ? eOpt?.l : "Custom exclusivity") : ""].filter(Boolean).join(" + ") || "Custom";
-    const record = isAmendMode
-      ? { aNo: "", lines: data.lines, amendTotal: totalFee, origTotal: p.amount || 0, signed: false, doc: {} }
-      : { optLabel, startDate: startD, endDate: endD, fee: totalFee, rNo: "", signed: true, paid: false, doc: {} };
-    return (
-      <PDFModal
-        doc={doc}
-        settings={settings}
-        client={client}
-        editable={true}
-        isNew={true}
-        note={isAmendMode ? "The amendment number is assigned when you save." : "Saved as a draft invoice — the invoice number is assigned when you finalize it."}
-        onSave={async (next) => { await onSave(record, next); }}
-        onClose={onClose}
-      />
-    );
-  }
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{ background: C.bg, width: "100%", maxWidth: 520, borderRadius: 2, padding: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.18)", maxHeight: "92vh", overflowY: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, fontWeight: "normal", margin: 0 }}>{isAmendMode ? "Amendment — Rights Extension" : "Add Renewal"}</h3>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: TYPE.sectionHeading.size, color: C.muted }}>✕</button>
-        </div>
-        <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: isAmendMode ? "0 0 6px" : "0 0 16px" }}>Project: <strong style={{ color: C.black }}>{p.name}</strong></p>
-        {isAmendMode && (
-          <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "0 0 16px" }}>
-            Extend usage rights or exclusivity on items already delivered — the item itself is not charged again.{" "}
-            {onCalc && (
-              <button onClick={onCalc} style={{ background: "none", border: "none", cursor: "pointer", color: C.black, fontSize: TYPE.micro.size, padding: 0, textDecoration: "underline", fontFamily: SANS }}>
-                Adding new deliverables instead? Open Calculator →
-              </button>
-            )}
-          </p>
-        )}
-
-        {/* 01 — Deliverables */}
-        <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "13px 14px", marginBottom: 12, background: C.white }}>
-          <SectionHead n="01" title="Which Deliverables" />
-          <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "0 0 8px" }}>{isAmendMode ? "Select the contracted items the extension applies to. Their prices are the base for % calculation — items are not re-charged." : "Select items the renewal fee applies to. Their prices are the base for % calculation."}</p>
-          {allLines.map((l: any, i: number) => {
-            const key = l.id || `line_${i}`;
-            const max = l.qty || 1;
-            const qty = selQty[key] || 0;
-            const catFromId = catLabel(l.id || "");
-            const catFromField = l.cat === "influencer" ? "Influencer" : l.cat === "ugc" ? "UGC" : l.cat === "editorial" ? "Editorial" : l.cat === "hotels" ? "Hotels" : "";
-            const cat = catFromId || catFromField;
-            return (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.rule}` }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const }}>
-                    <span style={{ fontSize: TYPE.label.size, color: C.black }}>{l.name}</span>
-                    {cat && <span style={{ fontSize: TYPE.micro.size, color: C.muted, border: `1px solid ${C.rule}`, padding: "1px 6px", borderRadius: 2, letterSpacing: "0.06em", textTransform: "uppercase" as const, flexShrink: 0 }}>{cat}</span>}
-                    {l._src !== "quote" && <span style={{ fontSize: TYPE.micro.size, color: C.amber, border: `1px solid ${C.amber}`, padding: "1px 6px", borderRadius: 2, letterSpacing: "0.06em", flexShrink: 0 }}>{l._src}</span>}
-                  </div>
-                  <span style={{ fontSize: TYPE.micro.size, color: C.light }}>€{l.up} each · max {max}</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
-                  <button onClick={() => setQty(key, max, qty - 1)} style={{ width: 22, height: 22, border: `1px solid ${C.rule}`, borderRadius: 2, background: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: qty > 0 ? C.black : C.light, lineHeight: 1 }}>−</button>
-                  <span style={{ fontSize: TYPE.label.size, fontFamily: SERIF, minWidth: 16, textAlign: "center", color: qty > 0 ? C.black : C.light }}>{qty}</span>
-                  <button onClick={() => setQty(key, max, qty + 1)} style={{ width: 22, height: 22, border: `1px solid ${C.rule}`, borderRadius: 2, background: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: qty < max ? C.black : C.light, lineHeight: 1 }}>+</button>
-                </div>
-                <span style={{ fontFamily: SERIF, fontSize: TYPE.micro.size, color: qty > 0 ? C.black : C.muted, flexShrink: 0, minWidth: 52, textAlign: "right" }}>{qty > 0 ? fmt(parseFloat(l.up || 0) * qty) : "—"}</span>
-              </div>
-            );
-          })}
-          {base > 0 && <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "8px 0 0", textAlign: "right" }}>Base: <strong style={{ color: C.black, fontFamily: SERIF }}>{fmt(base)}</strong></p>}
-        </div>
-
-        {/* 02 — Usage Rights */}
-        <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "13px 14px", marginBottom: 12, background: C.white }}>
-          <SectionHead n="02" title="Usage Rights" />
-          <ModeToggle val={uMode} set={setUMode} />
-          {uMode === "predefined" && <>
-            <S value={uIdx} onChange={(e: any) => setUIdx(parseInt(e.target.value))} s={{ marginBottom: 6 }}>
-              {RENEWAL_OPTS.usage.map((o, i) => <option key={i} value={i}>{o.l}{o.pct > 0 ? ` (+${o.pct}%)` : ""}</option>)}
-            </S>
-            {base > 0 && <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: 0 }}>Fee: <strong style={{ color: C.black, fontFamily: SERIF }}>{fmt(uFee)}</strong> ({uOpt.pct}% of {fmt(base)})</p>}
-          </>}
-          {uMode === "custom" && <>
-            <Lbl>Reference rate <span style={{ fontWeight: "normal", color: C.light }}>(for pro-rata calculation)</span></Lbl>
-            <S value={uIdx} onChange={(e: any) => setUIdx(parseInt(e.target.value))} s={{ marginBottom: 8, opacity: 0.6 }}>
-              {RENEWAL_OPTS.usage.map((o, i) => <option key={i} value={i}>{o.l}{o.pct > 0 ? ` (+${o.pct}%)` : ""}</option>)}
-            </S>
-            <div style={{ display: "flex", gap: 7, marginBottom: 6 }}>
-              <I type="number" placeholder="Duration" value={uCustomDays} onChange={(e: any) => {
-                const d = parseInt(e.target.value) || 0;
-                setUCustomDays(e.target.value);
-                if (d > 0 && uOpt.pct > 0 && uOpt.mo > 0 && base > 0) {
-                  const refDays = uOpt.mo * 30;
-                  const proRataPct = (d / refDays) * uOpt.pct;
-                  setUCustomFee(String(Math.round(base * proRataPct / 100)));
-                }
-              }} s={{ flex: 1 }} />
-              <S value={uCustomUnit} onChange={(e: any) => setUCustomUnit(e.target.value)} s={{ flex: 1 }}>
-                <option value="days">Days</option>
-                <option value="months">Months</option>
-              </S>
-            </div>
-            {uCustomDays && uOpt.pct > 0 && base > 0 && <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "0 0 6px" }}>Pro-rata: {parseInt(uCustomDays) || 0}d / {uOpt.mo * 30}d × {uOpt.pct}% = {Math.round(((parseInt(uCustomDays) || 0) / (uOpt.mo * 30)) * uOpt.pct)}% of {fmt(base)}</p>}
-            <I type="number" placeholder="Fee (€)" value={uCustomFee} onChange={(e: any) => setUCustomFee(e.target.value)} />
-          </>}
-        </div>
-
-        {/* 03 — Exclusivity */}
-        <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "13px 14px", marginBottom: 12, background: C.white }}>
-          <SectionHead n="03" title="Exclusivity" />
-          <ModeToggle val={eMode} set={setEMode} />
-          {eMode === "predefined" && <>
-            <S value={eIdx} onChange={(e: any) => setEIdx(parseInt(e.target.value))} s={{ marginBottom: 6 }}>
-              {RENEWAL_OPTS.excl.map((o, i) => <option key={i} value={i}>{o.l}{o.pct > 0 ? ` (+${o.pct}%)` : ""}</option>)}
-            </S>
-            {base > 0 && <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: 0 }}>Fee: <strong style={{ color: C.black, fontFamily: SERIF }}>{fmt(eFee)}</strong> ({eOpt.pct}% of {fmt(base)})</p>}
-          </>}
-          {eMode === "custom" && <>
-            <Lbl>Reference rate <span style={{ fontWeight: "normal", color: C.light }}>(for pro-rata calculation)</span></Lbl>
-            <S value={eIdx} onChange={(e: any) => setEIdx(parseInt(e.target.value))} s={{ marginBottom: 8, opacity: 0.6 }}>
-              {RENEWAL_OPTS.excl.map((o, i) => <option key={i} value={i}>{o.l}{o.pct > 0 ? ` (+${o.pct}%)` : ""}</option>)}
-            </S>
-            <div style={{ display: "flex", gap: 7, marginBottom: 6 }}>
-              <I type="number" placeholder="Duration" value={eCustomDays} onChange={(e: any) => {
-                const d = parseInt(e.target.value) || 0;
-                setECustomDays(e.target.value);
-                if (d > 0 && eOpt.pct > 0 && eOpt.mo > 0 && base > 0) {
-                  const refDays = eOpt.mo * 30;
-                  const proRataPct = (d / refDays) * eOpt.pct;
-                  setECustomFee(String(Math.round(base * proRataPct / 100)));
-                }
-              }} s={{ flex: 1 }} />
-              <S value={eCustomUnit} onChange={(e: any) => setECustomUnit(e.target.value)} s={{ flex: 1 }}>
-                <option value="days">Days</option>
-                <option value="months">Months</option>
-              </S>
-            </div>
-            {eCustomDays && eOpt.pct > 0 && base > 0 && <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "0 0 6px" }}>Pro-rata: {parseInt(eCustomDays) || 0}d / {eOpt.mo * 30}d × {eOpt.pct}% = {Math.round(((parseInt(eCustomDays) || 0) / (eOpt.mo * 30)) * eOpt.pct)}% of {fmt(base)}</p>}
-            <I type="number" placeholder="Fee (€)" value={eCustomFee} onChange={(e: any) => setECustomFee(e.target.value)} />
-          </>}
-        </div>
-
-        {/* 04 — Dates */}
-        <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "13px 14px", marginBottom: 12, background: C.white }}>
-          <SectionHead n="04" title="Dates" />
-          <Lbl>Start Date</Lbl>
-          <I type="date" value={startD} onChange={(e: any) => setStartD(e.target.value)} s={{ marginBottom: 6 }} />
-          {endD && <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: 0 }}>End date: <strong style={{ color: C.black }}>{fmtD(endD)}</strong></p>}
-        </div>
-
-        {/* Total */}
-        <div style={{ padding: "9px 12px", border: `1px solid ${C.rule}`, borderRadius: 2, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <span style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>{isAmendMode ? "Amendment Total" : "Renewal Total"}</span>
-          <span style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size }}>{fmt(totalFee)}</span>
-        </div>
-
-        <div style={{ display: "flex", gap: 7, justifyContent: "flex-end" }}>
-          <B v="sec" onClick={onClose}>Cancel</B>
-          <B s={{ opacity: canPreview ? 1 : 0.4 }} onClick={() => { if (!canPreview) return; setShowPreview(true); }}>Preview & Save</B>
-        </div>
+  const optText = (o: any) => `${optName(o.l)}${Number(o.pct) > 0 ? ` (+${pctText(o.pct)})` : " (included)"}`;
+  const customBlock = ({ opt, opts, idx, setIdx, n, setN, unit, setUnit, calc, feeIn, setFeeIn }: any) => (
+    <>
+      <Lbl>Reference option <span style={{ fontWeight: "normal", color: C.light }}>(for the pro-rata fee)</span></Lbl>
+      <S value={idx} onChange={(e: any) => { setIdx(parseInt(e.target.value)); setFeeIn(null); }} s={{ marginBottom: 8 }}>
+        {opts.map((o: any, i: number) => <option key={i} value={i}>{optText(o)}</option>)}
+      </S>
+      <div style={{ display: "flex", gap: 7, marginBottom: 6 }}>
+        <I type="number" min={1} placeholder="Duration" value={n} onChange={(e: any) => { setN(e.target.value); setFeeIn(null); }} s={{ flex: 1 }} />
+        <S value={unit} onChange={(e: any) => { setUnit(e.target.value); setFeeIn(null); }} s={{ flex: 1 }}>
+          <option value="months">Months</option>
+          <option value="days">Days</option>
+        </S>
       </div>
-    </div>
+      {(parseInt(n) || 0) > 0 && base > 0 && (
+        <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 6px" }}>
+          Pro rata: {n} {unit} of {Number(opt?.mo) || 1} {Number(opt?.mo) === 1 ? "month" : "months"} → {fmt(calc)}
+        </p>
+      )}
+      <Lbl>Fee (€)</Lbl>
+      <I type="number" min={0} value={feeIn !== null ? feeIn : String(calc)} onChange={(e: any) => setFeeIn(e.target.value)} />
+    </>
+  );
+
+  const panel = (
+    <>
+      <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 12px" }}>Project: <strong style={{ color: C.black }}>{p.name}</strong></p>
+      {isAmendMode && (
+        <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 12px", lineHeight: 1.5 }}>
+          Extend usage rights or exclusivity on items already delivered — the items are not charged again.{" "}
+          {onCalc && <button onClick={onCalc} style={{ background: "none", border: "none", cursor: "pointer", color: C.black, fontSize: TYPE.label.size, padding: 0, textDecoration: "underline", fontFamily: SANS }}>Adding new deliverables? Open Calculator →</button>}
+        </p>
+      )}
+
+      {section("01", "Which deliverables", <>
+        <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 8px" }}>The % is taken from each item's base price (without earlier usage, exclusivity or add-ons).</p>
+        {allLines.map((l: any) => {
+          const max = Math.max(1, parseInt(l.qty) || 1);
+          const qty = selQty[l._key] || 0;
+          return (
+            <div key={l._key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.rule}` }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const }}>
+                  <span style={{ fontSize: TYPE.label.size, color: C.black }}>{l.name}</span>
+                  {l.cat && <CatPill cat={l.cat} label={l.catLabel} />}
+                  {l._src !== "quote" && <span style={{ fontSize: TYPE.micro.size, color: C.amber }}>{l._src}</span>}
+                </div>
+                <span style={{ fontSize: TYPE.micro.size, color: C.light }}>base {fmt(l._unitBase)} each · max {max}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                <button onClick={() => setQty(l._key, max, qty - 1)} style={{ width: 32, height: 32, border: `1px solid ${C.rule}`, borderRadius: 2, background: "none", cursor: "pointer", fontSize: TYPE.body.size, color: qty > 0 ? C.black : C.light }}>−</button>
+                <span style={{ fontSize: TYPE.label.size, fontFamily: SERIF, minWidth: 18, textAlign: "center" as const }}>{qty}</span>
+                <button onClick={() => setQty(l._key, max, qty + 1)} style={{ width: 32, height: 32, border: `1px solid ${C.rule}`, borderRadius: 2, background: "none", cursor: "pointer", fontSize: TYPE.body.size, color: qty < max ? C.black : C.light }}>+</button>
+              </div>
+            </div>
+          );
+        })}
+        {base > 0 && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "8px 0 0", textAlign: "right" as const }}>Base: <strong style={{ color: C.black, fontFamily: SERIF }}>{fmt(base)}</strong></p>}
+      </>)}
+
+      {section("02", "Usage rights", <>
+        {modeToggle(uMode, setUMode)}
+        {uMode === "predefined" && <>
+          <S value={uIdx} onChange={(e: any) => setUIdx(parseInt(e.target.value))} s={{ marginBottom: 6 }}>
+            {uOpts.map((o: any, i: number) => <option key={i} value={i}>{optText(o)}</option>)}
+          </S>
+          {base > 0 && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: 0 }}>Fee: <strong style={{ color: C.black, fontFamily: SERIF }}>{fmt(uFee)}</strong></p>}
+        </>}
+        {uMode === "custom" && customBlock({ opt: uOpt, opts: uOpts, idx: uIdx, setIdx: setUIdx, n: uN, setN: setUN, unit: uUnit, setUnit: setUUnit, calc: uCalc, feeIn: uFeeIn, setFeeIn: setUFeeIn })}
+      </>)}
+
+      {section("03", "Exclusivity", <>
+        {modeToggle(eMode, setEMode)}
+        {eMode === "predefined" && <>
+          <S value={eIdx} onChange={(e: any) => setEIdx(parseInt(e.target.value))} s={{ marginBottom: 6 }}>
+            {eOpts.map((o: any, i: number) => <option key={i} value={i}>{optText(o)}</option>)}
+          </S>
+          {base > 0 && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: 0 }}>Fee: <strong style={{ color: C.black, fontFamily: SERIF }}>{fmt(eFee)}</strong></p>}
+        </>}
+        {eMode === "custom" && customBlock({ opt: eOpt, opts: eOpts, idx: eIdx, setIdx: setEIdx, n: eN, setN: setEN, unit: eUnit, setUnit: setEUnit, calc: eCalc, feeIn: eFeeIn, setFeeIn: setEFeeIn })}
+      </>)}
+
+      {section("04", "Dates", <>
+        <Lbl>Start date <span style={{ fontWeight: "normal", color: C.light }}>(day after the current license ends)</span></Lbl>
+        <I type="date" value={startD} onChange={(e: any) => setStartD(e.target.value)} s={{ marginBottom: 6 }} />
+        {endD && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: 0 }}>End date: <strong style={{ color: C.black }}>{fmtD(endD)}</strong></p>}
+      </>)}
+    </>
+  );
+
+  const footer = (
+    <>
+      {err && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>{isAmendMode ? "Amendment total" : "Renewal total"}</span>
+        <span style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size }}>{fmt(totalFee)}</span>
+        <div style={{ flex: 1 }} />
+        <B onClick={save} s={{ opacity: canSave && !saving ? 1 : 0.4 }}>{saving ? "Saving…" : isAmendMode ? "Save amendment" : "Save renewal"}</B>
+      </div>
+      <p style={{ fontSize: TYPE.micro.size, color: C.light, margin: "6px 0 0" }}>
+        {isAmendMode ? "Saved as a draft amendment — the number is assigned when you save." : "Saved as a draft invoice — the number is assigned when you finalize it."}
+      </p>
+    </>
+  );
+
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
+      <div style={{ borderBottom: `1px solid ${C.rule}`, flexShrink: 0 }}>
+        <div style={{ height: 52, display: "flex", alignItems: "center", padding: "0 12px", gap: 8 }}>
+          <button onClick={onClose} aria-label="Close" style={{ width: 36, height: 36, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: TYPE.amount.size }}>✕</button>
+          <span style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size }}>{isAmendMode ? "Amendment — Rights Extension" : "Add Renewal"}</span>
+          <div style={{ flex: 1 }} />
+          <Pill on={lang === "en"} onClick={() => setLang("en")}>EN</Pill>
+          <Pill on={lang === "de"} onClick={() => setLang("de")}>DE</Pill>
+        </div>
+        {isM && (
+          <div style={{ display: "flex", gap: 6, padding: "0 12px 10px" }}>
+            <Pill on={view === "edit"} onClick={() => setView("edit")}>Edit</Pill>
+            <Pill on={view === "preview"} onClick={() => setView("preview")}>Preview</Pill>
+          </div>
+        )}
+      </div>
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        {(!isM || view === "edit") && (
+          <div style={{ width: isM ? "100%" : 400, flexShrink: 0, display: "flex", flexDirection: "column", borderRight: isM ? "none" : `1px solid ${C.rule}` }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px" }}>{panel}</div>
+            <div style={{ padding: "12px 18px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>{footer}</div>
+          </div>
+        )}
+        {(!isM || view === "preview") && (
+          <div style={{ flex: 1, background: "#888", overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isM ? "20px 12px" : "32px 28px", gap: isM ? 16 : 28 }}>
+            <DocPages doc={{ ...doc, lang: lang as any }} settings={settings} client={client} lang={lang} scale={scale} />
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
   );
 }

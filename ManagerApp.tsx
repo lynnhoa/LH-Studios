@@ -91,9 +91,10 @@ export default function ManagerApp({
     setDashDrill(null);
   };
 
-  const goToCalc = (clientName: string) => {
+  // New quote for a client (optionally for one of its leads)
+  const goToCalc = (clientName: string, leadId?: string) => {
     const c = (clientsHook.clients || []).find((x: any) => x.name === clientName);
-    setPrefill({ brand: clientName, contact: c?.contact || "", cid: c?.id });
+    setPrefill({ brand: clientName, contact: c?.contact || "", cid: c?.id, pid: leadId });
     setNav(NAV_CALCULATOR);
   };
 
@@ -111,6 +112,10 @@ export default function ManagerApp({
       // a draft quote is updated in place; a sent one gets the next revision
       revN:      cur && cur.status === "draft" ? cur.revision : (cur ? cur.revision : (q.rev || 0)) + 1,
       origLines: q.lines || [],
+      retainer:  !!q.retainer,
+      retMo:     q.retMo,
+      validDays: q.validUntil && q.date ? Math.max(1, Math.round((new Date(q.validUntil).getTime() - new Date(q.date).getTime()) / 864e5)) : 14,
+      projectName: pr.name,
       pid:       pr.id,
       cid:       cl.id,
     });

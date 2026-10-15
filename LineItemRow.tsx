@@ -23,7 +23,7 @@ export default function LineItemRow({ item, onRemove }: LineItemRowProps) {
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* Category badge + name */}
         <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
-          <CatPill cat={item.cat} />
+          <CatPill cat={item.cat} label={item.catLabel} />
           <span style={{ fontSize: TYPE.subtext.size, color: C.black }}>
             {item.qty > 1 ? `${item.qty}× ` : ""}{item.name}
           </span>
@@ -32,6 +32,13 @@ export default function LineItemRow({ item, onRemove }: LineItemRowProps) {
         {/* Note */}
         {item.note && (
           <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 1px", paddingLeft: 52 }}>{item.note}</p>
+        )}
+
+        {/* Package contents */}
+        {item.kind === "package" && item.includes?.length > 0 && (
+          <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 1px", paddingLeft: 52 }}>
+            Includes {item.includes.map((x: any) => `${x.qty || 1}× ${x.n}`).join(", ")}
+          </p>
         )}
 
         {/* Add-ons */}

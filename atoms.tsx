@@ -367,12 +367,12 @@ export const StatusBadge = ({ status }: { status: string }) => {
 };
 
 // ─── CATEGORY PILL (one label + colour per category) ─────────
-export const CatPill = ({ cat, onClick, title }: { cat: string; onClick?: () => void; title?: string }) => {
+export const CatPill = ({ cat, onClick, title, label }: { cat: string; onClick?: () => void; title?: string; label?: string }) => {
   const c = catInfo(cat);
   return (
     <span onClick={onClick} title={title}
       style={{ fontSize: TYPE.micro.size, fontFamily: SANS, padding: "2px 8px", borderRadius: 10, border: `1px solid ${c.border}`, background: c.bg, color: c.color, whiteSpace: "nowrap" as const, flexShrink: 0, cursor: onClick ? "pointer" : "default", display: "inline-block" }}>
-      {c.label}
+      {label || c.label}
     </span>
   );
 };
