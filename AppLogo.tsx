@@ -14,7 +14,7 @@ interface AppLogoProps {
 const LOGO_SIZES: Record<LogoSize, { name: number; studio: number; gap: number; padY: number }> = {
   auth: { name: 26, studio: TYPE.micro.size, gap: 6, padY: 0 },
   web:  { name: 20, studio: TYPE.micro.size, gap: 3, padY: 0 },
-  nav:  { name: 30, studio: TYPE.micro.size, gap: 2, padY: 8 },
+  nav:  { name: 24, studio: TYPE.micro.size, gap: 2, padY: 2 },
 };
 
 export default function AppLogo({ size = "nav", onClick }: AppLogoProps) {

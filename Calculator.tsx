@@ -321,8 +321,8 @@ export default function Calculator({
   return (
     <div>
       {/* ── HEADER ── */}
-      <div style={{ marginBottom: 18 }}>
-        <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 6px", color: C.black }}>Calculator</h2>
+      <div style={{ marginBottom: 4 }}>
+        <h2 style={{ fontFamily: SERIF, fontSize: 22, fontWeight: "normal", margin: "0 0 3px", color: C.black, lineHeight: 1.1 }}>Calculator</h2>
         <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" as const, margin: 0 }}>
           {isAmend ? "Amendment" : isRev ? "Revision" : "Build a Quote"}
         </p>
@@ -330,18 +330,18 @@ export default function Calculator({
 
       {/* ── MODE BANNER (revise / amend) ── */}
       {locked && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 14px", marginBottom: 16, background: TINT.amber, border: `1px solid ${C.amber}`, borderRadius: 2 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 12px", marginBottom: 12, background: TINT.amber, border: `1px solid ${C.amber}`, borderRadius: 2 }}>
           <span style={{ fontSize: TYPE.label.size, color: C.amber }}>
             {isAmend ? `Amendment ${amendN} to ${prefill?.qNo || "the project"}` : `Revising ${prefill?.qNo || ""} · R${revN}`} · {brandName}
           </span>
-          <B v="sec" onClick={reset} s={{ minHeight: 34, padding: "0 14px" }}>Exit</B>
+          <B v="sec" onClick={reset} s={{ minHeight: 30, padding: "0 12px" }}>Exit</B>
         </div>
       )}
 
       {/* ── ORIGINAL LINES (amendment) ── */}
       {isAmend && prefill?.origLines?.length > 0 && (
-        <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "12px 14px", marginBottom: 16, background: C.white }}>
-          <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 9px" }}>Original Quote — read only</p>
+        <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: 12, marginBottom: 12, background: C.white }}>
+          <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 8px" }}>Original Quote — read only</p>
           {prefill.origLines.map((ln: any, i: number) => (
             <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
               <span style={{ fontSize: TYPE.micro.size, color: C.black, display: "flex", alignItems: "center", gap: 6 }}>
@@ -361,7 +361,7 @@ export default function Calculator({
       {/* ── CLIENT / CONTACT / PROJECT ── */}
       {!locked && (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 9, marginBottom: 9 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
             <div>
               <Lbl>Client</Lbl>
               <S value={clientSel} onChange={(e: any) => pickClient(e.target.value)}>
@@ -373,7 +373,7 @@ export default function Calculator({
             <div><Lbl>Contact Name</Lbl><I value={contact} onChange={(e: any) => setContact(e.target.value)} placeholder="Anna Müller" /></div>
           </div>
           {clientSel === NEW_CLIENT && (
-            <div style={{ marginBottom: 9 }}>
+            <div>
               <Lbl>New client — Brand / Company</Lbl>
               <I value={newName} onChange={(e: any) => { setNewName(e.target.value); setFormErr(null); }} placeholder="Brand name" />
               {dupe && (
@@ -385,7 +385,7 @@ export default function Calculator({
             </div>
           )}
           {leads.length > 0 && (
-            <div style={{ marginBottom: 9 }}>
+            <div>
               <Lbl>Project</Lbl>
               <S value={target} onChange={(e: any) => setTarget(e.target.value)}>
                 <option value="new">New project</option>
@@ -393,19 +393,19 @@ export default function Calculator({
               </S>
             </div>
           )}
-          <div style={{ marginBottom: 9 }}>
+          <div>
             <Lbl>Project Name <span style={{ fontWeight: "normal", color: C.light }}>(optional)</span></Lbl>
             <I value={projName} onChange={(e: any) => setProjName(e.target.value)} placeholder={leadSel ? leadSel.name : "e.g. Spring Campaign 2026"} />
           </div>
         </>
       )}
       {locked && (
-        <div style={{ marginBottom: 9 }}>
+        <div>
           <Lbl>Contact Name</Lbl>
           <I value={contact} onChange={(e: any) => setContact(e.target.value)} />
         </div>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 9, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8, marginBottom: 14 }}>
         <div>
           <Lbl>{isAmend ? "Amendment Date" : "Quote Date"}</Lbl>
           <I type="date" value={qDate} onChange={(e: any) => setQDate(e.target.value)} s={{ WebkitAppearance: "none" as const }} />
@@ -419,18 +419,18 @@ export default function Calculator({
       </div>
 
       {/* ── ITEM BUILDER ── */}
-      <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "16px 18px", marginBottom: 16, background: C.white }}>
-        <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 13px" }}>Add Item</p>
+      <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: 12, marginBottom: 14, background: C.white }}>
+        <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 8px" }}>Add Item</p>
 
         {/* Category tabs — one per rate card */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 13, flexWrap: "wrap" as const }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const }}>
           {cats.map(k => (
             <Pill key={k} on={bCat === k} onClick={() => switchCat(k)}>{catTitle(rc, k)}</Pill>
           ))}
         </div>
 
         {/* Deliverable / package + Qty */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 80px", gap: 8, marginBottom: 9 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 70px", gap: 8 }}>
           <div>
             <Lbl>Deliverable or package</Lbl>
             <S value={bSel} onChange={(e: any) => setBSel(e.target.value)}>
@@ -464,18 +464,18 @@ export default function Calculator({
         </div>
 
         {/* Usage + Exclusivity (from this rate card) */}
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8, marginBottom: 9 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "minmax(0,1fr)" : "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
           <div>
             <Lbl>Usage Rights</Lbl>
             <S value={bUsage} onChange={(e: any) => setBUsage(parseInt(e.target.value))}>
               {usageOpts.map((u: any, i: number) => <option key={i} value={i}>{usageText(u)}</option>)}
             </S>
             {/* Platform toggles */}
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const, marginTop: 6 }}>
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const, marginTop: 6 }}>
               {(["Instagram","TikTok","YouTube","Other"] as const).map(p => {
                 const on = bPlatforms.includes(p);
                 return (
-                  <Pill key={p} on={on} onClick={() => setBPlatforms(pr => on ? pr.filter(x => x !== p) : [...pr, p])}>{p}</Pill>
+                  <Pill key={p} size="sm" on={on} onClick={() => setBPlatforms(pr => on ? pr.filter(x => x !== p) : [...pr, p])}>{p}</Pill>
                 );
               })}
             </div>
@@ -490,7 +490,7 @@ export default function Calculator({
 
         {/* Add-ons (from this rate card) */}
         {addonList.length > 0 && (
-          <div style={{ marginBottom: 9 }}>
+          <div>
             <Lbl>Add-ons</Lbl>
             <S value="" onChange={(e: any) => addAddon(e.target.value)} s={{ marginBottom: 5 }}>
               <option value="">— Select add-on —</option>
@@ -522,18 +522,18 @@ export default function Calculator({
         )}
 
         {/* Negotiated rate + volume discount */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "flex-end", marginBottom: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, alignItems: "flex-end" }}>
           <div>
-            <Lbl>Negotiated Rate <span style={{ fontWeight: "normal", color: C.light }}>(per unit, overrides card)</span></Lbl>
+            <Lbl>Negotiated Rate <span style={{ fontWeight: "normal", color: C.light }}>(per unit)</span></Lbl>
             <I type="number" placeholder="€" value={bNeg} onChange={(e: any) => setBNeg(e.target.value)} />
           </div>
-          <span style={{ paddingBottom: 10, whiteSpace: "nowrap" as const }}>
+          <span style={{ height: 36, display: "inline-flex", alignItems: "center", whiteSpace: "nowrap" as const }}>
             <Tick on={bVol} onClick={() => setBVol(v => !v)} size={18} label="Vol. disc." />
           </span>
         </div>
 
         {/* Line total + Add button */}
-        <div style={{ paddingTop: 12, borderTop: `1px solid ${C.rule}` }}>
+        <div style={{ paddingTop: 10, marginTop: 12, borderTop: `1px solid ${C.rule}` }}>
           {calc && (
             <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 8px", lineHeight: 1.6 }}>
               Base {fmt(calc.base)}{calc.volPct ? ` (vol. −${pctText(calc.volPct)})` : ""}
@@ -544,9 +544,9 @@ export default function Calculator({
           )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: TYPE.label.size, color: C.muted }}>
-              Line total: <strong style={{ color: calc ? C.black : C.light, fontFamily: SERIF, fontSize: TYPE.sectionHeading.size }}>{calc ? fmt(calc.amt) : "—"}</strong>
+              Line total: <strong style={{ color: calc ? C.black : C.light, fontFamily: SERIF, fontSize: 15, fontWeight: "normal" }}>{calc ? fmt(calc.amt) : "—"}</strong>
             </span>
-            <B onClick={addItem} s={{ paddingLeft: 20, paddingRight: 20, opacity: calc ? 1 : 0.4, cursor: calc ? "pointer" : "default" as const }}>
+            <B onClick={addItem} s={{ paddingLeft: 16, paddingRight: 16, opacity: calc ? 1 : 0.4, cursor: calc ? "pointer" : "default" as const }}>
               + Add to Quote
             </B>
           </div>
@@ -589,9 +589,9 @@ export default function Calculator({
           {formErr && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "10px 0 0" }}>{formErr}</p>}
         </>
       ) : (
-        <div style={{ textAlign: "center" as const, padding: "36px 0", borderTop: `1px solid ${C.rule}` }}>
-          <p style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.muted, margin: "0 0 4px", fontWeight: "normal" }}>No items yet</p>
-          <p style={{ fontSize: TYPE.micro.size, color: C.light, margin: 0 }}>Configure an item above and click "+ Add to Quote"</p>
+        <div style={{ textAlign: "center" as const, padding: "22px 0 6px", borderTop: `1px solid ${C.rule}` }}>
+          <p style={{ fontFamily: SERIF, fontSize: 15, color: C.muted, margin: "0 0 3px", fontWeight: "normal" }}>No items yet</p>
+          <p style={{ fontSize: TYPE.label.size, color: C.light, margin: 0 }}>Configure an item above and click "+ Add to Quote"</p>
         </div>
       )}
     </div>

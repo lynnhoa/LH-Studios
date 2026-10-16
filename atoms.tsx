@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, expiryColor, expiryTint, Z } from "./constants";
+import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, expiryColor, expiryTint, Z, SIZE } from "./constants";
 import { fmtD, dLeft, today } from "./formatters";
 import { saveStatus } from "./saveStatus";
 
@@ -15,7 +15,8 @@ export const I = ({ s, ...p }: any) => (
   <input
     style={{
       width:       "100%",
-      padding:     "9px 12px",
+      height:      SIZE.field,
+      padding:     "0 10px",
       border:      `1px solid ${C.rule}`,
       background:  C.bg,
       fontFamily:  SANS,
@@ -67,13 +68,19 @@ export const TSelWrap = ({ children }: any) => (
 );
 
 // ─── SELECT ──────────────────────────────────────────────────
+const SELECT_ARROW = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888888' stroke-width='1.3'/%3E%3C/svg%3E")`;
+
 export const S = ({ s, ...p }: any) => (
   <select
     style={{
       width:        "100%",
-      padding:      "9px 12px",
+      height:       SIZE.field,
+      padding:      "0 28px 0 10px",
       border:       `1px solid ${C.rule}`,
-      background:   C.bg,
+      backgroundColor: C.bg,
+      backgroundImage: SELECT_ARROW,
+      backgroundRepeat: "no-repeat",
+      backgroundPosition: "right 10px center",
       fontFamily:   SANS,
       fontSize:     16,  // iOS auto-zooms selects < 16px — never go below
       color:        C.black,
@@ -120,7 +127,7 @@ export const B = ({ v = "pri", s, ...p }: any) => {
   return (
     <button
       style={{
-        padding:       "9px 16px",
+        padding:       "0 14px",
         borderRadius:  2,
         cursor:        "pointer",
         fontFamily:    SANS,
@@ -129,8 +136,8 @@ export const B = ({ v = "pri", s, ...p }: any) => {
         textTransform: "uppercase" as const,
         whiteSpace:    "nowrap" as const,
         lineHeight:    1,
-        // Touch target — minimum 44px for iOS PWA
-        minHeight:     44,
+        // compact density (the whole app uses the same height)
+        minHeight:     SIZE.button,
         display:       "inline-flex",
         alignItems:    "center",
         justifyContent:"center",
@@ -144,11 +151,11 @@ export const B = ({ v = "pri", s, ...p }: any) => {
 
 // ─── PILL TOGGLE ─────────────────────────────────────────────
 // Used for category tabs, filter pills
-export const Pill = ({ on, onClick, children }: any) => (
+export const Pill = ({ on, onClick, children, size }: any) => (
   <button
     onClick={onClick}
     style={{
-      padding:       "7px 14px",
+      padding:       size === "sm" ? "0 9px" : "0 11px",
       border:        `1px solid ${on ? C.black : C.rule}`,
       background:    on ? C.black : "transparent",
       color:         on ? C.white : C.muted,
@@ -159,7 +166,7 @@ export const Pill = ({ on, onClick, children }: any) => (
       letterSpacing: "0.10em",
       textTransform: "uppercase" as const,
       whiteSpace:    "nowrap" as const,
-      minHeight:     36,
+      minHeight:     size === "sm" ? SIZE.chip : SIZE.pill,
       display:       "inline-flex",
       alignItems:    "center",
     }}
@@ -168,16 +175,34 @@ export const Pill = ({ on, onClick, children }: any) => (
   </button>
 );
 
+// ─── LANGUAGE SWITCH (EN | DE as one joined control) ─────────
+export const LangSwitch = ({ lang, onChange }: { lang: string; onChange: (l: "en" | "de") => void }) => (
+  <span style={{ display: "inline-flex", flexShrink: 0 }}>
+    {(["en", "de"] as const).map((l, i) => {
+      const on = lang === l;
+      return (
+        <button key={l} onClick={() => onChange(l)}
+          style={{ height: SIZE.barBtn, padding: "0 9px", border: `1px solid ${on ? C.black : C.rule}`, borderLeftWidth: i ? 0 : 1, background: on ? C.black : "transparent", color: on ? C.white : C.muted, borderRadius: i ? "0 2px 2px 0" : "2px 0 0 2px", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.10em" }}>
+          {l.toUpperCase()}
+        </button>
+      );
+    })}
+  </span>
+);
+
+// Style for compact buttons in window top bars
+export const BAR_BTN: any = { minHeight: SIZE.barBtn, height: SIZE.barBtn, padding: "0 10px", fontSize: TYPE.micro.size };
+
 // ─── FIELD LABEL ─────────────────────────────────────────────
 export const Lbl = ({ children }: any) => (
   <p
     style={{
-      fontSize:      TYPE.label.size,
+      fontSize:      TYPE.micro.size,
       fontFamily:    SANS,
       color:         C.muted,
       letterSpacing: "0.08em",
       textTransform: "uppercase" as const,
-      margin:        "14px 0 6px",
+      margin:        `${SIZE.labelTop}px 0 ${SIZE.labelGap}px`,
     }}
   >
     {children}
@@ -378,7 +403,7 @@ export const CatPill = ({ cat, onClick, title, label }: { cat: string; onClick?:
 };
 
 // ─── TICK BOX (one check box for the whole app) ──────────────
-export const Tick = ({ on, onClick, color = C.black, disabled, size = 22, label }: {
+export const Tick = ({ on, onClick, color = C.black, disabled, size = 20, label }: {
   on: boolean; onClick?: () => void; color?: string; disabled?: boolean; size?: number; label?: string;
 }) => (
   <span

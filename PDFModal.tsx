@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { C, SANS, SERIF, TYPE, Z } from "./constants";
-import { I, B, Lbl, Pill, ConfirmDialog } from "./atoms";
+import { I, B, Lbl, Pill, ConfirmDialog, LangSwitch, BAR_BTN } from "./atoms";
 import { editLock } from "./saveStatus";
 import { fmt, r2 } from "./formatters";
 import { openPdfWindow } from "./PDFExport";
@@ -246,7 +246,7 @@ export default function PDFModal({
   const kind  = current.kind;
   const isInv = kind === "invoice" && current.subtype !== "storno";
   const statusBadge = (
-    <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: STATUS_COLOR[current.status] || C.muted, border: `1px solid ${STATUS_COLOR[current.status] || C.rule}`, padding: "3px 8px", borderRadius: 2, whiteSpace: "nowrap" as const }}>
+    <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: STATUS_COLOR[current.status] || C.muted, border: `1px solid ${STATUS_COLOR[current.status] || C.rule}`, height: 22, padding: "0 7px", display: "inline-flex", alignItems: "center", borderRadius: 2, whiteSpace: "nowrap" as const, flexShrink: 0 }}>
       {isNew ? "New" : STATUS_LABEL[current.status] || current.status}
     </span>
   );
@@ -259,25 +259,20 @@ export default function PDFModal({
   return (
     <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
 
-      {/* ── TOP BAR ── */}
-      <div style={{ minHeight: 48, borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", padding: "0 12px", gap: 6, flexShrink: 0 }}>
-        {canEdit && <>
-          <button onClick={undo} disabled={!canUndo} title="Undo" style={{ width: 30, height: 30, background: "none", border: `1px solid ${canUndo ? C.rule : "transparent"}`, borderRadius: 2, cursor: canUndo ? "pointer" : "default", color: canUndo ? C.black : C.light, fontSize: 15 }}>←</button>
-          <button onClick={redo} disabled={!canRedo} title="Redo" style={{ width: 30, height: 30, background: "none", border: `1px solid ${canRedo ? C.rule : "transparent"}`, borderRadius: 2, cursor: canRedo ? "pointer" : "default", color: canRedo ? C.black : C.light, fontSize: 15 }}>→</button>
-          <div style={{ width: 1, height: 20, background: C.rule, margin: "0 2px" }} />
-        </>}
-        <Pill on={lang === "en"} onClick={() => setLang("en")}>EN</Pill>
-        <Pill on={lang === "de"} onClick={() => setLang("de")}>DE</Pill>
+      {/* ── TOP BAR (one row: close on the left, actions on the right) ── */}
+      <div style={{ height: 44, borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", padding: "0 8px 0 2px", gap: 6, flexShrink: 0 }}>
+        <button onClick={tryClose} aria-label="Close" title="Close"
+          style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 20, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        <LangSwitch lang={lang} onChange={setLang} />
         {statusBadge}
         <div style={{ flex: 1 }} />
         {isMobile && canEdit && (
-          <B v="sec" onClick={() => setShowEdit(e => !e)} s={{ minHeight: 36, padding: "0 12px" }}>{showEdit ? "View" : "Edit"}</B>
+          <B v="sec" onClick={() => setShowEdit(e => !e)} s={BAR_BTN}>{showEdit ? "View" : "Edit"}</B>
         )}
         {canEdit && (isNew || dirty) && (
-          <B v="sec" onClick={() => { save(); }} s={{ minHeight: 36, padding: "0 14px", opacity: saving ? 0.5 : 1 }}>{saving ? "Saving…" : "Save"}</B>
+          <B v="sec" onClick={() => { save(); }} s={{ ...BAR_BTN, opacity: saving ? 0.5 : 1 }}>{saving ? "Saving…" : "Save"}</B>
         )}
-        <B onClick={download} s={{ minHeight: 36, padding: "0 14px", opacity: downloading ? 0.5 : 1 }}>{downloading ? "Preparing…" : "Save PDF"}</B>
-        <button onClick={tryClose} title="Close" style={{ width: 34, height: 34, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 22 }}>✕</button>
+        <B onClick={download} s={{ ...BAR_BTN, opacity: downloading ? 0.5 : 1 }}>{downloading ? "Preparing…" : "Save PDF"}</B>
       </div>
 
       {/* ── ACTION BAR (status actions) ── */}
@@ -302,8 +297,13 @@ export default function PDFModal({
 
         {showPanel && (
           <div style={{ width: isMobile ? "100%" : panelW, flexShrink: 0, display: "flex", flexDirection: "column", borderRight: isMobile ? "none" : `1px solid ${C.rule}`, flex: isMobile ? 1 : undefined, minHeight: 0 }}>
-            <div style={{ flex: 1, overflowY: "auto", padding: "4px 18px 16px" }}>
-              {note && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "12px 0 0", lineHeight: 1.5 }}>{note}</p>}
+            <div style={{ flex: 1, overflowY: "auto", padding: "4px 14px 14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 8 }}>
+                <button onClick={undo} disabled={!canUndo} aria-label="Undo" title="Undo" style={{ width: 30, height: 30, background: "none", border: `1px solid ${canUndo ? C.rule : "transparent"}`, borderRadius: 2, cursor: canUndo ? "pointer" : "default", color: canUndo ? C.black : C.light, fontSize: 14 }}>←</button>
+                <button onClick={redo} disabled={!canRedo} aria-label="Redo" title="Redo" style={{ width: 30, height: 30, background: "none", border: `1px solid ${canRedo ? C.rule : "transparent"}`, borderRadius: 2, cursor: canRedo ? "pointer" : "default", color: canRedo ? C.black : C.light, fontSize: 14 }}>→</button>
+                <span style={{ fontSize: TYPE.micro.size, color: C.light, letterSpacing: "0.08em", textTransform: "uppercase" as const, marginLeft: 4 }}>Undo · Redo</span>
+              </div>
+              {note && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "10px 0 0", lineHeight: 1.5 }}>{note}</p>}
 
               <Lbl>Brand</Lbl>
               <I value={staged.data?.brand || ""} onChange={(e: any) => setData(d => ({ ...d, brand: e.target.value }))} />

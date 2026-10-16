@@ -82,6 +82,18 @@ export const expiryColor = (daysLeft: number | null) =>
 export const expiryTint = (daysLeft: number | null) =>
   daysLeft === null ? C.bg : daysLeft < 0 ? TINT.red : daysLeft <= EXPIRY_WARN_DAYS ? TINT.amber : TINT.green;
 
+// ─── SIZES (compact density, one place for the whole app) ────
+// Field text stays 16 px — iPhone zooms in on anything smaller.
+export const SIZE = {
+  field:    36,   // inputs + selects
+  button:   36,   // standard buttons
+  barBtn:   30,   // buttons in window top bars
+  pill:     30,   // category / filter pills
+  chip:     28,   // small toggles (platforms)
+  labelTop: 10,   // space above a field label
+  labelGap: 4,    // space between label and field
+} as const;
+
 // ─── LAYOUT ──────────────────────────────────────────────────
 export const BREAKPOINT = 768;
 export const Z = { nav: 100, menu: 200, modal: 500, dialog: 600, toast: 700 } as const;

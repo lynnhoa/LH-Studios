@@ -11,7 +11,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE, Z, catInfo } from "./constants";
 import { uid } from "./formatters";
-import { I, S, B, Lbl, Pill, Tick, ConfirmDialog } from "./atoms";
+import { I, S, B, Lbl, Pill, Tick, ConfirmDialog, LangSwitch, BAR_BTN } from "./atoms";
 import { SETTINGS_DEFAULT } from "./rateCards";
 import { exportPDF } from "./PDFExport";
 import { editLock } from "./saveStatus";
@@ -169,26 +169,25 @@ function CardShell({ title, card, settings, panel, footer, onClose }: any) {
   return createPortal(
     <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
       <div style={{ borderBottom: `1px solid ${C.rule}`, flexShrink: 0 }}>
-        <div style={{ height: 52, display: "flex", alignItems: "center", padding: "0 12px", gap: 8 }}>
-          <button onClick={onClose} aria-label="Close" style={{ width: 36, height: 36, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: TYPE.amount.size }}>✕</button>
-          <span style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{title}</span>
+        <div style={{ height: 44, display: "flex", alignItems: "center", padding: "0 8px 0 2px", gap: 6 }}>
+          <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 20 }}>✕</button>
+          <span style={{ fontFamily: SERIF, fontSize: TYPE.body.size, color: C.black, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{title}</span>
           <div style={{ flex: 1 }} />
-          <Pill on={lang === "en"} onClick={() => setLang("en")}>EN</Pill>
-          <Pill on={lang === "de"} onClick={() => setLang("de")}>DE</Pill>
-          <B onClick={download} s={{ opacity: busy ? 0.5 : 1, minHeight: 36 }}>{busy ? "Saving…" : "Save PDF"}</B>
+          <LangSwitch lang={lang} onChange={setLang} />
+          <B onClick={download} s={{ ...BAR_BTN, opacity: busy ? 0.5 : 1 }}>{busy ? "Saving…" : "Save PDF"}</B>
         </div>
         {isM && (
-          <div style={{ display: "flex", gap: 6, padding: "0 12px 10px" }}>
-            <Pill on={view === "edit"} onClick={() => setView("edit")}>Edit</Pill>
-            <Pill on={view === "preview"} onClick={() => setView("preview")}>Preview</Pill>
+          <div style={{ display: "flex", gap: 6, padding: "0 10px 8px" }}>
+            <Pill size="sm" on={view === "edit"} onClick={() => setView("edit")}>Edit</Pill>
+            <Pill size="sm" on={view === "preview"} onClick={() => setView("preview")}>Preview</Pill>
           </div>
         )}
       </div>
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {(!isM || view === "edit") && (
           <div style={{ width: isM ? "100%" : 380, flexShrink: 0, display: "flex", flexDirection: "column", borderRight: isM ? "none" : `1px solid ${C.rule}` }}>
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px", WebkitOverflowScrolling: "touch" as any }}>{panel}</div>
-            {footer && <div style={{ padding: "12px 18px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>{footer}</div>}
+            <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px 14px", WebkitOverflowScrolling: "touch" as any }}>{panel}</div>
+            {footer && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>{footer}</div>}
           </div>
         )}
         {(!isM || view === "preview") && (

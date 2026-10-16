@@ -89,7 +89,7 @@ export default function CreatorApp({
       >
         {isMobile ? (
           <>
-            <div style={{ textAlign: "center", padding: "10px 20px 7px" }}>
+            <div style={{ textAlign: "center", padding: "8px 20px 6px" }}>
               <AppLogo size="nav" onClick={goToDash} />
             </div>
             <div
@@ -97,14 +97,14 @@ export default function CreatorApp({
                 display:        "flex",
                 alignItems:     "center",
                 justifyContent: "center",
-                padding:        "0 6px",
+                padding:        "0 44px 0 6px",      // room for the avatar on the right
                 borderTop:      `1px solid ${C.rule}`,
                 position:       "relative",
               }}
             >
               <div style={{ display: "flex" }}>
                 {PRIMARY_TABS.map(t => (
-                  <NavTab key={t.idx} label={t.label} active={nav === t.idx} onClick={() => setNav(t.idx)} height={40} px={10} />
+                  <NavTab key={t.idx} label={t.label} active={nav === t.idx} onClick={() => setNav(t.idx)} height={40} px={8} />
                 ))}
               </div>
               <div style={{ position: "absolute", right: 8 }}>
@@ -142,7 +142,7 @@ export default function CreatorApp({
         style={{
           maxWidth:  contentMaxW,
           margin:    "0 auto",
-          padding:   isMobile ? "20px 14px" : "28px 20px",
+          padding:   isMobile ? "14px 14px" : "24px 20px",
           transition: "max-width 0.2s ease",
         }}
       >
