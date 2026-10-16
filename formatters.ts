@@ -137,3 +137,23 @@ export const initials = (nameOrCompany: string): string => {
     ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
     : n.slice(0, 2).toUpperCase();
 };
+
+// ─── GERMAN NUMBER INPUT ──────────────────────────────────────
+// Reads what people type: "212,50" · "1.200,75" · "1200.75" · "30 %"
+// German: comma = decimals, dots = thousands. Returns null when empty/invalid.
+export function parseDE(raw: any): number | null {
+  let s = String(raw ?? "").replace(/[€%\s\u00a0]/g, "").replace(/\u2212/g, "-");
+  if (!s) return null;
+  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+// Number in German format for a field: 1200.5 → "1.200,50" (money) or "22,5" (min decimals 0)
+export const fmtNumDE = (n: number | null | undefined, minDec = 2): string =>
+  n === null || n === undefined || !Number.isFinite(Number(n)) ? "" :
+  Number(n).toLocaleString("de-DE", { minimumFractionDigits: minDec, maximumFractionDigits: 2 });
+
+// "20% off" → "20 % off" (German spacing, for texts people typed)
+export const pctSpace = (t: any): string => String(t ?? "").replace(/(\d)\s?%/g, "$1 %");

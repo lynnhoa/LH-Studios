@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 import { editLock } from "./saveStatus";
 import { C, SANS, SERIF, TYPE, Z } from "./constants";
 import { fmt, fmtD, addM, addD, today, r2 } from "./formatters";
-import { I, S, B, Lbl, Pill, CatPill, LangSwitch, BAR_BTN } from "./atoms";
+import { I, S, B, Lbl, Pill, CatPill, LangSwitch, BAR_BTN, NumField } from "./atoms";
 import DocPages from "./DocPages";
 import { dueFrom } from "./docs";
 import type { DocView } from "./docs";
@@ -164,7 +164,7 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
         </p>
       )}
       <Lbl>Fee (€)</Lbl>
-      <I type="number" min={0} value={feeIn !== null ? feeIn : String(calc)} onChange={(e: any) => setFeeIn(e.target.value)} />
+      <NumField value={feeIn !== null ? (parseFloat(feeIn) || 0) : calc} onChange={(n) => setFeeIn(String(n === null ? 0 : Math.max(0, n)))} ariaLabel="Fee" />
     </>
   );
 

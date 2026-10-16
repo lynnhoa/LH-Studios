@@ -10,8 +10,8 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE, Z, catInfo, PDF } from "./constants";
-import { uid } from "./formatters";
-import { I, S, B, Lbl, Pill, Tick, ConfirmDialog, LangSwitch, BAR_BTN } from "./atoms";
+import { uid, fmt, pctSpace } from "./formatters";
+import { I, S, B, Lbl, Pill, Tick, ConfirmDialog, LangSwitch, BAR_BTN, NumField } from "./atoms";
 import { SETTINGS_DEFAULT } from "./rateCards";
 import { exportPDF } from "./PDFExport";
 import { editLock } from "./saveStatus";
@@ -22,7 +22,7 @@ import type { SectionKind } from "./pricing";
 
 const cardTitle = (rc: any, k: string) => BASE_CARD_KEYS.includes(k) ? catInfo(k).label : (rc?.[k]?.label || k);
 const cleanSecT = (t: string) => String(t || "").replace(/\s*[—–-]\s*added to base rate.*$/i, "").replace(/\s*[—–-]\s*\d+%[^"<]*/g, "").replace(/^Volume Discount\s*[&]\s*/i, "").trim();
-const money = (p: any) => `€ ${Number(p).toLocaleString("de-DE")}`;
+const money = (p: any) => fmt(Number(p) || 0);          // German: 200,00 €
 
 // Rows a section shows (usage / exclusivity come from the options)
 function sectionRows(card: any, sec: any): { key: string; n: string; note?: string; price: string }[] {
@@ -35,9 +35,9 @@ function sectionRows(card: any, sec: any): { key: string; n: string; note?: stri
   }
   return (sec.items || []).map((it: any, i: number) => ({
     key: it.id || `i${i}`,
-    n: it.n,
-    note: [it.note, kind === "packages" && it.includes?.length ? `Includes ${it.includes.map((x: any) => `${x.qty || 1}× ${x.n}`).join(", ")}` : ""].filter(Boolean).join(" · "),
-    price: kind === "addons" ? addonPriceText(it) : it.p !== null && it.p !== undefined ? money(it.p) : (it.m || ""),
+    n: pctSpace(it.n),
+    note: pctSpace([it.note, kind === "packages" && it.includes?.length ? `Includes ${it.includes.map((x: any) => `${x.qty || 1}× ${x.n}`).join(", ")}` : ""].filter(Boolean).join(" · ")),
+    price: kind === "addons" ? addonPriceText(it) : it.p !== null && it.p !== undefined ? money(it.p) : pctSpace(it.m || ""),
   }));
 }
 
@@ -48,7 +48,7 @@ function RCContent({ card, lang, rcSecGuards }: any) {
     <div style={{ padding: "90px 62px 130px", fontSize: 9.5, lineHeight: 1.5, fontFamily: SANS, color: PDF.ink, background: PDF.page }}>
       <div style={{ marginBottom: 22 }}>
         <h1 style={{ fontFamily: SERIF, fontSize: 19, fontWeight: "normal", margin: "0 0 4px" }}>{l ? "Preisliste" : "Rate Card"}</h1>
-        <p style={{ fontSize: 7.5, color: PDF.label, margin: 0 }}>{card.sub}</p>
+        <p style={{ fontSize: 7.5, color: PDF.label, margin: 0 }}>{pctSpace(card.sub)}</p>
       </div>
       {(card.sections || []).map((sec: any, si: number) => {
         const rows = sectionRows(card, sec);
@@ -70,7 +70,7 @@ function RCContent({ card, lang, rcSecGuards }: any) {
           </div>
         );
       })}
-      {card.fine && <p style={{ fontSize: 7.5, color: PDF.label, lineHeight: 1.7, marginTop: 14 }}>{card.fine}</p>}
+      {card.fine && <p style={{ fontSize: 7.5, color: PDF.label, lineHeight: 1.7, marginTop: 14 }}>{pctSpace(card.fine)}</p>}
     </div>
   );
 }
@@ -322,7 +322,7 @@ function AddCardModal({ rc, settings, onSave, onClose }: any) {
             {lib.length > 0 && (
               <S value="" onChange={(e: any) => { const it = lib.find((x: any) => `${x._from}|${x.id}` === e.target.value); if (it) { const { _from, ...clean } = it; upSec(si, s => ({ ...s, items: [...(s.items || []), { ...clean, id: uid() }] })); } }} s={{ marginTop: 8 }}>
                 <option value="">+ Add item…</option>
-                {lib.map((it: any) => <option key={`${it._from}|${it.id}`} value={`${it._from}|${it.id}`}>{it.n}{it.p != null ? ` — € ${it.p}` : ""} · {it._from}</option>)}
+                {lib.map((it: any) => <option key={`${it._from}|${it.id}`} value={`${it._from}|${it.id}`}>{it.n}{it.p != null ? ` — ${fmt(Number(it.p) || 0)}` : ""} · {it._from}</option>)}
               </S>
             )}
           </div>
@@ -488,7 +488,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, i
                     <I value={optName(o.l)} onChange={(e: any) => upOpt(kind, i, { l: e.target.value })} s={{ flex: isMobile ? "1 1 100%" : 1 }} />
                     <I type="number" min={0} value={o.mo} onChange={(e: any) => upOpt(kind, i, { mo: Math.max(0, parseInt(e.target.value) || 0) })} s={{ width: 64 }} />
                     <span style={{ fontSize: TYPE.label.size, color: C.muted }}>mo.</span>
-                    <I type="number" min={0} value={o.pct} onChange={(e: any) => upOpt(kind, i, { pct: Math.max(0, parseFloat(e.target.value) || 0) })} s={{ width: 72 }} />
+                    <NumField minDec={0} value={o.pct} onChange={(n) => upOpt(kind, i, { pct: Math.max(0, n || 0) })} s={{ width: 72 }} ariaLabel="Percent" />
                     <span style={{ fontSize: TYPE.label.size, color: C.muted }}>%</span>
                     {smallX(() => remOpt(kind, i))}
                   </div>
@@ -520,12 +520,12 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, i
                             <option value="eur">€</option>
                             <option value="pct">%</option>
                           </S>
-                          <I type="number" min={0}
-                             value={it.p !== null && it.p !== undefined ? it.p : (it.pct ?? "")}
-                             onChange={(e: any) => { const v = Math.max(0, parseFloat(e.target.value) || 0); upItem(si, it.id, it.p !== null && it.p !== undefined ? { p: v } : { pct: v }); }} s={{ width: 72 }} />
+                          <NumField minDec={it.p !== null && it.p !== undefined ? 2 : 0}
+                             value={it.p !== null && it.p !== undefined ? it.p : (it.pct ?? null)}
+                             onChange={(n) => { const v = Math.max(0, n || 0); upItem(si, it.id, it.p !== null && it.p !== undefined ? { p: v } : { pct: v }); }} s={{ width: 80 }} ariaLabel="Add-on price" />
                         </>
                       ) : (
-                        <I type="number" min={0} value={it.p ?? ""} onChange={(e: any) => upItem(si, it.id, { p: e.target.value === "" ? null : Math.max(0, parseFloat(e.target.value) || 0) })} s={{ width: 80 }} placeholder="€" />
+                        <NumField value={it.p ?? null} onChange={(n) => upItem(si, it.id, { p: n === null ? null : Math.max(0, n) })} ariaLabel="Price" s={{ width: 80 }} placeholder="€" />
                       )}
                       {smallX(() => remItem(si, it.id))}
                     </div>
@@ -561,12 +561,12 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, i
                 ) : (
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
-                      <p style={{ fontSize: TYPE.body.size, color: C.black, margin: "0 0 3px" }}>{it.n}{kind === "addons" && it.info ? <span style={{ fontSize: TYPE.micro.size, color: C.light, marginLeft: 6, letterSpacing: "0.06em", textTransform: "uppercase" as const }}>info</span> : null}</p>
-                      {it.note && <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: 0 }}>{it.note}</p>}
+                      <p style={{ fontSize: TYPE.body.size, color: C.black, margin: "0 0 3px" }}>{pctSpace(it.n)}{kind === "addons" && it.info ? <span style={{ fontSize: TYPE.micro.size, color: C.light, marginLeft: 6, letterSpacing: "0.06em", textTransform: "uppercase" as const }}>info</span> : null}</p>
+                      {it.note && <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: 0 }}>{pctSpace(it.note)}</p>}
                       {kind === "packages" && it.includes?.length > 0 && <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: "2px 0 0" }}>Includes {it.includes.map((x: any) => `${x.qty || 1}× ${x.n}`).join(", ")}</p>}
                     </div>
                     <span style={{ fontFamily: SERIF, fontSize: TYPE.label.size, color: C.black, whiteSpace: "nowrap" as const, marginLeft: 12 }}>
-                      {kind === "addons" ? addonPriceText(it) : it.p !== null && it.p !== undefined ? money(it.p) : (it.m || "")}
+                      {kind === "addons" ? addonPriceText(it) : it.p !== null && it.p !== undefined ? money(it.p) : pctSpace(it.m || "")}
                     </span>
                   </div>
                 )}
@@ -585,7 +585,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, i
             style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: TYPE.sectionHeading.size, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 64 }} />
         </div>
       ) : (
-        <p style={{ fontSize: TYPE.label.size, color: C.muted, lineHeight: 1.75, marginTop: 10 }}>{card.fine}</p>
+        <p style={{ fontSize: TYPE.label.size, color: C.muted, lineHeight: 1.75, marginTop: 10 }}>{pctSpace(card.fine)}</p>
       )}
     </div>
   );

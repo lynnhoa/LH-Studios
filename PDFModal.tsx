@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { C, SANS, SERIF, TYPE, Z } from "./constants";
-import { I, B, Lbl, Pill, ConfirmDialog, LangSwitch, BAR_BTN } from "./atoms";
+import { I, B, Lbl, Pill, ConfirmDialog, LangSwitch, BAR_BTN, NumField } from "./atoms";
 import { editLock } from "./saveStatus";
 import { fmt, r2 } from "./formatters";
 import { openPdfWindow } from "./PDFExport";
@@ -337,7 +337,7 @@ export default function PDFModal({
                   <I value={ln.note || ""} onChange={(e: any) => updLine(i, "note", e.target.value)} s={{ marginBottom: 5, color: C.muted }} placeholder="note (optional)" />
                   <div style={{ display: "grid", gridTemplateColumns: "64px 1fr", gap: 6, alignItems: "center" }}>
                     <I type="number" min={1} value={lineQty(ln)} onChange={(e: any) => updLine(i, "qty", e.target.value)} />
-                    <I type="number" step="0.01" value={lineAmt(ln)} onChange={(e: any) => updLine(i, "amt", e.target.value)} placeholder="Amount €" />
+                    <NumField value={lineAmt(ln)} onChange={(n) => updLine(i, "amt", n === null ? "" : String(n))} placeholder="Amount €" ariaLabel="Amount" />
                   </div>
                   <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "5px 0 0" }}>Unit price {fmt(lineAmt(ln) / lineQty(ln))}</p>
                 </div>

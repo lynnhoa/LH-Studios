@@ -7,7 +7,7 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, expiryColor, expiryTint, Z, SIZE } from "./constants";
-import { fmtD, dLeft, today } from "./formatters";
+import { fmtD, dLeft, today, parseDE, fmtNumDE } from "./formatters";
 import { saveStatus } from "./saveStatus";
 
 // ─── INPUT ───────────────────────────────────────────────────
@@ -174,6 +174,24 @@ export const Pill = ({ on, onClick, children, size }: any) => (
     {children}
   </button>
 );
+
+// ─── NUMBER FIELD (German typing: 212,50 · 1.200,75) ─────────
+// Keeps what you type while the field is active; shows German format
+// when you leave it. onChange gets a number (or null when empty).
+export function NumField({ value, onChange, minDec = 2, placeholder, s, ariaLabel }: {
+  value: number | null | undefined; onChange: (n: number | null) => void; minDec?: number;
+  placeholder?: string; s?: any; ariaLabel?: string;
+}) {
+  const [text, setText] = useState(() => fmtNumDE(value, minDec));
+  const [focused, setFocused] = useState(false);
+  useEffect(() => { if (!focused) setText(fmtNumDE(value, minDec)); }, [value, focused, minDec]);
+  return (
+    <I type="text" inputMode="decimal" value={text} placeholder={placeholder} s={s} aria-label={ariaLabel}
+      onFocus={() => setFocused(true)}
+      onBlur={() => { setFocused(false); setText(fmtNumDE(parseDE(text), minDec)); }}
+      onChange={(e: any) => { setText(e.target.value); onChange(parseDE(e.target.value)); }} />
+  );
+}
 
 // ─── LANGUAGE SWITCH (EN | DE as one joined control) ─────────
 export const LangSwitch = ({ lang, onChange }: { lang: string; onChange: (l: "en" | "de") => void }) => (
