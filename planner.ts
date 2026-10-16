@@ -228,6 +228,18 @@ export const todayIndex = (monday: string): number => {
 };
 
 // ── Stages ────────────────────────────────────────────────────
+// This month's portfolio goal: on the account's own monthly task it's the entry's target;
+// on a shared ("both") monthly task it was kept per account in data.goals
+export const monthGoalOf = (t: Task | undefined, e: Entry | undefined, acc: Account): number | null =>
+  !t || !e ? null : t.account === "both" ? (e.data?.goals?.[acc] ?? null) : (e.target ?? null);
+export const monthGoalPatch = (t: Task, e: Entry | undefined, acc: Account, v: number | null) =>
+  t.account === "both" ? { data: { ...(e?.data || {}), goals: { ...(e?.data?.goals || {}), [acc]: v } } } : { target: v };
+
+// The account you're working on: chosen in the profile menu, remembered on this device
+const WORK_KEY = "lh_work_account";
+export const loadWorkAccount = (): Account => { try { return localStorage.getItem(WORK_KEY) === "createbylynn" ? "createbylynn" : "lynnhoa"; } catch { return "lynnhoa"; } };
+export const saveWorkAccount = (a: Account) => { try { localStorage.setItem(WORK_KEY, a); } catch { /* ignore */ } };
+
 export const accountsOf = (f: AccountFilter): Account[] => (f === "all" ? ["lynnhoa", "createbylynn"] : [f]);
 export const taskAccounts = (t: { account: TaskAccount }): Account[] => (t.account === "both" ? ["lynnhoa", "createbylynn"] : [t.account]);
 

@@ -16,12 +16,12 @@ import { C, SANS, SERIF, TYPE, Z } from "./constants";
 import { B, I, S, Lbl, BAR_BTN } from "./atoms";
 import { parseYMD, monthStart, monthEnd } from "./formatters";
 import {
-  FORMATS, CLASSIC, accountsOf, accLook, stageOf, isVisible, itemOrder, monthName, weekRange, entryKey, isoWeek, parseIntDe,
+  FORMATS, CLASSIC, accountsOf, accLook, stageOf, isVisible, itemOrder, monthName, weekRange, entryKey, isoWeek, parseIntDe, monthGoalOf, monthGoalPatch,
 } from "./planner";
 import type { Account, Item, ItemList, Task } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
-import { Ico, IC, AccChip, Bar, Toolbar, FormatChip, ItemWindow, NoteWindow, TaskWindow } from "./PlannerWindows";
+import { Ico, IC, AccChip, Bar, Toolbar, Subtitle, FormatChip, ItemWindow, NoteWindow, TaskWindow } from "./PlannerWindows";
 
 const microLabel: any = { fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted };
 const AMBER = "#b07a4a";
@@ -95,7 +95,7 @@ export default function PlannerCreator({ planner, view, setView, monday, setMond
       </>
     );
   }
-  const toolbar = <Toolbar acc={view.acc} setAcc={(acc) => setView({ ...view, acc })} monday={monday} setMonday={setMonday} isMobile={isMobile}>{filterBtn}</Toolbar>;
+  const toolbar = <Toolbar monday={monday} setMonday={setMonday} isMobile={isMobile}>{filterBtn}</Toolbar>;
 
   const head = (title: string, right?: any) => (
     <div style={{ ...microLabel, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 18, paddingBottom: 7, borderBottom: `1px solid ${C.rule}`, minHeight: 28 }}>
@@ -151,7 +151,9 @@ export default function PlannerCreator({ planner, view, setView, monday, setMond
     const offerTask   = visible.find(t => t.area === "offer" && t.phase !== "maintain" && t.account === acc);
     const firstSet    = visible.find(t => t.source === "portfolio_total" && t.account === acc);
     const ideasTask   = visible.find(t => t.source === "ideas" && t.account === acc);
-    const monthTask   = visible.find(t => t.rhythm === "monthly" && t.area === "portfolio");
+    // the account's own monthly task (after the split), else the shared one
+    const monthTask   = visible.find(t => t.rhythm === "monthly" && t.area === "portfolio" && t.account === acc)
+                     || visible.find(t => t.rhythm === "monthly" && t.area === "portfolio");
     const concept = planner.noteOf(acc, "concept");
     const offer   = planner.noteOf(acc, "offer");
     const learn   = planner.noteOf(acc, "learning", monday);
@@ -163,12 +165,11 @@ export default function PlannerCreator({ planner, view, setView, monday, setMond
     // this month's goal (kept on the monthly portfolio task) and pieces posted this month
     const ms = monthStart(monday), me = monthEnd(monday);
     const monthEntry = monthTask ? planner.entries[entryKey(monthTask.id, ms)] : undefined;
-    const goal = monthEntry?.data?.goals?.[acc] ?? null;
+    const goal = monthGoalOf(monthTask, monthEntry, acc);
     const doneMonth = mine.filter(i => i.portfolio && (i.status === "posted" || i.status === "in_kit") && i.postedOn && i.postedOn >= ms && i.postedOn <= me).length;
     const saveGoal = (v: number | null) => {
       if (!monthTask || v === goal) return;
-      const data = monthEntry?.data || {};
-      quiet(planner.saveEntry(monthTask.id, ms, { data: { ...data, goals: { ...(data.goals || {}), [acc]: v } } }));
+      quiet(planner.saveEntry(monthTask.id, ms, monthGoalPatch(monthTask, monthEntry, acc, v)));
     };
     const isLynn = acc === "lynnhoa";
 
@@ -246,7 +247,7 @@ export default function PlannerCreator({ planner, view, setView, monday, setMond
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "flex-end", gap: 8 }}>
         <div>
           <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Creator</h2>
-          <div style={{ ...microLabel, letterSpacing: "0.06em", marginTop: 4 }}>{accs.length === 1 ? `${accLook(accs[0]).label} · ` : ""}{weekRange(monday)}</div>
+          {accs.length === 1 ? <Subtitle acc={accs[0]} text={weekRange(monday)} /> : <div style={{ ...microLabel, letterSpacing: "0.06em", marginTop: 4 }}>{weekRange(monday)}</div>}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           {!isMobile && toolbar}

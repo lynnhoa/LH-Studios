@@ -22,7 +22,7 @@ import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
 import { OUTREACH_CATEGORIES, OUTREACH_TIERS, catOf } from "./outreach";
 import { fmtD, today } from "./formatters";
-import { Ico, IC, AccChip, Bar, Box, Toolbar, CountChip, CatChip, TaskWindow, SprintWindow, sprintRange, sprintDay } from "./PlannerWindows";
+import { Ico, IC, AccChip, Bar, Box, Toolbar, Subtitle, CountChip, CatChip, TaskWindow, SprintWindow, sprintRange, sprintDay } from "./PlannerWindows";
 
 const microLabel: any = { fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted };
 
@@ -53,7 +53,10 @@ export default function PlannerManager({ planner, view, setView, monday, setMond
   const stage2  = accs.some(a => stageNumOf(stages, a) >= 2);
   const sprintW = stages.find(s => s.num === 2 && accs.includes(s.account))?.sprintWeeks ?? 2;
 
-  const toolbar = <Toolbar acc={view.acc} setAcc={(acc) => setView({ ...view, acc })} monday={monday} setMonday={setMonday} isMobile={isMobile} />;
+  const toolbar = <Toolbar monday={monday} setMonday={setMonday} isMobile={isMobile} />;
+  // one account at a time: rows get a plain label instead of the account chip
+  const multi = accs.length > 1;
+  const who = (acc: Account, label: string) => (multi ? <AccChip acc={acc} /> : <span style={{ fontSize: 14 }}>{label}</span>);
 
   const head = (title: string, right: string) => (
     <div style={{ ...microLabel, display: "flex", justifyContent: "space-between", gap: 8, marginTop: 18, paddingBottom: 7, borderBottom: `1px solid ${C.rule}` }}>
@@ -73,7 +76,7 @@ export default function PlannerManager({ planner, view, setView, monday, setMond
     return (
       <div key={acc} className="lh-prow" onClick={() => setOpenTask(t.id)} style={rowStyle(i === accs.length - 1)}>
         <div style={{ minWidth: 0 }}>
-          <AccChip acc={acc} />
+          {who(acc, `Week ${isoWeek(monday)}`)}
           <div style={sub}>{done ? `${fmtInt(sn?.followers)} followers · ${fmtInt(sn?.views)} views · ${fmtPct2(sn?.engagement)}` : "Not entered yet"}</div>
         </div>
         {done ? <Box on size={20} /> : <B v="sec" s={smallBtn}>Enter</B>}
@@ -90,7 +93,7 @@ export default function PlannerManager({ planner, view, setView, monday, setMond
     return (
       <div key={acc} className="lh-prow" onClick={() => setOpenTask(t.id)} style={rowStyle(i === accs.length - 1)}>
         <div style={{ minWidth: 0 }}>
-          <AccChip acc={acc} />
+          {who(acc, `Week ${isoWeek(monday)}`)}
           <div style={sub}>{logged ? `Followed ${d.followed ?? 0} · back ${st.actual ?? 0} · unfollowed ${d.unfollowed ?? 0}` : "Nothing logged yet"}</div>
         </div>
         <span style={{ fontSize: 14, flexShrink: 0, color: st.done ? C.green : C.black }}>{st.actual ?? 0} / {st.target ?? "–"}{st.done ? " ✓" : ""}</span>
@@ -105,7 +108,7 @@ export default function PlannerManager({ planner, view, setView, monday, setMond
     const toggle = (k: number) => { const days = [...st.days]; days[k] = !days[k]; quiet(planner.saveEntry(t.id, periodOf(t, monday), { days })); };
     return (
       <div key={acc} className="lh-prow" onClick={() => setOpenTask(t.id)} style={rowStyle(i === accs.length - 1)}>
-        <AccChip acc={acc} />
+        {who(acc, "This week")}
         <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={(e) => e.stopPropagation()}>
           {DAY_SHORT.map((dname, k) => {
             const on = st.days[k];
@@ -150,7 +153,7 @@ export default function PlannerManager({ planner, view, setView, monday, setMond
     <div key={t.id} className="lh-prow" onClick={() => setOpenTask(t.id)} style={rowStyle(i === kit.length - 1)}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
         <span style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{t.title}</span>
-        <AccChip acc={t.account} />
+        {(multi || t.account === "both") && <AccChip acc={t.account} />}
       </div>
       <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         {t.link && <span style={{ color: C.muted, display: "inline-flex" }} title="Has a link"><Ico d={IC.link} size={14} /></span>}
@@ -172,7 +175,7 @@ export default function PlannerManager({ planner, view, setView, monday, setMond
           <div role="button" tabIndex={0} className="lh-prow" onClick={() => setOpenSprint({ id: sp.id })} onKeyDown={(e) => { if (e.key === "Enter") setOpenSprint({ id: sp.id }); }}
             style={{ marginTop: 10, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "9px 10px", cursor: "pointer" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><AccChip acc={acc} /><span style={{ fontSize: 14 }}>Sprint {sp.num}</span></span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{multi && <AccChip acc={acc} />}<span style={{ fontSize: 14 }}>Sprint {sp.num}</span></span>
               <span style={microLabel}>Day {d.day} of {d.total}</span>
             </div>
             <div style={{ ...sub, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const }}>
@@ -190,7 +193,7 @@ export default function PlannerManager({ planner, view, setView, monday, setMond
           </div>
         ) : (
           <div style={{ padding: "9px 0", borderBottom: `1px solid ${C.rule}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}><AccChip acc={acc} /><span style={{ fontSize: 13, color: C.muted }}>No sprint running{due > 0 ? ` · ${due} follow-ups due` : ""}</span></span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>{multi && <AccChip acc={acc} />}<span style={{ fontSize: 13, color: C.muted }}>No sprint running{due > 0 ? ` · ${due} follow-ups due` : ""}</span></span>
             <B v="sec" onClick={() => setOpenSprint({ acc })} s={smallBtn}>Start sprint</B>
           </div>
         )}
@@ -233,7 +236,7 @@ export default function PlannerManager({ planner, view, setView, monday, setMond
           {weekPitches.slice(0, 8).map((p, i, arr) => (
             <div key={p.id} style={{ padding: "7px 0", borderBottom: i === arr.length - 1 ? "none" : `1px solid ${C.rule}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: 13 }}>
               <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{planner.contactName(p.contactId)} <span style={{ color: C.muted }}>· {p.kind === "follow_up" ? "Follow-up" : "Pitch"}</span></span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}><AccChip acc={p.account} /><span style={{ fontSize: 12, color: C.muted }}>{fmtD(p.sentOn).slice(0, 6)}</span></span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>{multi && <AccChip acc={p.account} />}<span style={{ fontSize: 12, color: C.muted }}>{fmtD(p.sentOn).slice(0, 6)}</span></span>
             </div>
           ))}
           {weekPitches.length > 8 && <p style={{ fontSize: 12, color: C.muted, margin: "6px 0 0" }}>+{weekPitches.length - 8} more in Outreach</p>}
@@ -253,7 +256,7 @@ export default function PlannerManager({ planner, view, setView, monday, setMond
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "flex-end", gap: 8 }}>
         <div>
           <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Manager</h2>
-          <div style={{ ...microLabel, letterSpacing: "0.06em", marginTop: 4 }}>His workspace · {weekRange(monday)}</div>
+          {multi ? <div style={{ ...microLabel, letterSpacing: "0.06em", marginTop: 4 }}>His workspace · {weekRange(monday)}</div> : <Subtitle acc={accs[0]} text={`His workspace · ${weekRange(monday)}`} />}
         </div>
         {!isMobile && toolbar}
       </div>

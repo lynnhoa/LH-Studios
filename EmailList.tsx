@@ -17,6 +17,7 @@ import {
   catOf, tierOf, statusOf, followUpDue, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt,
 } from "./outreach";
 import type { Pitch, PitchAccount } from "./outreach";
+import { loadWorkAccount } from "./planner";
 import type { OutreachContact, OutreachView, SortKey } from "./outreach";
 import { downloadExcel, downloadTemplate, downloadListPdf } from "./outreachExport";
 
@@ -58,9 +59,8 @@ const StatusText = ({ c }: { c: OutreachContact }) => {
   const text = due ? "Follow up" : c.status === "pitched" ? `Pitched${c.lastContact ? " " + shortD(c.lastContact) : ""}` : c.status === "deal" ? "Deal ✓" : statusOf(c.status).label;
   return <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color, whiteSpace: "nowrap" as const, flexShrink: 0 }}>{text}</span>;
 };
-const ACC_KEY = "lh_outreach_pitch_account";
-const lastAccount = (): PitchAccount => { try { return (sessionStorage.getItem(ACC_KEY) as PitchAccount) || "lynnhoa"; } catch { return "lynnhoa"; } };
-const rememberAccount = (a: PitchAccount) => { try { sessionStorage.setItem(ACC_KEY, a); } catch { /* ignore */ } };
+// Logging defaults to the account you're working on (profile menu, same as the Planner)
+const lastAccount = (): PitchAccount => loadWorkAccount();
 
 export default function EmailList({ outreach, settings, isMobile, isWide, stickyTop }: EmailListProps) {
   const { contacts, loading, loadError, loginEmail } = outreach;
@@ -455,7 +455,7 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy }: { c: Outreach
             {followUpDue(c) && <p style={{ fontSize: 12, color: C.amber, margin: "6px 0 0" }}>No reply since {fmtD(c.lastContact!)} — time to follow up.</p>}
             <Lbl>Log</Lbl>
             <div style={{ display: "flex", gap: 6 }}>
-              <S value={acc} onChange={(e: any) => { setAcc(e.target.value); rememberAccount(e.target.value); }} s={{ flex: 1, minWidth: 0 }} aria-label="Account">
+              <S value={acc} onChange={(e: any) => setAcc(e.target.value)} s={{ flex: 1, minWidth: 0 }} aria-label="Account">
                 {PITCH_ACCOUNTS.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
               </S>
               <B v="sec" onClick={() => log("pitch")} s={{ ...BAR_BTN, flexShrink: 0, color: C.black }}>+ Pitch</B>
@@ -533,7 +533,7 @@ function LogWindow({ ids, followUp, outreach, isMobile, onClose, onDone }: { ids
     setErr(null);
     if (!date) { setErr("Pick the day it was sent."); return; }
     setBusy(true);
-    try { rememberAccount(acc); await outreach.logPitches(ids, acc, kind, date); onDone(n); }
+    try { await outreach.logPitches(ids, acc, kind, date); onDone(n); }
     catch (e: any) { setErr(e?.message || "Couldn't log it."); }
     finally { setBusy(false); }
   };

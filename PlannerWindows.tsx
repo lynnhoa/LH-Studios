@@ -81,21 +81,17 @@ export const StageTrack = ({ stages, current, progress }: { stages: Stage[]; cur
   </div>
 );
 
-// ── the slim toolbar every Planner tab shares: Account ▾ · ‹ Week › (+ extra) ─
-export function Toolbar({ acc, setAcc, monday, setMonday, isMobile, children }: {
-  acc: AccountFilter; setAcc: (a: AccountFilter) => void; monday: string; setMonday: (m: string) => void; isMobile: boolean; children?: any;
+// ── the slim toolbar every Planner tab shares: ‹ Week › (+ extra) ─
+// The account is chosen in the profile menu, so it isn't here.
+export function Toolbar({ monday, setMonday, isMobile, children }: {
+  monday: string; setMonday: (m: string) => void; isMobile: boolean; children?: any;
 }) {
   const ctl: any = { height: 28, border: `1px solid ${C.rule}`, borderRadius: 2, background: "transparent", display: "inline-flex", alignItems: "center", boxSizing: "border-box" as const, color: C.black, fontFamily: SANS };
-  const arrowBtn: any = { width: 28, height: 26, border: "none", background: "none", cursor: "pointer", color: C.muted, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 };
+  const arrowBtn: any = { width: 28, height: 26, border: "none", background: "none", cursor: "pointer", color: C.muted, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 };
   const isThisWeek = monday === thisMonday();
   return (
     <div style={{ display: "flex", gap: 6, alignItems: "center", position: "relative" }}>
-      <S value={acc} onChange={(e: any) => setAcc(e.target.value)} aria-label="Account"
-        s={{ height: 28, flex: isMobile ? 1 : "0 0 170px", width: isMobile ? "auto" : 170, minWidth: 0, padding: "0 26px 0 8px", backgroundPosition: "right 8px center" }}>
-        <option value="all">All accounts</option>
-        {ACCOUNTS.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
-      </S>
-      <div style={{ ...ctl, flexShrink: 0 }}>
+      <div style={{ ...ctl, flex: isMobile ? 1 : "0 0 auto", justifyContent: "space-between", minWidth: 0 }}>
         <button onClick={() => setMonday(addDays(monday, -7))} aria-label="Previous week" style={arrowBtn}><Ico d={IC.left} size={13} /></button>
         <button onClick={() => setMonday(thisMonday())} title={isThisWeek ? "This week" : "Back to this week"}
           style={{ height: 26, border: "none", background: "none", cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.black, padding: "0 2px", whiteSpace: "nowrap" as const }}>
@@ -107,6 +103,14 @@ export function Toolbar({ acc, setAcc, monday, setMonday, isMobile, children }: 
     </div>
   );
 }
+
+// Under each tab title: the account you're working on · the week (or more)
+export const Subtitle = ({ acc, text }: { acc: Account; text: string }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" as const }}>
+    <AccChip acc={acc} />
+    <span style={{ ...microLabel, letterSpacing: "0.06em" }}>{text}</span>
+  </div>
+);
 
 // An Outreach category as a small coloured chip
 export const CatChip = ({ k }: { k: string }) => {

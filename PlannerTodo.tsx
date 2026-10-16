@@ -20,7 +20,7 @@ import {
 } from "./planner";
 import type { Task, AccountFilter, Owner, Phase } from "./planner";
 import type { PlannerHook } from "./usePlanner";
-import { Ico, IC, AccChip, Bar, Box, StageTrack, Toolbar, TaskWindow, PlanWeekWindow, StageWindow } from "./PlannerWindows";
+import { Ico, IC, AccChip, Bar, Box, StageTrack, Toolbar, Subtitle, TaskWindow, PlanWeekWindow, StageWindow } from "./PlannerWindows";
 
 export interface PlannerView { tab: string; acc: AccountFilter; owner: "all" | Owner; phase: "all" | Phase; }
 export const DEFAULT_VIEW: PlannerView = { tab: "todo", acc: "all", owner: "all", phase: "all" };
@@ -62,7 +62,7 @@ export default function PlannerTodo({ planner, view, setView, monday, setMonday,
   const ctl: any = { height: 28, border: `1px solid ${C.rule}`, borderRadius: 2, background: "transparent", display: "inline-flex", alignItems: "center", boxSizing: "border-box" as const, color: C.black, fontFamily: SANS };
 
   const toolbar = (
-    <Toolbar acc={view.acc} setAcc={(acc) => set({ acc })} monday={monday} setMonday={setMonday} isMobile={isMobile}>
+    <Toolbar monday={monday} setMonday={setMonday} isMobile={isMobile}>
       <div style={{ position: "relative" }}>
         <button onClick={() => setFilterOpen(o => !o)} aria-label="Filter" title="Filter"
           style={{ ...ctl, minWidth: 28, justifyContent: "center", gap: 5, padding: isMobile ? 0 : "0 9px", cursor: "pointer", position: "relative", border: `1px solid ${nFilters ? C.black : C.rule}`, background: nFilters ? C.black : "transparent", color: nFilters ? C.white : C.black, fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const }}>
@@ -211,7 +211,7 @@ export default function PlannerTodo({ planner, view, setView, monday, setMonday,
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "flex-end", gap: 8 }}>
         <div>
           <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>To-do</h2>
-          <div style={{ ...microLabel, letterSpacing: "0.06em", marginTop: 4 }}>{weekRange(monday)}</div>
+          {view.acc !== "all" ? <Subtitle acc={view.acc} text={weekRange(monday)} /> : <div style={{ ...microLabel, letterSpacing: "0.06em", marginTop: 4 }}>{weekRange(monday)}</div>}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" as const, justifyContent: "flex-end" }}>
           {!isMobile && toolbar}

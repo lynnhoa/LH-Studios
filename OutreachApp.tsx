@@ -1,6 +1,8 @@
 // ─────────────────────────────────────────────────────────────
 // OutreachApp — Outreach (tab: Email list). Same frame as the
 // other apps: logo header, nav tab, account menu with all apps.
+// The menu also holds the account you're working on (as in the
+// Planner); the email list itself stays one shared list.
 // Phone, iPad and desktop layouts.
 // ─────────────────────────────────────────────────────────────
 
@@ -11,6 +13,8 @@ import AppLogo from "./AppLogo";
 import { AvatarMenu, NavTab, appItems } from "./AppNav";
 import EmailList from "./EmailList";
 import { useOutreach } from "./useOutreach";
+import { ACCOUNTS, loadWorkAccount, saveWorkAccount } from "./planner";
+import type { Account } from "./planner";
 import type { Role } from "./types";
 
 interface OutreachAppProps {
@@ -23,6 +27,9 @@ interface OutreachAppProps {
 
 export default function OutreachApp({ userId, settings, signOut, switchTo, banners }: OutreachAppProps) {
   const outreach = useOutreach(userId);
+  // the account you're working on (same choice as in the Planner): the default when you log a pitch
+  const [work, setWork] = useState<Account>(loadWorkAccount);
+  const pickAccount = (a: Account) => { saveWorkAccount(a); setWork(a); };
   const [winW, setWinW] = useState(() => window.innerWidth);
   useEffect(() => {
     const fn = () => setWinW(window.innerWidth);
@@ -34,7 +41,9 @@ export default function OutreachApp({ userId, settings, signOut, switchTo, banne
   const headerH  = isMobile ? 87 : 57;
 
   const avatar = (
-    <AvatarMenu settings={settings} roleLabel="Outreach" items={[]} apps={appItems("outreach", switchTo)} onSignOut={() => { signOut(); }} />
+    <AvatarMenu settings={settings} roleLabel="Outreach"
+      items={ACCOUNTS.map(a => ({ key: a.key, label: a.label, active: work === a.key, onClick: () => pickAccount(a.key) }))}
+      apps={appItems("outreach", switchTo)} onSignOut={() => { signOut(); }} />
   );
 
   return (

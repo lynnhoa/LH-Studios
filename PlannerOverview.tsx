@@ -14,13 +14,13 @@ import { useState } from "react";
 import { C, SERIF, TYPE } from "./constants";
 import {
   accountsOf, accLook, stageOf, stageNumOf, gateOf, isVisible, addDays, snapKey, entryKey, monthName,
-  weekRange, isoWeek, fmtInt, fmtPct2,
+  weekRange, isoWeek, fmtInt, fmtPct2, monthGoalOf,
 } from "./planner";
 import type { Account, Task } from "./planner";
 import { monthStart, monthEnd } from "./formatters";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
-import { Ico, IC, AccChip, Bar, StageTrack, Toolbar, StageWindow, sprintDay } from "./PlannerWindows";
+import { Ico, IC, AccChip, Bar, StageTrack, Toolbar, Subtitle, StageWindow, sprintDay } from "./PlannerWindows";
 import { today } from "./formatters";
 
 const microLabel: any = { fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted };
@@ -67,7 +67,7 @@ export default function PlannerOverview({ planner, view, setView, monday, setMon
         style={{ padding: "9px 0", borderBottom: i === accs.length - 1 ? "none" : `1px solid ${C.rule}`, cursor: "pointer" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-            <AccChip acc={acc} />
+            {accs.length > 1 ? <AccChip acc={acc} /> : <span style={{ fontSize: 13, color: C.muted }}>Stage {cur.num} ·</span>}
             <span style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{cur.name}</span>
           </span>
           <span style={{ fontSize: 12, flexShrink: 0, color: gate.ready && gate.total ? C.green : C.black }}>{gate.total ? `${gate.done} / ${gate.total}${gate.ready ? " ✓" : ""}` : "–"}</span>
@@ -107,8 +107,8 @@ export default function PlannerOverview({ planner, view, setView, monday, setMon
     const big = cur == null ? "–" : acc === "lynnhoa" ? fmtInt(cur) : `${cur >= 0 ? "+" : "−"}${fmtInt(Math.abs(cur))}`;
     return (
       <div key={acc} style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "9px 10px", minWidth: 0 }}>
-        <AccChip acc={acc} />
-        <div style={{ ...microLabel, marginTop: 8 }}>{f.label}</div>
+        {accs.length > 1 && <AccChip acc={acc} />}
+        <div style={{ ...microLabel, marginTop: accs.length > 1 ? 8 : 0 }}>{f.label}</div>
         <div style={sub}>{f.what}</div>
         <div style={{ fontFamily: SERIF, fontSize: 24, lineHeight: 1.1, marginTop: 3 }}>{big}</div>
         <div style={{ fontSize: 11, marginTop: 2, color: delta?.color || C.muted }}>{delta?.text || (cur == null ? "Not entered yet" : "No week before to compare")}</div>
@@ -125,8 +125,8 @@ export default function PlannerOverview({ planner, view, setView, monday, setMon
 
   // ── portfolio rows ──────────────────────────────────────────
   const ms = monthStart(monday), me = monthEnd(monday);
-  const monthTask = visible.find(t => t.rhythm === "monthly" && t.area === "portfolio");
-  const goals = monthTask ? planner.entries[entryKey(monthTask.id, ms)]?.data?.goals || {} : {};
+  const monthTaskOf = (acc: Account) => visible.find(t => t.rhythm === "monthly" && t.area === "portfolio" && t.account === acc)
+                                     || visible.find(t => t.rhythm === "monthly" && t.area === "portfolio");
   const anyBuilding = accs.some(acc => {
     const fs = tasks.find(t => t.source === "portfolio_total" && t.account === acc && t.active);
     return fs && !planner.doneOf(fs);
@@ -138,16 +138,17 @@ export default function PlannerOverview({ planner, view, setView, monday, setMon
     if (st && !st.done) {
       return (
         <div key={acc} style={{ padding: "9px 0", borderBottom: last ? "none" : `1px solid ${C.rule}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><AccChip acc={acc} /><span style={{ fontSize: 13 }}>First set {st.actual ?? 0} / {st.target ?? "–"}</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>{accs.length > 1 ? <AccChip acc={acc} /> : <span style={{ fontSize: 14 }}>First set</span>}<span style={{ fontSize: 13 }}>{accs.length > 1 ? "First set " : ""}{st.actual ?? 0} / {st.target ?? "–"}</span></div>
           <Bar value={st.actual ?? 0} max={st.target ?? 0} />
         </div>
       );
     }
     const done = items.filter(x => x.account === acc && x.portfolio && (x.status === "posted" || x.status === "in_kit") && x.postedOn && x.postedOn >= ms && x.postedOn <= me).length;
-    const goal = goals[acc] ?? null;
+    const mt = monthTaskOf(acc);
+    const goal = monthGoalOf(mt, mt ? planner.entries[entryKey(mt.id, ms)] : undefined, acc);
     return (
       <div key={acc} style={{ padding: "9px 0", borderBottom: last ? "none" : `1px solid ${C.rule}` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><AccChip acc={acc} /><span style={{ fontSize: 13, color: goal != null && done >= goal ? C.green : C.black }}>{monthName(monday)} {done} / {goal ?? "–"}</span></div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>{accs.length > 1 ? <AccChip acc={acc} /> : <span style={{ fontSize: 14 }}>{monthName(monday)} goal</span>}<span style={{ fontSize: 13, color: goal != null && done >= goal ? C.green : C.black }}>{accs.length > 1 ? `${monthName(monday)} ` : ""}{done} / {goal ?? "–"}</span></div>
         <Bar value={done} max={goal ?? 0} done={goal != null && done >= goal} />
       </div>
     );
@@ -178,11 +179,11 @@ export default function PlannerOverview({ planner, view, setView, monday, setMon
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "flex-end", gap: 8 }}>
         <div>
           <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Overview</h2>
-          <div style={{ ...microLabel, letterSpacing: "0.06em", marginTop: 4 }}>{weekRange(monday)}</div>
+          {accs.length === 1 ? <Subtitle acc={accs[0]} text={weekRange(monday)} /> : <div style={{ ...microLabel, letterSpacing: "0.06em", marginTop: 4 }}>{weekRange(monday)}</div>}
         </div>
-        {!isMobile && <Toolbar acc={view.acc} setAcc={(acc) => setView({ ...view, acc })} monday={monday} setMonday={setMonday} isMobile={isMobile} />}
+        {!isMobile && <Toolbar monday={monday} setMonday={setMonday} isMobile={isMobile} />}
       </div>
-      {isMobile && <div style={{ marginTop: 12 }}><Toolbar acc={view.acc} setAcc={(acc) => setView({ ...view, acc })} monday={monday} setMonday={setMonday} isMobile={isMobile} /></div>}
+      {isMobile && <div style={{ marginTop: 12 }}><Toolbar monday={monday} setMonday={setMonday} isMobile={isMobile} /></div>}
 
       {loading ? (
         <p style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 16 }}>Loading…</p>
@@ -216,7 +217,7 @@ export default function PlannerOverview({ planner, view, setView, monday, setMon
             const weekN = planner.pitchesInWeek([acc], monday).filter(p => p.kind === "pitch").length;
             if (!sp) return (
               <div key={acc} style={{ padding: "9px 0", borderBottom: last ? "none" : `1px solid ${C.rule}`, display: "flex", alignItems: "center", gap: 6 }}>
-                <AccChip acc={acc} /><span style={{ fontSize: 13, color: C.muted }}>No sprint running · {weekN} {weekN === 1 ? "pitch" : "pitches"} this week</span>
+                {accs.length > 1 && <AccChip acc={acc} />}<span style={{ fontSize: 13, color: C.muted }}>No sprint running · {weekN} {weekN === 1 ? "pitch" : "pitches"} this week</span>
               </div>
             );
             const st = planner.sprintStats(sp);
@@ -230,7 +231,7 @@ export default function PlannerOverview({ planner, view, setView, monday, setMon
             return (
               <div key={acc} style={{ padding: "9px 0", borderBottom: last ? "none" : `1px solid ${C.rule}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><AccChip acc={acc} /><span style={{ fontSize: 13 }}>Sprint {sp.num}</span></span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{accs.length > 1 && <AccChip acc={acc} />}<span style={{ fontSize: 13 }}>Sprint {sp.num}</span></span>
                   <span style={{ ...microLabel }}>Day {d.day} of {d.total}</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 8, marginTop: 8 }}>

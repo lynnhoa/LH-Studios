@@ -3,7 +3,8 @@
 // Same frame as Outreach: logo header, nav tabs, account menu
 // with all apps. Phone, iPad and desktop layouts.
 // All four tabs are live: Overview (read-only scoreboard), To-do,
-// Manager and Creator.
+// Manager and Creator. One account at a time: @lynnhoa or
+// @createbylynn, chosen in the profile menu and remembered.
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
@@ -12,7 +13,8 @@ import { C, SANS, SERIF, TYPE, BREAKPOINT, WIDE } from "./constants";
 import AppLogo from "./AppLogo";
 import { AvatarMenu, NavTab, appItems } from "./AppNav";
 import { usePlanner } from "./usePlanner";
-import { thisMonday } from "./planner";
+import { thisMonday, ACCOUNTS, loadWorkAccount, saveWorkAccount } from "./planner";
+import type { Account } from "./planner";
 import PlannerTodo, { DEFAULT_VIEW } from "./PlannerTodo";
 import PlannerManager from "./PlannerManager";
 import PlannerCreator from "./PlannerCreator";
@@ -39,7 +41,9 @@ interface PlannerAppProps {
 }
 
 export default function PlannerApp({ userId, settings, signOut, switchTo, banners }: PlannerAppProps) {
-  const [view, setView]     = useState<PlannerView>(loadView);
+  // the account comes from the profile menu (remembered on this device), never "all"
+  const [view, setView]     = useState<PlannerView>(() => ({ ...loadView(), acc: loadWorkAccount() }));
+  const setAccount = (a: Account) => { saveWorkAccount(a); setView(v => ({ ...v, acc: a })); };
   const [monday, setMonday] = useState<string>(thisMonday);
   const planner = usePlanner(userId, monday);
 
@@ -60,7 +64,9 @@ export default function PlannerApp({ userId, settings, signOut, switchTo, banner
   const openCatalog = () => { try { sessionStorage.setItem("lh_manager_open", "catalog"); } catch { /* ignore */ } switchTo("manager"); };
 
   const avatar = (
-    <AvatarMenu settings={settings} roleLabel="Planner" items={[]} apps={appItems("planner", switchTo)} onSignOut={() => { signOut(); }} />
+    <AvatarMenu settings={settings} roleLabel="Planner"
+      items={ACCOUNTS.map(a => ({ key: a.key, label: a.label, active: view.acc === a.key, onClick: () => setAccount(a.key) }))}
+      apps={appItems("planner", switchTo)} onSignOut={() => { signOut(); }} />
   );
   const tabs = (height: number, px: number) => TABS.map(t => (
     <NavTab key={t.key} label={t.label} active={tab.key === t.key} onClick={() => goTab(t.key)} height={height} px={px} />
