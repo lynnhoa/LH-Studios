@@ -2,11 +2,12 @@
 // ClientDetail — right panel: client info, edit, projects list
 // ─────────────────────────────────────────────────────────────
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt, fmtD, addM, today, uid } from "./formatters";
 import { I, S, B, Lbl, Tag, ConfirmDialog } from "./atoms";
 import { clientMoney } from "./docs";
+import { editLock } from "./saveStatus";
 import ProjectCard from "./ProjectCard";
 
 interface ClientDetailProps {
@@ -38,6 +39,7 @@ export default function ClientDetail({
   const [editPrName,    setEditPrName]    = useState<string | null>(null);
   const [editPrNameVal, setEditPrNameVal] = useState("");
   const [askDelete,     setAskDelete]     = useState<null | { blocked: boolean; text: string }>(null);
+  useEffect(() => (editMode ? editLock.acquire() : undefined), [editMode]);   // no reload while editing
 
   const f = clientMoney(cl, today());     // from the invoices themselves
 

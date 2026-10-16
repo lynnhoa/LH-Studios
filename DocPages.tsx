@@ -5,6 +5,9 @@
 // (visible) and by bulk download (rendered off-screen).
 // ─────────────────────────────────────────────────────────────
 
+import { createRoot } from "react-dom/client";
+import { flushSync } from "react-dom";
+import { pagesToPdf, deliverPdf } from "./PDFExport";
 import { useState, useEffect, useRef, createElement } from "react";
 import { C } from "./constants";
 import A4Document, { senderOf } from "./A4Document";
@@ -182,4 +185,38 @@ export default function DocPages({ doc, settings, client, lang, scale = 1, shado
       ))}
     </>
   );
+}
+
+// ─── Save ONE document as PDF (rendered off-screen) ────────────
+// Used by Save PDF: the document is drawn fresh (with its final
+// number and status), so the PDF never depends on what the open
+// window currently shows.
+const pause = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+async function waitForStableLayout(el: HTMLElement) {
+  let last = -1, stable = 0;
+  for (let t = 0; t < 30 && stable < 3; t++) {
+    await pause(t === 0 ? 30 : 80);
+    const h = el.scrollHeight * 1000 + el.querySelectorAll("[data-pdf-page]").length;
+    if (h === last) stable++; else { stable = 0; last = h; }
+  }
+  try { await (document as any).fonts?.ready; } catch { /* fonts are optional */ }
+}
+
+export async function downloadDocPdf(doc: DocView, settings: any, client: any, filename: string, mw: Window | null): Promise<void> {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "position:fixed;left:-20000px;top:0;width:595px;pointer-events:none;";
+  document.body.appendChild(wrap);
+  const root = createRoot(wrap);
+  try {
+    flushSync(() => root.render(<DocPages doc={doc} settings={settings} client={client} lang={(doc.lang as any) || "en"} scale={1} shadow={false} />));
+    await waitForStableLayout(wrap);
+    const pages = Array.from(wrap.querySelectorAll("[data-pdf-page]")) as HTMLElement[];
+    if (!pages.length) throw new Error("The PDF couldn't be prepared.");
+    const pdf = await pagesToPdf(pages, "portrait");
+    deliverPdf(pdf, filename, mw);
+  } finally {
+    root.unmount();
+    wrap.remove();
+  }
 }

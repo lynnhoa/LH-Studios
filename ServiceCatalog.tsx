@@ -14,6 +14,7 @@ import { uid } from "./formatters";
 import { I, S, B, Lbl, Pill, Tick, ConfirmDialog } from "./atoms";
 import { SETTINGS_DEFAULT } from "./rateCards";
 import { exportPDF } from "./PDFExport";
+import { editLock } from "./saveStatus";
 import {
   normalizeCard, sectionKind, KIND_LABEL, optName, pctText, addonPriceText, BASE_CARD_KEYS,
 } from "./pricing";
@@ -146,6 +147,7 @@ function RCPages({ card, lang, settings, scale = 1 }: any) {
 // ── Full-screen shell: panel left, live A4 preview right ──────
 // (one level: everything about a card happens in this one window)
 function CardShell({ title, card, settings, panel, footer, onClose }: any) {
+  useEffect(() => editLock.acquire(), []);      // no reload while this window is open
   const [lang, setLang] = useState("en");
   const [winW, setWinW] = useState(() => window.innerWidth);
   const [view, setView] = useState<"edit" | "preview">("edit");

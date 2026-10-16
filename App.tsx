@@ -12,6 +12,7 @@ import ManagerApp       from "./ManagerApp";
 import CreatorApp       from "./CreatorApp";
 import { Loading, SaveToast, LoadErrorBanner } from "./atoms";
 import { editLock, reloadAll } from "./saveStatus";
+import { newVersionAvailable } from "./appVersion";
 import { supabase, supabaseConfigured } from "./useSupabase";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import type { Role } from "./types";
@@ -198,7 +199,13 @@ function AppInner() {
     let hiddenAt = 0;
     const onVis = () => {
       if (document.visibilityState === "hidden") { hiddenAt = Date.now(); return; }
-      if (hiddenAt && Date.now() - hiddenAt > 30000 && !editLock.active()) reloadAll();
+      if (hiddenAt && Date.now() - hiddenAt > 30000 && !editLock.active()) {
+        // a newer version online → load it (nothing is being edited); otherwise just refresh the data
+        newVersionAvailable().then(isNew => {
+          if (isNew && !editLock.active()) window.location.reload();
+          else reloadAll();
+        });
+      }
       hiddenAt = 0;
     };
     document.addEventListener("visibilitychange", onVis);

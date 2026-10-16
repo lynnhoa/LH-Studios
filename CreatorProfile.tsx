@@ -128,11 +128,9 @@ export default function CreatorProfile({ settings, updateSettings, isMobile }: C
       </div>
 
       {(!(s.name || s.company) || !s.street || !s.city || !s.iban) && (
-        <div style={{ marginTop: 16, padding: "11px 14px", background: "#fdf0f0", border: `1px solid ${C.red}`, borderRadius: 2 }}>
-          <p style={{ fontSize: TYPE.label.size, color: C.red, margin: 0 }}>
-            Invoices can't be finalized until your {[!(s.name || s.company) && "name", (!s.street || !s.city) && "address", !s.iban && "IBAN"].filter(Boolean).join(", ")} {(!(s.name || s.company) ? 1 : 0) + ((!s.street || !s.city) ? 1 : 0) + (!s.iban ? 1 : 0) > 1 ? "are" : "is"} filled in.
-          </p>
-        </div>
+        <p style={{ marginTop: 16, fontSize: TYPE.label.size, color: C.muted, lineHeight: 1.5 }}>
+          Shown on your documents once filled in: {[!(s.name || s.company) && "name", (!s.street || !s.city) && "address", !s.iban && "IBAN"].filter(Boolean).join(", ")}.
+        </p>
       )}
 
       {/* ── AUTOSAVE NOTICE ── */}

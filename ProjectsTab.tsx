@@ -9,6 +9,7 @@ import { useState, useEffect, useRef } from "react";
 import { C, SERIF, TYPE, expiryColor, expiryTint } from "./constants";
 import { fmt, fmtD, fmtE, today, addM, dLeft } from "./formatters";
 import { projectLicenses, ACTION_LABEL } from "./licenses";
+import { pdfFlow, finalizeQuestion } from "./docFlow";
 import { I, B, TSel, TSelWrap, StatusBadge, ConfirmDialog } from "./atoms";
 import RenewalModal from "./RenewalModal";
 import ProductionSection from "./ProductionSection";
@@ -125,6 +126,8 @@ function ProjectRow({
   const openDoc = (d: DocRecord | null | undefined) => { if (d) setOpenDocId(d.id); };
 
   // ── Status actions for one document (shown in the document modal) ──
+  const flow = pdfFlow(h, cid, pid, settings);
+
   const docActions = (d: DocRecord): DocAction[] => {
     const close = () => { setOpenDocId(null); onModalClosed(); };
     if (d.kind === "quote" && d.status === "draft") return [
@@ -149,7 +152,7 @@ function ProjectRow({
     if (d.kind === "invoice" && d.subtype !== "storno") {
       if (d.status === "draft") return [
         { key: "delete", label: "Delete draft", kind: "danger", confirm: "The draft is deleted. No invoice number has been used yet.", run: async () => { await h.cancelInvoice(cid, pid, d.id, settings); close(); } },
-        { key: "final", label: "Finalize", kind: "pri", confirm: "This assigns the next invoice number and locks the invoice. Download and send it afterwards.", run: () => h.finalizeInvoice(cid, pid, d.id, settings) },
+        { key: "final", label: "Finalize", kind: "pri", confirm: finalizeQuestion(settings), run: () => h.finalizeInvoice(cid, pid, d.id, settings) },
       ];
       if (d.status === "sent") return [
         { key: "cancel", label: "Cancel invoice", kind: "danger", confirm: "Creates a cancellation invoice (Storno) with its own number. The original stays on file.", run: async () => { const st = await h.cancelInvoice(cid, pid, d.id, settings); if (st) setOpenDocId(st.id); } },
@@ -165,10 +168,10 @@ function ProjectRow({
 
   const docNote = (d: DocRecord): string | undefined => {
     if (d.status !== "draft") return undefined;
-    if (d.kind === "invoice")  return "Draft — the invoice number is assigned when you tap Finalize.";
-    if (d.kind === "quote")    return "Draft — editable until you mark it sent. After that, changes become a new revision.";
-    if (d.kind === "contract") return "Draft — editable until it's marked sent or signed.";
-    return "Draft — editable until you mark it sent.";
+    if (d.kind === "invoice")  return "Draft — Save PDF (or Finalize) gives it its number.";
+    if (d.kind === "quote")    return "Draft — Save PDF marks it as sent. Later changes become a new revision.";
+    if (d.kind === "contract") return "Draft — Save PDF marks it as sent.";
+    return "Draft — Save PDF marks it as sent.";
   };
 
   // ── Modals ──
@@ -218,7 +221,9 @@ function ProjectRow({
         client={client}
         editable={openD.status === "draft"}
         note={docNote(openD)}
-        onSave={async (next) => { await h.updateDocument(cid, pid, openD.id, next, settings); }}
+        onSave={async (next) => h.updateDocument(cid, pid, openD.id, next, settings)}
+        onPdf={flow.prepare}
+        pdfConfirm={flow.confirmFor}
         actions={docActions(openD)}
         onClose={() => { setOpenDocId(null); onModalClosed(); }}
       />

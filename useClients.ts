@@ -287,9 +287,17 @@ export function useClients(userId: string | null): UseClientsReturn {
   const clientsRef = useRef(clients);
   clientsRef.current = clients;
 
+  // Update the list AND the ref immediately, so an action that follows right
+  // after (save → mark sent → PDF) already sees the new document.
+  const setClientsNow = (next: Client[] | ((prev: Client[]) => Client[])) => {
+    const value = typeof next === "function" ? (next as (p: Client[]) => Client[])(clientsRef.current) : next;
+    clientsRef.current = value;
+    setClients(value);
+  };
+
   // ── Full fetch ────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
-    if (!userId) { setClients([]); setLoading(false); return; }
+    if (!userId) { setClientsNow([]); setLoading(false); return; }
 
     setLoading(true);
 
@@ -356,7 +364,7 @@ export function useClients(userId: string | null): UseClientsReturn {
       rowToClient(row, projectsByClient[row.id] ?? [])
     );
 
-    setClients(built);
+    setClientsNow(built);
     setLoading(false);
   }, [userId]);
 
@@ -367,7 +375,7 @@ export function useClients(userId: string | null): UseClientsReturn {
 
   // ─── LOCAL STATE HELPERS ─────────────────────────────────
   const updateClientLocal = (id: string, fn: (c: Client) => Client) =>
-    setClients(prev => prev.map(c => c.id === id ? fn(c) : c));
+    setClientsNow(prev => prev.map(c => c.id === id ? fn(c) : c));
 
   const updateProjectLocal = (
     clientId: string,
@@ -387,7 +395,7 @@ export function useClients(userId: string | null): UseClientsReturn {
       const row = { id, user_id: userId, ...clientToRow(c) };
 
       // Old-app addCl appends new clients to the end of the list
-      setClients(prev => [...prev, { street: "", plz: "", city: "", vatId: "", ...c, id, projects: [] } as Client]);
+      setClientsNow(prev => [...prev, { street: "", plz: "", city: "", vatId: "", ...c, id, projects: [] } as Client]);
 
       const { error } = await supabase.from("clients").insert(row);
       if (error) { setError(error.message); return error.message; }
@@ -416,7 +424,7 @@ export function useClients(userId: string | null): UseClientsReturn {
   const deleteClient = useCallback(
     async (id: string): Promise<string | null> => {
       if (!userId) return "Not authenticated";
-      setClients(prev => prev.filter(c => c.id !== id));
+      setClientsNow(prev => prev.filter(c => c.id !== id));
 
       const { error } = await supabase
         .from("clients").delete().eq("id", id).eq("user_id", userId);
@@ -979,7 +987,7 @@ export function useClients(userId: string | null): UseClientsReturn {
           };
           const { error: ce } = await supabase.from("clients").insert({ id: clientId, user_id: userId, ...clientToRow(newClient) });
           if (ce) throw new Error(ce.message);
-          setClients(prev => [newClient, ...prev]);
+          setClientsNow(prev => [newClient, ...prev]);
           client = newClient;
         }
 
@@ -1201,8 +1209,7 @@ export function useClients(userId: string | null): UseClientsReturn {
     const { client, project } = findProject(clientId, projectId);
     const cur = findDoc(project, docId);
     if (cur.status !== "draft") return cur;
-    const gaps = profileGaps(settings);
-    if (gaps.length) throw new Error(`Add your ${gaps.join(", ")} in Creator Profile before finalizing an invoice.`);
+    // nothing in the profile is required — missing details are simply left off the invoice
     const year = yearOf(cur.docDate);
     const no   = invoiceNo(year, await nextNumber(`invoice:${year}`));
     const content = { ...cur.data, sender: senderSnapshot(settings), client: clientSnapshot(client) };

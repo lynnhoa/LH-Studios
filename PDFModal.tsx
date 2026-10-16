@@ -11,10 +11,10 @@ import { C, SANS, SERIF, TYPE, Z } from "./constants";
 import { I, B, Lbl, Pill, ConfirmDialog } from "./atoms";
 import { editLock } from "./saveStatus";
 import { fmt, r2 } from "./formatters";
-import { exportPDF } from "./PDFExport";
-import DocPages from "./DocPages";
-import { clauseContext, clauseTemplates, fillTokens, tokenizeClause, senderOf } from "./A4Document";
-import { STATUS_LABEL, docFileName, lineAmt, lineQty, profileGaps } from "./docs";
+import { openPdfWindow } from "./PDFExport";
+import DocPages, { downloadDocPdf } from "./DocPages";
+import { clauseContext, clauseTemplates, fillTokens, tokenizeClause } from "./A4Document";
+import { STATUS_LABEL, docFileName, lineAmt, lineQty } from "./docs";
 import type { DocView } from "./docs";
 
 export interface DocAction {
@@ -34,7 +34,9 @@ interface PDFModalProps {
   isNew?:     boolean;
   justSaved?: boolean;
   note?:      string;
-  onSave?:    (next: DocView) => Promise<void>;
+  onSave?:    (next: DocView) => Promise<DocView | void>;   // returns the stored document
+  onPdf?:     (d: DocView) => Promise<DocView>;            // before the PDF: mark sent / finalize
+  pdfConfirm?:(d: DocView) => string | null;               // one question before the PDF (draft invoices)
   actions?:   DocAction[];
   onClose:    () => void;
 }
@@ -46,7 +48,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function PDFModal({
-  doc, settings, client, editable, isNew, justSaved, note, onSave, actions = [], onClose,
+  doc, settings, client, editable, isNew, justSaved, note, onSave, onPdf, pdfConfirm, actions = [], onClose,
 }: PDFModalProps) {
   const [hs,           setHs]           = useState({ hist: [clone(doc)], idx: 0 });
   const [lang,         setLang]         = useState<"en" | "de">(doc.lang || "en");
@@ -59,6 +61,7 @@ export default function PDFModal({
   const [showEdit,     setShowEdit]     = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [dialog,       setDialog]       = useState<{ action: DocAction } | null>(null);
+  const [pdfAsk,       setPdfAsk]       = useState<string | null>(null);
   const [winW,         setWinW]         = useState(() => window.innerWidth);
 
   const baseRef  = useRef<string>(JSON.stringify({ ...clone(doc), lang: doc.lang || "en" }));
@@ -151,24 +154,42 @@ export default function PDFModal({
     onClose();
   };
 
-  // ── Download ────────────────────────────────────────────────
-  const download = async () => {
+  // ── Save PDF ────────────────────────────────────────────────
+  // One tap: saves unsaved changes, brings a draft to "sent" (an invoice
+  // gets its number), then draws the document fresh and saves the PDF.
+  // Nothing in the profile is required — missing details are left off.
+  const startPdf = async () => {
     setErr(null);
-    // never produce a PDF with missing or placeholder sender details
     if (settings && settings.__ready === false && !current.data?.sender) {
-      setErr("Your profile hasn't loaded yet — try again in a moment."); return;
+      setErr("Your profile is still loading — try again in a moment."); return;
     }
-    const sender = senderOf(current, settings);
-    const isInvoice = current.kind === "invoice" && current.subtype !== "storno";
-    const gaps = isInvoice ? profileGaps(sender) : (!(sender.name || sender.company) ? ["name"] : []);
-    if (gaps.length) { setErr(`Add your ${gaps.join(", ")} in Creator Profile first.`); return; }
+    const mw = openPdfWindow();               // must happen in the tap (iPhone)
+    setDownloading(true);
     try {
-      await exportPDF({
-        preview: current, type: current.kind, root: pagesRef.current,
-        filename: docFileName(current),
-        onStart: () => setDownloading(true), onDone: () => setDownloading(false),
-      });
-    } catch (e: any) { setErr(e?.message || "PDF failed"); setDownloading(false); }
+      let d: DocView = current;
+      if (canEdit && (isNew || dirty)) {
+        setSaving(true);
+        const res = await onSave!(current);
+        setSaving(false);
+        if (res) d = res as DocView;
+        baseRef.current = JSON.stringify(current);
+        setFlash("saved");
+      }
+      if (onPdf && d.status === "draft") d = await onPdf(d);
+      await downloadDocPdf({ ...d, lang } as DocView, settings, client, docFileName(d), mw);
+    } catch (e: any) {
+      mw?.close();
+      setErr(e?.message || "The PDF couldn't be created.");
+    } finally {
+      setSaving(false);
+      setDownloading(false);
+    }
+  };
+  const download = () => {
+    if (downloading) return;
+    const ask = pdfConfirm ? pdfConfirm(current) : null;
+    if (ask) { setPdfAsk(ask); return; }
+    startPdf();
   };
 
   // ── Line editing ────────────────────────────────────────────
@@ -252,7 +273,10 @@ export default function PDFModal({
         {isMobile && canEdit && (
           <B v="sec" onClick={() => setShowEdit(e => !e)} s={{ minHeight: 36, padding: "0 12px" }}>{showEdit ? "View" : "Edit"}</B>
         )}
-        <B onClick={download} s={{ minHeight: 36, padding: "0 14px", opacity: downloading ? 0.5 : 1 }}>{downloading ? "Saving…" : "Save PDF"}</B>
+        {canEdit && (isNew || dirty) && (
+          <B v="sec" onClick={() => { save(); }} s={{ minHeight: 36, padding: "0 14px", opacity: saving ? 0.5 : 1 }}>{saving ? "Saving…" : "Save"}</B>
+        )}
+        <B onClick={download} s={{ minHeight: 36, padding: "0 14px", opacity: downloading ? 0.5 : 1 }}>{downloading ? "Preparing…" : "Save PDF"}</B>
         <button onClick={tryClose} title="Close" style={{ width: 34, height: 34, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 22 }}>✕</button>
       </div>
 
@@ -380,6 +404,17 @@ export default function PDFModal({
           cancelLabel="No, discard"
           onOk={async () => { const ok = await save(); if (ok) { setConfirmClose(false); onClose(); } }}
           onCancel={() => { setConfirmClose(false); setErr(null); onClose(); }}
+        />
+      )}
+
+      {/* ── QUESTION BEFORE THE PDF (draft invoice → finalize) ── */}
+      {pdfAsk && (
+        <ConfirmDialog
+          title="Finalize and save the PDF?"
+          text={pdfAsk}
+          okLabel="Finalize & save PDF"
+          onOk={() => { setPdfAsk(null); startPdf(); }}
+          onCancel={() => setPdfAsk(null)}
         />
       )}
 

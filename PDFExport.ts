@@ -4,6 +4,11 @@
 // Captures the [data-pdf-page] elements inside `root` (or the page).
 // ─────────────────────────────────────────────────────────────
 
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+// Loaded together with the app (not on demand): an app that stays open
+// during an update could otherwise look for files that no longer exist.
+
 function isMobileDevice(): boolean {
   return /iPad|iPhone|iPod|Android/i.test(navigator.userAgent) ||
     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -18,10 +23,6 @@ export function openPdfWindow(): Window | null {
 }
 
 export async function pagesToPdf(pages: HTMLElement[], orientation: "portrait" | "landscape" = "portrait"): Promise<any> {
-  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-    import("html2canvas"),
-    import("jspdf"),
-  ]);
   const pdf  = new (jsPDF as any)({ orientation, unit: "mm", format: "a4" });
   const pdfW = pdf.internal.pageSize.getWidth();
   const pdfH = pdf.internal.pageSize.getHeight();

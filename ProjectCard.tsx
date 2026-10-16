@@ -7,6 +7,7 @@ import { useState, useEffect, useRef } from "react";
 import { C, SANS, SERIF, TYPE, expiryColor, expiryTint } from "./constants";
 import { fmt, fmtD, addM, today, dLeft } from "./formatters";
 import { projectLicenses, ACTION_LABEL } from "./licenses";
+import { pdfFlow } from "./docFlow";
 import { B, StatusBadge } from "./atoms";
 import PDFModal from "./PDFModal";
 import { sortDocs, docLabel } from "./docs";
@@ -83,7 +84,9 @@ export default function ProjectCard({
   const openD  = openDocId ? docs.find(d => d.id === openDocId) : null;
 
   if (openD) {
-    return <PDFModal key={openD.id} doc={openD} settings={settings} client={client} editable={false} onClose={() => setOpenDocId(null)} />;
+    const flow = pdfFlow(clientsHook, cl.id, pr.id, settings);
+    return <PDFModal key={openD.id} doc={openD} settings={settings} client={client} editable={false}
+      onPdf={flow.prepare} pdfConfirm={flow.confirmFor} onClose={() => setOpenDocId(null)} />;
   }
   if (legacyQuote && pr.qd) {
     return (

@@ -4,7 +4,9 @@
 // Every price comes from the rate cards (Service Catalog).
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import PDFModal from "./PDFModal";
+import { editLock } from "./saveStatus";
 import { C, SANS, SERIF, TYPE, catInfo, TINT } from "./constants";
 import { fmt, today, uid, addD } from "./formatters";
 import { I, S, B, Lbl, Tag, Pill, Tick, CatPill } from "./atoms";
@@ -242,20 +244,23 @@ export default function Calculator({
     if (clearPrefill) clearPrefill();
   };
 
-  // ── Lazy PDFModal ─────────────────────────────────────────
-  const [PDFModal, setPDFModal] = useState<any>(null);
+  // ── Preview / saved document ──────────────────────────────
+  // (PDFModal loads with the app — never on demand, so an update can't break it)
   const [saved,    setSaved]    = useState<{ clientId: string; projectId: string; docId: string } | null>(null);
-  useEffect(() => {
-    if (pdf && !PDFModal) {
-      let cancelled = false;
-      import("./PDFModal").then(m => {
-        if (!cancelled) setPDFModal(() => m.default);
-      });
-      return () => { cancelled = true; };
-    }
-  }, [pdf, PDFModal]);
+  const savedRef = useRef<{ clientId: string; projectId: string; docId: string } | null>(null);
 
-  if (pdf && PDFModal) {
+  // Save PDF: a draft quote / amendment is marked sent first (no "DRAFT" on the PDF)
+  const pdfPrep = async (d: any) => {
+    const s = savedRef.current;
+    if (!s || d.status !== "draft") return d;
+    return clientsHook.markDocSent(s.clientId, s.projectId, d.id || s.docId, settings);
+  };
+
+  // no background reload while a quote is being built
+  const building = items.length > 0 || !!pdf;
+  useEffect(() => (building ? editLock.acquire() : undefined), [building]);
+
+  if (pdf) {
     // After the first save the modal shows the saved document (with its number)
     const sClient  = saved ? (clientsHook.clients || []).find((c: any) => c.id === saved.clientId) : null;
     const sProject = sClient ? sClient.projects.find((p: any) => p.id === saved.projectId) : null;
@@ -270,9 +275,10 @@ export default function Calculator({
           client={sClient}
           editable={sDoc.status === "draft"}
           justSaved={true}
-          note={sDoc.status === "draft" ? "Saved. You can still change this draft; Mark sent in the project locks it." : undefined}
-          onSave={async (next: any) => { await clientsHook.updateDocument(saved!.clientId, saved!.projectId, sDoc.id, next, settings); }}
-          onClose={() => { const pid = saved!.projectId; setPdf(null); setSaved(null); if (onAfterSave) onAfterSave(pid); }}
+          note={sDoc.status === "draft" ? "Saved. You can still change it — Save PDF marks it as sent." : undefined}
+          onSave={async (next: any) => clientsHook.updateDocument(saved!.clientId, saved!.projectId, sDoc.id, next, settings)}
+          onPdf={pdfPrep}
+          onClose={() => { const pid = saved!.projectId; setPdf(null); setSaved(null); savedRef.current = null; if (onAfterSave) onAfterSave(pid); }}
         />
       );
     }
@@ -296,10 +302,15 @@ export default function Calculator({
             settings,
           });
           if (res.error) throw new Error(res.error);
-          if (res.document) setSaved({ clientId: res.clientId, projectId: res.projectId, docId: res.document.id });
+          if (res.document) {
+            savedRef.current = { clientId: res.clientId, projectId: res.projectId, docId: res.document.id };
+            setSaved(savedRef.current);
+          }
           setItems([]); setRetOn(false);
           if (clearPrefill) clearPrefill();
+          return res.document;
         }}
+        onPdf={pdfPrep}
       />
     );
   }
