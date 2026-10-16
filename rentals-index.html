@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+  <meta name="robots" content="noindex, nofollow"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="LT Real Estate"/>
+  <meta name="theme-color" content="#F5F2ED"/>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="apple-touch-icon" href="mgmt-apple-touch-icon.png"/>
+  <title>Rentals — Management</title>
+  <link rel="stylesheet" href="casa-castel.css"/>
+  <link rel="stylesheet" href="cc-cards.css?v=2026-10-10-S1"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css"/>
+  <link rel="stylesheet" href="cc-mgmt.css?v=2026-10-16-P1"/>
+</head>
+<body class="is-landlord">
+
+  <!-- ══ APP SHELL ══ -->
+  <div class="app-shell visible" id="appShell">
+
+    <div class="cc-header">
+      <nav class="cc-nav">
+        <a class="cc-nav__logo" href="#">Rentals</a>
+        <div class="nav-profile" id="navProfile">
+          <button class="cc-nav__icon" onclick="toggleProfileMenu()" aria-label="Menu">
+            <i class="ti ti-user"></i>
+          </button>
+          <div class="nav-profile-menu" id="navProfileMenu">
+            <button class="nav-profile-menu-item" onclick="location.href='properties.html'">Properties</button>
+            <button class="nav-profile-menu-item" onclick="location.href='landlord.html'">Casa Castel</button>
+            <button class="nav-profile-menu-item" onclick="location.href='controlling.html'">Controlling</button>
+            <button class="nav-profile-menu-item" onclick="location.href='settlements.html'">Settlements</button>
+            <button class="nav-profile-menu-item" onclick="location.href='providers.html'">Providers</button>
+            <button class="nav-profile-menu-item" onclick="location.href='maintenance.html'">Maintenance</button>
+            <div style="height:1px;background:var(--cc-rule);margin:4px 0;"></div>
+            <button class="nav-profile-menu-item" id="rpProfileBtn">Profile</button>
+            <button class="nav-profile-menu-item" id="logoutBtn">Log out</button>
+          </div>
+        </div>
+      </nav>
+      <div class="cc-tabs" id="appTabs">
+        <button class="cc-tab active" data-tab="apartments">Apartments</button>
+        <button class="cc-tab"        data-tab="parking">Parking</button>
+        <button class="cc-tab"        data-tab="tenants">Tenants</button>
+      </div>
+    </div>
+
+    <div class="cc-layout" id="appLayout">
+      <div class="cc-main" id="appMain">
+        <div class="tab-content" id="tab-apartments"></div>
+        <div class="tab-content" id="tab-parking"  style="display:none;"></div>
+        <div class="tab-content" id="tab-tenants"  style="display:none;"></div>
+      </div>
+    </div>
+
+  </div>
+
+  </div>
+
+  <!-- ══ CONTRACT PDF PREVIEW (Mietvertrag / Kurzzeit) ══ -->
+  <div id="aptContractPdfPreviewOverlay" style="display:none;position:fixed;inset:0;z-index:600;background:var(--cc-surface);flex-direction:column;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:max(14px,env(safe-area-inset-top,14px)) 12px 12px;background:var(--cc-white);border-bottom:0.5px solid var(--cc-rule);flex-shrink:0;">
+      <button id="aptCPdfPreviewClose" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:none;border:0.5px solid var(--cc-rule);border-radius:50%;cursor:pointer;color:var(--cc-stone);font-size:16px;flex-shrink:0;font-family:inherit;-webkit-tap-highlight-color:transparent;">✕</button>
+      <span id="aptCPdfPreviewTitle" style="flex:1;text-align:center;font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--cc-taupe);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
+      <button id="aptCPdfSaveBtn" style="display:flex;align-items:center;gap:6px;height:40px;padding:0 16px;background:var(--cc-ink);color:var(--cc-white);border:none;border-radius:8px;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent;">
+        <i class="ti ti-printer" style="font-size:14px;"></i> PDF
+      </button>
+    </div>
+    <div id="aptCPdfPreviewBody" style="flex:1;overflow-y:auto;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:24px 16px 40px;display:flex;flex-direction:column;align-items:center;background:var(--cc-surface);">
+      <div id="aptCPdfPreviewDoc" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start;"></div>
+    </div>
+  </div>
+
+  <!-- ══ PARKING ÜBERGABE PDF PREVIEW ══ -->
+  <div id="pkUebergPreviewOverlay" style="display:none;position:fixed;inset:0;z-index:600;background:var(--cc-surface);flex-direction:column;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:max(14px,env(safe-area-inset-top,14px)) 12px 12px;background:var(--cc-white);border-bottom:0.5px solid var(--cc-rule);flex-shrink:0;">
+      <button id="pkUebergPreviewClose" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:none;border:0.5px solid var(--cc-rule);border-radius:50%;cursor:pointer;color:var(--cc-stone);font-size:16px;flex-shrink:0;font-family:inherit;-webkit-tap-highlight-color:transparent;">✕</button>
+      <span style="flex:1;text-align:center;font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--cc-taupe);">Übergabeprotokoll &middot; Stellplatz</span>
+      <button id="pkUebergSaveBtn" style="display:flex;align-items:center;gap:6px;height:40px;padding:0 16px;background:var(--cc-ink);color:var(--cc-white);border:none;border-radius:8px;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent;">
+        <i class="ti ti-printer" style="font-size:14px;"></i> PDF
+      </button>
+    </div>
+    <div id="pkUebergPreviewBody" style="flex:1;overflow-y:auto;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:24px 16px 40px;display:flex;flex-direction:column;align-items:center;background:var(--cc-surface);">
+    </div>
+  </div>
+
+  <!-- ══ ÜBERGABE PDF PREVIEW ══ -->
+  <div id="aptUebergPreviewOverlay" style="display:none;position:fixed;inset:0;z-index:600;background:var(--cc-surface);flex-direction:column;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:max(14px,env(safe-area-inset-top,14px)) 12px 12px;background:var(--cc-white);border-bottom:0.5px solid var(--cc-rule);flex-shrink:0;">
+      <button id="aptUebergPreviewClose" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:none;border:0.5px solid var(--cc-rule);border-radius:50%;cursor:pointer;color:var(--cc-stone);font-size:16px;flex-shrink:0;font-family:inherit;-webkit-tap-highlight-color:transparent;">✕</button>
+      <span style="flex:1;text-align:center;font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--cc-taupe);">Übergabeprotokoll</span>
+      <button id="aptUebergSaveBtn" style="display:flex;align-items:center;gap:6px;height:40px;padding:0 16px;background:var(--cc-ink);color:var(--cc-white);border:none;border-radius:8px;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent;">
+        <i class="ti ti-printer" style="font-size:14px;"></i> PDF
+      </button>
+    </div>
+    <div id="aptUebergPreviewBody" style="flex:1;overflow-y:auto;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:24px 16px 40px;display:flex;flex-direction:column;align-items:center;background:var(--cc-surface);">
+    </div>
+  </div>
+
+  <!-- ══ SCRIPTS ══ -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
+  <!-- Shared constants & Supabase client (defines SB_URL, SB_KEY, sbL) -->
+  <script src="cc-german-format.js?v=2026-10-15-ORT"></script>
+  <script src="cc-ueberg-photos.js?v=2026-10-10-PD2"></script>
+  <script src="constants.js"></script>
+  <script src="cc-rent-engine.js?v=2026-10-15pn"></script>
+  <script src="supabase-client.js"></script>
+  <script src="pdf-open.js?v=2026-10-12-KD1"></script>
+  <script src="settings.js"></script>
+  <script src="kaution.js?v=2026-10-09-b5"></script>
+  <script src="direct-save.js?v=2026-10-11-B26"></script>
+  <script src="cc-nk-settle.js?v=2026-10-11-B21"></script>
+  <script src="cc-controls.js?v=2026-10-12-KP2"></script>
+  <script src="cc-tenant-status.js?v=2026-10-11-B22"></script>
+  <script src="cc-kaution-card.js?v=2026-10-11-B25"></script>
+  <script src="cc-contract-flow.js?v=2026-10-11-KZ1"></script>
+
+  <!-- Nav helpers -->
+  <script>
+    function toggleProfileMenu() {
+      document.getElementById('navProfileMenu')?.classList.toggle('open');
+    }
+    document.addEventListener('click', e => {
+      const profile = document.getElementById('navProfile');
+      if (profile && !profile.contains(e.target)) {
+        document.getElementById('navProfileMenu')?.classList.remove('open');
+      }
+    });
+    function initNav() {
+      document.getElementById('logoutBtn')?.addEventListener('click', () => {
+        if (typeof ccDraftClearAll === 'function') ccDraftClearAll();   // generator drafts
+        localStorage.removeItem('rentals_role');
+        localStorage.removeItem('cc_role');
+        if (typeof sbL !== 'undefined' && sbL) sbL.auth.signOut().catch(() => {});
+        location.replace('login.html?logout=1');
+      });
+      document.getElementById('rpProfileBtn')?.addEventListener('click', () => {
+        document.getElementById('navProfileMenu')?.classList.remove('open');
+        openRentalsProfile();
+      });
+    }
+  </script>
+
+  <script src="rentals-tab-apartments.js?v=2026-10-12-KP1"></script>
+  <script src="rentals-tab-parking.js?v=2026-10-12-KP1"></script>
+  <script src="rentals-tab-tenants.js?v=2026-10-12-D35"></script>
+  <script src="rentals-parking-mietvertrag.js?v=2026-10-10-PB1"></script>
+  <!-- PDF libs loaded after app shell — don't block apartment cards rendering -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="rentals-ueberg-pdf.js?v=2026-10-15-ORT"></script>
+  <script src="rentals-parking-ueberg-pdf.js?v=2026-10-10-PD1"></script>
+  <script src="rentals-contract-text.js?v=2026-10-11-KZ1"></script>
+  <script src="rentals-kurzzeit.js?v=2026-10-15-ORT"></script>
+  <script src="rentals-mietvertrag.js?v=2026-10-15-ORT"></script>
+  <script src="rentals-gewerbe-mietvertrag.js?v=2026-10-15-ORT"></script>
+  <script src="cc-buergschaft.js?v=2026-10-11-BG1"></script>
+  <script src="rentals-profile.js"></script>
+
+  <script>
+    /* ── TAB SWITCHING — instant, no repaint glitch ─────────────────
+       The tab shows immediately with what is already on screen. Fresh data is
+       fetched in the background (one request at a time per tab) and the list is
+       only repainted if something actually changed and you are not editing
+       there. Open cards and each tab's scroll position are kept. After start,
+       the other tabs are preloaded so their first visit is instant too. */
+    const _rtLoaders = {
+      apartments: () => (typeof loadApartments === 'function' ? loadApartments() : null),
+      parking:    () => (typeof loadParking    === 'function' ? loadParking()    : null),
+      tenants:    () => (typeof loadRntTenants === 'function' ? loadRntTenants() : null),
+    };
+    const _rtInflight = {}, _rtScroll = {}, _rtLoadedAt = {};
+    let _rtCurrent = null;
+    // "Busy" = something unsaved or an editor / add form is open in that tab
+    function _rtBusy(tab) {
+      const el = document.getElementById('tab-' + tab);
+      return !!(el && el.querySelector('.cc-save[data-cc-save="dirty"], .apt-edit-active, .tn-nk-add-form, .tn-nkv-add-form, .apt-hg-add-form'));
+    }
+    function _rtLoad(tab) {
+      if (!_rtLoaders[tab]) return Promise.resolve();
+      if (_rtInflight[tab]) return _rtInflight[tab];
+      const p = Promise.resolve().then(_rtLoaders[tab])
+        .catch(e => console.warn('[rentals] load ' + tab + ':', e))
+        .finally(() => { delete _rtInflight[tab]; _rtLoadedAt[tab] = Date.now(); });
+      _rtInflight[tab] = p;
+      return p;
+    }
+
+    function switchTab(tabName) {
+      if (_rtCurrent) _rtScroll[_rtCurrent] = window.scrollY;
+      try { localStorage.setItem('rentals_last_tab', tabName); } catch(e) {}
+      // Close any open sheets / preview overlays so none flash or carry across tabs
+      document.querySelectorAll('.rm-overlay.open, .rm-confirm-overlay.open')
+        .forEach(o => o.classList.remove('open'));
+      ['aptContractPdfPreviewOverlay','pkUebergPreviewOverlay','aptUebergPreviewOverlay']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+      // B17: the new tab is laid out hidden, scrolled to its own position, then shown in the
+      // next frame — iOS never paints it at the old tab's scroll offset (the "double" flash)
+      const tabEl = document.getElementById('tab-' + tabName);
+      if (tabEl) { tabEl.style.visibility = 'hidden'; tabEl.style.display = 'block'; }
+      document.querySelectorAll('.tab-content').forEach(c => { if (c !== tabEl) c.style.display = 'none'; });
+      document.querySelectorAll('.cc-tab[data-tab]').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === tabName);
+      });
+      _rtCurrent = tabName;
+      window.scrollTo(0, _rtScroll[tabName] || 0);   // each tab keeps its own scroll position
+      requestAnimationFrame(() => { if (tabEl) tabEl.style.visibility = ''; });
+      if (tabName === 'tenants') {                     // first visit while still loading: say so
+        const l = document.getElementById('rntTenantsList');
+        // B30: drawn at once from the copy on this phone; "Loading…" only without one (first start, after logout)
+        if (l && !l.querySelector('.tn-card') && !(typeof rntDrawFromCopy === 'function' && rntDrawFromCopy()))
+          l.innerHTML = '<p class="tn-empty">Loading tenants…</p>';
+      }
+      // B17: no background reload when this tab was loaded less than a minute ago
+      if (!_rtLoadedAt[tabName] || Date.now() - _rtLoadedAt[tabName] > 60000) _rtLoad(tabName);
+    }
+
+    function initTabs() {
+      document.querySelectorAll('.cc-tab[data-tab]').forEach(btn => {
+        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+      });
+    }
+
+    // Auth gate — login happens on login.html (Supabase email + password).
+    // Sync flag check first (no flash), then verify the real session.
+    // The session check is retried once before anything is cleared: after a
+    // PDF hand-off iOS may relaunch/reload this page while the client is
+    // still refreshing an expired token — a single empty result must not
+    // wipe the flags and log the user out (mirrors initLandlordAuth).
+    if (!localStorage.getItem('rentals_role') && localStorage.getItem('cc_role') !== 'landlord') {
+      location.replace('login.html');
+    } else if (typeof sbL !== 'undefined' && sbL) {
+      try { localStorage.setItem('mgmt_last_app', 'rentals-index.html'); } catch (e) {}
+      // A failed check (connection) throws → caught below: app stays open
+      const rntHasSession = () => sbL.auth.getSession().then(({ data, error }) => { if (error) throw error; return !!data.session; });
+      rntHasSession().then(ok => {
+        if (ok) return;
+        return new Promise(r => setTimeout(r, 1200))
+          .then(rntHasSession)
+          .then(ok2 => {
+            if (!ok2) {
+              localStorage.removeItem('rentals_role');
+              localStorage.removeItem('cc_role');
+              localStorage.removeItem('rnt_copy_v1');   // B30: the tenant copy goes with the login
+              location.replace('login.html');
+            }
+          });
+      }).catch(() => { /* offline / refresh failed — keep app open */ });
+    }
+
+    initTabs();
+    initNav();
+
+    const saved     = (() => { try { return localStorage.getItem('rentals_last_tab'); } catch(e) { return null; } })();
+    const available = new Set(['apartments','parking','tenants']);
+    const _rtFirst = (saved && available.has(saved)) ? saved : 'apartments';
+    switchTab(_rtFirst);
+    // B30: Tenants loads right away, next to the first tab (was: last, after the other two)
+    if (_rtFirst !== 'tenants') _rtLoad('tenants');
+    // Preload the other tabs in the background (one after another) → their first visit is instant;
+    // a tab loaded meanwhile (e.g. by Tenants) is not loaded twice
+    (_rtInflight[_rtFirst] || Promise.resolve()).then(() =>
+      ['apartments', 'parking', 'tenants'].filter(t => t !== _rtFirst)
+        .reduce((p, t) => p.then(() => (_rtLoadedAt[t] && Date.now() - _rtLoadedAt[t] < 60000) ? null : _rtLoad(t)), Promise.resolve()));
+  </script>
+
+</body>
+</html>

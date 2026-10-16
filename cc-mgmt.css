@@ -1,0 +1,32 @@
+/* ─────────────────────────────────────────────────────────────
+   CC-MGMT.CSS · one shared look for the 7 management apps
+   Casa Castel · Rentals · Properties · Controlling · Settlements · Maintenance · Providers
+   · loaded LAST on every management page — NOT by the tenant app or the cleaners' app
+   · reference = the Casa Castel / Rentals cards
+   · "html body …" where an app adds its own styles later by script (Controlling / Settlements)
+   P1 (16.10.2026) · look only — no layout, no function, iPad / laptop untouched
+   ───────────────────────────────────────────────────────────── */
+
+/* 1 · Header — same colours in every app.
+       Controlling + Settlements keep their brown text inside the page only. */
+.cc-header { --cc-ink: #1E1B18; }
+
+/* 2 · Page titles — 28 px like Casa Castel / Rentals / Maintenance (was 32 px in Controlling) */
+html body .cx-title { font-size: 28px; line-height: 1.1; letter-spacing: .01em; }
+
+/* 3 · Section labels — 10 px · semi-bold · caps, like the card section titles */
+html body .cx-lbl,
+html body .sc-cap,
+html body .sec-lbl { font-size: 10px; font-weight: 600; letter-spacing: .12em; }
+
+/* 4 · Field text — 14 px like the saved values in the cards.
+       (No zoom on tap: every management page has viewport maximum-scale=1.) */
+html body .cx-f input,
+html body .cx-f select,
+html body .st-in,
+html body .mt-in,
+html body.is-properties .cc-input,
+html body.is-properties .cc-select { font-size: 14px !important; }
+
+/* 5 · Main button on the Settlements pages — same as Controlling's */
+html body .sc-go { border-radius: 8px; font-weight: 500; letter-spacing: .07em; }

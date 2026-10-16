@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+  <meta name="robots" content="noindex, nofollow"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="LT Real Estate"/>
+  <meta name="theme-color" content="#F5F2ED"/>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="apple-touch-icon" href="mgmt-apple-touch-icon.png"/>
+  <title>Controlling — Management</title>
+  <link rel="stylesheet" href="casa-castel.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="cc-german-format.js?v=2026-10-11-B25"></script>
+  <script src="constants.js"></script>
+  <script src="cc-rent-engine.js?v=2026-10-15pn"></script>
+  <style>
+    html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+    /* ══ CONTROLLING-SPECIFIC ══ */
+    .ct-page       { padding: 16px 16px 60px; max-width: 1100px; margin: 0 auto; }
+    .ct-hdr        { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .ct-title      { font-family:'Cormorant Garamond',Georgia,serif; font-weight:300; font-size:32px; letter-spacing:.02em; color:var(--cc-ink); }
+    .ct-sub        { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--cc-taupe); margin-top:2px; }
+
+    .ct-yr-switch  { display:flex; gap:0; border:0.5px solid var(--cc-rule); border-radius:20px; overflow:hidden; background:var(--cc-white); }
+    .ct-yr-switch button { padding:6px 14px; background:none; border:0; font:inherit; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--cc-taupe); cursor:pointer; }
+    .ct-yr-switch button.active { background:var(--cc-ink); color:var(--cc-white); }
+
+    /* Horizontal toolbar for grouping toggle pills */
+    .ct-toolbar    { display:flex; flex-wrap:wrap; gap:8px 12px; margin:0 0 20px; align-items:center; }
+
+    /* KPI cards */
+    .ct-kpis       { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
+    .ct-kpi        { padding:14px 16px; background:var(--cc-white); border:0.5px solid var(--cc-rule); border-radius:10px; }
+    .ct-kpi__label { font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--cc-taupe); margin-bottom:6px; }
+    .ct-kpi__val   { font-family:'Cormorant Garamond',Georgia,serif; font-weight:400; font-size:24px; color:var(--cc-ink); font-feature-settings:'lnum' 1,'tnum' 1; font-variant-numeric:lining-nums tabular-nums; }
+    .ct-kpi__val.neg { color:var(--cc-notice-text); }
+    .ct-kpi__sub   { font-size:10px; color:var(--cc-taupe); margin-top:4px; letter-spacing:.06em; }
+
+    /* Month tile strip */
+    .ct-months     { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:6px; margin-bottom:24px; }   /* share the width, never wider than the screen */
+    @media (min-width:700px){ .ct-months { grid-template-columns:repeat(12,minmax(0,1fr)); } }
+    .ct-month      { padding:10px 2px; min-width:0; text-align:center; background:var(--cc-white); border:0.5px solid var(--cc-rule); border-radius:8px; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:background .12s, border-color .12s, box-shadow .18s, transform .18s; }
+    .ct-month__lbl { font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--cc-taupe); }
+    .ct-month__val { font-size:12px; font-weight:500; color:var(--cc-ink); margin-top:4px; white-space:nowrap; overflow:hidden; font-variant-numeric:tabular-nums; }
+    .ct-month__val--long { font-size:10.5px; letter-spacing:-.01em; }   /* 5-digit / negative amounts */
+
+    /* ── Dashboard (executive view) ── */
+    .cd              { display:flex; flex-direction:column; gap:12px; }
+    .cd-card         { background:var(--cc-white); border:.5px solid var(--cc-rule); border-radius:12px; }
+    .cd-lbl          { font-size:9px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--cc-taupe); }
+    .cd-hero         { padding:16px; }
+    .cd-per          { display:flex; justify-content:space-between; align-items:center; }
+    .cd-per .cd-lbl  { font-size:10px; }
+    .cd-arw          { width:30px; height:30px; border-radius:50%; border:.5px solid var(--cc-rule); background:transparent; color:var(--cc-taupe);
+                       display:flex; align-items:center; justify-content:center; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .cd-arw:disabled { opacity:.3; cursor:default; }
+    .cd-big          { font-family:'Cormorant Garamond',Georgia,serif; font-size:50px; line-height:1; color:var(--cc-ink); text-align:center;
+                       margin-top:12px; font-variant-numeric:lining-nums; white-space:nowrap; }
+    .cd-big.neg      { color:#A0533A; }
+    .cd-cap          { font-size:12px; color:var(--cc-taupe); text-align:center; margin:6px 0 14px; }
+    .cd-bar          { height:10px; border-radius:5px; background:#E3D5BF; overflow:hidden; }
+    .cd-bar > div    { height:100%; background:#8A6535; border-radius:5px 0 0 5px; transition:width .25s; }
+    .cd-bar > div.over { background:#A0533A; border-radius:5px; }
+    .cd-io           { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:10px; }
+    .cd-io__v        { font-size:17px; font-weight:500; color:var(--cc-ink); margin-top:3px; font-variant-numeric:tabular-nums; }
+    .cd-sw           { display:inline-block; width:7px; height:7px; border-radius:2px; margin-right:5px; vertical-align:0; }
+    .cd-sw--in       { background:#E3D5BF; border:.5px solid #D4B896; }
+    .cd-sw--out      { background:#8A6535; }
+    .cd-stat         { display:flex; align-items:center; gap:8px; margin-top:14px; padding-top:12px; border-top:.5px solid var(--cc-surface); font-size:12px; }
+    .cd-dot          { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .cd-stat--ok     { color:#27500A; }  .cd-stat--ok .cd-dot   { background:#97C459; }
+    .cd-stat--open   { color:#633806; }  .cd-stat--open .cd-dot { background:#EF9F27; }
+    .cd-stat--muted  { color:var(--cc-taupe); } .cd-stat--muted .cd-dot { background:var(--cc-stone); }
+    .cd-head         { display:flex; justify-content:space-between; padding:4px 4px 0; }
+    .cd-list         { overflow:hidden; }
+    .cd-prop + .cd-prop { border-top:.5px solid var(--cc-surface); }
+    .cd-prop__row    { all:unset; box-sizing:border-box; width:100%; display:flex; justify-content:space-between; align-items:center; gap:10px;
+                       padding:11px 16px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .cd-prop__l      { display:flex; flex-direction:column; min-width:0; }
+    .cd-prop__n      { font-family:'Cormorant Garamond',Georgia,serif; font-size:19px; line-height:1.2; color:var(--cc-ink); }
+    .cd-prop__s      { font-size:10.5px; color:var(--cc-taupe); margin-top:2px; font-variant-numeric:tabular-nums; }
+    .cd-open         { color:#8C5A30; font-weight:500; }
+    .cd-prop__v      { font-family:'Cormorant Garamond',Georgia,serif; font-size:21px; color:#8A6535; white-space:nowrap; font-variant-numeric:lining-nums; }
+    .cd-prop__v.neg  { color:#A0533A; }
+    .cd-prop.open    { background:#FBF8F3; }
+    .cd-prop__d      { padding:0 16px 12px; }
+    .cd-d            { display:flex; justify-content:space-between; gap:10px; padding:5px 0; font-size:12px; color:var(--cc-charcoal);
+                       border-top:.5px solid var(--cc-surface); font-variant-numeric:tabular-nums; }
+    .cd-d span:first-child { color:var(--cc-taupe); }
+    .cd-erf          { margin-top:10px; width:100%; height:36px; border-radius:8px; border:.5px solid var(--cc-ink); background:var(--cc-ink); color:var(--cc-white);
+                       font-family:inherit; font-size:11px; font-weight:500; letter-spacing:.07em; text-transform:uppercase;
+                       display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer; }
+    .cd-year         { padding:14px 16px; display:flex; justify-content:space-between; align-items:baseline; }
+    .cd-year__v      { font-family:'Cormorant Garamond',Georgia,serif; font-size:24px; color:var(--cc-ink); font-variant-numeric:lining-nums; }
+    .cd-year__v.neg  { color:#A0533A; }
+
+    /* Done — past/current month with income entered */
+    .ct-month.done                 { background:var(--cc-avail-bg); border-color:var(--cc-avail-bdr); }
+    .ct-month.done .ct-month__lbl  { color:var(--cc-avail-text); font-weight:600; }
+    .ct-month.done .ct-month__val  { color:#5C3D1E; font-weight:600; }   /* brown, not black */
+
+    /* Pending — past/current month, income missing */
+    .ct-month.pending                 { background:var(--cc-notice-bg); border-color:var(--cc-notice-bdr); }
+    .ct-month.pending .ct-month__lbl  { color:var(--cc-notice-text); font-weight:600; }
+    .ct-month.pending .ct-month__val  { color:var(--cc-notice-text); }
+
+    /* Future — beyond current calendar month */
+    .ct-month.future                 { background:transparent; border-style:dashed; border-color:var(--cc-stone); opacity:.55; }
+    .ct-month.future .ct-month__lbl,
+    .ct-month.future .ct-month__val  { color:var(--cc-stone); font-weight:400; }
+
+    /* Active — currently selected in Month view */
+    .ct-month.active {
+      border-color: var(--cc-avail-text);
+      border-style: solid;
+      box-shadow: 0 3px 10px -2px rgba(122, 90, 42, 0.22);
+      transform: translateY(-1px);
+      opacity: 1;
+      z-index: 1;
+    }
+
+    /* Property table */
+    .ct-tbl        { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:20px; background:var(--cc-white); border:0.5px solid var(--cc-rule); border-radius:8px; overflow:hidden; }
+    .ct-tbl th     { text-align:left; padding:10px 12px; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--cc-taupe); font-weight:500; background:var(--cc-surface); border-bottom:0.5px solid var(--cc-rule); }
+    .ct-tbl td     { padding:10px 12px; border-bottom:0.5px solid var(--cc-rule); color:var(--cc-charcoal); }
+    .ct-tbl tr:last-child td { border-bottom:0; }
+    .ct-tbl td.num, .ct-tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
+    .ct-tbl td.ctr, .ct-tbl th.ctr { text-align:center; }
+    .ct-tbl tr.total td { font-weight:600; color:var(--cc-ink); background:var(--cc-surface); }
+    .ct-tbl td.neg { color:var(--cc-notice-text); }
+
+    /* Entry drawer */
+    .ct-drawer     { position:fixed; inset:0; z-index:500; background:var(--cc-bg); display:none; flex-direction:column; overflow:hidden; }
+    .ct-drawer.open { display:flex; }
+    .ct-drawer__hdr { display:flex; align-items:center; gap:10px; padding:max(14px,env(safe-area-inset-top,14px)) 14px 12px; background:var(--cc-white); border-bottom:0.5px solid var(--cc-rule); flex-shrink:0; }
+    .ct-drawer__close { width:36px; height:36px; display:flex; align-items:center; justify-content:center; background:none; border:0.5px solid var(--cc-rule); border-radius:50%; cursor:pointer; color:var(--cc-charcoal); }
+    .ct-drawer__ttl { flex:1; font-family:'Cormorant Garamond',Georgia,serif; font-size:22px; font-weight:300; color:var(--cc-ink); }
+    .ct-drawer__body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:16px 14px calc(40px + env(safe-area-inset-bottom,0px)); }
+
+    .ct-section    { background:var(--cc-white); border:var(--cc-border); border-radius:var(--cc-r-lg); padding:14px 16px; margin-bottom:14px; }
+    .ct-section__ttl { font-family:'Inter',system-ui,sans-serif; font-size:10px; font-weight:500; letter-spacing:.11em; text-transform:uppercase; color:var(--cc-taupe); margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
+    .ct-section__actions { display:flex; gap:6px; }
+    .ct-btn-sm     { padding:6px 11px; font-size:11px; font-weight:500; letter-spacing:.06em; text-transform:uppercase; border:var(--cc-border); background:var(--cc-white); color:var(--cc-charcoal); border-radius:var(--cc-r-pill); cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .ct-btn-sm.primary { background:var(--cc-ink); color:var(--cc-white); border-color:var(--cc-ink); }
+
+    /* Suggestion chip — tap to fill an open field with a proposed value */
+    .ct-chip       { text-transform:none; letter-spacing:0; font-size:12px; font-weight:400; color:var(--cc-avail-text); border-color:var(--cc-avail-bdr); background:var(--cc-avail-bg); border-radius:12px; white-space:nowrap; font-variant-numeric:lining-nums tabular-nums; }
+    .ct-chip:active { background:var(--cc-avail-bdr); }
+
+    .ct-row        { display:grid; grid-template-columns:1fr 96px minmax(52px,auto); gap:8px; align-items:center; padding:6px 0; border-bottom:var(--cc-border); }
+    .ct-row:last-child { border-bottom:0; }
+    .ct-row__lbl   { font-family:'Inter',system-ui,sans-serif; font-size:13px; color:var(--cc-charcoal); }
+    .ct-row__lbl small { display:block; font-size:11px; color:var(--cc-taupe); letter-spacing:.02em; margin-top:1px; }
+    .ct-input      { width:100%; padding:8px 9px; font:inherit; font-size:16px; text-align:right; border:0.5px solid var(--cc-rule); border-radius:6px; background:var(--cc-white); font-variant-numeric:lining-nums tabular-nums; color:var(--cc-ink); }
+    .ct-input--filter { font-size:14px; padding:7px 10px; color:var(--cc-charcoal); }
+    .ct-input--setup  { font-size:14px; padding:7px 9px; }
+    .ct-setup-group__name { font-family:'Cormorant Garamond',Georgia,serif; font-size:20px; font-weight:400; color:var(--cc-ink); margin-bottom:10px; }
+
+    /* Setup expense-default field grid */
+    .ct-setup-fields { display:grid; grid-template-columns:repeat(3,1fr); gap:12px 10px; }
+    @media (max-width:640px){ .ct-setup-fields { grid-template-columns:repeat(2,1fr); } }
+    .ct-setup-field__lbl {
+      font-family:'Inter',system-ui,sans-serif;
+      font-size:9px; font-weight:600; letter-spacing:.12em; text-transform:uppercase;
+      color:var(--cc-taupe); margin-bottom:4px;
+      display:flex; flex-direction:column; gap:1px;
+    }
+    .ct-setup-field__freq {
+      font-size:9px; font-weight:400; letter-spacing:.04em; text-transform:none;
+      color:var(--cc-stone);
+    }
+    /* Non-monthly frequency stands out in the gold accent */
+    .ct-setup-field--q .ct-setup-field__freq { color:var(--cc-avail-text); font-weight:500; }
+    .ct-setup-field--q .ct-input--setup { border-color:var(--cc-avail-bdr); background:var(--cc-avail-bg); }
+    .ct-input--q { border-color:var(--cc-avail-bdr) !important; background:var(--cc-avail-bg) !important; }
+
+    /* € suffix wrapper for money inputs */
+    .ct-money { position:relative; display:block; }
+    .ct-money .ct-input { padding-right:24px; width:100%; }
+    .ct-money::after {
+      content:'€';
+      position:absolute; right:9px; top:50%; transform:translateY(-50%);
+      font-size:12px; color:var(--cc-stone); pointer-events:none;
+    }
+    .ct-input:focus { outline:none; border-color:var(--cc-ink); }
+    .ct-input.dirty { background:#FFF9E8; }
+    .ct-input.zero  { color:var(--cc-stone); }
+
+    .ct-col-hdr    { display:grid; grid-template-columns:1fr 96px minmax(52px,auto); gap:8px; margin-bottom:6px; }
+    .ct-col-hdr div { font-family:'Inter',system-ui,sans-serif; font-size:9px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--cc-taupe); text-align:right; }
+    .ct-col-hdr div:first-child { text-align:left; }
+
+    /* Toast */
+    .ct-toast      { position:fixed; bottom:calc(20px + env(safe-area-inset-bottom,0px)); left:50%; transform:translateX(-50%); padding:8px 16px; background:var(--cc-ink); color:var(--cc-white); border-radius:16px; font-size:12px; letter-spacing:.06em; opacity:0; transition:opacity .2s; pointer-events:none; z-index:600; }
+    .ct-toast.show { opacity:1; }
+
+    /* Loading */
+    .ct-loading    { position:fixed; inset:0; background:rgba(245,242,237,0.7); display:none; align-items:center; justify-content:center; z-index:700; }
+    .ct-loading.show { display:flex; }
+    .ct-loading__spinner { width:32px; height:32px; border:2px solid var(--cc-rule); border-top-color:var(--cc-ink); border-radius:50%; animation:ct-spin .8s linear infinite; }
+    @keyframes ct-spin { to { transform:rotate(360deg); } }
+
+    /* Setup tab lists */
+    .ct-list-row   { display:grid; grid-template-columns:24px 1fr auto; gap:10px; align-items:center; padding:10px 0; border-bottom:0.5px solid var(--cc-rule); }
+    .ct-list-row:last-child { border-bottom:0; }
+    .ct-list-row__no { font-size:11px; color:var(--cc-taupe); }
+    .ct-list-row__name { font-size:13px; color:var(--cc-ink); }
+    .ct-list-row__meta { font-size:11px; color:var(--cc-taupe); }
+
+    /* Status word hidden on desktop (icon-only in the narrow column) */
+    .ct-statusword { display:none; }
+
+    /* Mobile card-list column header — hidden on desktop */
+    .ct-cardhead { display:none; }
+
+    /* ══ MOBILE — property tables become condensed cards ══ */
+    @media (max-width: 640px) {
+      .ct-page { padding:12px 12px 60px; }
+      .ct-title { font-size:26px; }
+      .ct-kpi__val { font-size:22px; }
+      .ct-toolbar { gap:6px 8px; }
+      .ct-yr-switch button { padding:6px 11px; font-size:10px; }
+
+      /* Column header above the cards — matches rp-summary__label */
+      .ct-cardhead {
+        display:flex; justify-content:space-between;
+        padding:4px 20px 8px; margin-top:4px;
+        font-family:'Inter',system-ui,sans-serif;
+        font-size:9px; font-weight:600; letter-spacing:.12em; text-transform:uppercase;
+        color:var(--cc-taupe);
+      }
+
+      /* Table → card list */
+      #ctPropTbl thead { display:none; }
+      #ctPropTbl { display:block; border:0; background:transparent; }
+      #ctPropTbl tbody { display:block; }
+      #ctPropTbl tr { display:block; }
+
+      #ctPropTbl .ct-proprow, #ctPropTbl tr.total {
+        position:relative;
+        background:var(--cc-white);
+        border:var(--cc-border);
+        border-radius:var(--cc-r-lg);
+        margin-bottom:8px;
+        padding:14px 18px;
+        box-shadow:0 1px 3px rgba(60,50,40,0.03);
+      }
+      #ctPropTbl tr.total { background:var(--cc-surface); box-shadow:none; }
+
+      /* Reset every cell to block, no borders */
+      #ctPropTbl td { display:block; border:0 !important; padding:0; width:auto; }
+
+      /* Hide # cell */
+      #ctPropTbl td[data-label="#"] { display:none; }
+
+      /* Card title — Cormorant serif, matching rentals apartment names */
+      #ctPropTbl .ct-cell-name {
+        display:block;
+        font-family:'Cormorant Garamond',Georgia,serif;
+        font-size:18px; font-weight:400; color:var(--cc-ink);
+        padding-right:100px; line-height:1.25;
+        letter-spacing:.01em;
+      }
+
+      /* Cashflow — Cormorant, lining figures, w400 like rp-summary__total */
+      #ctPropTbl .ct-cell-cash {
+        display:block;
+        position:absolute; top:14px; right:34px;
+        font-family:'Cormorant Garamond',Georgia,serif;
+        font-size:18px; font-weight:400;
+        font-feature-settings:'lnum' 1, 'tnum' 1;
+        font-variant-numeric:lining-nums tabular-nums;
+        color:var(--cc-avail-text);
+        letter-spacing:.02em;
+        white-space:nowrap;
+      }
+      #ctPropTbl .ct-cell-cash.neg { color:var(--cc-notice-text); }
+      #ctPropTbl tr.total .ct-cell-cash { right:18px; }
+
+      /* Chevron */
+      #ctPropTbl .ct-proprow::after {
+        content:'\25BE';
+        position:absolute; top:21px; right:16px;
+        color:var(--cc-stone); font-size:11px;
+        transition:transform .2s;
+      }
+      #ctPropTbl .ct-proprow.expanded::after { transform:rotate(180deg); }
+
+      /* Detail cells hidden by default — #-prefixed to beat the reset */
+      #ctPropTbl .ct-proprow td.num:not(.ct-cell-cash),
+      #ctPropTbl .ct-proprow td.ctr { display:none; }
+
+      /* Detail cells when expanded — cc-small scale */
+      #ctPropTbl .ct-proprow.expanded td.num:not(.ct-cell-cash),
+      #ctPropTbl .ct-proprow.expanded td.ctr {
+        display:flex; justify-content:space-between; align-items:baseline;
+        padding:10px 0 0;
+        font-family:'Inter',system-ui,sans-serif;
+        font-size:13px; font-weight:400; color:var(--cc-ink);
+        font-variant-numeric:lining-nums tabular-nums;
+      }
+      #ctPropTbl .ct-proprow.expanded td.num:not(.ct-cell-cash):first-of-type {
+        margin-top:14px; border-top:var(--cc-border);
+        padding-top:14px;
+      }
+      #ctPropTbl .ct-proprow.expanded td.num:not(.ct-cell-cash)::before,
+      #ctPropTbl .ct-proprow.expanded td.ctr::before {
+        content:attr(data-label);
+        color:var(--cc-taupe); font-size:12px; font-weight:400;
+        letter-spacing:.01em; font-variant-numeric:normal;
+      }
+      #ctPropTbl .ct-proprow.expanded td.ctr::before { content:'Status'; }
+      #ctPropTbl .ct-proprow.expanded td.ctr .ct-statusword { display:inline; margin-right:6px; font-size:14px; }
+      #ctPropTbl .ct-proprow.expanded td.ctr i { font-size:15px; }
+
+      /* Erfassen button row */
+      #ctPropTbl .ct-erfassen-row { display:block; padding:0; }
+
+      /* Total card */
+      #ctPropTbl tr.total td.ct-cell-name {
+        font-family:'Inter',system-ui,sans-serif;
+        font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+        color:var(--cc-taupe); padding-right:112px; font-weight:500;
+      }
+      /* Total cashflow: keep Cormorant but LINING figures */
+      #ctPropTbl tr.total td.ct-cell-cash {
+        font-family:'Cormorant Garamond',Georgia,serif;
+        font-feature-settings:'lnum' 1,'tnum' 1;
+        font-variant-numeric:lining-nums tabular-nums;
+      }
+      #ctPropTbl tr.total td.ct-total-detail {
+        display:flex; justify-content:space-between;
+        font-family:'Inter',system-ui,sans-serif !important;
+        padding:9px 0 0; font-size:13px; color:var(--cc-taupe);
+        font-feature-settings:'lnum' 1,'tnum' 1 !important;
+        font-variant-numeric:lining-nums tabular-nums !important;
+        font-weight:400;
+      }
+      #ctPropTbl tr.total td.ct-total-detail::before {
+        content:attr(data-label); font-size:12px; letter-spacing:.01em;
+        font-family:'Inter',system-ui,sans-serif !important;
+      }
+      #ctPropTbl tr.total td[data-label="Miete"] {
+        margin-top:12px; border-top:0.5px solid var(--cc-rule); padding-top:12px;
+      }
+
+      /* ── Einmalig property list → cards ── */
+      #tab-onetime .ct-tbl thead { display:none; }
+      #tab-onetime .ct-tbl { display:block; border:0; background:transparent; }
+      #tab-onetime .ct-tbl tbody { display:block; }
+      #ctOtPropList { display:block; }
+      #ctOtPropList tr {
+        display:block; position:relative;
+        background:var(--cc-white); border:var(--cc-border);
+        border-radius:var(--cc-r-lg); margin-bottom:8px;
+        padding:14px 44px 14px 18px;
+        box-shadow:0 1px 3px rgba(60,50,40,0.03);
+        min-height:24px;
+      }
+      #ctOtPropList td { display:block; border:0 !important; padding:0; }
+      /* name — Cormorant like the dashboard cards */
+      #ctOtPropList td:nth-child(1) {
+        font-family:'Cormorant Garamond',Georgia,serif;
+        font-size:18px; font-weight:400; color:var(--cc-ink);
+        line-height:1.25; padding-right:70px;
+      }
+      /* count — hidden on mobile */
+      #ctOtPropList td:nth-child(2) { display:none; }
+      /* sum — pinned right, Cormorant lining */
+      #ctOtPropList td:nth-child(3) {
+        position:absolute; top:50%; right:42px; transform:translateY(-50%);
+        font-family:'Cormorant Garamond',Georgia,serif;
+        font-size:18px; font-weight:400;
+        font-feature-settings:'lnum' 1,'tnum' 1;
+        font-variant-numeric:lining-nums tabular-nums;
+        color:var(--cc-ink); white-space:nowrap;
+      }
+      /* chevron — pinned far right */
+      #ctOtPropList td:nth-child(4) {
+        position:absolute; top:50%; right:18px; transform:translateY(-50%);
+        color:var(--cc-stone);
+      }
+
+      #tab-setup table { min-width:0 !important; }
+
+      /* ── Einnahmen / Ausgaben surface lists → cards ── */
+      .ct-listtbl thead { display:none; }
+      .ct-listtbl { display:block; border:0; background:transparent; }
+      .ct-listtbl tbody, .ct-listtbl tr { display:block; }
+      .ct-listtbl tr {
+        position:relative; background:var(--cc-white); border:var(--cc-border);
+        border-radius:var(--cc-r-lg); margin-bottom:8px;
+        padding:14px 44px 14px 18px; box-shadow:0 1px 3px rgba(60,50,40,0.03);
+        min-height:24px;
+      }
+      .ct-listtbl tr.total { background:var(--cc-surface); box-shadow:none; }
+      .ct-listtbl td { display:block; border:0 !important; padding:0; }
+      .ct-listtbl td[data-label="#"] { display:none; }
+      /* intermediate detail columns live in the drawer, not the surface card */
+      .ct-listtbl .ct-proprow td.num:not(.ct-cell-head),
+      .ct-listtbl tr.total td.ct-total-detail { display:none; }
+      .ct-listtbl .ct-cell-name {
+        font-family:'Cormorant Garamond',Georgia,serif; font-size:18px; font-weight:400;
+        color:var(--cc-ink); line-height:1.25; padding-right:76px;
+      }
+      .ct-listtbl .ct-cell-head {
+        position:absolute; top:50%; right:38px; transform:translateY(-50%);
+        font-family:'Cormorant Garamond',Georgia,serif; font-size:18px; font-weight:400;
+        font-feature-settings:'lnum' 1,'tnum' 1; font-variant-numeric:lining-nums tabular-nums;
+        color:var(--cc-ink); white-space:nowrap;
+      }
+      .ct-listtbl tr > td:last-child {
+        position:absolute; top:50%; right:16px; transform:translateY(-50%);
+        color:var(--cc-stone);
+      }
+      .ct-listtbl tr.total > td:last-child { display:none; }
+      .ct-listtbl tr.total .ct-cell-head { right:18px; }
+      .ct-listtbl tr.total .ct-cell-name {
+        font-family:'Inter',system-ui,sans-serif; font-size:11px; letter-spacing:.16em;
+        text-transform:uppercase; color:var(--cc-taupe); font-weight:500; padding-right:100px;
+      }
+    }
+
+    /* Controlling design system (cx): injected by controlling-ui.js */
+  </style>
+  <link rel="stylesheet" href="cc-mgmt.css?v=2026-10-16-P1"/>
+</head>
+<body class="is-landlord">
+
+  <div class="app-shell visible" id="appShell" style="display:none;">
+    <div class="cc-header">
+      <nav class="cc-nav">
+        <a class="cc-nav__logo" href="#">Controlling</a>
+        <div class="nav-profile" id="navProfile">
+          <button class="cc-nav__icon" onclick="toggleProfileMenu()" aria-label="Menu">
+            <i class="ti ti-user"></i>
+          </button>
+          <div class="nav-profile-menu" id="navProfileMenu">
+            <button class="nav-profile-menu-item" onclick="location.href='properties.html'">Properties</button>
+            <button class="nav-profile-menu-item" onclick="location.href='rentals-index.html'">Rentals</button>
+            <button class="nav-profile-menu-item" onclick="location.href='landlord.html'">Casa Castel</button>
+            <button class="nav-profile-menu-item" onclick="location.href='settlements.html'">Settlements</button>
+            <button class="nav-profile-menu-item" onclick="location.href='providers.html'">Providers</button>
+            <button class="nav-profile-menu-item" onclick="location.href='maintenance.html'">Maintenance</button>
+            <div style="height:1px;background:var(--cc-rule);margin:4px 0;"></div>
+            <button class="nav-profile-menu-item" onclick="switchTab('setup'); document.getElementById('navProfileMenu').classList.remove('open');">Setup</button>
+            <button class="nav-profile-menu-item" onclick="document.getElementById('navProfileMenu').classList.remove('open'); openRentalsProfile();">Profile</button>
+            <button class="nav-profile-menu-item" id="logoutBtn">Log out</button>
+          </div>
+        </div>
+      </nav>
+      <div class="cc-tabs" id="appTabs">
+        <button class="cc-tab active" data-tab="dashboard">Dashboard</button>
+        <button class="cc-tab"        data-tab="rentals">Rentals</button>
+        <button class="cc-tab"        data-tab="casa">Casa Castel</button>
+      </div>
+    </div>
+
+    <div class="cc-layout" id="appLayout">
+      <div class="cc-main" id="appMain">
+        <!-- Rentals / Casa Castel: Income · Expenses · One-off (same screens, filtered to the area) -->
+        <div class="cx-subnav" id="ctlSubNav" style="display:none;" role="group" aria-label="Bereich">
+          <button data-sub="income">Income</button>
+          <button data-sub="expenses">Expenses</button>
+          <button data-sub="onetime">One-off</button>
+        </div>
+        <div class="tab-content" id="tab-dashboard"></div>
+        <div class="tab-content" id="tab-income"   style="display:none;"></div>
+        <div class="tab-content" id="tab-expenses" style="display:none;"></div>
+        <div class="tab-content" id="tab-onetime"  style="display:none;"></div>
+        <div class="tab-content" id="tab-setup"    style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast + loading -->
+  <div class="ct-toast" id="ctToast"></div>
+  <div class="ct-loading" id="ctLoading"><div class="ct-loading__spinner"></div></div>
+
+  <script>
+    'use strict';
+    /* Profile menu (shared with other sub-apps) */
+    function toggleProfileMenu() {
+      document.getElementById('navProfileMenu')?.classList.toggle('open');
+    }
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.nav-profile')) {
+        document.getElementById('navProfileMenu')?.classList.remove('open');
+      }
+    });
+    /* Tab switching */
+    /* Tabs: Dashboard · Rentals · Casa Castel. Rentals / Casa Castel show the
+       Income · Expenses · One-off screens filtered to that area (CX.area).
+       switchTab('income' | 'expenses' | 'onetime') opens that screen in the
+       current area (from the Dashboard: Rentals). */
+    function switchTab(tab) {
+      const SUB = ['income', 'expenses', 'onetime'];
+      if (SUB.includes(tab)) { CX.sub = tab; tab = CX.area === 'casa' ? 'casa' : 'rentals'; }
+      const area = tab === 'rentals' || tab === 'casa';
+      CX.area = area ? tab : null;
+      const show = area ? (CX.sub || 'income') : tab;
+      document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+      const el = document.getElementById('tab-' + show);
+      if (el) el.style.display = 'block';
+      document.querySelectorAll('.cc-tab[data-tab]').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+      const sub = document.getElementById('ctlSubNav');
+      if (sub) {
+        sub.style.display = area ? '' : 'none';
+        sub.querySelectorAll('button[data-sub]').forEach(b => b.classList.toggle('on', b.dataset.sub === show));
+      }
+      window.scrollTo(0, 0);
+      if (show === 'dashboard') window.renderDashboard?.();
+      if (show === 'income')    window.renderIncome?.();
+      if (show === 'expenses')  window.renderExpenses?.();
+      if (show === 'onetime')   window.renderOneTime?.();
+      if (show === 'setup')     window.renderSetup?.();
+    }
+    document.getElementById('appTabs').addEventListener('click', e => {
+      const btn = e.target.closest('.cc-tab[data-tab]');
+      if (btn) switchTab(btn.dataset.tab);
+    });
+    document.getElementById('ctlSubNav').addEventListener('click', e => {
+      const b = e.target.closest('button[data-sub]');
+      if (b) switchTab(b.dataset.sub);
+    });
+  </script>
+
+  <script src="controlling-auth.js?v=2026-09-27l"></script>
+  <script src="controlling-data.js?v=2026-10-15ap"></script>
+  <script src="controlling-soll.js?v=2026-10-12-MH1"></script>
+  <script src="controlling-ui.js?v=2026-10-16-P1"></script>
+  <script src="controlling-abr.js?v=2026-10-10-T8"></script>
+  <script src="controlling-tab-dashboard.js?v=2026-10-15-IC1"></script>
+  <script src="controlling-tab-income.js?v=2026-10-12-MH1"></script>
+  <script src="controlling-tab-expenses.js?v=2026-10-11-B18"></script>
+  <script src="controlling-tab-onetime.js?v=2026-10-15-D8"></script>
+  <script src="pdf-open.js?v=2026-10-10-PD2"></script>
+  <script src="controlling-export.js?v=2026-10-12g"></script>
+  <script src="controlling-tab-setup.js?v=2026-10-11-B18"></script>
+  <script src="controlling-tab-history.js?v=2026-10-12-MH1"></script>
+  <script src="pv-ctrl.js?v=2026-10-14-F47"></script>
+  <!-- Maintenance lines in One-off: tag; the form is read-only except the NK switch (maint-link.js) -->
+  <script src="maint-link.js?v=2026-10-15-D8"></script>
+  <!-- Profile panel (same one as Rentals). Reuses this page's Supabase client
+       instead of creating a second one, so the login session is shared safely. -->
+  <script>var sbL = _ctlSupa;</script>
+  <script src="settings.js"></script>
+  <script src="rentals-profile.js"></script>
+  <script>
+    /* Kick off boot() defined in controlling-auth.js */
+    boot();
+  </script>
+</body>
+</html>
