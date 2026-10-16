@@ -4,7 +4,7 @@
 // Catalog, the rate-card PDF and the renewal builder.
 // ─────────────────────────────────────────────────────────────
 
-import { r2, addM, addD, today } from "./formatters";
+import { r2, addM, addD, today, fmt } from "./formatters";
 import { RENEWAL_OPTS } from "./rateCards";
 
 // ─── SECTION TYPES ───────────────────────────────────────────
@@ -121,7 +121,7 @@ export function pricingCats(rc: any): string[] {
 
 // Add-on price text for menus and the rate card
 export const addonPriceText = (a: any) =>
-  a.p !== null && a.p !== undefined ? `€ ${a.p}${a.perMonth ? " / month" : ""}`
+  a.p !== null && a.p !== undefined ? `${fmt(Number(a.p) || 0)}${a.perMonth ? " / month" : ""}`
   : a.pct !== null && a.pct !== undefined ? `+${pctText(a.pct)}${a.perMonth ? " / month" : ""}`
   : (a.m || "");
 
@@ -159,7 +159,7 @@ export function priceLine(a: { unit: number; qty: number; cat: string; vol: bool
       : r2(uplifted * (Number(addon.pct) || 0) / 100 * m);
     return { n: addon.n, amt, ...(addon.perMonth ? { months: m } : {}) };
   });
-  const amt = Math.round(uplifted + addons.reduce((s, x) => s + x.amt, 0));
+  const amt = r2(uplifted + addons.reduce((s, x) => s + x.amt, 0));   // keep the cents (212,50 € stays 212,50 €)
   return { unit, qty, gross, volPct: vp, base, usagePct, exclPct, uplifted, addons, amt };
 }
 

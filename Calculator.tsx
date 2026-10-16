@@ -8,8 +8,8 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import PDFModal from "./PDFModal";
 import { editLock } from "./saveStatus";
 import { C, SANS, SERIF, TYPE, catInfo, TINT } from "./constants";
-import { fmt, today, uid, addD } from "./formatters";
-import { I, S, B, Lbl, Tag, Pill, Tick, CatPill } from "./atoms";
+import { fmt, today, uid, addD, pctSpace } from "./formatters";
+import { I, S, B, Lbl, Tag, Pill, Tick, CatPill, NumField } from "./atoms";
 import LineItemRow from "./LineItemRow";
 import PriceSummary from "./PriceSummary";
 import {
@@ -86,7 +86,7 @@ export default function Calculator({
   const [bQty,       setBQty]       = useState<number | string>(1);
   const [bUsage,     setBUsage]     = useState(0);
   const [bExcl,      setBExcl]      = useState(0);
-  const [bNeg,       setBNeg]       = useState("");
+  const [bNeg,       setBNeg]       = useState<number | null>(null);
   const [bVol,       setBVol]       = useState(false);
   const [bAddons,    setBAddons]    = useState<{ key: string; months: number }[]>([]);
   const [bPlatforms, setBPlatforms] = useState<string[]>([]);
@@ -101,7 +101,7 @@ export default function Calculator({
   const exclOpts  = card.excl  || [];
 
   const switchCat = (k: string) => {
-    setBCat(k); setBSel(""); setBAddons([]); setBUsage(0); setBExcl(0); setBVol(false); setBNeg("");
+    setBCat(k); setBSel(""); setBAddons([]); setBUsage(0); setBExcl(0); setBVol(false); setBNeg(null);
   };
 
   // ── Line items ────────────────────────────────────────────
@@ -119,7 +119,7 @@ export default function Calculator({
   const exclSel  = exclOpts[bExcl];
   const calc = choice
     ? priceLine({
-        unit:     bNeg !== "" ? Math.max(0, parseFloat(bNeg) || 0) : (choice.item.p ?? 0),
+        unit:     bNeg !== null ? Math.max(0, bNeg) : (choice.item.p ?? 0),
         qty:      Math.max(1, parseInt(String(bQty)) || 1),
         cat:      bCat,
         vol:      bVol,
@@ -164,7 +164,7 @@ export default function Calculator({
       platforms:   bPlatforms,
       amt:         calc.amt,
     }]);
-    setBSel(""); setBQty(1); setBUsage(0); setBExcl(0); setBNeg("");
+    setBSel(""); setBQty(1); setBUsage(0); setBExcl(0); setBNeg(null);
     setBAddons([]); setBVol(false); setBPlatforms([]);
   };
 
@@ -316,7 +316,7 @@ export default function Calculator({
   }
 
   const usageText = (o: any) => optLabel(o);
-  const choiceText = (c: any) => `${c.item.n}${c.item.p !== null && c.item.p !== undefined ? ` — € ${c.item.p}` : c.item.m ? ` — ${c.item.m}` : ""}`;
+  const choiceText = (c: any) => `${c.item.n}${c.item.p !== null && c.item.p !== undefined ? ` — ${fmt(Number(c.item.p) || 0)}` : c.item.m ? ` — ${pctSpace(c.item.m)}` : ""}`;
 
   return (
     <div>
@@ -525,7 +525,7 @@ export default function Calculator({
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, alignItems: "flex-end" }}>
           <div>
             <Lbl>Negotiated Rate <span style={{ fontWeight: "normal", color: C.light }}>(per unit)</span></Lbl>
-            <I type="number" placeholder="€" value={bNeg} onChange={(e: any) => setBNeg(e.target.value)} />
+            <NumField placeholder="€" value={bNeg} onChange={setBNeg} ariaLabel="Negotiated rate" />
           </div>
           <span style={{ height: 36, display: "inline-flex", alignItems: "center", whiteSpace: "nowrap" as const }}>
             <Tick on={bVol} onClick={() => setBVol(v => !v)} size={18} label="Vol. disc." />
