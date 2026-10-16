@@ -106,3 +106,18 @@ body.is-properties .sheet-foot :is(.btn-edit, .btn-foot-save) { height: 28px; pa
 body.is-properties .sheet-foot .btn-foot-save { display: none; background: var(--cc-ink); color: var(--cc-white); border-color: var(--cc-ink); }
 body.is-properties .sheet-foot:has(#editBtn.on) .btn-foot-save { display: inline-flex; }
 body.is-properties #editMode :is([onclick*="saveEdit"], [onclick*="toggleEdit"]) { display: none; }   /* Save + Cancel now sit in the footer */
+
+/* ═════════ P3 (16.10.2026) · messages: one small toast ═════════
+   cc-toast.js turns the iPhone alert box into this toast. The toasts that were
+   already there (Controlling · Settlements · Maintenance · Providers) get the same
+   look as the "Saved" toast of Casa Castel / Rentals. All screen sizes. */
+.cc-alert-toast,
+html body .ct-toast {
+  position: fixed; left: 50%; bottom: max(28px, env(safe-area-inset-bottom, 28px)); transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 32px); box-sizing: border-box; padding: 8px 18px; border-radius: 20px;
+  background: var(--cc-ink); color: var(--cc-white); font-family: 'Inter', system-ui, sans-serif;
+  font-size: 12px; font-weight: 500; line-height: 1.45; letter-spacing: .02em; text-align: center; white-space: pre-line;
+  opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 9500;
+}
+.cc-alert-toast.show,
+html body .ct-toast.show { opacity: 1; }
