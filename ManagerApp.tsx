@@ -55,7 +55,15 @@ export default function ManagerApp({
   switchTo,
   banners,
 }: ManagerAppProps) {
-  const [nav,      setNav]      = useState(NAV_DASHBOARD);
+  // another app can ask to open a page here (Planner → Service Catalog)
+  const [nav,      setNav]      = useState(() => {
+    try {
+      const k = sessionStorage.getItem("lh_manager_open");
+      sessionStorage.removeItem("lh_manager_open");
+      if (k === "catalog") return NAV_CATALOG;
+    } catch { /* ignore */ }
+    return NAV_DASHBOARD;
+  });
   const [winW,     setWinW]     = useState(() => window.innerWidth);
 
   // ── Prefill state — passed to Calculator from other pages ──

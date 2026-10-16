@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // xlsxWriter — writes real Excel files (.xlsx) without any extra
 // library: bold header row that stays visible, column widths,
-// filter arrows, and optionally a dropdown list in one column.
+// filter arrows, and optionally dropdown lists in some columns.
 // ─────────────────────────────────────────────────────────────
 
 export interface XlsxSheet {
@@ -9,8 +9,9 @@ export interface XlsxSheet {
   rows:        (string | number)[][];     // first row = header
   widths?:     number[];                   // in characters
   autoFilter?: boolean;
-  dropdown?:   { col: number; values: string[]; toRow?: number };   // col: 0-based
+  dropdown?:   XlsxDropdown | XlsxDropdown[];
 }
+export interface XlsxDropdown { col: number; values: string[]; toRow?: number; }   // col: 0-based
 
 const enc = new TextEncoder();
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
@@ -31,8 +32,9 @@ function sheetXml(sh: XlsxSheet): string {
     return `<c r="${ref}" t="inlineStr"${style}><is><t xml:space="preserve">${esc(t)}</t></is></c>`;
   }).join("")}</row>`).join("");
   const filter = sh.autoFilter && sh.rows.length ? `<autoFilter ref="A1:${last}"/>` : "";
-  const dv = sh.dropdown
-    ? `<dataValidations count="1"><dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="${colName(sh.dropdown.col)}2:${colName(sh.dropdown.col)}${sh.dropdown.toRow || 1000}"><formula1>"${esc(sh.dropdown.values.join(","))}"</formula1></dataValidation></dataValidations>`
+  const dds = !sh.dropdown ? [] : Array.isArray(sh.dropdown) ? sh.dropdown : [sh.dropdown];
+  const dv = dds.length
+    ? `<dataValidations count="${dds.length}">${dds.map(d => `<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="${colName(d.col)}2:${colName(d.col)}${d.toRow || 1000}"><formula1>"${esc(d.values.join(","))}"</formula1></dataValidation>`).join("")}</dataValidations>`
     : "";
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
