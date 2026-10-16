@@ -1893,7 +1893,7 @@ async function _aptHGSetNu(id, aptId) {
   const e = (_aptHausgeld[aptId] || []).find(x => String(x.id) === String(id));
   if (!e || !_aptSbClient) return;
   const cur = e.nicht_umlagefaehig != null ? String(e.nicht_umlagefaehig).replace('.', ',') : '';
-  const inp = prompt('Davon nicht umlagefähig (€ / Monat, laut Wirtschaftsplan):', cur);
+  const inp = await ccPrompt('Nicht umlagefähig', 'Davon nicht umlagefähig (€ / Monat, laut Wirtschaftsplan)', cur, 'Save');
   if (inp === null) return;
   const v = inp.trim() === '' ? null : (typeof ccParseEUR === 'function' ? ccParseEUR(inp) : parseFloat(inp.replace(',', '.')));
   if (v !== null && (isNaN(v) || v < 0)) return;
