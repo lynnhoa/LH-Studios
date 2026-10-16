@@ -6,8 +6,19 @@
 import { useState } from "react";
 import { C, SANS, SERIF, TYPE, Z } from "./constants";
 import { initials } from "./formatters";
+import type { Role } from "./types";
 
 export interface MenuItem { key: string; label: string; active?: boolean; onClick: () => void; }
+
+// Every app is listed in every app's menu, in this order
+export const APPS: { key: Role; label: string }[] = [
+  { key: "planner",  label: "Planner"  },
+  { key: "outreach", label: "Outreach" },
+  { key: "manager",  label: "Manager"  },
+  { key: "creator",  label: "Creator"  },
+];
+export const appItems = (current: Role, switchTo: (r: Role) => void): MenuItem[] =>
+  APPS.map(a => ({ key: a.key, label: a.label, active: a.key === current, onClick: () => { if (a.key !== current) switchTo(a.key); } }));
 
 // Compact, balanced rows: 13 px text in 36 px rows (same for Manager and Creator)
 const MENU_W   = 212;
@@ -19,9 +30,9 @@ const itemStyle = (active: boolean, color: string): any => ({
   letterSpacing: "0.01em", boxSizing: "border-box" as const,
 });
 
-export function AvatarMenu({ settings, roleLabel, items, switchLabel, onSwitch, onSignOut, dropLeft = false }: {
+export function AvatarMenu({ settings, roleLabel, items, apps, onSignOut, dropLeft = false }: {
   settings: any; roleLabel: string; items: MenuItem[];
-  switchLabel: string; onSwitch: () => void; onSignOut: () => void; dropLeft?: boolean;
+  apps: MenuItem[]; onSignOut: () => void; dropLeft?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ini = initials(settings?.name || settings?.company || "LH");
@@ -54,9 +65,14 @@ export function AvatarMenu({ settings, roleLabel, items, switchLabel, onSwitch, 
               ))}
             </div>
           )}
-          {/* switch + sign out together */}
+          {/* all apps — the current one marked */}
+          <div style={{ padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
+            {apps.map(a => (
+              <button key={a.key} role="menuitem" onClick={() => run(a.onClick)} aria-current={a.active ? "page" : undefined}
+                style={itemStyle(!!a.active, a.active ? C.black : C.muted)}>{a.label}</button>
+            ))}
+          </div>
           <div style={{ padding: "4px 0" }}>
-            <button role="menuitem" onClick={() => run(onSwitch)} style={itemStyle(false, C.muted)}>{switchLabel}</button>
             <button role="menuitem" onClick={() => run(onSignOut)} style={itemStyle(false, C.red)}>Sign Out</button>
           </div>
         </div>

@@ -11,6 +11,7 @@ import AuthScreen       from "./AuthScreen";
 import ManagerApp       from "./ManagerApp";
 import CreatorApp       from "./CreatorApp";
 import { Loading, SaveToast, LoadErrorBanner } from "./atoms";
+import PlaceholderApp from "./PlaceholderApp";
 import { editLock, reloadAll } from "./saveStatus";
 import { newVersionAvailable } from "./appVersion";
 import { supabase, supabaseConfigured } from "./useSupabase";
@@ -25,8 +26,9 @@ function useAuth() {
   const [error, setError]     = useState<string | null>(null);
   const signingIn = useRef(false);
 
+  const ROLES: Role[] = ["planner", "outreach", "manager", "creator"];
   const getRole = (): Role => {
-    try { return (sessionStorage.getItem("lh_role") as Role) || "manager"; }
+    try { const r = sessionStorage.getItem("lh_role") as Role; return ROLES.includes(r) ? r : "manager"; }
     catch { return "manager"; }
   };
 
@@ -97,15 +99,14 @@ function useAuth() {
     await supabase.auth.signOut();
   };
 
-  const switchMode = () => {
-    setRole(prev => {
-      const next: Role = prev === "manager" ? "creator" : "manager";
-      try { sessionStorage.setItem("lh_role", next); } catch {}
-      return next;
-    });
+  // go straight to any of the four apps (no new login)
+  const switchTo = (next: Role) => {
+    try { sessionStorage.setItem("lh_role", next); } catch {}
+    setRole(next);
+    window.scrollTo(0, 0);
   };
 
-  return { userId, role, loading, error, signIn, signOut, switchMode };
+  return { userId, role, loading, error, signIn, signOut, switchTo };
 }
 
 // ─── ERROR BOUNDARY ──────────────────────────────────────────
@@ -182,7 +183,7 @@ export default function App() {
 }
 
 function AppInner() {
-  const { userId, role, loading: authLoading, signIn, signOut, switchMode } = useAuth();
+  const { userId, role, loading: authLoading, signIn, signOut, switchTo } = useAuth();
   const settingsHook  = useSettings(userId);
   const clientsHook   = useClients(userId);
   const rateCardsHook = useRateCards(userId);
@@ -232,17 +233,19 @@ function AppInner() {
           clientsHook={clientsHook}
           rateCardsHook={rateCardsHook}
           signOut={signOut}
-          switchMode={switchMode}
+          switchTo={switchTo}
           banners={banners}
         />
-      ) : (
+      ) : role === "creator" ? (
         <CreatorApp
           settings={settings}
           clientsHook={clientsHook}
           signOut={signOut}
-          switchMode={switchMode}
+          switchTo={switchTo}
           banners={banners}
         />
+      ) : (
+        <PlaceholderApp app={role || "planner"} settings={settings} signOut={signOut} switchTo={switchTo} banners={banners} />
       )}
       <SaveToast />
     </>

@@ -8,7 +8,8 @@ import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { C, SANS, BREAKPOINT } from "./constants";
 import AppLogo from "./AppLogo";
-import { AvatarMenu, NavTab } from "./AppNav";
+import { AvatarMenu, NavTab, appItems } from "./AppNav";
+import type { Role } from "./types";
 
 // ── Page imports ──────────────────────────────────────────────
 import CreatorDashboard  from "./CreatorDashboard";
@@ -25,7 +26,7 @@ interface CreatorAppProps {
   settings:    any;
   clientsHook: any;
   signOut:     () => Promise<void>;
-  switchMode:  () => void;
+  switchTo:        (r: Role) => void;
   banners?:    ReactNode;
 }
 
@@ -33,7 +34,7 @@ export default function CreatorApp({
   settings,
   clientsHook,
   signOut,
-  switchMode,
+  switchTo,
   banners,
 }: CreatorAppProps) {
   const [nav,      setNav]      = useState(NAV_DASHBOARD);
@@ -64,8 +65,7 @@ export default function CreatorApp({
       roleLabel="Creator"
       dropLeft={dropLeft}
       items={[]}
-      switchLabel="Switch to Manager"
-      onSwitch={switchMode}
+      apps={appItems("creator", switchTo)}
       onSignOut={() => { signOut(); }}
     />
   );

@@ -11,7 +11,8 @@ import type { ReactNode } from "react";
 import { C, SANS, TYPE, BREAKPOINT } from "./constants";
 import { currentQuote, contractNo } from "./docs";
 import AppLogo from "./AppLogo";
-import { AvatarMenu, NavTab } from "./AppNav";
+import { AvatarMenu, NavTab, appItems } from "./AppNav";
+import type { Role } from "./types";
 
 // ── Page imports (placeholders until built) ───────────────────
 import Dashboard      from "./Dashboard";
@@ -41,7 +42,7 @@ interface ManagerAppProps {
   clientsHook:     any;
   rateCardsHook:   any;
   signOut:         () => Promise<void>;
-  switchMode:      () => void;
+  switchTo:        (r: Role) => void;
   banners?:        ReactNode;
 }
 
@@ -51,7 +52,7 @@ export default function ManagerApp({
   clientsHook,
   rateCardsHook,
   signOut,
-  switchMode,
+  switchTo,
   banners,
 }: ManagerAppProps) {
   const [nav,      setNav]      = useState(NAV_DASHBOARD);
@@ -171,8 +172,7 @@ export default function ManagerApp({
       roleLabel="Manager"
       dropLeft={dropLeft}
       items={MENU_ITEMS.map(([label, idx]) => ({ key: String(idx), label, active: nav === idx, onClick: () => navTo(idx) }))}
-      switchLabel="Switch to Creator"
-      onSwitch={switchMode}
+      apps={appItems("manager", switchTo)}
       onSignOut={() => { signOut(); }}
     />
   );

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// AuthScreen — Manager / Creator toggle + email + password
+// AuthScreen — app choice (Planner / Outreach / Manager / Creator) + email + password
 // Selected role is passed to signIn and determines which app loads.
 // ─────────────────────────────────────────────────────────────
 
@@ -64,15 +64,15 @@ export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
         </p>
 
         {/* ── ROLE TOGGLE ── */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          {(["manager", "creator"] as Role[]).map(v => {
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
+          {(["planner", "outreach", "manager", "creator"] as Role[]).map(v => {
             const sel = role === v;
             return (
               <button
                 key={v}
                 onClick={() => setRole(v)}
                 style={{
-                  flex:          1,
+                  width:         "100%",
                   padding:       "9px 0",
                   border:        `1px solid ${sel ? C.black : C.rule}`,
                   background:    sel ? C.black : C.bg,
