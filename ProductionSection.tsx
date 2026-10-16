@@ -1,176 +1,143 @@
 // ─────────────────────────────────────────────────────────────
-// ProductionSection — per-category deliverable progress grid
-// with manager checkboxes (reviewed / delivered / all posted).
-// Verbatim port of old App.tsx lines 1796–1962.
-// Rendered in ProjectsTab when project status === "production".
-//
-// upP(data) → clientsHook.updateProject(cl.id, pr.id, data)
-// "delivered" cascades Delivered status into workspaceStatus for
-// every matching line/qty (skip-list respected) — same as old.
+// ProductionSection — Manager view of a project's production.
+// Uses the SAME items and done rule as the Creator Workspace:
+//   Brand Collab is done when posted; UGC + Editorial when delivered.
+// Manager ticks per category:
+//   reviewed  — a note for the category (can be unticked)
+//   delivered — UGC / Editorial: marks the category's items Delivered
+//               (never turns Posted back into Delivered); unticking
+//               undoes exactly the items this tick changed.
+//   all posted / all delivered — automatic, read only, with its date.
 // ─────────────────────────────────────────────────────────────
 
 import { C, TYPE, TINT } from "./constants";
 import { fmtD, today } from "./formatters";
-import { getWsCategory, getCatProgress, wsLines, wsItemIds } from "./wsHelpers";
+import { getCatProgress, projectItems, statusRank, doneWord } from "./wsHelpers";
 import { CatPill, Tick } from "./atoms";
 
-const GREEN_BG     = TINT.green;
-const GREEN_BORDER = C.green;
-
 interface ProductionSectionProps {
-  pr:       any;
-  clients:  any[];
-  cl:       { id: string; name: string };
-  upP:      (data: any) => void;
-  isMobile: boolean;
+  pr:           any;
+  clients:      any[];
+  cl:           { id: string; name: string };
+  upP:          (data: any) => void;
+  isMobile:     boolean;
+  clientsHook?: any;
 }
 
-export default function ProductionSection({ pr, clients, cl, upP, isMobile }: ProductionSectionProps) {
-  const cats = getCatProgress(pr, clients);
+export default function ProductionSection({ pr, cl, upP, isMobile, clientsHook }: ProductionSectionProps) {
+  const cats    = getCatProgress(pr);
   const catKeys = Object.keys(cats).filter(k => cats[k].total > 0);
   if (catKeys.length === 0) return null;
-  const ms = pr.managerStatus || {};
+  const ms    = pr.managerStatus || {};
+  const items = projectItems(pr, cl);
 
-  const setMs = (cat: string, field: string) => {
+  const setFlag = (cat: string, field: string, on: boolean) => {
     const k = cat.toLowerCase();
-    const base = { managerStatus: { ...ms, [k]: { ...(ms[k] || {}), [field]: true, [field + "Date"]: today() } } };
-    if (field === "delivered") {
-      const newWs   = { ...(pr.workspaceStatus || {}) };
-      const newHist = { ...(pr.workspaceStatusHistory || {}) };
-      wsLines(pr).forEach(w => {
-        if (getWsCategory(w.line) !== cat) return;
-        wsItemIds(w).forEach(id => {
-          newWs[id] = "Delivered";
-          newHist[id] = [...((pr.workspaceStatusHistory || {})[id] || []), { status: "Delivered", date: today() }];
-        });
-      });
-      upP({ ...base, workspaceStatus: newWs, workspaceStatusHistory: newHist });
-    } else {
-      upP(base);
-    }
+    const cur = { ...(ms[k] || {}) };
+    if (on) { cur[field] = true; cur[field + "Date"] = today(); } else { delete cur[field]; delete cur[field + "Date"]; }
+    upP({ managerStatus: { ...ms, [k]: cur } });
   };
 
-  // work lines (packages already expanded into their contents)
-  const allLines = wsLines(pr).map(w => ({ ...w.line, name: w.name, qty: w.qty, _key: w.key }));
-
-  const chkBox = (checked: boolean, color: string, readOnly: boolean, onClick: () => void) => (
-    <Tick on={checked} color={color} size={isMobile ? 22 : 18} disabled={readOnly && !checked} onClick={!readOnly && !checked ? onClick : undefined} />
-  );
+  const markDelivered = async (cat: string) => {
+    const todo = items.filter(it => it.category === cat && statusRank(it.status) < statusRank("Delivered"));
+    if (clientsHook?.setWsStatus) await clientsHook.setWsStatus(cl.id, pr.id, todo.map(it => ({ id: it.id, status: "Delivered" })), "manager");
+    setFlag(cat, "delivered", true);
+  };
+  const undoDelivered = async (cat: string) => {
+    // only the items whose last step was this manager tick go back
+    const mine = items.filter(it => it.category === cat && it.status === "Delivered" &&
+      (((pr.workspaceStatusHistory || {})[it.id] || []).slice(-1)[0]?.by === "manager"));
+    if (clientsHook?.revertWsStatus) await clientsHook.revertWsStatus(cl.id, pr.id, mine.map(it => it.id));
+    setFlag(cat, "delivered", false);
+  };
 
   const col1W = isMobile ? 0 : 72;
-  const col3W = isMobile ? 100 : 130;
+  const col3W = isMobile ? 112 : 140;
 
   return (
     <div style={{ marginBottom: isMobile ? 12 : 8, border: `1px solid ${C.rule}`, borderRadius: 2, overflow: "hidden" }}>
-      {/* header */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? `1fr ${col3W}px` : `${col1W}px 1fr ${col3W}px`, background: "#f5f3f0", borderBottom: `1px solid ${C.rule}` }}>
         {!isMobile && <div style={{ padding: "4px 8px", fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>Cat.</div>}
         <div style={{ padding: isMobile ? "5px 8px" : "4px 8px", fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const, borderLeft: isMobile ? "none" : `1px solid ${C.rule}` }}>Deliverable · progress</div>
         <div style={{ padding: isMobile ? "5px 8px" : "4px 8px", fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const, borderLeft: `1px solid ${C.rule}` }}>Manager</div>
       </div>
 
-      {/* category blocks */}
       {catKeys.map((cat, ci) => {
-        const prog = cats[cat];
-        const k = cat.toLowerCase();
-        const msc = ms[k] || {};
-        const isInfluencer = cat === "Influencer";
-        const isEditorial  = cat === "Editorial";
-        const canAct = prog.allCreated;
-        const allPosted = prog.total > 0 && prog.posted === prog.total;
-        const catLines = allLines.filter((ln: any) => getWsCategory(ln) === cat);
-
-        // per-line circle data
-        const lineCircles = catLines.map((ln: any) => {
-          const qty = parseInt(ln.qty) || 1;
-          const filled = Array.from({ length: qty }, (_, q) => {
-            const id = `${ln._key}_q${q}`;
-            const st = (pr.workspaceStatus || {})[id] || "Not started";
-            return ["Created","Reviewed","Delivered","Posted"].includes(st);
-          });
-          const postedAll = Array.from({ length: qty }, (_, q) => {
-            const id = `${ln._key}_q${q}`;
-            return (pr.workspaceStatus || {})[id] === "Posted";
-          });
-          const lastPostedDate = postedAll.every(Boolean) && postedAll.length > 0 ? (() => {
-            let d = "";
-            for (let q = 0; q < qty; q++) { const id = `${ln._key}_q${q}`; const sd = (pr.workspaceStatus || {})[id + "_date"]; if (sd && sd > d) d = sd; }
-            return d;
-          })() : null;
-          return { ln, filled, qty, createdCount: filled.filter(Boolean).length, postedAll: postedAll.every(Boolean) && postedAll.length > 0, lastPostedDate };
+        const prog  = cats[cat];
+        const msc   = ms[cat.toLowerCase()] || {};
+        const isBC  = cat === "Influencer";
+        const catIt = items.filter(it => it.category === cat);
+        const lines: { key: string; name: string; note: string; its: any[] }[] = [];
+        catIt.forEach(it => {
+          let g = lines.find(x => x.key === it.lineKey);
+          if (!g) { g = { key: it.lineKey, name: it.lineName + (it.month ? ` · M${String(it.month).padStart(2, "0")}` : ""), note: it.lineNote, its: [] }; lines.push(g); }
+          g.its.push(it);
         });
 
         return (
           <div key={cat} style={{ display: "grid", gridTemplateColumns: isMobile ? `1fr ${col3W}px` : `${col1W}px 1fr ${col3W}px`, borderBottom: ci < catKeys.length - 1 ? `1px solid ${C.rule}` : "none" }}>
-
-            {/* col1 — category pill (desktop only; mobile shows pill inline per line) */}
             {!isMobile && <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "8px 6px", borderRight: `1px solid ${C.rule}` }}>
               <CatPill cat={cat} />
             </div>}
 
-            {/* col2 — per-line deliverables */}
-            <div style={{ borderRight: `1px solid ${C.rule}`, padding: "0", display: "flex", flexDirection: "column" as const }}>
-              {lineCircles.map(({ ln, filled, qty, createdCount }: any, lii: number) => (
-                <div key={lii} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6, padding: isMobile ? "8px 10px" : "6px 10px", borderTop: lii > 0 ? `1px solid ${C.rule}` : "none" }}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    {isMobile && <span style={{ display: "inline-block", marginBottom: 3 }}><CatPill cat={getWsCategory(ln)} /></span>}
-                    <p style={{ fontSize: isMobile ? TYPE.subtext.size : TYPE.label.size, color: C.black, margin: 0, fontWeight: "500", whiteSpace: "normal" as const, lineHeight: 1.3 }}>{ln.name}</p>
-                    {ln.note && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "2px 0 0" }}>{ln.note}</p>}
-                  </div>
-                  {isMobile ? (
-                    <span style={{ fontSize: TYPE.label.size, fontWeight: "500", padding: "2px 8px", borderRadius: 20, background: createdCount === qty ? GREEN_BG : C.rule, color: createdCount === qty ? C.green : C.muted, border: `1px solid ${createdCount === qty ? GREEN_BORDER : C.light}`, whiteSpace: "nowrap" as const, flexShrink: 0, marginTop: 1 }}>{createdCount}/{qty}</span>
-                  ) : (
-                    <div style={{ display: "flex", alignItems: "center", gap: 3, flexShrink: 0, flexWrap: "wrap" as const, justifyContent: "flex-end" }}>
-                      {filled.map((f: boolean, fi: number) => (
-                        <div key={fi} style={{ width: 8, height: 8, borderRadius: "50%", background: f ? C.black : "transparent", border: `1.5px solid ${f ? C.black : C.light}`, flexShrink: 0 }} />
-                      ))}
-                      <span style={{ fontSize: TYPE.micro.size, color: C.muted, marginLeft: 2, whiteSpace: "nowrap" as const }}>{createdCount}/{qty}</span>
+            <div style={{ borderRight: `1px solid ${C.rule}`, display: "flex", flexDirection: "column" as const }}>
+              {lines.map((ln, lii) => {
+                const created = ln.its.filter(it => statusRank(it.status) >= 1).length;
+                const done = ln.its.filter(it => it.done).length;
+                return (
+                  <div key={ln.key} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6, padding: isMobile ? "8px 10px" : "6px 10px", borderTop: lii > 0 ? `1px solid ${C.rule}` : "none" }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      {isMobile && <span style={{ display: "inline-block", marginBottom: 3 }}><CatPill cat={cat} /></span>}
+                      <p style={{ fontSize: isMobile ? TYPE.subtext.size : TYPE.label.size, color: C.black, margin: 0, fontWeight: 500, lineHeight: 1.3 }}>{ln.name}</p>
+                      {ln.note && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "2px 0 0" }}>{ln.note}</p>}
                     </div>
-                  )}
-                </div>
-              ))}
-              {/* ready badge when all created */}
-              {canAct && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 3, flexShrink: 0, flexWrap: "wrap" as const, justifyContent: "flex-end" }}>
+                      {!isMobile && ln.its.map(it => (
+                        <div key={it.id} title={`${it.name}: ${it.status}`} style={{ width: 8, height: 8, borderRadius: "50%", background: it.done ? C.green : statusRank(it.status) >= 1 ? C.black : "transparent", border: `1.5px solid ${it.done ? C.green : statusRank(it.status) >= 1 ? C.black : C.light}` }} />
+                      ))}
+                      <span style={{ fontSize: TYPE.micro.size, color: done === ln.its.length ? C.green : C.muted, marginLeft: 2, whiteSpace: "nowrap" as const }}>
+                        {created}/{ln.its.length}{done ? ` · ${done} ${doneWord(cat)}` : ""}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              {prog.allCreated && !prog.allDone && (
                 <div style={{ display: "flex", justifyContent: "flex-end", padding: "3px 10px 5px" }}>
-                  <span style={{ fontSize: TYPE.micro.size, padding: "1px 7px", borderRadius: 20, background: GREEN_BG, border: `1px solid ${GREEN_BORDER}`, color: C.green }}>ready</span>
+                  <span style={{ fontSize: TYPE.micro.size, padding: "1px 7px", borderRadius: 20, background: TINT.green, border: `1px solid ${C.green}`, color: C.green }}>ready</span>
                 </div>
               )}
             </div>
 
-            {/* col3 — manager checkboxes */}
-            <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column" as const, justifyContent: "flex-start", gap: isMobile ? 7 : 5, opacity: canAct || msc.reviewed ? 1 : 0.3 }}>
-              {/* reviewed */}
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                {chkBox(!!msc.reviewed, C.amber, false, () => { if (canAct) setMs(cat, "reviewed"); })}
-                <div style={{ minWidth: 0 }}>
+            <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column" as const, gap: isMobile ? 7 : 5 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: prog.allCreated || msc.reviewed ? 1 : 0.4 }}>
+                <Tick on={!!msc.reviewed} color={C.amber} size={isMobile ? 22 : 18} disabled={!prog.allCreated && !msc.reviewed}
+                  onClick={() => setFlag(cat, "reviewed", !msc.reviewed)} />
+                <div>
                   <span style={{ fontSize: TYPE.label.size, color: msc.reviewed ? C.amber : C.muted, display: "block" }}>reviewed</span>
                   {msc.reviewed && <span style={{ fontSize: TYPE.micro.size, color: C.muted, display: "block" }}>{fmtD(msc.reviewedDate)}</span>}
                 </div>
               </div>
-              {/* delivered — UGC + Editorial */}
-              {!isInfluencer && (
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  {chkBox(!!msc.delivered, C.green, false, () => { if (canAct) setMs(cat, "delivered"); })}
-                  <div style={{ minWidth: 0 }}>
+              {!isBC && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: prog.allCreated || msc.delivered ? 1 : 0.4 }}>
+                  <Tick on={!!msc.delivered} color={C.green} size={isMobile ? 22 : 18} disabled={!prog.allCreated && !msc.delivered}
+                    onClick={() => (msc.delivered ? undoDelivered(cat) : markDelivered(cat))} />
+                  <div>
                     <span style={{ fontSize: TYPE.label.size, color: msc.delivered ? C.green : C.muted, display: "block" }}>delivered</span>
                     {msc.delivered && <span style={{ fontSize: TYPE.micro.size, color: C.muted, display: "block" }}>{fmtD(msc.deliveredDate)}</span>}
                   </div>
                 </div>
               )}
-              {/* all posted — Influencer + Editorial, read-only, auto */}
-              {(isInfluencer || isEditorial) && (
-                <div style={{ display: "flex", alignItems: "center", gap: 5, opacity: allPosted ? 1 : 0.4 }}>
-                  {chkBox(allPosted, C.green, true, () => {})}
-                  <div style={{ minWidth: 0 }}>
-                    <span style={{ fontSize: TYPE.label.size, color: allPosted ? C.green : C.muted, display: "block" }}>
-                      {allPosted ? "all posted" : "awaiting post"}
-                    </span>
-                    {allPosted && prog.posted > 0 && <span style={{ fontSize: TYPE.micro.size, color: C.muted, display: "block" }}>{fmtD(lineCircles.find((lc: any) => lc.lastPostedDate)?.lastPostedDate || null)}</span>}
-                  </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: prog.allDone ? 1 : 0.4 }}>
+                <Tick on={prog.allDone} color={C.green} size={isMobile ? 22 : 18} disabled />
+                <div>
+                  <span style={{ fontSize: TYPE.label.size, color: prog.allDone ? C.green : C.muted, display: "block" }}>
+                    {prog.allDone ? `all ${doneWord(cat)}` : `${prog.done}/${prog.total} ${doneWord(cat)}`}
+                  </span>
+                  {prog.allDone && prog.doneDate && <span style={{ fontSize: TYPE.micro.size, color: C.muted, display: "block" }}>{fmtD(prog.doneDate)}</span>}
                 </div>
-              )}
+              </div>
             </div>
-
           </div>
         );
       })}

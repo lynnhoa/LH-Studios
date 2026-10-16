@@ -28,6 +28,9 @@ interface UseClientsReturn {
   createAmendmentInvoice: (clientId: string, projectId: string, amendId: string, settings: any) => Promise<DocRecord>;
   removeProject:          (clientId: string, projectId: string) => Promise<void>;
   setLicenseAction:       (clientId: string, projectId: string, key: string, action: string | null) => Promise<void>;
+  patchWs:                (clientId: string, projectId: string, field: string, patch: Record<string, any>) => Promise<void>;
+  setWsStatus:            (clientId: string, projectId: string, changes: { id: string; status: string }[], by?: string) => Promise<void>;
+  revertWsStatus:         (clientId: string, projectId: string, ids: string[]) => Promise<void>;
 
   // Client ops
   addClient:    (c: Omit<Client, "id" | "projects" | "createdAt">) => Promise<string | null>;
@@ -211,6 +214,7 @@ function rowToProject(
     workspaceNotes:         row.workspace_notes   ?? {},
     workspaceDeleted:       row.workspace_deleted ?? [],
     workspacePlanner:       row.workspace_planner ?? {},
+    workspaceCats:          row.workspace_cats    ?? {},
     managerStatus:          row.manager_status    ?? {},
     documents,
     statusHistory:          Array.isArray(row.status_history) ? row.status_history : [],
@@ -294,7 +298,7 @@ export function useClients(userId: string | null): UseClientsReturn {
       supabase.from("projects")    .select("*").eq("user_id", userId).order("created_at"),
       supabase.from("amendments")  .select("*").eq("user_id", userId).order("created_at"),
       supabase.from("renewals")    .select("*").eq("user_id", userId).order("created_at"),
-      supabase.from("deliverables").select("*").eq("user_id", userId),
+      Promise.resolve({ data: [], error: null }),   // old deliverables table: no longer used
       supabase.from("documents")   .select("*").eq("user_id", userId).order("created_at"),
     ]);
 
@@ -994,7 +998,7 @@ export function useClients(userId: string | null): UseClientsReturn {
           amount, paid: false, date: docDate, deliveryDate: "", usageEndOverride: null, notes: "",
           qd: content, amendments: [], renewals: [], monthlyInvoices: [],
           workspaceStatus: {}, workspaceStatusHistory: {}, workspaceNames: {}, workspaceNotes: {},
-          workspaceDeleted: [], workspacePlanner: {}, managerStatus: {}, documents: [],
+          workspaceDeleted: [], workspacePlanner: {}, workspaceCats: {}, managerStatus: {}, documents: [],
           statusHistory: [{ status: "quoted", at: docDate }], licenseState: {}, createdAt: now,
         };
         const { error: pe } = await supabase.from("projects").insert({
@@ -1423,8 +1427,55 @@ export function useClients(userId: string | null): UseClientsReturn {
     await writeProject(clientId, projectId, { licenseState: next });
   };
 
+  // ── Workspace: save single items (never the whole map) ─────
+  // ws_merge (SQL) merges the patch into the stored map on the server,
+  // so two devices ticking different items can't overwrite each other.
+  const WS_FIELD: Record<string, string> = {
+    workspaceStatus: "workspace_status", workspaceStatusHistory: "workspace_status_history",
+    workspaceNames: "workspace_names", workspaceNotes: "workspace_notes", workspaceCats: "workspace_cats",
+  };
+  const patchWs = async (clientId: string, projectId: string, field: string, patch: Record<string, any>) => {
+    if (!WS_FIELD[field]) throw new Error(`Unknown workspace field ${field}`);
+    updateProjectLocal(clientId, projectId, p => {
+      const cur: Record<string, any> = { ...((p as any)[field] || {}) };
+      Object.entries(patch).forEach(([k, v]) => { if (v === null || v === undefined) delete cur[k]; else cur[k] = v; });
+      return { ...p, [field]: cur } as any;
+    });
+    const { error } = await supabase.rpc("ws_merge", { p_project_id: projectId, p_field: WS_FIELD[field], p_patch: patch });
+    if (error) { setError(error.message); throw new Error(error.message); }
+  };
+
+  // set statuses (with history); `by` marks manager ticks so they can be undone
+  const setWsStatus = async (clientId: string, projectId: string, changes: { id: string; status: string }[], by?: string) => {
+    const { project } = findProject(clientId, projectId);
+    if (!changes.length) return;
+    const st: Record<string, any> = {}, hist: Record<string, any> = {};
+    changes.forEach(({ id, status }) => {
+      st[id] = status;
+      hist[id] = [...(((project.workspaceStatusHistory || {}) as any)[id] || []), { status, date: today(), ...(by ? { by } : {}) }];
+    });
+    await patchWs(clientId, projectId, "workspaceStatus", st);
+    await patchWs(clientId, projectId, "workspaceStatusHistory", hist);
+  };
+
+  // undo the last step of items: status + history go back (an undone tick no longer counts)
+  const revertWsStatus = async (clientId: string, projectId: string, ids: string[]) => {
+    const { project } = findProject(clientId, projectId);
+    if (!ids.length) return;
+    const st: Record<string, any> = {}, hist: Record<string, any> = {};
+    ids.forEach(id => {
+      const h = [...((((project.workspaceStatusHistory || {}) as any)[id]) || [])];
+      h.pop();
+      hist[id] = h.length ? h : null;                              // nothing left → back to untouched
+      st[id]   = h.length ? h[h.length - 1].status : null;
+    });
+    await patchWs(clientId, projectId, "workspaceStatus", st);
+    await patchWs(clientId, projectId, "workspaceStatusHistory", hist);
+  };
+
   return {
     clients, loading, error, loadError, reload: fetchAll,
+    patchWs, setWsStatus, revertWsStatus,
     markAmendmentSigned, createAmendmentInvoice, removeProject, setLicenseAction,
     addClient, updateClient, deleteClient,
     addProject, updateProject, deleteProject, setProjectStatus,

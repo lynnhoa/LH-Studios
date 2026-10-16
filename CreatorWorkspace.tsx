@@ -9,7 +9,7 @@ import { C, SANS, SERIF, TYPE, catInfo } from "./constants";
 import { Segmented, Tick, CatPill } from "./atoms";
 import { fmtD, today } from "./formatters";
 import {
-  WS_STATUSES, getWsItems,
+  WS_STATUSES, getWsItems, statusRank, shownStatus, finalStatus, doneWord,
   isOverdue, isThisWeek, fmtDeadline, plannerDayLabel,
 } from "./wsHelpers";
 
@@ -27,7 +27,6 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
   const [editingVal,   setEditingVal]   = useState("");
   const [noteId,       setNoteId]       = useState<string | null>(null);
   const [noteVal,      setNoteVal]      = useState("");
-  const [confirmDel,   setConfirmDel]   = useState<any | null>(null);
   const [snackbar,     setSnackbar]     = useState<{ msg: string; undo: () => void } | null>(null);
   const snackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -36,12 +35,7 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
     ? allItems.filter(it => it.name.toLowerCase().includes(search.toLowerCase()) || it.clientName.toLowerCase().includes(search.toLowerCase()))
     : allItems;
 
-  // Filter out deleted items
-  const activeItems = filtered.filter(it => {
-    const cl = clients.find(c => c.id === it.clientId);
-    const pr = cl?.projects.find((p: any) => p.id === it.projectId);
-    return !(pr?.workspaceDeleted || []).includes(it.id);
-  });
+  const activeItems = filtered;
 
   // ── Mutators ──────────────────────────────────────────────
   const showSnack = (msg: string, undo: () => void) => {
@@ -56,72 +50,34 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
     return cl?.projects.find((p: any) => p.id === projectId);
   };
 
+  // Every change saves ONE item (server-side merge), never the whole project map
+  const fail = (e: any) => showSnack(`Couldn't save: ${e?.message || "error"}`, () => setSnackbar(null));
+
   const setItemStatus = (item: any, next: string) => {
-    const prev = item.status;
-    const pr   = getPr(item.clientId, item.projectId);
-    if (!pr) return;
-    clientsHook.updateProject(item.clientId, item.projectId, {
-      workspaceStatus:        { ...(pr.workspaceStatus || {}), [item.id]: next },
-      workspaceStatusHistory: {
-        ...(pr.workspaceStatusHistory || {}),
-        [item.id]: [...((pr.workspaceStatusHistory || {})[item.id] || []), { status: next, date: today() }],
-      },
-    });
+    clientsHook.setWsStatus(item.clientId, item.projectId, [{ id: item.id, status: next }]).catch(fail);
     showSnack(`${item.name} → ${next}`, () => {
-      const prNow = getPr(item.clientId, item.projectId);
-      if (!prNow) return;
-      clientsHook.updateProject(item.clientId, item.projectId, {
-        workspaceStatus: { ...(prNow.workspaceStatus || {}), [item.id]: prev },
-      });
+      clientsHook.revertWsStatus(item.clientId, item.projectId, [item.id]).catch(fail);   // undo also removes the history entry
       setSnackbar(null);
     });
   };
 
-  // Tap the category pill to cycle Influencer → UGC → Editorial.
-  // Writes `cat` onto the source quote line (pr.qd.lines[li]) so the fix
-  // persists everywhere the category is derived — workspace, manager
-  // production section, and future PDFs. Repairs legacy lines saved
-  // before the Calculator stored `cat`.
+  // Tap the category pill to cycle Brand Collab → UGC → Editorial.
+  // Stored per workspace item only — the quote and its PDFs stay as they are.
   const CAT_CYCLE = ["Influencer", "UGC", "Editorial"];
-  const CAT_TO_KEY: Record<string, string> = { Influencer: "influencer", UGC: "ugc", Editorial: "editorial" };
   const setItemCat = (item: any) => {
-    const pr = getPr(item.clientId, item.projectId);
-    if (!pr?.qd?.lines) return;
-    const m = /_ln(\d+)_q\d+$/.exec(item.id);
-    if (!m) return;
-    const li = parseInt(m[1], 10);
-    if (!pr.qd.lines[li]) return;
-    const next  = CAT_CYCLE[(CAT_CYCLE.indexOf(item.category) + 1) % CAT_CYCLE.length];
-    const lines = pr.qd.lines.map((l: any, i: number) => i === li ? { ...l, cat: CAT_TO_KEY[next] } : l);
-    clientsHook.updateProject(item.clientId, item.projectId, { qd: { ...pr.qd, lines } });
+    const next = CAT_CYCLE[(CAT_CYCLE.indexOf(item.category) + 1) % CAT_CYCLE.length];
+    clientsHook.patchWs(item.clientId, item.projectId, "workspaceCats", { [item.id]: next }).catch(fail);
   };
 
   const saveName = (item: any, val: string) => {
     const trimmed = val.trim();
-    const pr = getPr(item.clientId, item.projectId);
-    if (!pr) return;
-    clientsHook.updateProject(item.clientId, item.projectId, {
-      workspaceNames: { ...(pr.workspaceNames || {}), [item.id]: trimmed || item.defaultName },
-    });
+    clientsHook.patchWs(item.clientId, item.projectId, "workspaceNames", { [item.id]: trimmed && trimmed !== item.defaultName ? trimmed : null }).catch(fail);
     setEditingId(null);
   };
 
   const saveNote = (item: any, val: string) => {
-    const pr = getPr(item.clientId, item.projectId);
-    if (!pr) return;
-    clientsHook.updateProject(item.clientId, item.projectId, {
-      workspaceNotes: { ...(pr.workspaceNotes || {}), [item.id]: val.trim() },
-    });
+    clientsHook.patchWs(item.clientId, item.projectId, "workspaceNotes", { [item.id]: val.trim() || null }).catch(fail);
     setNoteId(null);
-  };
-
-  const deleteItem = (item: any) => {
-    const pr = getPr(item.clientId, item.projectId);
-    if (!pr) return;
-    clientsHook.updateProject(item.clientId, item.projectId, {
-      workspaceDeleted: [...(pr.workspaceDeleted || []), item.id],
-    });
-    setConfirmDel(null);
   };
 
   // ── Grouping ──────────────────────────────────────────────
@@ -129,15 +85,15 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
   let groups: GroupDef[] = [];
 
   if (group === "Urgency") {
-    const od   = activeItems.filter(it => !["Delivered","Posted"].includes(it.status) && isOverdue(it.deadline));
-    const wk   = activeItems.filter(it => !["Delivered","Posted"].includes(it.status) && !isOverdue(it.deadline) && isThisWeek(it.deadline));
-    const lat  = activeItems.filter(it => !["Delivered","Posted"].includes(it.status) && !isOverdue(it.deadline) && !isThisWeek(it.deadline));
-    const done = activeItems.filter(it => ["Delivered","Posted"].includes(it.status));
+    const od   = activeItems.filter(it => !it.done && isOverdue(it.deadline));
+    const wk   = activeItems.filter(it => !it.done && !isOverdue(it.deadline) && isThisWeek(it.deadline));
+    const lat  = activeItems.filter(it => !it.done && !isOverdue(it.deadline) && !isThisWeek(it.deadline));
+    const done = activeItems.filter(it => it.done);
     groups = [
       { key:"overdue", label:"OVERDUE",       items: od   },
       { key:"week",    label:"DUE THIS WEEK", items: wk   },
       { key:"later",   label:"LATER",         items: lat  },
-      { key:"done",    label:"DELIVERED",     items: done },
+      { key:"done",    label:"DONE",          items: done },
     ];
   } else if (group === "Client") {
     const byClient: Record<string,any[]> = {};
@@ -156,7 +112,7 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
     });
   } else {
     WS_STATUSES.forEach(st => {
-      groups.push({ key: st, label: st.toUpperCase(), items: activeItems.filter(it => it.status === st) });
+      groups.push({ key: st, label: st.toUpperCase(), items: activeItems.filter(it => shownStatus(it.status) === st) });
     });
   }
 
@@ -205,24 +161,21 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
               const isNoting  = noteId === item.id;
               const dlColor   = deadlineColor(item);
               const dayTag    = plannerDayLabel(item.plannerDate);
-              const isDone    = ["Delivered","Posted"].includes(item.status);
-              const isCreated = ["Created","Reviewed","Delivered","Posted"].includes(item.status);
-              // Second checkbox is category-aware: Influencer publishes on own
-              // channels → "posted"; UGC/Editorial hand over files → "delivered".
-              const isInfl    = item.category === "Influencer";
-              const doneLabel = isInfl ? "posted" : "delivered";
-              const doneSt    = isInfl ? "Posted" : "Delivered";
-              const cbDone    = item.status === doneSt;
+              const isDone    = item.done;
+              const isCreated = statusRank(item.status) >= 1;
+              // Second tick = the category's last step: Brand Collab → posted;
+              // UGC / Editorial → delivered (a later "Posted" still counts as done).
+              const doneLabel = doneWord(item.category);
+              const doneSt    = finalStatus(item.category);
+              const cbDone    = item.done;
 
-              // Manager status from history
+              // Manager ticks for this item's category (reviewed / delivered)
               const mgrStatus = (() => {
-                const cl   = clients.find(c => c.id === item.clientId);
-                const pr   = cl?.projects.find((p: any) => p.id === item.projectId);
-                const hist = ((pr?.workspaceStatusHistory || {})[item.id] || []);
-                const rev  = hist.find((h: any) => h.status === "Reviewed");
-                const del  = hist.find((h: any) => h.status === "Delivered");
-                if (del) return { label: "delivered", date: del.date, color: C.green };
-                if (rev) return { label: "reviewed",  date: rev.date, color: C.amber };
+                const cl  = clients.find(c => c.id === item.clientId);
+                const pr  = cl?.projects.find((p: any) => p.id === item.projectId);
+                const msc = (pr?.managerStatus || {})[String(item.category).toLowerCase()] || {};
+                if (msc.delivered) return { label: "delivered", date: msc.deliveredDate, color: C.green };
+                if (msc.reviewed)  return { label: "reviewed",  date: msc.reviewedDate,  color: C.amber };
                 return null;
               })();
 
@@ -337,19 +290,6 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: Cre
       )}
 
       {/* Confirm delete dialog */}
-      {confirmDel && createPortal(
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setConfirmDel(null)}>
-          <div style={{ background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "24px 28px", maxWidth: 320, width: "90%", boxShadow: "0 4px 24px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
-            <p style={{ fontSize: TYPE.body.size, color: C.black, margin: "0 0 8px", fontFamily: SERIF }}>Delete this deliverable?</p>
-            <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 20px" }}>Use only if this item was dropped from the contract informally. This cannot be undone.</p>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setConfirmDel(null)} style={{ padding: "6px 16px", border: `1px solid ${C.rule}`, borderRadius: 2, background: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, color: C.muted }}>Cancel</button>
-              <button onClick={() => deleteItem(confirmDel)} style={{ padding: "6px 16px", border: `1px solid ${C.red}`, borderRadius: 2, background: C.red, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, color: C.white }}>Delete</button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
     </div>
   );
 }

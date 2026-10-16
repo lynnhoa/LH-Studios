@@ -7,7 +7,7 @@ import { useState } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import { StatusBadge } from "./atoms";
 import { fmt, fmtD, dLeft } from "./formatters";
-import { getLineGroups, ccCatLabel, ccCatStyle } from "./wsHelpers";
+import { getLineGroups, ccCatLabel, ccCatStyle, statusRank, shownStatus } from "./wsHelpers";
 
 interface CreatorProjectsProps {
   clients:  any[];
@@ -16,8 +16,8 @@ interface CreatorProjectsProps {
 
 const DOT_CAP = 12;
 
-const dotColor  = (st: string) => st === "Delivered" ? C.green : st === "Reviewed" ? C.amber : st === "Finished" ? C.black : C.rule;
-const stColor   = (st: string) => st === "Delivered" ? C.green : st === "Reviewed" ? C.amber : st === "Finished" ? C.black : C.light;
+const dotColor  = (it: any) => it.done ? C.green : statusRank(it.status) >= 1 ? C.black : C.rule;
+const stColor   = (it: any) => it.done ? C.green : statusRank(it.status) >= 1 ? C.black : C.light;
 
 function renderDots(items: any[]) {
   const capped   = items.slice(0, DOT_CAP);
@@ -25,7 +25,7 @@ function renderDots(items: any[]) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}>
       {capped.map(it => (
-        <span key={it.id} style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor(it.status), display: "inline-block", flexShrink: 0 }} />
+        <span key={it.id} style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor(it), display: "inline-block", flexShrink: 0 }} />
       ))}
       {overflow > 0 && (
         <span style={{ fontSize: TYPE.micro.size, color: C.muted, border: `1px solid ${C.rule}`, borderRadius: 8, padding: "0 4px", lineHeight: "14px", flexShrink: 0 }}>+{overflow}</span>
@@ -63,7 +63,7 @@ export default function CreatorProjects({ clients, isMobile }: CreatorProjectsPr
     const c = clients.find(cl => cl.id === pr.clientId) || {};
     const groups     = getLineGroups(c, pr);
     const allItems   = groups.flatMap(g => g.items);
-    const totalDone  = allItems.filter(it => it.status === "Delivered").length;
+    const totalDone  = allItems.filter((it: any) => it.done).length;
     const totalAll   = allItems.length;
     const dl         = dLeft(pr.deliveryDate);
     const isOD       = !isDone && pr.deliveryDate && dl !== null && dl < 0;
@@ -100,7 +100,7 @@ export default function CreatorProjects({ clients, isMobile }: CreatorProjectsPr
 
         {/* Expanded body */}
         {isOpen && groups.map(g => {
-          const done_   = g.items.filter((it: any) => it.status === "Delivered").length;
+          const done_   = g.items.filter((it: any) => it.done).length;
           const total_  = g.items.length;
           const complete = done_ === total_;
           const cs       = ccCatStyle(g.category);
@@ -118,9 +118,9 @@ export default function CreatorProjects({ clients, isMobile }: CreatorProjectsPr
               </div>
               {subOpen && g.items.map((it: any) => (
                 <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: isMobile ? "8px 12px 8px 28px" : "7px 13px 7px 32px", borderTop: `1px solid ${C.rule}`, background: C.white }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor(it.status), display: "inline-block", flexShrink: 0 }} />
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor(it), display: "inline-block", flexShrink: 0 }} />
                   <span style={{ fontSize: isMobile ? TYPE.body.size : TYPE.subtext.size, color: C.black, flex: 1 }}>{it.name}</span>
-                  <span style={{ fontSize: TYPE.label.size, color: stColor(it.status), flexShrink: 0 }}>{it.status}</span>
+                  <span style={{ fontSize: TYPE.label.size, color: stColor(it), flexShrink: 0 }}>{shownStatus(it.status)}</span>
                 </div>
               ))}
             </div>

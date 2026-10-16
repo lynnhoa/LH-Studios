@@ -5,8 +5,20 @@
 // ─────────────────────────────────────────────────────────────
 
 import { catInfo } from "./constants";
+import { addM, addD, today } from "./formatters";
 
-export const WS_STATUSES = ["Not started", "Created", "Reviewed", "Delivered", "Posted"] as const;
+// ── One status rule for Creator and Manager ───────────────────
+// Not started → Created → Delivered → Posted. An item is DONE when it
+// reached its category's last step: Brand Collab is posted by the
+// creator (Posted); UGC + Editorial are handed over (Delivered — a
+// later Posted still counts as done). Old "Reviewed" = Created.
+export const WS_STATUSES = ["Not started", "Created", "Delivered", "Posted"] as const;
+const RANK: Record<string, number> = { "Not started": 0, "Created": 1, "Reviewed": 1, "Finished": 2, "Delivered": 2, "Posted": 3 };
+export const statusRank  = (st: string) => RANK[st] ?? 0;
+export const shownStatus = (st: string) => (st === "Reviewed" ? "Created" : st === "Finished" ? "Delivered" : st || "Not started");
+export const finalStatus = (cat: string) => (cat === "Influencer" ? "Posted" : "Delivered");
+export const isDoneStatus = (st: string, cat: string) => statusRank(st) >= statusRank(finalStatus(cat));
+export const doneWord     = (cat: string) => (cat === "Influencer" ? "posted" : "delivered");
 
 // ── Category helpers ──────────────────────────────────────────
 // Accepts the full line object (preferred) or a bare name string (legacy).
@@ -36,28 +48,51 @@ export const wsCatPill = ccCatStyle;
 
 // ── Work lines: what has to be produced for a project ────────
 // One entry per deliverable line; a package with contents becomes
-// one entry per included deliverable. Item ids: `${key}_q${n}`.
+// one entry per included deliverable; deliverables of SIGNED
+// amendments are added once; a retainer repeats its lines for every
+// month that has started. Item ids: `${key}_q${n}` (month 1 keeps
+// the old ids, so existing ticks stay).
 const SKIP = ["usage","excl","rush","revision","whitelisting","aspect","raw footage","kill","pinned","link in bio"];
 
-export interface WorkLine { key: string; li: number; name: string; note: string; qty: number; cat: string; line: any; }
+export interface WorkLine { key: string; li: number; name: string; note: string; qty: number; cat: string; line: any; month?: number; deadline?: string | null; }
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+export function retainerMonths(pr: any): { m: number; start: string; end: string }[] {
+  const retMo = Number(pr?.qd?.retMo) || 0;
+  if (!pr?.qd?.retainer || !retMo) return [];
+  const from = (pr.statusHistory || []).find((h: any) => h.status === "production")?.at || pr.date || today();
+  const out: { m: number; start: string; end: string }[] = [];
+  for (let m = 1; m <= retMo; m++) {
+    const start = addM(from, m - 1);
+    if (m > 1 && start > today()) break;
+    out.push({ m, start, end: addD(addM(from, m), -1) });
+  }
+  return out;
+}
 
 export function wsLines(pr: any): WorkLine[] {
   const out: WorkLine[] = [];
-  const add = (ln: any, li: number, prefix: string, source: string) => {
+  const add = (ln: any, li: number, prefix: string, source: string, month?: number, deadline?: string | null) => {
     if (!ln?.name) return;
     if (SKIP.some(s => ln.name.toLowerCase().includes(s))) return;
     const qty  = parseInt(ln.qty) || 1;
     const incl = Array.isArray(ln.includes) ? ln.includes.filter((x: any) => x && x.n) : [];
+    const mTag = month ? `M${pad2(month)}` : "";
     if (ln.kind === "package" && incl.length) {
       incl.forEach((inc: any, k: number) => {
-        out.push({ key: `${prefix}_ln${li}_p${k}`, li, name: inc.n, note: [source, ln.name].filter(Boolean).join(" · "), qty: (parseInt(inc.qty) || 1) * qty, cat: ln.cat, line: { ...ln, name: inc.n } });
+        out.push({ key: `${prefix}_ln${li}_p${k}`, li, name: inc.n, note: [mTag, source, ln.name].filter(Boolean).join(" · "), qty: (parseInt(inc.qty) || 1) * qty, cat: ln.cat, line: { ...ln, name: inc.n }, month, deadline });
       });
       return;
     }
-    out.push({ key: `${prefix}_ln${li}`, li, name: ln.name, note: [source, ln.note || ""].filter(Boolean).join(" · "), qty, cat: ln.cat, line: ln });
+    out.push({ key: `${prefix}_ln${li}`, li, name: ln.name, note: [mTag, source, ln.note || ""].filter(Boolean).join(" · "), qty, cat: ln.cat, line: ln, month, deadline });
   };
-  (pr?.qd?.lines || []).forEach((ln: any, li: number) => add(ln, li, `${pr.id}`, ""));
-  // deliverables added by a SIGNED amendment are produced too
+  const months = retainerMonths(pr);
+  if (months.length) {
+    months.forEach(({ m, end }) => (pr?.qd?.lines || []).forEach((ln: any, li: number) => add(ln, li, m === 1 ? `${pr.id}` : `${pr.id}_m${m}`, "", m, end)));
+  } else {
+    (pr?.qd?.lines || []).forEach((ln: any, li: number) => add(ln, li, `${pr.id}`, ""));
+  }
   (pr?.amendments || []).filter((a: any) => a.signed && a.doc?.kind !== "extension").forEach((a: any) => {
     (a.lines || []).forEach((ln: any, li: number) => add(ln, li, `${pr.id}_a${a.id}`, a.aNo || "Amendment"));
   });
@@ -66,53 +101,70 @@ export function wsLines(pr: any): WorkLine[] {
 
 export const wsItemIds = (w: WorkLine): string[] => Array.from({ length: w.qty }, (_, q) => `${w.key}_q${q}`);
 
-// ── Line groups (projects view) ───────────────────────────────
-export function getLineGroups(c: any, pr: any): any[] {
-  const groups: any[] = [];
+// Date the item reached its final step (only while it is still done)
+export function doneDateOf(pr: any, id: string, cat: string): string | null {
+  const st = (pr?.workspaceStatus || {})[id] || "Not started";
+  if (!isDoneStatus(st, cat)) return null;
+  const hist = ((pr?.workspaceStatusHistory || {})[id] || []) as any[];
+  const hit = [...hist].reverse().find(h => isDoneStatus(h.status, cat));
+  return hit?.date || null;
+}
+
+// ── Every work item of one project (any project status) ───────
+export function projectItems(pr: any, c?: any): any[] {
+  const items: any[] = [];
   wsLines(pr).forEach(w => {
-    const cat     = getWsCategory(w.line);
-    const lineKey = `${w.key}_${cat}`;
-    let grp = groups.find(g => g.lineKey === lineKey);
-    if (!grp) { grp = { lineKey, lineName: w.name, category: cat, items: [] }; groups.push(grp); }
     wsItemIds(w).forEach((id, q) => {
-      grp.items.push({
-        id,
-        name:   (pr.workspaceNames || {})[id] || w.name + (w.qty > 1 ? ` ${q + 1}` : ""),
-        status: (pr.workspaceStatus || {})[id] || "Not started",
+      const defaultName = w.name + (w.qty > 1 ? ` ${q + 1}` : "") + (w.month ? ` · M${pad2(w.month)}` : "");
+      const category = (pr.workspaceCats || {})[id] || getWsCategory(w.line);
+      const status = (pr.workspaceStatus || {})[id] || "Not started";
+      items.push({
+        id, lineKey: w.key, lineName: w.name, month: w.month || null,
+        name:        (pr.workspaceNames || {})[id] || defaultName,
+        defaultName,
+        lineNote:    w.note || "",
+        clientId:    c?.id || pr.clientId,
+        clientName:  c?.name || "",
+        projectId:   pr.id,
+        projectName: pr.name,
+        deadline:    w.deadline || pr.deliveryDate || null,
+        category,
+        status,
+        done:        isDoneStatus(status, category),
+        doneDate:    doneDateOf(pr, id, category),
+        notes:       (pr.workspaceNotes || {})[id] || "",
       });
     });
+  });
+  return items.filter(it => !(pr.workspaceDeleted || []).includes(it.id));
+}
+
+// ── Line groups (Creator projects / clients views) ────────────
+export function getLineGroups(c: any, pr: any): any[] {
+  const groups: any[] = [];
+  projectItems(pr, c).forEach(it => {
+    const lineKey = `${it.lineKey}_${it.category}`;
+    let grp = groups.find(g => g.lineKey === lineKey);
+    if (!grp) { grp = { lineKey, lineName: it.lineName + (it.month ? ` · M${pad2(it.month)}` : ""), category: it.category, items: [] }; groups.push(grp); }
+    grp.items.push(it);
   });
   return groups;
 }
 
-// ── Workspace items (flat list for workspace tab) ─────────────
+// ── Workspace items (projects in production) ──────────────────
 export function getWsItems(clients: any[]): any[] {
-  const items: any[] = [];
-  clients.forEach(c => {
-    c.projects.filter((pr: any) => pr.status === "production").forEach((pr: any) => {
-      wsLines(pr).forEach(w => {
-        wsItemIds(w).forEach((id, q) => {
-          const defaultName = w.name + (w.qty > 1 ? ` ${q + 1}` : "");
-          items.push({
-            id,
-            name:         (pr.workspaceNames || {})[id] || defaultName,
-            defaultName,
-            lineNote:     w.note || "",
-            clientId:     c.id,
-            clientName:   c.name,
-            projectId:    pr.id,
-            projectName:  pr.name,
-            deadline:     pr.deliveryDate || null,
-            category:     getWsCategory(w.line),
-            status:       (pr.workspaceStatus || {})[id] || "Not started",
-            plannerDate:  (pr.workspacePlanner || {})[id] || null,
-            notes:        (pr.workspaceNotes || {})[id] || "",
-          });
-        });
-      });
-    });
-  });
-  return items;
+  return (clients || []).flatMap((c: any) => (c.projects || [])
+    .filter((pr: any) => pr.status === "production")
+    .flatMap((pr: any) => projectItems(pr, c)));
+}
+
+// ── Done items across all projects (dashboard output) ─────────
+export function allDoneItems(clients: any[]): any[] {
+  return (clients || []).flatMap((c: any) => (c.projects || [])
+    .filter((pr: any) => ["production", "invoiced", "paid"].includes(pr.status) || pr.paid)
+    .flatMap((pr: any) => projectItems(pr, c)))
+    .filter(it => it.done && it.doneDate)
+    .sort((a, b) => String(b.doneDate).localeCompare(String(a.doneDate)));
 }
 
 // ── Date helpers ──────────────────────────────────────────────
@@ -144,38 +196,16 @@ export function plannerDayLabel(d: string | null): string | null {
   return ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(d).getDay()];
 }
 
-// ── Get all delivered items across all clients ────────────────
-export function getAllDelivered(clients: any[], allItems: any[]) {
-  const out: any[] = [];
-  clients.forEach(c => c.projects.forEach((pr: any) => {
-    const hist = pr.workspaceStatusHistory || {};
-    Object.entries(hist).forEach(([id, entries]: any) => {
-      const lastDelivered = [...(entries || [])].reverse().find((e: any) => e.status === "Delivered");
-      if (lastDelivered) {
-        const item = allItems.find(it => it.id === id);
-        if (item) out.push({ ...item, deliveredDate: lastDelivered.date });
-      }
-    });
-  }));
-  return out.sort((a, b) => new Date(b.deliveredDate).getTime() - new Date(a.deliveredDate).getTime());
-}
-
-
-// ── Category progress per project — port of old App.tsx getCatProgress ──
-export function getCatProgress(pr: any, clients: any[]): Record<string, { total: number; created: number; posted: number; allCreated: boolean }> {
-  const cl = clients.find((c: any) => c.projects.some((p: any) => p.id === pr.id));
-  if (!cl) return {};
-  const cats: Record<string, { total: number; created: number; posted: number; allCreated: boolean }> = {};
-  wsLines(pr).forEach(w => {
-    const cat = getWsCategory(w.line);
-    wsItemIds(w).forEach(id => {
-      const st = (pr.workspaceStatus || {})[id] || "Not started";
-      if (!cats[cat]) cats[cat] = { total: 0, created: 0, posted: 0, allCreated: false };
-      cats[cat].total++;
-      if (["Created","Reviewed","Delivered","Posted"].includes(st)) cats[cat].created++;
-      if (st === "Posted") cats[cat].posted++;
-    });
+// ── Category progress per project (Manager production box) ────
+export interface CatProgress { total: number; created: number; done: number; allCreated: boolean; allDone: boolean; doneDate: string | null; }
+export function getCatProgress(pr: any, _clients?: any[]): Record<string, CatProgress> {
+  const cats: Record<string, CatProgress> = {};
+  projectItems(pr).forEach(it => {
+    const c = cats[it.category] || (cats[it.category] = { total: 0, created: 0, done: 0, allCreated: false, allDone: false, doneDate: null });
+    c.total++;
+    if (statusRank(it.status) >= 1) c.created++;
+    if (it.done) { c.done++; if (it.doneDate && (!c.doneDate || it.doneDate > c.doneDate)) c.doneDate = it.doneDate; }
   });
-  Object.keys(cats).forEach(k => { cats[k].allCreated = cats[k].total > 0 && cats[k].created === cats[k].total; });
+  Object.values(cats).forEach(c => { c.allCreated = c.total > 0 && c.created === c.total; c.allDone = c.total > 0 && c.done === c.total; if (!c.allDone) c.doneDate = null; });
   return cats;
 }

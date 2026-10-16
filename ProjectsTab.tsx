@@ -370,7 +370,7 @@ function ProjectRow({
           {pr.status === "production" && (
             <div style={{ marginBottom: 12 }}>
               <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Production</p>
-              <ProductionSection pr={pr} clients={clients} cl={cl} upP={upP} isMobile={isMobile} />
+              <ProductionSection pr={pr} clients={clients} cl={cl} upP={upP} isMobile={isMobile} clientsHook={clientsHook} />
             </div>
           )}
 

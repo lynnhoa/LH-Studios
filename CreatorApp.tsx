@@ -151,6 +151,7 @@ export default function CreatorApp({
           <CreatorDashboard
             clients={clientsHook.clients}
             isMobile={isMobile}
+            onOpen={(tab) => setNav(tab === "workspace" ? NAV_WORKSPACE : NAV_PROJECTS)}
           />
         )}
 

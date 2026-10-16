@@ -235,6 +235,7 @@ export interface Project {
   workspaceNotes:         Record<string, string>;
   workspaceDeleted:       string[];
   workspacePlanner:       Record<string, string>;
+  workspaceCats:          Record<string, string>;   // category chosen per workspace item (quote stays unchanged)
   managerStatus:          Record<string, any>;
   documents:              DocRecord[];
   statusHistory:          { status: string; at: string }[];          // every status change with its date

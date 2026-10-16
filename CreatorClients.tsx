@@ -35,7 +35,7 @@ export default function CreatorClients({ clients, isMobile, onSelChange }: Creat
     return (
       <div style={{ display: "flex", flexDirection: "column" as const, gap: 5, marginTop: 8 }}>
         {getLineGroups(c, pr).map(g => {
-          const done    = g.items.filter((it: any) => it.status === "Delivered").length;
+          const done    = g.items.filter((it: any) => it.done).length;
           const total   = g.items.length;
           const complete = done === total;
           const cs       = ccCatStyle(g.category);
@@ -91,7 +91,7 @@ export default function CreatorClients({ clients, isMobile, onSelChange }: Creat
         {allPr.map((pr: any, i: number) => {
           const groups     = getLineGroups(c, pr);
           const allItems_  = groups.flatMap((g: any) => g.items);
-          const totalDone  = allItems_.filter((it: any) => it.status === "Delivered").length;
+          const totalDone  = allItems_.filter((it: any) => it.done).length;
           const totalAll   = allItems_.length;
           const dl          = dLeft(pr.deliveryDate);
           const isOD        = pr.status === "production" && pr.deliveryDate && dl !== null && dl < 0;
