@@ -12,6 +12,7 @@ import ManagerApp       from "./ManagerApp";
 import CreatorApp       from "./CreatorApp";
 import { Loading, SaveToast, LoadErrorBanner } from "./atoms";
 import PlaceholderApp from "./PlaceholderApp";
+import OutreachApp from "./OutreachApp";
 import { editLock, reloadAll } from "./saveStatus";
 import { newVersionAvailable } from "./appVersion";
 import { supabase, supabaseConfigured } from "./useSupabase";
@@ -244,6 +245,8 @@ function AppInner() {
           switchTo={switchTo}
           banners={banners}
         />
+      ) : role === "outreach" ? (
+        <OutreachApp userId={userId} settings={settings} signOut={signOut} switchTo={switchTo} banners={banners} />
       ) : (
         <PlaceholderApp app={role || "planner"} settings={settings} signOut={signOut} switchTo={switchTo} banners={banners} />
       )}

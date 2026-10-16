@@ -105,5 +105,6 @@ export const SIZE = {
 } as const;
 
 // ─── LAYOUT ──────────────────────────────────────────────────
-export const BREAKPOINT = 768;
+export const BREAKPOINT = 768;    // phone below, iPad from here
+export const WIDE       = 1200;   // desktop from here
 export const Z = { nav: 100, menu: 200, modal: 500, dialog: 600, toast: 700 } as const;
