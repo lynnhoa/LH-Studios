@@ -6,7 +6,6 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef, createElement } from "react";
-import { createRoot } from "react-dom/client";
 import { C } from "./constants";
 import A4Document, { senderOf } from "./A4Document";
 import type { DocView } from "./docs";
@@ -183,53 +182,4 @@ export default function DocPages({ doc, settings, client, lang, scale = 1, shado
       ))}
     </>
   );
-}
-
-// ─── Off-screen render + download (bulk) ───────────────────────
-async function waitForStableLayout(el: HTMLElement) {
-  const frame = () => new Promise(r => requestAnimationFrame(() => r(null)));
-  await frame(); await frame();
-  let last = -1, stable = 0;
-  for (let t = 0; t < 25 && stable < 3; t++) {
-    await new Promise(r => setTimeout(r, 100));
-    const h = el.scrollHeight * 1000 + el.querySelectorAll("[data-pdf-page]").length;
-    if (h === last) stable++; else { stable = 0; last = h; }
-  }
-  const fonts: any = (document as any).fonts;
-  if (fonts?.ready) await fonts.ready;
-}
-
-export interface DownloadItem { doc: DocView; settings: any; client?: any; filename: string; }
-
-export async function downloadDocs(items: DownloadItem[], onProgress?: (msg: string) => void): Promise<void> {
-  if (!items.length) return;
-  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-    import("html2canvas"),
-    import("jspdf"),
-  ]);
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i];
-    if (onProgress) onProgress(`Saving ${i + 1} / ${items.length} — ${it.doc.docNo || "draft"}`);
-    const wrap = document.createElement("div");
-    wrap.style.cssText = "position:fixed;left:-10000px;top:0;width:595px;z-index:-1;background:#faf9f7;";
-    document.body.appendChild(wrap);
-    const root = createRoot(wrap);
-    try {
-      root.render(createElement(DocPages, { doc: it.doc, settings: it.settings, client: it.client, lang: it.doc.lang || "en", shadow: false }));
-      await waitForStableLayout(wrap);
-      const pages = Array.from(wrap.querySelectorAll("[data-pdf-page]")) as HTMLElement[];
-      const pdf = new (jsPDF as any)({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
-      for (let p = 0; p < pages.length; p++) {
-        if (p > 0) pdf.addPage();
-        const canvas = await (html2canvas as any)(pages[p], { scale: 2, useCORS: true, backgroundColor: "#faf9f7" });
-        pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pw, ph);
-      }
-      pdf.save(`${it.filename}.pdf`);
-    } finally {
-      root.unmount();
-      wrap.remove();
-    }
-    if (i < items.length - 1) await new Promise(r => setTimeout(r, 400));
-  }
 }

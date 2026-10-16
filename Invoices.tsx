@@ -10,16 +10,16 @@ import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt, fmtD, today } from "./formatters";
 import { Segmented } from "./atoms";
 import PDFModal from "./PDFModal";
-import { downloadDocs } from "./DocPages";
-import { invoiceRows, invoicesCsv, invoiceTypeLabel, docFileName, STATUS_LABEL, isOpenInvoice, isPaidInvoice, isOverdue } from "./docs";
-import type { InvoiceRow } from "./docs";
+import { downloadInvoiceReport } from "./InvoiceReport";
+import { invoiceRows, invoicesCsv, invoiceTypeLabel, invoicePeriods, STATUS_LABEL, isOpenInvoice, isPaidInvoice, isOverdue, MONTH_DE } from "./docs";
+import type { InvoiceRow, InvoicePeriod } from "./docs";
 
-const MO_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const MO_LONG = MONTH_DE;
 
-function downloadCsv(rows: InvoiceRow[], label: string) {
+function downloadCsv(rows: InvoiceRow[], filename: string) {
   const blob = new Blob(["\uFEFF" + invoicesCsv(rows)], { type: "text/csv;charset=utf-8;" });
   const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a"); a.href = url; a.download = `${label.replace(/\s/g, "_")}.csv`; a.click();
+  const a    = document.createElement("a"); a.href = url; a.download = `${filename}.csv`; a.click();
   URL.revokeObjectURL(url);
 }
 
@@ -48,16 +48,26 @@ export default function Invoices({ clients, settings, isMobile, filterTab }: Inv
                 : st === "paid"    ? allRows.filter(r => isPaidInvoice(r.doc))
                 : allRows;
 
-  const bulkDownload = async (list: InvoiceRow[]) => {
-    if (!list.length || bulkStatus) return;
-    setDropOpen(false);
-    setBulkStatus(`Preparing ${list.length} invoice${list.length > 1 ? "s" : ""}…`);
+  // ── Downloads: one row per year / month, each as PDF or CSV ──
+  // Always ALL finalized invoices of that period (the filter above is only for viewing)
+  const periods: InvoicePeriod[] = invoicePeriods(allRows);
+  const brand = (settings?.company || settings?.name || "LH Studio").trim();
+  const fileFor = (p: InvoicePeriod) => `${brand} – Invoices ${p.key}`;
+  const [dlErr, setDlErr] = useState<string | null>(null);
+
+  const downloadPdf = async (p: InvoicePeriod) => {
+    if (bulkStatus) return;
+    setDropOpen(false); setDlErr(null);
+    setBulkStatus("Preparing PDF…");
     try {
-      await downloadDocs(list.map(r => ({ doc: r.doc, settings, client: r.client, filename: docFileName(r.doc) })), msg => setBulkStatus(msg));
+      await downloadInvoiceReport({ rows: p.rows, title: `Invoices · ${p.label}`, filename: fileFor(p), settings, byMonth: p.kind === "year" });
+    } catch (e: any) {
+      setDlErr(e?.message || "The PDF couldn't be created.");
     } finally {
       setBulkStatus(null);
     }
   };
+  const downloadCsvFor = (p: InvoicePeriod) => { setDropOpen(false); setDlErr(null); downloadCsv(p.rows, fileFor(p)); };
 
   // Group by year → month
   const grouped: { year: number; months: { month: number; rows: InvoiceRow[] }[] }[] = [];
@@ -66,7 +76,6 @@ export default function Invoices({ clients, settings, isMobile, filterTab }: Inv
     let mg = yg.months.find(m => m.month === r.month); if (!mg) { mg = { month: r.month, rows: [] }; yg.months.push(mg); }
     mg.rows.push(r);
   });
-  const monthOptions = grouped.flatMap(yg => yg.months.map(mg => ({ label: `${MO_LONG[mg.month]} ${yg.year}`, rows: mg.rows })));
 
   const btnStyle: any = { height: 28, padding: "0 10px", border: `1px solid ${C.rule}`, borderRadius: 2, background: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.07em", color: C.muted, display: "flex", alignItems: "center", whiteSpace: "nowrap" as const };
   const stCol = (st: string) => st === "paid" ? C.green : st === "cancelled" ? C.red : C.amber;
@@ -80,37 +89,34 @@ export default function Invoices({ clients, settings, isMobile, filterTab }: Inv
       {/* ── HEADER ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap" as const, gap: 8 }}>
         <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: 0 }}>Invoices</h2>
-        <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-          {/* Bulk download by month */}
-          <div style={{ position: "relative" }}>
-            {dropOpen && <div style={{ position: "fixed", inset: 0, zIndex: 199 }} onClick={() => setDropOpen(false)} />}
-            <div style={{ display: "flex", alignItems: "center", border: `1px solid ${C.rule}`, borderRadius: 2, overflow: "hidden" }}>
-              <span style={{ ...btnStyle, border: "none", borderRadius: 0, borderRight: `1px solid ${C.rule}`, paddingRight: 9, cursor: "default", color: bulkStatus ? C.light : C.muted }}>
-                {bulkStatus || "Download"}
-              </span>
-              <button onClick={() => !bulkStatus && setDropOpen(o => !o)} style={{ ...btnStyle, border: "none", borderRadius: 0, padding: "0 8px", position: "relative", zIndex: 200, opacity: bulkStatus ? 0.4 : 1 }}>▾</button>
-            </div>
-            {dropOpen && monthOptions.length > 0 && (
-              <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, boxShadow: "0 4px 16px rgba(0,0,0,0.08)", minWidth: 170, zIndex: 200, maxHeight: 260, overflowY: "auto" }}>
-                {monthOptions.map((opt, i) => (
-                  <button key={i} onClick={() => bulkDownload(opt.rows)}
-                    style={{ display: "block", width: "100%", padding: "8px 13px", background: "none", border: "none", borderBottom: i < monthOptions.length - 1 ? `1px solid ${C.rule}` : "none", cursor: "pointer", textAlign: "left" as const, fontFamily: SANS, fontSize: TYPE.micro.size, color: C.muted, boxSizing: "border-box" as const }}>
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {/* CSV export */}
-          <button onClick={() => downloadCsv(rows, st === "all" ? "all_invoices" : `${st}_invoices`)} title="Export as CSV" style={btnStyle}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M7 9l-3-3M7 9l3-3M2 11h10" stroke={C.muted} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        <div style={{ position: "relative" }}>
+          {dropOpen && <div style={{ position: "fixed", inset: 0, zIndex: 199 }} onClick={() => setDropOpen(false)} />}
+          <button
+            onClick={() => { if (periods.length && !bulkStatus) setDropOpen(o => !o); }}
+            disabled={!periods.length || !!bulkStatus}
+            title={periods.length ? "Download a year or month as PDF or CSV" : "No invoices yet"}
+            style={{ ...btnStyle, height: 36, padding: "0 14px", position: "relative", zIndex: 200, opacity: periods.length ? 1 : 0.4, cursor: periods.length && !bulkStatus ? "pointer" : "default", color: C.black }}>
+            {bulkStatus || (periods.length ? "Download ▾" : "No invoices yet")}
           </button>
+          {dropOpen && (
+            <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, boxShadow: "0 4px 16px rgba(0,0,0,0.08)", minWidth: 250, zIndex: 200, maxHeight: 320, overflowY: "auto" }}>
+              {periods.map((p, i) => (
+                <div key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: p.kind === "year" ? "9px 12px" : "6px 12px 6px 22px", borderTop: i > 0 && p.kind === "year" ? `1px solid ${C.rule}` : "none" }}>
+                  <span style={{ flex: 1, fontFamily: SANS, fontSize: TYPE.label.size, color: p.kind === "year" ? C.black : C.muted, fontWeight: p.kind === "year" ? 600 : 400 }}>{p.label}</span>
+                  <button onClick={() => downloadPdf(p)} style={{ ...btnStyle, height: 30 }}>PDF</button>
+                  <button onClick={() => downloadCsvFor(p)} style={{ ...btnStyle, height: 30 }}>CSV</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       <div style={{ marginBottom: 6 }}>
         <Segmented<F> options={[["all", `All · ${count("all")}`], ["unpaid", `Unpaid · ${count("unpaid")}`], ["overdue", `Overdue · ${count("overdue")}`], ["paid", `Paid · ${count("paid")}`]]} value={st} onChange={setSt} />
       </div>
+
+      {dlErr && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "6px 0" }}>{dlErr}</p>}
 
       {rows.length === 0 && (
         <p style={{ fontSize: TYPE.label.size, color: C.muted }}>{allRows.length ? "No invoices in this view." : "No invoices yet. Invoices appear here once they are finalized."}</p>
@@ -150,12 +156,6 @@ export default function Invoices({ clients, settings, isMobile, filterTab }: Inv
                       </div>
                     </div>
                     <span style={{ fontFamily: SERIF, fontSize: TYPE.subtext.size, color: C.black, flexShrink: 0 }}>{fmt(d.gross)}</span>
-                    <button
-                      onClick={e => { e.stopPropagation(); bulkDownload([r]); }}
-                      disabled={!!bulkStatus}
-                      style={{ fontSize: TYPE.micro.size, padding: "4px 9px", border: `1px solid ${C.rule}`, borderRadius: 2, background: "none", cursor: bulkStatus ? "default" : "pointer", color: C.muted, fontFamily: SANS, letterSpacing: "0.06em", flexShrink: 0, whiteSpace: "nowrap" as const }}>
-                      PDF
-                    </button>
                   </div>
                 );
               })}

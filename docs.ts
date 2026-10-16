@@ -4,7 +4,7 @@
 // No UI. Used by the data layer, the PDF renderer and the lists.
 // ─────────────────────────────────────────────────────────────
 
-import { r2, today, addD } from "./formatters";
+import { r2, today, addD, fmtD } from "./formatters";
 import type { DocRecord, DocKind, DocStatus } from "./types";
 
 // ─── NUMBERS ─────────────────────────────────────────────────
@@ -308,14 +308,58 @@ export function clientMoney(c: any, todayStr: string) {
   };
 }
 
-// CSV with German number format (semicolon-free, quoted)
-export function invoicesCsv(rows: InvoiceRow[]): string {
+// ─── INVOICE DOWNLOADS (year / month: PDF + CSV) ─────────────
+export const MONTH_DE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+
+// Oldest first — the order a bookkeeper reads
+export const sortForReport = (rows: InvoiceRow[]) =>
+  [...rows].sort((a, b) => a.dateStr.localeCompare(b.dateStr) || String(a.doc.docNo).localeCompare(String(b.doc.docNo)));
+
+export interface InvoicePeriod { key: string; label: string; kind: "year" | "month"; rows: InvoiceRow[]; }
+
+// Every year and month that has invoices, newest first (year row, then its months)
+export function invoicePeriods(rows: InvoiceRow[]): InvoicePeriod[] {
+  const out: InvoicePeriod[] = [];
+  const years = Array.from(new Set(rows.map(r => r.year))).filter(Boolean).sort((a, b) => b - a);
+  years.forEach(y => {
+    const yRows = rows.filter(r => r.year === y);
+    out.push({ key: String(y), label: String(y), kind: "year", rows: yRows });
+    Array.from(new Set(yRows.map(r => r.month))).sort((a, b) => b - a).forEach(m => {
+      out.push({ key: `${y}-${pad(m + 1, 2)}`, label: `${MONTH_DE[m]} ${y}`, kind: "month", rows: yRows.filter(r => r.month === m) });
+    });
+  });
+  return out;
+}
+
+// Status as of today: Open / Overdue / Paid / Cancelled (a Storno itself has none)
+export function reportStatus(d: DocRecord, todayStr: string = today()): string {
+  if (d.subtype === "storno") return "—";
+  if (d.status === "cancelled") return "Cancelled";
+  if (d.status === "paid") return "Paid";
+  if (d.status === "sent") return d.dueDate && d.dueDate < todayStr ? "Overdue" : "Open";
+  return STATUS_LABEL[d.status] || d.status;
+}
+
+// Totals: a cancelled invoice and its Storno cancel each other out
+export function invoiceTotals(rows: InvoiceRow[]) {
+  let net = 0, vat = 0, gross = 0, paid = 0, open = 0;
+  rows.forEach(r => {
+    const d = r.doc;
+    net += Number(d.net) || 0; vat += Number(d.vat) || 0; gross += Number(d.gross) || 0;
+    if (isPaidInvoice(d)) paid += Number(d.gross) || 0;
+    if (isOpenInvoice(d)) open += Number(d.gross) || 0;
+  });
+  return { count: rows.length, net: r2(net), vat: r2(vat), gross: r2(gross), paid: r2(paid), open: r2(open) };
+}
+
+// CSV for German Excel / Numbers: semicolons, decimal comma, dates 15.10.2026
+export function invoicesCsv(rows: InvoiceRow[], todayStr: string = today()): string {
   const num = (n: number) => (Number(n) || 0).toFixed(2).replace(".", ",");
   const head = ["Invoice No.", "Date", "Client", "Project", "Type", "Net €", "VAT €", "Gross €", "Status", "Paid on", "Cancels"];
-  const lines = [head, ...rows.map(r => [
-    r.doc.docNo, r.doc.docDate || "", r.cName, r.pr.name, invoiceTypeLabel(r.doc),
-    num(r.doc.net), num(r.doc.vat), num(r.doc.gross), STATUS_LABEL[r.doc.status] || r.doc.status,
-    r.doc.paidAt || "", r.doc.data?.cancelsNo || "",
+  const lines = [head, ...sortForReport(rows).map(r => [
+    r.doc.docNo, r.doc.docDate ? fmtD(r.doc.docDate) : "", r.cName, r.pr.name, invoiceTypeLabel(r.doc),
+    num(r.doc.net), num(r.doc.vat), num(r.doc.gross), reportStatus(r.doc, todayStr),
+    r.doc.paidAt ? fmtD(r.doc.paidAt) : "", r.doc.data?.cancelsNo || "",
   ])];
-  return lines.map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+  return lines.map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\r\n");
 }
