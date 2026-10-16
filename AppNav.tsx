@@ -9,11 +9,14 @@ import { initials } from "./formatters";
 
 export interface MenuItem { key: string; label: string; active?: boolean; onClick: () => void; }
 
+// Compact, balanced rows: 13 px text in 36 px rows (same for Manager and Creator)
+const MENU_W   = 212;
+const ROW_H    = 36;
 const itemStyle = (active: boolean, color: string): any => ({
-  display: "flex", alignItems: "center", width: "100%", padding: "11px 16px",
-  background: active ? "rgba(0,0,0,0.03)" : "none", border: "none", cursor: "pointer",
-  textAlign: "left" as const, fontFamily: SANS, fontSize: TYPE.label.size, color,
-  letterSpacing: "0.04em", boxSizing: "border-box" as const, minHeight: 44,
+  display: "flex", alignItems: "center", width: "100%", height: ROW_H, padding: "0 14px",
+  background: active ? "rgba(0,0,0,0.035)" : "none", border: "none", cursor: "pointer",
+  textAlign: "left" as const, fontFamily: SANS, fontSize: 13, color,
+  letterSpacing: "0.01em", boxSizing: "border-box" as const,
 });
 
 export function AvatarMenu({ settings, roleLabel, items, switchLabel, onSwitch, onSignOut, dropLeft = false }: {
@@ -37,18 +40,25 @@ export function AvatarMenu({ settings, roleLabel, items, switchLabel, onSwitch, 
       </button>
 
       {open && (
-        <div style={{ position: "absolute", ...(dropLeft ? { left: 0 } : { right: 0 }), top: "calc(100% + 13px)", background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, boxShadow: "0 4px 20px rgba(0,0,0,0.10)", minWidth: 200, zIndex: Z.menu }}>
-          <div style={{ padding: "12px 16px 10px", borderBottom: `1px solid ${C.rule}` }}>
-            <p style={{ fontSize: TYPE.subtext.size, fontFamily: SERIF, color: C.black, margin: "0 0 2px" }}>{settings?.name || settings?.company || "Lynn Hoa"}</p>
-            <p style={{ fontSize: TYPE.micro.size, fontFamily: SANS, color: C.light, margin: 0, letterSpacing: "0.10em", textTransform: "uppercase" as const }}>{roleLabel} · Private</p>
+        <div role="menu" style={{ position: "absolute", ...(dropLeft ? { left: 0 } : { right: 0 }), top: "calc(100% + 8px)", width: MENU_W, background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, boxShadow: "0 6px 20px rgba(0,0,0,0.10)", zIndex: Z.menu }}>
+          {/* who you are */}
+          <div style={{ padding: "10px 14px 9px", borderBottom: `1px solid ${C.rule}` }}>
+            <p style={{ fontSize: 15, lineHeight: 1.2, fontFamily: SERIF, color: C.black, margin: 0 }}>{settings?.name || settings?.company || "Lynn Hoa"}</p>
+            <p style={{ fontSize: TYPE.micro.size, fontFamily: SANS, color: C.light, margin: "2px 0 0", letterSpacing: "0.10em", textTransform: "uppercase" as const }}>{roleLabel} · Private</p>
           </div>
-          {items.map(it => (
-            <button key={it.key} onClick={() => run(it.onClick)} style={itemStyle(!!it.active, it.active ? C.black : C.muted)}>{it.label}</button>
-          ))}
-          <div style={{ borderTop: `1px solid ${C.rule}` }} />
-          <button onClick={() => run(onSwitch)} style={itemStyle(false, C.muted)}>{switchLabel}</button>
-          <div style={{ borderTop: `1px solid ${C.rule}` }} />
-          <button onClick={() => run(onSignOut)} style={itemStyle(false, C.red)}>Sign Out</button>
+          {/* pages */}
+          {items.length > 0 && (
+            <div style={{ padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
+              {items.map(it => (
+                <button key={it.key} role="menuitem" onClick={() => run(it.onClick)} style={itemStyle(!!it.active, it.active ? C.black : C.muted)}>{it.label}</button>
+              ))}
+            </div>
+          )}
+          {/* switch + sign out together */}
+          <div style={{ padding: "4px 0" }}>
+            <button role="menuitem" onClick={() => run(onSwitch)} style={itemStyle(false, C.muted)}>{switchLabel}</button>
+            <button role="menuitem" onClick={() => run(onSignOut)} style={itemStyle(false, C.red)}>Sign Out</button>
+          </div>
         </div>
       )}
     </div>
