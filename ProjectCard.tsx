@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { C, SANS, SERIF, TYPE, expiryColor, expiryTint } from "./constants";
 import { fmt, fmtD, addM, today, dLeft } from "./formatters";
+import { projectLicenses, ACTION_LABEL } from "./licenses";
 import { B, StatusBadge } from "./atoms";
 import PDFModal from "./PDFModal";
 import { sortDocs, docLabel } from "./docs";
@@ -43,27 +44,18 @@ function LicenseLine({ label, end }: { label: string; end: string }) {
 }
 
 function ProjectLicenseTracker({ pr }: { pr: any }) {
-  if (!pr || !pr.qd) return null;
-  const lines = pr.qd?.lines || [];
-  let mo: number | null = pr.qd?.mo && pr.qd.mo > 0 ? pr.qd.mo : null;
-  if (!mo) {
-    for (const l of lines) {
-      const m = l.usageLabel ? String(l.usageLabel).match(/(\d+)\s*month/i) : null;
-      if (m) { mo = parseInt(m[1]); break; }
-    }
-  }
-  const originalUsageEnd = pr.usageEndOverride || (pr.deliveryDate && mo && mo > 0 ? addM(pr.deliveryDate, mo) : null);
-  const renewalUDates    = (pr.renewals || []).filter((r: any) => r && r.type !== "excl" && r.endDate).map((r: any) => r.endDate as string);
-  const allUsageDates    = [originalUsageEnd, ...renewalUDates].filter(Boolean) as string[];
-  const activeUsageEnd   = allUsageDates.length > 0 ? allUsageDates.reduce((a,b) => a > b ? a : b) : null;
-  const exclDates        = (pr.renewals || []).filter((r: any) => r && r.type === "excl" && r.endDate).map((r: any) => r.endDate as string);
-  const activeExclEnd    = exclDates.length > 0 ? exclDates.reduce((a,b) => a > b ? a : b) : null;
-  if (!activeUsageEnd && !activeExclEnd) return null;
+  const lic = projectLicenses(pr);
+  if (!lic.length) return null;
   return (
     <div style={{ marginBottom: 8, marginTop: 4 }}>
-      <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 4px" }}>License Tracker</p>
-      {activeUsageEnd && <LicenseLine label="Usage Rights" end={activeUsageEnd} />}
-      {activeExclEnd  && <LicenseLine label="Exclusivity"  end={activeExclEnd}  />}
+      <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 4px" }}>Licenses</p>
+      {lic.map(l => (l.action || !l.alerts)
+        ? <div key={l.key} style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", marginBottom: 3, border: `1px solid ${C.rule}`, borderRadius: 2 }}>
+            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{l.label}</span>
+            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{fmtD(l.end)}{l.action ? ` · ${ACTION_LABEL[l.action.action] || l.action.action}` : ""}</span>
+          </div>
+        : <LicenseLine key={l.key} label={l.label + (l.extended ? " (renewed)" : "")} end={l.end} />
+      )}
     </div>
   );
 }

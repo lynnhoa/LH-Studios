@@ -118,12 +118,14 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
     if (!canSave || saving) return;
     setSaving(true); setErr(null);
     const optLabelText = [
-      uMode !== "none" ? (uMode === "predefined" ? optName(uOpt?.l) : `Usage ${uN} ${uUnit}`) : "",
-      eMode !== "none" ? (eMode === "predefined" ? optName(eOpt?.l) : `Exclusivity ${eN} ${eUnit}`) : "",
+      uMode !== "none" ? (uMode === "predefined" ? optName(uOpt?.l) : `Usage ${uN} ${uUnit} (${optName(uOpt?.l)})`) : "",
+      eMode !== "none" ? (eMode === "predefined" ? optName(eOpt?.l) : `Exclusivity ${eN} ${eUnit} (${optName(eOpt?.l)})`) : "",
     ].filter(Boolean).join(" + ") || "Renewal";
+    const usageEnd = uMode !== "none" && uFee > 0 ? uEnd : null;
+    const exclEnd  = eMode !== "none" && eFee > 0 ? eEnd : null;
     const record = isAmendMode
-      ? { aNo: "", lines: doc.data.lines, amendTotal: totalFee, origTotal: p.amount || 0, signed: false, doc: {} }
-      : { optLabel: optLabelText, type: uMode !== "none" ? "usage" : "excl", startDate: startD, endDate: endD, fee: totalFee, rNo: "", signed: true, paid: false, doc: {} };
+      ? { aNo: "", lines: doc.data.lines, amendTotal: totalFee, origTotal: p.amount || 0, signed: false, doc: { kind: "extension", usageEnd, exclEnd } }
+      : { optLabel: optLabelText, startDate: startD, endDate: endD, usageEnd, exclEnd, fee: totalFee, rNo: "", signed: true, paid: false, doc: {} };
     try { await onSave(record, { ...doc, lang: lang as any }); }
     catch (e: any) { setErr(e?.message || "Save failed"); setSaving(false); }
   };

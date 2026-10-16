@@ -156,7 +156,9 @@ export interface Amendment {
   amendTotal:  number;
   origTotal:   number;
   signed:      boolean;
-  doc:         Partial<QuoteDoc>;
+  signedAt?:   string | null;       // date the client signed it (amount counts from then)
+  invoiceDocId?: string | null;     // invoice that billed it (none yet = goes on the next invoice)
+  doc:         Partial<QuoteDoc> & { kind?: string; usageEnd?: string | null; exclEnd?: string | null };
   createdAt?:  string;
 }
 
@@ -170,6 +172,8 @@ export interface Renewal {
   optLabel:   string;               // "6 months + 3 months" | "Custom"
   startDate:  string;               // ISO date
   endDate:    string | null;        // ISO date
+  usageEnd?:  string | null;        // new end of the usage rights (if renewed)
+  exclEnd?:   string | null;        // new end of the exclusivity (if renewed)
   fee:        number;
   signed:     boolean;              // saveRenewal sets true
   paid:       boolean;
@@ -233,6 +237,8 @@ export interface Project {
   workspacePlanner:       Record<string, string>;
   managerStatus:          Record<string, any>;
   documents:              DocRecord[];
+  statusHistory:          { status: string; at: string }[];          // every status change with its date
+  licenseState:           Record<string, { action: string; at: string }>;  // saved license actions
   createdAt?:             string;
 }
 

@@ -43,18 +43,23 @@ export interface WorkLine { key: string; li: number; name: string; note: string;
 
 export function wsLines(pr: any): WorkLine[] {
   const out: WorkLine[] = [];
-  (pr?.qd?.lines || []).forEach((ln: any, li: number) => {
+  const add = (ln: any, li: number, prefix: string, source: string) => {
     if (!ln?.name) return;
     if (SKIP.some(s => ln.name.toLowerCase().includes(s))) return;
     const qty  = parseInt(ln.qty) || 1;
     const incl = Array.isArray(ln.includes) ? ln.includes.filter((x: any) => x && x.n) : [];
     if (ln.kind === "package" && incl.length) {
       incl.forEach((inc: any, k: number) => {
-        out.push({ key: `${pr.id}_ln${li}_p${k}`, li, name: inc.n, note: ln.name, qty: (parseInt(inc.qty) || 1) * qty, cat: ln.cat, line: { ...ln, name: inc.n } });
+        out.push({ key: `${prefix}_ln${li}_p${k}`, li, name: inc.n, note: [source, ln.name].filter(Boolean).join(" · "), qty: (parseInt(inc.qty) || 1) * qty, cat: ln.cat, line: { ...ln, name: inc.n } });
       });
       return;
     }
-    out.push({ key: `${pr.id}_ln${li}`, li, name: ln.name, note: ln.note || "", qty, cat: ln.cat, line: ln });
+    out.push({ key: `${prefix}_ln${li}`, li, name: ln.name, note: [source, ln.note || ""].filter(Boolean).join(" · "), qty, cat: ln.cat, line: ln });
+  };
+  (pr?.qd?.lines || []).forEach((ln: any, li: number) => add(ln, li, `${pr.id}`, ""));
+  // deliverables added by a SIGNED amendment are produced too
+  (pr?.amendments || []).filter((a: any) => a.signed && a.doc?.kind !== "extension").forEach((a: any) => {
+    (a.lines || []).forEach((ln: any, li: number) => add(ln, li, `${pr.id}_a${a.id}`, a.aNo || "Amendment"));
   });
   return out;
 }

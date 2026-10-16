@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt, fmtD, addM, uid, today } from "./formatters";
 import { I, S, B, Lbl, Tag, UBadge, TSel, TSelWrap, StatusBadge } from "./atoms";
+import { projectLicenses } from "./licenses";
 import ClientDetail from "./ClientDetail";
 
 interface ClientListProps {
@@ -236,13 +237,9 @@ export default function ClientList({
         const active = [...c.projects].sort((a: any, b: any) =>
           ((STATUS_PRI[a.paid ? "paid" : a.status] ?? 99) - (STATUS_PRI[b.paid ? "paid" : b.status] ?? 99)) ||
           String(b.date || "").localeCompare(String(a.date || "")))[0];
-        const allRights = c.projects.flatMap((pr: any) => {
-          const items: { prName: string; end: string; label: string }[] = [];
-          const ue = usageEnd(pr);
-          if (ue) items.push({ prName: pr.name, end: ue, label: "Usage" });
-          (pr.renewals || []).filter((r: any) => r.type === "excl" && r.endDate).forEach((r: any) => items.push({ prName: pr.name, end: r.endDate, label: "Excl." }));
-          return items;
-        });
+        const allRights = c.projects.flatMap((pr: any) =>
+          projectLicenses(pr, c).filter(l => l.alerts && !l.action)
+            .map(l => ({ prName: pr.name, end: l.end, label: l.kind === "excl" ? "Excl." : "Usage" })));
         const multiProj = new Set(allRights.map((r: any) => r.prName)).size > 1;
         return (
           <div

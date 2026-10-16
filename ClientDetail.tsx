@@ -6,6 +6,7 @@ import { useState } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
 import { fmt, fmtD, addM, today, uid } from "./formatters";
 import { I, S, B, Lbl, Tag, ConfirmDialog } from "./atoms";
+import { clientMoney } from "./docs";
 import ProjectCard from "./ProjectCard";
 
 interface ClientDetailProps {
@@ -23,20 +24,6 @@ interface ClientDetailProps {
   onClearHighlight: () => void;
 }
 
-function financials(c: any) {
-  const paid = c.projects.filter((pr: any) => pr.paid);
-  const tot  = paid.reduce((s: number, pr: any) => s + pr.amount, 0);
-  const last = [...paid].sort((a: any,b: any) => b.date.localeCompare(a.date))[0];
-  return {
-    total:    tot,
-    last:     last?.amount || 0,
-    lastDate: last?.date   || null,
-    avg:      paid.length  ? Math.round(tot / paid.length) : 0,
-    count:    paid.length,
-    out:      c.projects.filter((pr: any) => pr.status === "invoiced" && !pr.paid).reduce((s: number,pr: any) => s + pr.amount, 0),
-  };
-}
-
 export default function ClientDetail({
   cl, clients, isMobile, settings, rc, clientsHook,
   onGoToCalc, onRevise, onAmend, setSel, highlightedQNo, onClearHighlight,
@@ -52,7 +39,7 @@ export default function ClientDetail({
   const [editPrNameVal, setEditPrNameVal] = useState("");
   const [askDelete,     setAskDelete]     = useState<null | { blocked: boolean; text: string }>(null);
 
-  const f = financials(cl);
+  const f = clientMoney(cl, today());     // from the invoices themselves
 
   const saveClient = async () => {
     await clientsHook.updateClient(cl.id, ed);
@@ -190,11 +177,11 @@ export default function ClientDetail({
         <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "13px 14px" }}>
           <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const, margin: "0 0 10px" }}>Financial Snapshot</p>
           {[
-            ["Total Revenue", fmt(f.total)],
-            ["Paid Projects", `${f.count}`],
-            ["Last Invoice",  f.lastDate ? `${fmt(f.last)} · ${fmtD(f.lastDate)}` : "—"],
-            ["Avg. Deal",     f.avg ? fmt(f.avg) : "—"],
-            ["Outstanding",   fmt(f.out)],
+            ["Revenue (paid)",   fmt(f.revenue)],
+            ["Paid invoices",    `${f.paidCount}`],
+            ["Last invoice",     f.last ? `${fmt(f.last.amount)} · ${fmtD(f.last.date)}` : "—"],
+            ["Avg. deal",        f.avgDeal ? fmt(f.avgDeal) : "—"],
+            ["Outstanding",      f.outstanding ? `${fmt(f.outstanding)}${f.overdue ? ` · ${f.overdue} overdue` : ""}` : fmt(0)],
           ].map(([lbl, val]) => (
             <div key={lbl} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${C.rule}` }}>
               <span style={{ fontSize: TYPE.subtext.size, color: C.muted }}>{lbl}</span>

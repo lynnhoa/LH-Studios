@@ -24,6 +24,10 @@ interface UseClientsReturn {
   error:        string | null;
   loadError:    string | null;      // data could not be loaded (shown with Retry)
   reload:       () => Promise<void>;
+  markAmendmentSigned:    (clientId: string, projectId: string, docId: string, date: string, settings: any) => Promise<DocRecord>;
+  createAmendmentInvoice: (clientId: string, projectId: string, amendId: string, settings: any) => Promise<DocRecord>;
+  removeProject:          (clientId: string, projectId: string) => Promise<void>;
+  setLicenseAction:       (clientId: string, projectId: string, key: string, action: string | null) => Promise<void>;
 
   // Client ops
   addClient:    (c: Omit<Client, "id" | "projects" | "createdAt">) => Promise<string | null>;
@@ -209,6 +213,8 @@ function rowToProject(
     workspacePlanner:       row.workspace_planner ?? {},
     managerStatus:          row.manager_status    ?? {},
     documents,
+    statusHistory:          Array.isArray(row.status_history) ? row.status_history : [],
+    licenseState:           row.license_state && typeof row.license_state === "object" ? row.license_state : {},
     createdAt:              row.created_at,
   };
 }
@@ -221,6 +227,8 @@ function rowToAmendment(row: any): Amendment {
     amendTotal:  row.amend_total  ?? 0,
     origTotal:   row.orig_total   ?? 0,
     signed:      row.signed       ?? false,
+    signedAt:    row.signed_at    ?? null,
+    invoiceDocId: row.invoice_doc_id ?? null,
     doc:         row.doc          ?? {},
     createdAt:   row.created_at,
   };
@@ -234,6 +242,8 @@ function rowToRenewal(row: any): Renewal {
     startDate: row.start_date ?? "",
     // fallback to legacy usage_end for rows created before Phase 0 migration
     endDate:   row.end_date   ?? row.usage_end ?? null,
+    usageEnd:  row.usage_end  ?? null,
+    exclEnd:   row.excl_end   ?? null,
     fee:       row.fee        ?? row.total_fee ?? 0,
     signed:    row.signed     ?? true,
     paid:      row.paid       ?? false,
@@ -458,9 +468,16 @@ export function useClients(userId: string | null): UseClientsReturn {
       updates: Partial<Project>
     ): Promise<string | null> => {
       if (!userId) return "Not authenticated";
+      // every status change is recorded with its date (used for "since" counters)
+      const before = clientsRef.current.find(c => c.id === clientId)?.projects.find(p => p.id === projectId);
+      if (before && updates.status !== undefined && updates.status !== before.status && updates.statusHistory === undefined) {
+        updates = { ...updates, statusHistory: [...(before.statusHistory || []), { status: updates.status, at: today() }] };
+      }
       updateProjectLocal(clientId, projectId, p => ({ ...p, ...updates }));
 
       const dbUpdates: Record<string, any> = { updated_at: new Date().toISOString() };
+      if (updates.statusHistory   !== undefined) dbUpdates.status_history    = updates.statusHistory;
+      if (updates.licenseState    !== undefined) dbUpdates.license_state     = updates.licenseState;
       if (updates.projectNo       !== undefined) dbUpdates.project_no        = updates.projectNo;
       if (updates.name            !== undefined) dbUpdates.name              = updates.name;
       if (updates.status          !== undefined) dbUpdates.status            = updates.status;
@@ -586,7 +603,7 @@ export function useClients(userId: string | null): UseClientsReturn {
 
       const projNow = clientsRef.current.find(c => c.id === clientId)?.projects.find(p => p.id === projectId);
       const amend   = projNow?.amendments.find(a => a.id === amendId);
-      const amendTotal = amend?.amendTotal ?? 0;
+      const amendTotal = amend?.signed ? (amend?.amendTotal ?? 0) : 0;   // unsigned ones were never added
       const newAmount  = (projNow?.amount ?? 0) - amendTotal;
 
       updateProjectLocal(clientId, projectId, p => ({
@@ -827,25 +844,22 @@ export function useClients(userId: string | null): UseClientsReturn {
 
   // Amendment / renewal rows with a known id (so documents can link to them)
   const insertAmendmentRow = async (clientId: string, project: Project, id: string, a: Omit<Amendment, "id" | "createdAt">) => {
+    // an amendment only changes the project value once it is signed (markAmendmentSigned)
     const newA: Amendment = { ...a, id };
-    const newAmount = (project.amount ?? 0) + a.amendTotal;
     const { error } = await supabase.from("amendments").insert({
       id, user_id: userId, project_id: project.id,
       a_no: a.aNo, lines: a.lines, amend_total: a.amendTotal,
-      orig_total: a.origTotal, signed: a.signed, doc: a.doc,
+      orig_total: a.origTotal, signed: !!a.signed, doc: a.doc || {},
     });
     if (error) throw new Error(error.message);
-    updateProjectLocal(clientId, project.id, p => ({ ...p, amendments: [...p.amendments, newA], amount: newAmount }));
-    const { error: amtErr } = await supabase.from("projects")
-      .update({ amount: newAmount, updated_at: new Date().toISOString() })
-      .eq("id", project.id).eq("user_id", userId);
-    if (amtErr) throw new Error(amtErr.message);
+    updateProjectLocal(clientId, project.id, p => ({ ...p, amendments: [...p.amendments, newA] }));
   };
 
   const insertRenewalRow = async (clientId: string, projectId: string, id: string, r: Omit<Renewal, "id" | "createdAt">) => {
     const { error } = await supabase.from("renewals").insert({
       id, user_id: userId, project_id: projectId,
       r_no: r.rNo || "", opt_label: r.optLabel, start_date: r.startDate || null, end_date: r.endDate || null,
+      usage_end: r.usageEnd || null, excl_end: r.exclEnd || null,
       fee: r.fee, signed: r.signed, paid: r.paid, doc: {},
     });
     if (error) throw new Error(error.message);
@@ -980,12 +994,14 @@ export function useClients(userId: string | null): UseClientsReturn {
           amount, paid: false, date: docDate, deliveryDate: "", usageEndOverride: null, notes: "",
           qd: content, amendments: [], renewals: [], monthlyInvoices: [],
           workspaceStatus: {}, workspaceStatusHistory: {}, workspaceNames: {}, workspaceNotes: {},
-          workspaceDeleted: [], workspacePlanner: {}, managerStatus: {}, documents: [], createdAt: now,
+          workspaceDeleted: [], workspacePlanner: {}, managerStatus: {}, documents: [],
+          statusHistory: [{ status: "quoted", at: docDate }], licenseState: {}, createdAt: now,
         };
         const { error: pe } = await supabase.from("projects").insert({
           id: projectId, user_id: userId, client_id: client.id, project_no: pno, name,
           status: "quoted", amount, paid: false, date: docDate, delivery_date: null,
           usage_end_override: null, notes: "", quote_doc: content, created_at: now,
+          status_history: [{ status: "quoted", at: docDate }],
         });
         if (pe) throw new Error(pe.message);
         const cid = client.id;
@@ -1022,7 +1038,7 @@ export function useClients(userId: string | null): UseClientsReturn {
       const { sender: _s, client: _c, ...content } = next.data || {};
       await writeProject(clientId, projectId, {
         qd: { ...(project.qd || {}), ...content, total: amountOf(content) } as any,
-        amount: amountOf(content) + (project.amendments || []).reduce((s, a) => s + (a.amendTotal || 0), 0),
+        amount: amountOf(content) + (project.amendments || []).filter(a => a.signed).reduce((s, a) => s + (a.amendTotal || 0), 0),
       });
     }
     // amendment drafts: keep the amendment row and the project amount in sync
@@ -1037,7 +1053,9 @@ export function useClients(userId: string | null): UseClientsReturn {
         ...p,
         amendments: p.amendments.map(a => a.id === cur.amendmentId ? { ...a, lines: next.data?.lines || [], amendTotal: newTotal } : a),
       }));
-      if (newTotal !== oldTotal) await writeProject(clientId, projectId, { amount: r2(project.amount + newTotal - oldTotal) });
+      // only a signed amendment is part of the project value (drafts aren't signed)
+      const signed = (project.amendments || []).find(a => a.id === cur.amendmentId)?.signed;
+      if (signed && newTotal !== oldTotal) await writeProject(clientId, projectId, { amount: r2(project.amount + newTotal - oldTotal) });
     }
     return d;
   };
@@ -1139,14 +1157,16 @@ export function useClients(userId: string | null): UseClientsReturn {
     const existing = projectInvoice(project);
     if (existing) return existing;
     const pno = await ensureProjectNo(clientId, project);
-    const amendLines = (project.amendments || []).flatMap(a => a.lines || []);
-    const content = { ...baseInvoiceContent(client, project, pno), lines: [...(project.qd?.lines || []), ...amendLines] };
+    const toBill = unbilledAmendments(project);                      // only SIGNED amendments
+    const content = { ...baseInvoiceContent(client, project, pno), lines: [...(project.qd?.lines || []), ...toBill.flatMap(a => a.lines || [])] };
     const dd = today();
-    return insertDoc(clientId, projectId, {
+    const d = await insertDoc(clientId, projectId, {
       kind: "invoice", subtype: "project", docNo: "", status: "draft",
       docDate: dd, dueDate: dueFrom(dd), periodStart: project.deliveryDate || dd, periodEnd: null,
       lang: currentContract(project)?.lang || "en", data: content, ...money("invoice", content, settings, client),
     });
+    await linkAmendments(clientId, projectId, toBill.map(a => a.id), d.id);
+    return d;
   };
 
   const createMonthlyInvoice = async (clientId: string, projectId: string, settings: any) => {
@@ -1161,13 +1181,16 @@ export function useClients(userId: string | null): UseClientsReturn {
       const amt = parseFloat(l.amt) || 0;
       return { ...l, amt: skip.some(s => (l.name || "").toLowerCase().includes(s)) ? amt : Math.round(amt * 0.8) };
     });
-    const content = { ...baseInvoiceContent(client, project, pno), lines, retainer: true, retMo: project.qd?.retMo, monthNo: m };
+    const toBill = unbilledAmendments(project);                      // signed amendments go on the next month once
+    const content = { ...baseInvoiceContent(client, project, pno), lines: [...lines, ...toBill.flatMap(a => a.lines || [])], retainer: true, retMo: project.qd?.retMo, monthNo: m };
     const dd = today();
-    return insertDoc(clientId, projectId, {
+    const d = await insertDoc(clientId, projectId, {
       kind: "invoice", subtype: "monthly", monthNo: m, docNo: "", status: "draft",
       docDate: dd, dueDate: dueFrom(dd), periodStart: monthStart(dd), periodEnd: monthEnd(dd),
       lang: currentContract(project)?.lang || "en", data: content, ...money("invoice", content, settings, client),
     });
+    await linkAmendments(clientId, projectId, toBill.map(a => a.id), d.id);
+    return d;
   };
 
   const finalizeInvoice = async (clientId: string, projectId: string, docId: string, settings: any) => {
@@ -1229,8 +1252,10 @@ export function useClients(userId: string | null): UseClientsReturn {
   const cancelInvoice = async (clientId: string, projectId: string, docId: string, settings: any) => {
     const { project } = findProject(clientId, projectId);
     const cur = findDoc(project, docId);
+    const billed = (project.amendments || []).filter(a => a.invoiceDocId === docId).map(a => a.id);
     if (cur.status === "draft") {
       await dropDoc(clientId, projectId, docId);
+      await linkAmendments(clientId, projectId, billed, null);
       if (cur.subtype === "renewal" && cur.renewalId) {
         const e = await deleteRenewal(clientId, projectId, cur.renewalId);
         if (e) throw new Error(e);
@@ -1249,6 +1274,7 @@ export function useClients(userId: string | null): UseClientsReturn {
       net: -cur.net, vat: -cur.vat, gross: -cur.gross, vatRate: cur.vatRate,
     });
     await patchDoc(clientId, projectId, docId, { status: "cancelled" });
+    await linkAmendments(clientId, projectId, billed, null);
     if (cur.subtype === "project") await writeProject(clientId, projectId, { status: "production", paid: false });
     if (cur.subtype === "monthly" && project.paid) await writeProject(clientId, projectId, { status: "production", paid: false });
     if (cur.subtype === "renewal" && cur.renewalId) {
@@ -1288,7 +1314,7 @@ export function useClients(userId: string | null): UseClientsReturn {
     const lines = doc?.data?.lines || a.lines || [];
     const amendTotal = linesSum(lines);
     const amendId = uid();
-    await insertAmendmentRow(clientId, project, amendId, { ...a, aNo, lines, amendTotal, origTotal: project.amount, signed: false, doc: {} });
+    await insertAmendmentRow(clientId, project, amendId, { ...a, aNo, lines, amendTotal, origTotal: project.amount, signed: false, doc: (a as any).doc || {} });
     const content = { ...(doc?.data || {}), lines, origTotal: project.amount, amendTotal, contractNo: contractNo(pno), quoteNo: quoteNo(pno) };
     return insertDoc(clientId, projectId, {
       kind: "amendment", docNo: aNo, revision: 0, status: "draft",
@@ -1315,8 +1341,91 @@ export function useClients(userId: string | null): UseClientsReturn {
     if (e) throw new Error(e);
   };
 
+  // ── Amendments: signed → counts and gets billed ───────────
+  const unbilledAmendments = (project: Project) =>
+    (project.amendments || []).filter(a => a.signed && !a.invoiceDocId && (Number(a.amendTotal) || 0) !== 0);
+
+  const linkAmendments = async (clientId: string, projectId: string, ids: string[], docId: string | null) => {
+    for (const id of ids) {
+      const { error } = await supabase.from("amendments").update({ invoice_doc_id: docId }).eq("id", id).eq("user_id", userId);
+      if (error) throw new Error(error.message);
+    }
+    if (ids.length) updateProjectLocal(clientId, projectId, p => ({
+      ...p, amendments: p.amendments.map(a => ids.includes(a.id) ? { ...a, invoiceDocId: docId } : a),
+    }));
+  };
+
+  const markAmendmentSigned = async (clientId: string, projectId: string, docId: string, date: string, settings: any) => {
+    const { client, project } = findProject(clientId, projectId);
+    let cur = findDoc(project, docId);
+    if (cur.kind !== "amendment") throw new Error("This document is not an amendment.");
+    if (cur.status === "signed") return cur;
+    if (cur.status === "draft") cur = await markDocSent(clientId, projectId, docId, settings);
+    const at = date || today();
+    const d = await patchDoc(clientId, projectId, docId, { status: "signed", signedAt: at });
+    const a = (project.amendments || []).find(x => x.id === cur.amendmentId);
+    if (a && !a.signed) {
+      const { error } = await supabase.from("amendments").update({ signed: true, signed_at: at }).eq("id", a.id).eq("user_id", userId);
+      if (error) throw new Error(error.message);
+      updateProjectLocal(clientId, projectId, p => ({ ...p, amendments: p.amendments.map(x => x.id === a.id ? { ...x, signed: true, signedAt: at } : x) }));
+      await writeProject(clientId, projectId, { amount: r2((Number(project.amount) || 0) + (Number(a.amendTotal) || 0)) });
+      // a project invoice that is still a draft takes the new lines right away
+      const inv = projectInvoice(project);
+      if (!project.qd?.retainer && inv && inv.status === "draft" && !a.invoiceDocId) {
+        const content = { ...inv.data, lines: [...(inv.data?.lines || []), ...(a.lines || [])] };
+        await patchDoc(clientId, projectId, inv.id, { data: content, ...money("invoice", content, settings, client) });
+        await linkAmendments(clientId, projectId, [a.id], inv.id);
+      }
+    }
+    return d;
+  };
+
+  // Signed amendment with no next invoice to ride on → its own invoice
+  const createAmendmentInvoice = async (clientId: string, projectId: string, amendId: string, settings: any) => {
+    const { client, project } = findProject(clientId, projectId);
+    const a = (project.amendments || []).find(x => x.id === amendId);
+    if (!a) throw new Error("Amendment not found.");
+    if (!a.signed) throw new Error("Mark the amendment signed first.");
+    if (a.invoiceDocId) {
+      const ex = (project.documents || []).find(x => x.id === a.invoiceDocId);
+      if (ex) return ex;
+    }
+    const pno = await ensureProjectNo(clientId, project);
+    const content = { ...baseInvoiceContent(client, project, pno), lines: a.lines || [], amendmentNo: a.aNo };
+    const dd = today();
+    const d = await insertDoc(clientId, projectId, {
+      kind: "invoice", subtype: "amendment", amendmentId: a.id, docNo: "", status: "draft",
+      docDate: dd, dueDate: dueFrom(dd), periodStart: a.signedAt || dd, periodEnd: null,
+      lang: currentContract(project)?.lang || "en", data: content, ...money("invoice", content, settings, client),
+    });
+    await linkAmendments(clientId, projectId, [a.id], d.id);
+    return d;
+  };
+
+  // ── Delete a project (never one with issued invoices) ──────
+  const removeProject = async (clientId: string, projectId: string) => {
+    const { project } = findProject(clientId, projectId);
+    const issued = (project.documents || []).filter(d => d.kind === "invoice" && d.status !== "draft").length;
+    if (issued) throw new Error("This project has issued invoices. Invoices must be kept, so it can't be deleted.");
+    for (const t of ["documents", "amendments", "renewals", "deliverables"]) {
+      const { error } = await supabase.from(t).delete().eq("project_id", projectId).eq("user_id", userId);
+      if (error) throw new Error(error.message);
+    }
+    const e = await deleteProject(clientId, projectId);
+    if (e) throw new Error(e);
+  };
+
+  // ── License actions (ignored / taken down) are saved ──────
+  const setLicenseAction = async (clientId: string, projectId: string, key: string, action: string | null) => {
+    const { project } = findProject(clientId, projectId);
+    const next = { ...(project.licenseState || {}) };
+    if (action) next[key] = { action, at: today() }; else delete next[key];
+    await writeProject(clientId, projectId, { licenseState: next });
+  };
+
   return {
     clients, loading, error, loadError, reload: fetchAll,
+    markAmendmentSigned, createAmendmentInvoice, removeProject, setLicenseAction,
     addClient, updateClient, deleteClient,
     addProject, updateProject, deleteProject, setProjectStatus,
     addAmendment, updateAmendment, deleteAmendment,

@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef } from "react";
 import { C, SERIF, TYPE, expiryColor, expiryTint } from "./constants";
 import { fmt, fmtD, fmtE, today, addM, dLeft } from "./formatters";
+import { projectLicenses, ACTION_LABEL } from "./licenses";
 import { I, B, TSel, TSelWrap, StatusBadge, ConfirmDialog } from "./atoms";
 import RenewalModal from "./RenewalModal";
 import ProductionSection from "./ProductionSection";
@@ -40,29 +41,35 @@ function LicenseLine({ label, end }: { label: string; end: string }) {
 }
 
 function ProjectLicenseTracker({ pr }: { pr: any }) {
-  if (!pr?.qd) return null;
-  let mo: number | null = pr.qd?.mo && pr.qd.mo > 0 ? pr.qd.mo : null;
-  if (!mo) {
-    for (const l of pr.qd?.lines || []) {
-      const m = l.usageLabel ? String(l.usageLabel).match(/(\d+)\s*month/i) : null;
-      if (m) { mo = parseInt(m[1]); break; }
-    }
-  }
-  const originalUE   = pr.usageEndOverride || (pr.deliveryDate && mo && mo > 0 ? addM(pr.deliveryDate, mo) : null);
-  const renewalUDates = (pr.renewals || []).filter((r: any) => r?.type !== "excl" && r?.endDate).map((r: any) => r.endDate as string);
-  const allUDates    = [originalUE, ...renewalUDates].filter(Boolean) as string[];
-  const activeUE     = allUDates.length > 0 ? allUDates.reduce((a,b) => a > b ? a : b) : null;
-  const exclDates    = (pr.renewals || []).filter((r: any) => r?.type === "excl" && r?.endDate).map((r: any) => r.endDate as string);
-  const activeExcl   = exclDates.length > 0 ? exclDates.reduce((a,b) => a > b ? a : b) : null;
-  if (!activeUE && !activeExcl) return null;
+  const lic = projectLicenses(pr);
+  if (!lic.length) return null;
   return (
     <div style={{ marginBottom: 8, marginTop: 4 }}>
-      <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 4px" }}>License</p>
-      {activeUE   && <LicenseLine label="Usage Rights" end={activeUE}   />}
-      {activeExcl && <LicenseLine label="Exclusivity"  end={activeExcl} />}
+      <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 4px" }}>Licenses</p>
+      {lic.map(l => l.action
+        ? <div key={l.key} style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", marginBottom: 3, border: `1px solid ${C.rule}`, borderRadius: 2 }}>
+            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{l.label}</span>
+            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{fmtD(l.end)} · {ACTION_LABEL[l.action.action] || l.action.action}</span>
+          </div>
+        : !l.alerts
+        ? <div key={l.key} style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", marginBottom: 3, border: `1px solid ${C.rule}`, borderRadius: 2 }}>
+            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{l.label}</span>
+            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{fmtD(l.end)}</span>
+          </div>
+        : <LicenseLine key={l.key} label={l.label + (l.extended ? " (renewed)" : "")} end={l.end} />
+      )}
     </div>
   );
 }
+
+// Days since the project entered its current status
+const sinceDays = (pr: any): number | null => {
+  const h = (pr.statusHistory || []).filter((x: any) => x.status === pr.status).pop();
+  const at = h?.at || null;
+  if (!at) return null;
+  const d = dLeft(at);
+  return d === null ? null : Math.max(0, -d);
+};
 
 // ── Single expandable project row ─────────────────────────────
 function ProjectRow({
@@ -129,10 +136,16 @@ function ProjectRow({
       if (d.status === "sent")  return [sign];
       return [];
     }
-    if (d.kind === "amendment" && d.status === "draft") return [
-      { key: "sent", label: "Mark sent", kind: "sec", run: () => h.markDocSent(cid, pid, d.id, settings) },
-      { key: "remove", label: "Remove amendment", kind: "danger", confirm: "The amendment is removed and its amount is taken off the project.", run: async () => { if (d.amendmentId) await h.removeAmendment(cid, pid, d.amendmentId); else await h.deleteDraftDocument(cid, pid, d.id); close(); } },
-    ];
+    if (d.kind === "amendment") {
+      const sign: DocAction = { key: "signed", label: "Mark signed", kind: "pri", date: "Signed on", run: (dt?: string) => h.markAmendmentSigned(cid, pid, d.id, dt || today(), settings) };
+      if (d.status === "draft") return [
+        { key: "sent", label: "Mark sent", kind: "sec", run: () => h.markDocSent(cid, pid, d.id, settings) },
+        { key: "remove", label: "Remove amendment", kind: "danger", confirm: "The amendment draft is removed. The project value doesn't change (it only counts once signed).", run: async () => { if (d.amendmentId) await h.removeAmendment(cid, pid, d.amendmentId); else await h.deleteDraftDocument(cid, pid, d.id); close(); } },
+        sign,
+      ];
+      if (d.status === "sent") return [sign];
+      return [];
+    }
     if (d.kind === "invoice" && d.subtype !== "storno") {
       if (d.status === "draft") return [
         { key: "delete", label: "Delete draft", kind: "danger", confirm: "The draft is deleted. No invoice number has been used yet.", run: async () => { await h.cancelInvoice(cid, pid, d.id, settings); close(); } },
@@ -249,7 +262,10 @@ function ProjectRow({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <span style={{ fontSize: TYPE.body.size, color: C.black, fontWeight: "500", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr.name}</span>
-                <span style={{ display: "inline-block", marginTop: 3 }}><StatusBadge status={pr.paid ? "paid" : pr.status} /></span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 3 }}>
+                  <StatusBadge status={pr.paid ? "paid" : pr.status} />
+                  {!pr.paid && sinceDays(pr) !== null && <span style={{ fontSize: TYPE.micro.size, color: C.light }}>{sinceDays(pr)} d</span>}
+                </span>
               </div>
               <span style={{ fontSize: TYPE.label.size, color: C.muted, flexShrink: 0, marginLeft: 12 }}>{pr.deliveryDate ? fmtD(pr.deliveryDate) : "—"}</span>
             </div>
@@ -259,7 +275,10 @@ function ProjectRow({
             <div style={{ minWidth: 0, paddingRight: 12 }}>
               <div style={{ fontSize: TYPE.micro.size, color: C.muted, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr._cname}</div>
               <div style={{ fontSize: TYPE.subtext.size, color: C.black, fontWeight: "500", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr.name}</div>
-              <span style={{ display: "inline-block", marginTop: 3 }}><StatusBadge status={pr.paid ? "paid" : pr.status} /></span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 3 }}>
+                <StatusBadge status={pr.paid ? "paid" : pr.status} />
+                {!pr.paid && sinceDays(pr) !== null && <span style={{ fontSize: TYPE.micro.size, color: C.light }}>{sinceDays(pr)} d</span>}
+              </span>
             </div>
             <div style={{ fontSize: TYPE.micro.size, color: C.muted, textAlign: "right" as const, paddingRight: 12 }}>{pr.deliveryDate ? fmtD(pr.deliveryDate) : "—"}</div>
             <div style={{ fontFamily: SERIF, fontSize: TYPE.subtext.size, color: C.black, textAlign: "right" as const }}>{fmt(pr.amount)}</div>
@@ -433,11 +452,29 @@ function ProjectRow({
 
             {(pr.amendments || []).map((a: any, ai: number) => amendDocsDraft(a) && (
               <B key={a.id || ai} v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber }}
-                onClick={() => setDialog({ title: `Undo amendment ${ai + 1}`, text: "The amendment is removed and its amount is taken off the project.", okLabel: "Undo amendment", danger: true, run: () => h.removeAmendment(cid, pid, a.id) })}>
+                onClick={() => setDialog({ title: `Undo amendment ${ai + 1}`, text: "The amendment draft is removed. The project value doesn't change (it only counts once signed).", okLabel: "Undo amendment", danger: true, run: () => h.removeAmendment(cid, pid, a.id) })}>
                 Undo amend {ai + 1}
               </B>
             ))}
+
+            {/* signed amendment with no next invoice to go on → its own invoice */}
+            {(pr.amendments || []).filter((a: any) => a.signed && !a.invoiceDocId && Number(a.amendTotal) !== 0 && (isRet ? !nextM : !!pInv && pInv.status !== "draft")).map((a: any) => (
+              <B key={`inv-${a.id}`} s={{ fontSize: TYPE.micro.size }} onClick={() => act(async () => openDoc(await h.createAmendmentInvoice(cid, pid, a.id, settings)))}>
+                Create invoice {a.aNo || "amendment"}
+              </B>
+            ))}
+
+            {!(pr.documents || []).some((d: any) => d.kind === "invoice" && d.status !== "draft") && (
+              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.red, borderColor: C.rule }}
+                onClick={() => setDialog({ title: `Delete "${pr.name}"?`, text: "The project and its quotes, contracts, drafts, amendments and renewals are deleted. This can't be undone.", okLabel: "Delete project", danger: true, run: () => h.removeProject(cid, pid) })}>
+                Delete project
+              </B>
+            )}
           </div>
+
+          {(pr.amendments || []).some((a: any) => a.signed && !a.invoiceDocId && Number(a.amendTotal) !== 0) && (isRet ? !!nextM : !pInv || pInv.status === "draft") && (
+            <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "8px 0 0" }}>Signed amendments go on the {isRet ? "next monthly" : "project"} invoice.</p>
+          )}
 
           {isRet && pr.status === "production" && !draftM && nextM && prevM && prevM.status !== "paid" && (
             <p style={{ fontSize: TYPE.label.size, color: C.amber, margin: "8px 0 0" }}>M{String(prevM.monthNo || "").padStart(2, "0")} is not paid yet.</p>
@@ -455,6 +492,7 @@ interface ProjectsTabProps {
   isMobile:         boolean;
   settings:         any;
   rc:               any;
+  initialFilter?:   string | null;    // from a dashboard tile: "quoted" | "active" | status
   clientsHook:      any;
   onRevise:         (pr: any, cl: any) => void;
   onAmend:          (pr: any, cl: any) => void;
@@ -465,11 +503,12 @@ interface ProjectsTabProps {
 
 export default function ProjectsTab({
   clients, isMobile, settings, rc, clientsHook,
-  onRevise, onAmend, onGoToCalc, pendingProjectQNo, onPendingClear,
+  onRevise, onAmend, onGoToCalc, pendingProjectQNo, onPendingClear, initialFilter,
 }: ProjectsTabProps) {
 
   const [expanded,      setExpanded]      = useState<string | null>(null);
-  const [statusFilter,  setStatusFilter]  = useState("all");
+  const [statusFilter,  setStatusFilter]  = useState(initialFilter || "all");
+  useEffect(() => { if (initialFilter) setStatusFilter(initialFilter); }, [initialFilter]);
   const [sortOrder,     setSortOrder]     = useState("newest");
   const [scrollTrigger, setScrollTrigger] = useState(0);  // re-scroll to row after modal close (old-app)
 
@@ -502,9 +541,11 @@ export default function ProjectsTab({
 
   const done  = all.filter((pr: any) => pr.paid).sort((a: any, b: any) => String(b.date || "").localeCompare(String(a.date || "")));
 
-  const FILTERS = [["all","All"],["production","Production"],["invoiced","Invoiced"],["contracted","Contracted"],["quoted","Quoted"]];
+  const FILTERS = [["all","All"],["active","Active (signed)"],["production","Production"],["invoiced","Invoiced"],["contracted","Contracted"],["quoted","Quoted"],["lead","Leads"]];
   const filteredActive = statusFilter === "all"
     ? active
+    : statusFilter === "active"
+    ? active.filter((pr: any) => ["contracted","production","invoiced"].includes(pr.status))
     : active.filter((pr: any) => pr.status === statusFilter || (statusFilter === "quoted" && pr.status === "revised"));
 
   const activeTotal  = active.reduce((s: number, pr: any) => s + pr.amount, 0);

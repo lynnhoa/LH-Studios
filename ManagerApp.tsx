@@ -20,6 +20,7 @@ import ProjectsTab    from "./ProjectsTab";
 import Calculator     from "./Calculator";
 import ServiceCatalog from "./ServiceCatalog";
 import Invoices       from "./Invoices";
+import Licenses       from "./LicensesPage";
 import CreatorProfile from "./CreatorProfile";
 import ChangePassword from "./ChangePassword";
 
@@ -32,6 +33,7 @@ const NAV_PROFILE    = 4;
 const NAV_PASSWORD   = 5;
 const NAV_CATALOG    = 6;
 const NAV_INVOICES   = 8;
+const NAV_LICENSES   = 9;
 
 interface ManagerAppProps {
   settings:        any;
@@ -63,6 +65,8 @@ export default function ManagerApp({
   const [clientSelReset,  setClientSelReset]  = useState(0);
   const [fromDrill,       setFromDrill]       = useState<string | null>(null);
   const [dashDrill,       setDashDrill]       = useState<any>(null);
+  const [invoiceFilter,   setInvoiceFilter]   = useState<any>(null);   // from a dashboard tile
+  const [projectFilter,   setProjectFilter]   = useState<string | null>(null);
   const [dashReset,       setDashReset]       = useState(0);
 
   useEffect(() => {
@@ -81,7 +85,7 @@ export default function ManagerApp({
   };
 
   // Navigation by the user (tabs, menu) also ends a dashboard drill context
-  const navTo = (n: number) => { setFromDrill(null); goTo(n); };
+  const navTo = (n: number) => { setFromDrill(null); setInvoiceFilter(null); setProjectFilter(null); goTo(n); };
 
   const goToDash = () => {
     setFromDrill(null);
@@ -159,6 +163,7 @@ export default function ManagerApp({
     ["Change Password",  NAV_PASSWORD],
     ["Service Catalog",  NAV_CATALOG],
     ["Invoices",         NAV_INVOICES],
+    ["Licenses",         NAV_LICENSES],
   ];
   const avatar = (dropLeft: boolean) => (
     <AvatarMenu
@@ -266,13 +271,9 @@ export default function ManagerApp({
             clients={clientsHook.clients}
             isMobile={isMobile}
             settings={settings}
-            resetKey={dashReset}
-            drill={dashDrill}
-            setDrill={setDashDrill}
-            goTo={goTo}
-            setPendingClientName={setPendingClientName}
-            setPendingProjectQNo={setPendingProjectQNo}
-            setFromDrill={setFromDrill}
+            onOpenInvoices={(f: any) => { setInvoiceFilter(f); goTo(NAV_INVOICES); }}
+            onOpenProjects={(f: string) => { setProjectFilter(f); goTo(NAV_PROJECTS); }}
+            onOpenLicenses={() => goTo(NAV_LICENSES)}
           />
         )}
 
@@ -304,6 +305,7 @@ export default function ManagerApp({
             isMobile={isMobile}
             settings={settings}
             rc={rateCardsHook.rc}
+            initialFilter={projectFilter}
             pendingProjectQNo={pendingProjectQNo}
             onPendingClear={() => setPendingProjectQNo(null)}
             onGoToCalc={goToCalc}
@@ -344,6 +346,18 @@ export default function ManagerApp({
             clients={clientsHook.clients}
             settings={settings}
             isMobile={isMobile}
+            filterTab={invoiceFilter || undefined}
+          />
+        )}
+
+        {nav === NAV_LICENSES && (
+          <Licenses
+            clients={clientsHook.clients}
+            clientsHook={clientsHook}
+            settings={settings}
+            rc={rateCardsHook.rc}
+            isMobile={isMobile}
+            onAfterRenew={(pid: string) => goToProjects(pid)}
           />
         )}
 

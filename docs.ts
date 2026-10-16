@@ -279,7 +279,33 @@ export function invoiceTypeLabel(d: DocRecord): string {
   if (d.subtype === "monthly") return `Retainer M${pad(d.monthNo || 0, 2)}`;
   if (d.subtype === "renewal") return "License renewal";
   if (d.subtype === "storno")  return "Storno";
+  if (d.subtype === "amendment") return "Amendment";
   return "Project";
+}
+
+// ─── MONEY FROM INVOICES (one source for dashboard + clients) ─
+// Revenue = paid invoices by paid date (net). A paid invoice that was
+// later cancelled no longer counts. Outstanding = issued, not paid (gross).
+export const isOpenInvoice = (d: DocRecord) => d.kind === "invoice" && d.status === "sent" && d.subtype !== "storno";
+export const isPaidInvoice = (d: DocRecord) => d.kind === "invoice" && d.status === "paid" && d.subtype !== "storno";
+export const isOverdue     = (d: DocRecord, todayStr: string) => isOpenInvoice(d) && !!d.dueDate && d.dueDate < todayStr;
+export const paidDateOf    = (d: DocRecord) => d.paidAt || d.docDate || "";
+
+export function clientMoney(c: any, todayStr: string) {
+  const docs = (c?.projects || []).flatMap((pr: any) => docsOf(pr));
+  const paid = docs.filter(isPaidInvoice);
+  const open = docs.filter(isOpenInvoice);
+  const issued = docs.filter((d: DocRecord) => d.kind === "invoice" && (d.status === "sent" || d.status === "paid") && d.subtype !== "storno")
+    .sort((a: DocRecord, b: DocRecord) => (b.docDate || "").localeCompare(a.docDate || ""));
+  const won = (c?.projects || []).filter((pr: any) => ["contracted", "production", "invoiced", "paid"].includes(pr.status) || pr.paid);
+  return {
+    revenue:     paid.reduce((s: number, d: DocRecord) => s + (Number(d.net) || 0), 0),
+    paidCount:   paid.length,
+    last:        issued[0] ? { amount: Number(issued[0].gross) || 0, date: issued[0].docDate } : null,
+    avgDeal:     won.length ? Math.round(won.reduce((s: number, pr: any) => s + (Number(pr.amount) || 0), 0) / won.length) : 0,
+    outstanding: open.reduce((s: number, d: DocRecord) => s + (Number(d.gross) || 0), 0),
+    overdue:     open.filter((d: DocRecord) => isOverdue(d, todayStr)).length,
+  };
 }
 
 // CSV with German number format (semicolon-free, quoted)

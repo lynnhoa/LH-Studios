@@ -5,12 +5,13 @@
 // filterTab prop: "unpaid" | "paid" | undefined (show all)
 // ─────────────────────────────────────────────────────────────
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE } from "./constants";
-import { fmt, fmtD } from "./formatters";
+import { fmt, fmtD, today } from "./formatters";
+import { Segmented } from "./atoms";
 import PDFModal from "./PDFModal";
 import { downloadDocs } from "./DocPages";
-import { invoiceRows, invoicesCsv, invoiceTypeLabel, docFileName, STATUS_LABEL } from "./docs";
+import { invoiceRows, invoicesCsv, invoiceTypeLabel, docFileName, STATUS_LABEL, isOpenInvoice, isPaidInvoice, isOverdue } from "./docs";
 import type { InvoiceRow } from "./docs";
 
 const MO_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -26,7 +27,7 @@ interface InvoicesProps {
   clients:    any[];
   settings:   any;
   isMobile:   boolean;
-  filterTab?: "unpaid" | "paid";
+  filterTab?: "unpaid" | "paid" | "overdue";
 }
 
 export default function Invoices({ clients, settings, isMobile, filterTab }: InvoicesProps) {
@@ -34,9 +35,17 @@ export default function Invoices({ clients, settings, isMobile, filterTab }: Inv
   const [dropOpen,   setDropOpen]   = useState(false);
   const [bulkStatus, setBulkStatus] = useState<string | null>(null);
 
+  type F = "all" | "unpaid" | "overdue" | "paid";
+  const [st, setSt] = useState<F>(filterTab || "all");
+  useEffect(() => { if (filterTab) setSt(filterTab); }, [filterTab]);
+  const todayStr = today();
   const allRows = invoiceRows(clients);
-  const rows    = filterTab === "unpaid" ? allRows.filter(r => r.doc.status === "sent" && r.doc.subtype !== "storno")
-                : filterTab === "paid"   ? allRows.filter(r => r.doc.status === "paid")
+  const count   = (f: F) => f === "unpaid" ? allRows.filter(r => isOpenInvoice(r.doc)).length
+                : f === "overdue" ? allRows.filter(r => isOverdue(r.doc, todayStr)).length
+                : f === "paid" ? allRows.filter(r => isPaidInvoice(r.doc)).length : allRows.length;
+  const rows    = st === "unpaid"  ? allRows.filter(r => isOpenInvoice(r.doc))
+                : st === "overdue" ? allRows.filter(r => isOverdue(r.doc, todayStr))
+                : st === "paid"    ? allRows.filter(r => isPaidInvoice(r.doc))
                 : allRows;
 
   const bulkDownload = async (list: InvoiceRow[]) => {
@@ -70,8 +79,7 @@ export default function Invoices({ clients, settings, isMobile, filterTab }: Inv
     <div>
       {/* ── HEADER ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap" as const, gap: 8 }}>
-        {!filterTab && <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: 0 }}>Invoices</h2>}
-        {filterTab && <div />}
+        <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: 0 }}>Invoices</h2>
         <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
           {/* Bulk download by month */}
           <div style={{ position: "relative" }}>
@@ -94,14 +102,18 @@ export default function Invoices({ clients, settings, isMobile, filterTab }: Inv
             )}
           </div>
           {/* CSV export */}
-          <button onClick={() => downloadCsv(rows, filterTab || "all_invoices")} title="Export as CSV" style={btnStyle}>
+          <button onClick={() => downloadCsv(rows, st === "all" ? "all_invoices" : `${st}_invoices`)} title="Export as CSV" style={btnStyle}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M7 9l-3-3M7 9l3-3M2 11h10" stroke={C.muted} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
         </div>
       </div>
 
+      <div style={{ marginBottom: 6 }}>
+        <Segmented<F> options={[["all", `All · ${count("all")}`], ["unpaid", `Unpaid · ${count("unpaid")}`], ["overdue", `Overdue · ${count("overdue")}`], ["paid", `Paid · ${count("paid")}`]]} value={st} onChange={setSt} />
+      </div>
+
       {rows.length === 0 && (
-        <p style={{ fontSize: TYPE.label.size, color: C.muted }}>No invoices yet. Invoices appear here once they are finalized.</p>
+        <p style={{ fontSize: TYPE.label.size, color: C.muted }}>{allRows.length ? "No invoices in this view." : "No invoices yet. Invoices appear here once they are finalized."}</p>
       )}
 
       {/* ── GROUPED LIST ── */}
@@ -134,6 +146,7 @@ export default function Invoices({ clients, settings, isMobile, filterTab }: Inv
                         <span style={{ fontSize: TYPE.micro.size, color: stCol(d.status), border: `1px solid ${stCol(d.status)}`, padding: "1px 6px", borderRadius: 2, letterSpacing: "0.06em" }}>
                           {STATUS_LABEL[d.status] || d.status}{d.paidAt ? ` · ${fmtD(d.paidAt)}` : ""}
                         </span>
+                        {isOverdue(d, todayStr) && <span style={{ fontSize: TYPE.micro.size, color: C.red }}>overdue since {fmtD(d.dueDate)}</span>}
                       </div>
                     </div>
                     <span style={{ fontFamily: SERIF, fontSize: TYPE.subtext.size, color: C.black, flexShrink: 0 }}>{fmt(d.gross)}</span>
