@@ -82,6 +82,16 @@ export const expiryColor = (daysLeft: number | null) =>
 export const expiryTint = (daysLeft: number | null) =>
   daysLeft === null ? C.bg : daysLeft < 0 ? TINT.red : daysLeft <= EXPIRY_WARN_DAYS ? TINT.amber : TINT.green;
 
+// ─── PDF PRINT COLOURS (same as Casa Castel) ─────────────────
+// White pages and darker text so documents print cleanly.
+export const PDF = {
+  page:  "#ffffff",   // page background
+  ink:   "#1a1a1a",   // body text
+  label: "#4a4540",   // labels, secondary text
+  faint: "#6b655e",   // header, footer, small notes
+  rule:  "#c9c2b8",   // lines
+} as const;
+
 // ─── SIZES (compact density, one place for the whole app) ────
 // Field text stays 16 px — iPhone zooms in on anything smaller.
 export const SIZE = {

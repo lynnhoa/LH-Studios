@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE, Z, catInfo } from "./constants";
+import { C, SANS, SERIF, TYPE, Z, catInfo, PDF } from "./constants";
 import { uid } from "./formatters";
 import { I, S, B, Lbl, Pill, Tick, ConfirmDialog, LangSwitch, BAR_BTN } from "./atoms";
 import { SETTINGS_DEFAULT } from "./rateCards";
@@ -45,24 +45,24 @@ function sectionRows(card: any, sec: any): { key: string; n: string; note?: stri
 function RCContent({ card, lang, rcSecGuards }: any) {
   const l = lang === "de";
   return (
-    <div style={{ padding: "90px 62px 130px", fontSize: 9.5, lineHeight: 1.5, fontFamily: SANS, color: C.black, background: C.bg }}>
+    <div style={{ padding: "90px 62px 130px", fontSize: 9.5, lineHeight: 1.5, fontFamily: SANS, color: PDF.ink, background: PDF.page }}>
       <div style={{ marginBottom: 22 }}>
         <h1 style={{ fontFamily: SERIF, fontSize: 19, fontWeight: "normal", margin: "0 0 4px" }}>{l ? "Preisliste" : "Rate Card"}</h1>
-        <p style={{ fontSize: 7.5, color: C.muted, margin: 0 }}>{card.sub}</p>
+        <p style={{ fontSize: 7.5, color: PDF.label, margin: 0 }}>{card.sub}</p>
       </div>
       {(card.sections || []).map((sec: any, si: number) => {
         const rows = sectionRows(card, sec);
         if (!rows.length) return null;
         return (
           <div key={si} data-rcsec={si} style={{ marginBottom: 14, paddingTop: rcSecGuards?.[si] || 0 }}>
-            <p style={{ fontSize: 6.5, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: C.muted, margin: "0 0 3px", paddingBottom: "3px", borderBottom: `1px solid ${C.rule}` }}>
+            <p style={{ fontSize: 7, letterSpacing: 0, textTransform: "uppercase" as const, color: PDF.label, margin: "0 0 3px", paddingBottom: "3px", borderBottom: `1px solid ${PDF.rule}` }}>
               {cleanSecT(sec.t)}{sectionKind(sec) === "usage" || sectionKind(sec) === "exclusivity" ? (l ? " — auf den Grundpreis" : " — added to base rate") : ""}
             </p>
             {rows.map(r => (
-              <div key={r.key} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${C.rule}` }}>
+              <div key={r.key} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${PDF.rule}` }}>
                 <div>
                   <span style={{ fontSize: 8.5 }}>{r.n}</span>
-                  {r.note && <span style={{ fontSize: 7, color: C.light, display: "block" }}>{r.note}</span>}
+                  {r.note && <span style={{ fontSize: 7, color: PDF.faint, display: "block" }}>{r.note}</span>}
                 </div>
                 <span style={{ fontFamily: SERIF, fontSize: 8.5, whiteSpace: "nowrap" as const, marginLeft: 12 }}>{r.price}</span>
               </div>
@@ -70,7 +70,7 @@ function RCContent({ card, lang, rcSecGuards }: any) {
           </div>
         );
       })}
-      {card.fine && <p style={{ fontSize: 7.5, color: C.muted, lineHeight: 1.7, marginTop: 14 }}>{card.fine}</p>}
+      {card.fine && <p style={{ fontSize: 7.5, color: PDF.label, lineHeight: 1.7, marginTop: 14 }}>{card.fine}</p>}
     </div>
   );
 }
@@ -120,21 +120,21 @@ function RCPages({ card, lang, settings, scale = 1 }: any) {
       </div>
       {Array.from({ length: numPages }, (_, i) => (
         <div key={i} style={{ width: 595 * scale, height: PAGE_H * scale, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 24px rgba(0,0,0,0.32)" }}>
-          <div data-pdf-page="true" style={{ width: 595, height: PAGE_H, overflow: "hidden", background: C.bg, position: "relative", transform: scale < 1 ? `scale(${scale})` : "none", transformOrigin: "top left" }}>
+          <div data-pdf-page="true" style={{ width: 595, height: PAGE_H, overflow: "hidden", background: PDF.page, position: "relative", transform: scale < 1 ? `scale(${scale})` : "none", transformOrigin: "top left" }}>
             <div style={{ position: "absolute", top: -i * PAGE_H, left: 0, width: 595 }}>
               <RCContent card={card} lang={lang} rcSecGuards={guards} />
             </div>
-            <div style={{ position: "absolute", bottom: 59, left: 0, right: 0, height: 28, background: C.bg, zIndex: 2, pointerEvents: "none" }} />
-            <div style={{ position: "absolute", top: 0, left: 0, right: 0, background: C.bg, zIndex: 3, borderBottom: `1px solid ${C.rule}` }}>
+            <div style={{ position: "absolute", bottom: 59, left: 0, right: 0, height: 28, background: PDF.page, zIndex: 2, pointerEvents: "none" }} />
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, background: PDF.page, zIndex: 3, borderBottom: `1px solid ${PDF.rule}` }}>
               <div style={{ padding: "13px 62px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 6, letterSpacing: "0.2em", color: C.light, textTransform: "uppercase" as const }}>{sett.company || sett.name || "Lynn Hoa"}</span>
-                <span style={{ fontSize: 6, letterSpacing: "0.2em", color: C.light, textTransform: "uppercase" as const }}>{card.label || "Rate Card"}</span>
+                <span style={{ fontSize: 7, letterSpacing: 0, color: PDF.faint, textTransform: "uppercase" as const }}>{sett.company || sett.name || "Lynn Hoa"}</span>
+                <span style={{ fontSize: 7, letterSpacing: 0, color: PDF.faint, textTransform: "uppercase" as const }}>{card.label || "Rate Card"}</span>
               </div>
             </div>
-            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: C.bg, zIndex: 3, borderTop: `1px solid ${C.rule}` }}>
-              <div style={{ padding: "26px 62px 22px", fontSize: 7, color: C.muted, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: PDF.page, zIndex: 3, borderTop: `1px solid ${PDF.rule}` }}>
+              <div style={{ padding: "26px 62px 22px", fontSize: 7, color: PDF.label, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span>{[sett.email, sett.website].filter(Boolean).join(" · ")}</span>
-                {numPages > 1 && <span style={{ letterSpacing: "0.04em", color: C.light }}>{i + 1}</span>}
+                {numPages > 1 && <span style={{ letterSpacing: 0, color: PDF.faint }}>{i + 1}</span>}
               </div>
             </div>
           </div>

@@ -28,8 +28,9 @@ export async function pagesToPdf(pages: HTMLElement[], orientation: "portrait" |
   const pdfH = pdf.internal.pageSize.getHeight();
   for (let i = 0; i < pages.length; i++) {
     if (i > 0) pdf.addPage();
-    const canvas = await (html2canvas as any)(pages[i], { scale: 2, useCORS: true, backgroundColor: "#faf9f7" });
-    pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pdfW, pdfH);
+    // Casa Castel settings: white page, JPEG at 92 % (sharp, and a fraction of the PNG size)
+    const canvas = await (html2canvas as any)(pages[i], { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+    pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, pdfW, pdfH);
   }
   return pdf;
 }

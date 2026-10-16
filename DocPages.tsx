@@ -9,7 +9,7 @@ import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { pagesToPdf, deliverPdf } from "./PDFExport";
 import { useState, useEffect, useRef, createElement } from "react";
-import { C } from "./constants";
+import { C, PDF } from "./constants";
 import A4Document, { senderOf } from "./A4Document";
 import type { DocView } from "./docs";
 
@@ -35,7 +35,9 @@ export default function DocPages({ doc, settings, client, lang, scale = 1, shado
   const isDE      = lang === "de";
   const isInvoice = doc.kind === "invoice";
   const isDraft   = doc.status === "draft";
-  const numPages  = Math.max(1, Math.ceil(docHeight / PAGE_H));
+  // pages = where the content really ends (the bottom padding is not content)
+  // plus the footer zone — a one-page document never gets an empty 2nd page
+  const numPages  = Math.max(1, Math.ceil((docHeight - 90 + 70) / PAGE_H));
 
   // ── Pagination + page-break guards ─────────────────────────
   useEffect(() => {
@@ -126,7 +128,7 @@ export default function DocPages({ doc, settings, client, lang, scale = 1, shado
         <div key={i} style={{ width: 595 * scale, height: PAGE_H * scale, overflow: "hidden", flexShrink: 0, boxShadow: shadow ? "0 4px 24px rgba(0,0,0,0.28)" : "none" }}>
           <div
             data-pdf-page="true"
-            style={{ width: 595, height: PAGE_H, overflow: "hidden", background: C.bg, position: "relative", transform: scale < 1 ? `scale(${scale})` : "none", transformOrigin: "top left" }}
+            style={{ width: 595, height: PAGE_H, overflow: "hidden", background: PDF.page, position: "relative", transform: scale < 1 ? `scale(${scale})` : "none", transformOrigin: "top left" }}
           >
             {/* A4 content — offset by page index */}
             <div ref={i === 0 ? docRef : undefined} style={{ position: "absolute", top: -i * PAGE_H, left: 0, width: 595 }}>
@@ -139,44 +141,44 @@ export default function DocPages({ doc, settings, client, lang, scale = 1, shado
             </div>
 
             {/* Footer mask (hides overflow below the last line) */}
-            <div style={{ position: "absolute", bottom: isInvoice ? 64 : 59, left: 0, right: 0, height: 28, background: C.bg, zIndex: 2, pointerEvents: "none" }} />
+            <div style={{ position: "absolute", bottom: isInvoice ? 64 : 59, left: 0, right: 0, height: 28, background: PDF.page, zIndex: 2, pointerEvents: "none" }} />
 
             {/* Header */}
-            <div style={{ position: "absolute", top: 0, left: 0, right: 0, background: C.bg, zIndex: 3, borderBottom: `1px solid ${C.rule}` }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, background: PDF.page, zIndex: 3, borderBottom: `1px solid ${PDF.rule}` }}>
               <div style={{ padding: "13px 62px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 6, letterSpacing: "0.2em", color: C.light, textTransform: "uppercase" as const }}>{s.company || s.name || "Lynn Hoa"}</span>
-                <span style={{ fontSize: 6, letterSpacing: "0.2em", color: isDraft ? C.amber : C.light, textTransform: "uppercase" as const }}>{headerRight}</span>
+                <span style={{ fontSize: 7, letterSpacing: 0, color: PDF.faint, textTransform: "uppercase" as const }}>{s.company || s.name || "Lynn Hoa"}</span>
+                <span style={{ fontSize: 7, letterSpacing: 0, color: isDraft ? C.amber : PDF.faint, textTransform: "uppercase" as const }}>{headerRight}</span>
               </div>
             </div>
 
             {/* Footer */}
-            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: C.bg, zIndex: 3, borderTop: `1px solid ${C.rule}` }}>
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: PDF.page, zIndex: 3, borderTop: `1px solid ${PDF.rule}` }}>
               {isInvoice ? (
                 <div style={{ padding: "12px 62px 18px", display: "flex", alignItems: "flex-start" }}>
-                  <div style={{ fontSize: 7, color: C.muted, lineHeight: 1.5, flex: "1 1 0", minWidth: 0, overflow: "hidden" }}>
-                    <div style={{ fontWeight: 500, color: C.black }}>{s.company || s.name || "Your Company"}</div>
+                  <div style={{ fontSize: 7, color: PDF.label, lineHeight: 1.5, flex: "1 1 0", minWidth: 0, overflow: "hidden" }}>
+                    <div style={{ fontWeight: 500, color: PDF.ink }}>{s.company || s.name || "Your Company"}</div>
                     {s.email   && <div>{s.email}</div>}
                     {s.website && <div>{s.website}</div>}
                     {s.steuernummer && <div style={{ marginTop: 4 }}>{isDE ? "St.-Nr." : "Tax No."} {s.steuernummer}</div>}
                     {s.ustIdNr && <div>{isDE ? "USt-IdNr." : "VAT ID"} {s.ustIdNr}</div>}
                   </div>
-                  <div style={{ fontSize: 7, color: C.muted, lineHeight: 1.5, flex: "1 1 0", minWidth: 0, overflow: "hidden" }}>
-                    <div style={{ fontWeight: 500, color: C.black }}>{isDE ? "Zahlungsdetails" : "Payment Details"}</div>
+                  <div style={{ fontSize: 7, color: PDF.label, lineHeight: 1.5, flex: "1 1 0", minWidth: 0, overflow: "hidden" }}>
+                    <div style={{ fontWeight: 500, color: PDF.ink }}>{isDE ? "Zahlungsdetails" : "Payment Details"}</div>
                     {s.bankName && <div>{s.bankName}</div>}
                     {s.iban     && <div>IBAN {s.iban}</div>}
                     {s.bic      && <div>BIC {s.bic}</div>}
                   </div>
-                  <div style={{ fontSize: 7, color: C.muted, lineHeight: 1.5, flex: "1 1 0", minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "space-between", alignSelf: "stretch" }}>
+                  <div style={{ fontSize: 7, color: PDF.label, lineHeight: 1.5, flex: "1 1 0", minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "space-between", alignSelf: "stretch" }}>
                     <div>
-                      {s.paypalEmail && <><div style={{ fontWeight: 500, color: C.black }}>PayPal</div><div>{s.paypalEmail}</div></>}
+                      {s.paypalEmail && <><div style={{ fontWeight: 500, color: PDF.ink }}>PayPal</div><div>{s.paypalEmail}</div></>}
                     </div>
-                    {numPages > 1 && <div style={{ fontSize: 7, color: C.light, letterSpacing: "0.04em", textAlign: "right" as const }}>{i + 1}</div>}
+                    {numPages > 1 && <div style={{ fontSize: 7, color: PDF.faint, letterSpacing: 0, textAlign: "right" as const }}>{i + 1}</div>}
                   </div>
                 </div>
               ) : (
-                <div style={{ padding: "26px 62px 22px", fontSize: 7, color: C.muted, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ padding: "26px 62px 22px", fontSize: 7, color: PDF.label, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span>{[s.email, s.website].filter(Boolean).join(" · ")}</span>
-                  {numPages > 1 && <span style={{ letterSpacing: "0.04em", color: C.light }}>{i + 1}</span>}
+                  {numPages > 1 && <span style={{ letterSpacing: 0, color: PDF.faint }}>{i + 1}</span>}
                 </div>
               )}
             </div>

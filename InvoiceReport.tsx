@@ -8,7 +8,7 @@
 
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
-import { C, SANS, SERIF } from "./constants";
+import { C, SANS, SERIF, PDF } from "./constants";
 import { fmt, fmtD, today } from "./formatters";
 import { SETTINGS_DEFAULT } from "./rateCards";
 import { invoiceTotals, invoiceTypeLabel, reportStatus, sortForReport, MONTH_DE } from "./docs";
@@ -84,10 +84,10 @@ const cell = (w: number, right?: boolean, extra: any = {}): any => ({
 function Row({ r, todayStr }: { r: InvoiceRow; todayStr: string }) {
   const d = r.doc;
   const st = reportStatus(d, todayStr);
-  const stCol = st === "Overdue" ? C.red : st === "Paid" ? C.green : st === "Cancelled" ? C.muted : C.black;
+  const stCol = st === "Overdue" ? C.red : st === "Paid" ? C.green : st === "Cancelled" ? PDF.label : PDF.ink;
   const muted = d.status === "cancelled";
   return (
-    <div style={{ display: "flex", alignItems: "center", height: ROW_H, borderBottom: `0.5px solid ${C.rule}`, fontSize: 7.5, color: muted ? C.muted : C.black }}>
+    <div style={{ display: "flex", alignItems: "center", height: ROW_H, borderBottom: `0.5px solid ${PDF.rule}`, fontSize: 7.5, color: muted ? PDF.label : PDF.ink }}>
       <div style={cell(86)}>{d.docNo}</div>
       <div style={cell(58)}>{d.docDate ? fmtD(d.docDate) : ""}</div>
       <div style={cell(104)}>{r.cName}</div>
@@ -96,7 +96,7 @@ function Row({ r, todayStr }: { r: InvoiceRow; todayStr: string }) {
       <div style={cell(64, true)}>{fmt(Number(d.net) || 0)}</div>
       <div style={cell(52, true)}>{fmt(Number(d.vat) || 0)}</div>
       <div style={cell(66, true)}>{fmt(Number(d.gross) || 0)}</div>
-      <div style={cell(62, false, { color: d.subtype === "storno" ? C.muted : stCol })}>
+      <div style={cell(62, false, { color: d.subtype === "storno" ? PDF.label : stCol })}>
         {d.subtype === "storno" ? `↩ ${d.data?.cancelsNo || ""}` : st}
       </div>
       <div style={cell(60)}>{d.paidAt ? fmtD(d.paidAt) : ""}</div>
@@ -117,44 +117,44 @@ export function ReportPages({ title, rows, byMonth, settings, created }: {
     <>
       {pages.map((lines, pi) => (
         <div key={pi} data-report-page="true"
-          style={{ width: W, height: H, position: "relative", overflow: "hidden", background: C.bg, fontFamily: SANS, color: C.black }}>
+          style={{ width: W, height: H, position: "relative", overflow: "hidden", background: PDF.page, fontFamily: SANS, color: PDF.ink }}>
           {/* header strip */}
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 36, borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: `0 ${PX}px` }}>
-            <span style={{ fontSize: 6, letterSpacing: "0.2em", color: C.light, textTransform: "uppercase" as const }}>{s.company || s.name || "LH Studio"}</span>
-            <span style={{ fontSize: 6, letterSpacing: "0.2em", color: C.light, textTransform: "uppercase" as const }}>Invoice overview</span>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 36, borderBottom: `1px solid ${PDF.rule}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: `0 ${PX}px` }}>
+            <span style={{ fontSize: 7, letterSpacing: 0, color: PDF.faint, textTransform: "uppercase" as const }}>{s.company || s.name || "LH Studio"}</span>
+            <span style={{ fontSize: 7, letterSpacing: 0, color: PDF.faint, textTransform: "uppercase" as const }}>Invoice overview</span>
           </div>
 
           <div style={{ position: "absolute", top: 36, left: PX, right: PX, bottom: 40, paddingTop: pi === 0 ? 18 : 14 }}>
             {pi === 0 && (
               <div style={{ marginBottom: 14 }}>
                 <h1 style={{ fontFamily: SERIF, fontSize: 19, fontWeight: "normal", margin: "0 0 4px" }}>{title}</h1>
-                <p style={{ fontSize: 7.5, color: C.muted, margin: 0 }}>
+                <p style={{ fontSize: 7.5, color: PDF.label, margin: 0 }}>
                   {who}{who ? " · " : ""}created {fmtD(todayStr)} · {tot.count} {tot.count === 1 ? "invoice" : "invoices"} · by invoice date
                 </p>
               </div>
             )}
             {/* table head */}
-            <div style={{ display: "flex", height: 18, alignItems: "flex-end", paddingBottom: 3, borderBottom: `1px solid ${C.black}`, fontSize: 6, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted }}>
+            <div style={{ display: "flex", height: 18, alignItems: "flex-end", paddingBottom: 3, borderBottom: `1px solid ${PDF.ink}`, fontSize: 7, letterSpacing: 0, textTransform: "uppercase" as const, color: PDF.label }}>
               {COLS.map(c => <div key={c.key} style={cell(c.w, c.right)}>{c.label}</div>)}
             </div>
 
             {lines.map((l, li) => {
               if (l.t === "row") return <Row key={li} r={l.r} todayStr={todayStr} />;
               if (l.t === "month") return (
-                <div key={li} style={{ height: ROW_H * 1.4, display: "flex", alignItems: "flex-end", paddingBottom: 3, fontSize: 7.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" as const }}>{l.label}</div>
+                <div key={li} style={{ height: ROW_H * 1.4, display: "flex", alignItems: "flex-end", paddingBottom: 3, fontSize: 7.5, fontWeight: 600, letterSpacing: 0, textTransform: "uppercase" as const }}>{l.label}</div>
               );
               if (l.t === "sub") return (
-                <div key={li} style={{ display: "flex", alignItems: "center", height: ROW_H * 1.3, fontSize: 7.5, fontWeight: 600, borderTop: `0.5px solid ${C.muted}` }}>
+                <div key={li} style={{ display: "flex", alignItems: "center", height: ROW_H * 1.3, fontSize: 7.5, fontWeight: 600, borderTop: `0.5px solid ${PDF.label}` }}>
                   <div style={cell(86 + 58 + 104 + 120 + 90)}>Subtotal {l.label} · {l.tot.count} {l.tot.count === 1 ? "invoice" : "invoices"}</div>
                   <div style={cell(64, true)}>{fmt(l.tot.net)}</div>
                   <div style={cell(52, true)}>{fmt(l.tot.vat)}</div>
                   <div style={cell(66, true)}>{fmt(l.tot.gross)}</div>
-                  <div style={cell(122, false, { color: C.muted, fontWeight: 400 })}>open {fmt(l.tot.open)}</div>
+                  <div style={cell(122, false, { color: PDF.label, fontWeight: 400 })}>open {fmt(l.tot.open)}</div>
                 </div>
               );
               return (
                 <div key={li} style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
-                  <div style={{ width: 260, borderTop: `1px solid ${C.black}`, paddingTop: 6, fontSize: 8 }}>
+                  <div style={{ width: 260, borderTop: `1px solid ${PDF.ink}`, paddingTop: 6, fontSize: 8 }}>
                     {[
                       ["Invoices", String(tot.count)],
                       ["Net", fmt(tot.net)],
@@ -163,8 +163,8 @@ export function ReportPages({ title, rows, byMonth, settings, created }: {
                       ["Paid", fmt(tot.paid)],
                       ["Open", fmt(tot.open)],
                     ].map(([k, v], i) => (
-                      <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", fontWeight: i === 3 ? 600 : 400, borderTop: i === 4 ? `0.5px solid ${C.rule}` : "none" }}>
-                        <span style={{ color: i >= 4 ? C.muted : C.black }}>{k}</span>
+                      <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", fontWeight: i === 3 ? 600 : 400, borderTop: i === 4 ? `0.5px solid ${PDF.rule}` : "none" }}>
+                        <span style={{ color: i >= 4 ? PDF.label : PDF.ink }}>{k}</span>
                         <span style={{ fontFamily: SERIF }}>{v}</span>
                       </div>
                     ))}
@@ -175,9 +175,9 @@ export function ReportPages({ title, rows, byMonth, settings, created }: {
           </div>
 
           {/* footer strip */}
-          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, borderTop: `1px solid ${C.rule}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: `0 ${PX}px`, fontSize: 7, color: C.muted }}>
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, borderTop: `1px solid ${PDF.rule}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: `0 ${PX}px`, fontSize: 7, color: PDF.label }}>
             <span>{[s.email, s.website].filter(Boolean).join(" · ")}</span>
-            <span style={{ color: C.light }}>{pi + 1} / {pages.length}</span>
+            <span style={{ color: PDF.faint }}>{pi + 1} / {pages.length}</span>
           </div>
         </div>
       ))}

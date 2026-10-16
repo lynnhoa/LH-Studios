@@ -5,7 +5,7 @@
 // Header + footer are added per page by DocPages.
 // ─────────────────────────────────────────────────────────────
 
-import { C, SANS, SERIF, CATEGORY } from "./constants";
+import { C, SANS, SERIF, CATEGORY, PDF } from "./constants";
 import { fmt, fmtD } from "./formatters";
 import { SETTINGS_DEFAULT } from "./rateCards";
 import {
@@ -149,13 +149,13 @@ export default function A4Document({
   // ── Small helpers ──
   const MRow = ({ lb, v }: any) => (
     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, fontSize: 8 }}>
-      <span style={{ color: C.muted }}>{lb}</span>
+      <span style={{ color: PDF.label }}>{lb}</span>
       <span style={{ textAlign: "right" as const }}>{v}</span>
     </div>
   );
   const SumRow = ({ lb, v, strong }: any) => (
     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3, fontSize: strong ? 9 : 8 }}>
-      <span style={{ color: strong ? C.black : C.muted }}>{lb}</span>
+      <span style={{ color: strong ? PDF.ink : PDF.label }}>{lb}</span>
       <span>{v}</span>
     </div>
   );
@@ -170,20 +170,20 @@ export default function A4Document({
     const amt  = lineAmt(ln);
     const unit = Math.round((amt / qty) * 100) / 100;
     return (
-      <div data-trow={idx} style={{ paddingTop: tRowGuards?.[idx] || 0, borderBottom: `1px solid ${C.rule}` }}>
+      <div data-trow={idx} style={{ paddingTop: tRowGuards?.[idx] || 0, borderBottom: `1px solid ${PDF.rule}` }}>
         {showCat && (
           <div style={{ paddingTop: 10, paddingBottom: 1 }}>
-            <span style={{ fontSize: 5.5, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: C.light }}>{catBadge[ln.cat]}</span>
+            <span style={{ fontSize: 7, letterSpacing: 0, textTransform: "uppercase" as const, color: PDF.faint }}>{catBadge[ln.cat]}</span>
           </div>
         )}
         <div style={{ padding: "4px 0", display: "grid", gridTemplateColumns: "1fr 26px 62px 64px", alignItems: "baseline" }}>
           <div>
             <span style={{ fontSize: 8.5 }}>{ln.name}</span>
-            {ln.note && <span style={{ fontSize: 7, color: C.light, display: "block" }}>{ln.note}</span>}
-            {subDetails.length > 0 && <span style={{ fontSize: 7, color: C.muted, display: "block" }}>{subDetails.join(" · ")}</span>}
+            {ln.note && <span style={{ fontSize: 7, color: PDF.faint, display: "block" }}>{ln.note}</span>}
+            {subDetails.length > 0 && <span style={{ fontSize: 7, color: PDF.label, display: "block" }}>{subDetails.join(" · ")}</span>}
           </div>
-          <span style={{ fontSize: 8, textAlign: "right" as const, color: C.muted }}>{qty}</span>
-          <span style={{ fontSize: 8, textAlign: "right" as const, color: C.muted }}>{fmt(unit)}</span>
+          <span style={{ fontSize: 8, textAlign: "right" as const, color: PDF.label }}>{qty}</span>
+          <span style={{ fontSize: 8, textAlign: "right" as const, color: PDF.label }}>{fmt(unit)}</span>
           <span style={{ fontSize: 8, textAlign: "right" as const }}>{fmt(amt)}</span>
         </div>
       </div>
@@ -200,8 +200,8 @@ export default function A4Document({
   };
 
   const GrandRow = ({ label, value }: { label: string; value: number }) => (
-    <div style={{ borderTop: `1px solid ${C.rule}`, paddingTop: 6, marginTop: 3, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-      <span style={{ fontSize: 6.5, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" as const }}>{label}</span>
+    <div style={{ borderTop: `1px solid ${PDF.rule}`, paddingTop: 6, marginTop: 3, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+      <span style={{ fontSize: 7, color: PDF.label, letterSpacing: 0, textTransform: "uppercase" as const }}>{label}</span>
       <span style={{ fontFamily: SERIF, fontSize: 15 }}>{fmt(value)}</span>
     </div>
   );
@@ -228,7 +228,7 @@ export default function A4Document({
           <div style={{ width: 200 }}>
             <SumRow lb={l ? "Mtl. Zwischensumme" : "Monthly subtotal"} v={fmt(sum)} />
             <SumRow lb={l ? "Retainer-Rabatt −20 %" : "Retainer discount −20 %"} v={`−${fmt(sum - monthly)}`} />
-            <div style={{ borderTop: `1px solid ${C.rule}`, paddingTop: 4, marginTop: 3 }}>
+            <div style={{ borderTop: `1px solid ${PDF.rule}`, paddingTop: 4, marginTop: 3 }}>
               <SumRow lb={l ? "Monatliche Rate" : "Monthly fee"} v={fmt(monthly)} />
               <SumRow lb={`× ${d.retMo} ${l ? "Monate" : "months"}`} v={fmt(net)} />
             </div>
@@ -249,7 +249,7 @@ export default function A4Document({
             <VatRows base={net} />
           </>}
           {kind === "invoice" && sub === "monthly" && (
-            <p style={{ fontSize: 7, color: C.muted, margin: "0 0 4px", textAlign: "right" as const }}>
+            <p style={{ fontSize: 7, color: PDF.label, margin: "0 0 4px", textAlign: "right" as const }}>
               {l ? "inkl. 20 % Retainer-Rabatt" : "incl. 20 % retainer discount"}
             </p>
           )}
@@ -270,7 +270,7 @@ export default function A4Document({
 
   const Details = () => (
     <div style={{ width: 170 }}>
-      <p style={{ fontSize: 6.5, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" as const, margin: "0 0 4px" }}>Details</p>
+      <p style={{ fontSize: 7, color: PDF.label, letterSpacing: 0, textTransform: "uppercase" as const, margin: "0 0 4px" }}>Details</p>
       {kind === "quote" && <>
         <MRow lb={l ? "Angebotsnr." : "Quote No."} v={docNoText} />
         <MRow lb={l ? "Datum" : "Date"} v={fmtD(doc.docDate)} />
@@ -300,11 +300,11 @@ export default function A4Document({
 
   const ClientBlock = () => (
     <div>
-      <p style={{ fontSize: 6.5, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" as const, margin: "0 0 4px" }}>{l ? "An" : "To"}</p>
+      <p style={{ fontSize: 7, color: PDF.label, letterSpacing: 0, textTransform: "uppercase" as const, margin: "0 0 4px" }}>{l ? "An" : "To"}</p>
       <p style={{ fontSize: 9, fontWeight: "500", margin: "0 0 1px" }}>{clientName}</p>
-      {clientContact && <p style={{ fontSize: 8, color: C.muted, margin: 0 }}>{clientContact}</p>}
-      {clientAddr.map((ln, i) => <p key={i} style={{ fontSize: 8, color: C.muted, margin: 0 }}>{ln}</p>)}
-      {cl.vatId && <p style={{ fontSize: 8, color: C.muted, margin: "2px 0 0" }}>{l ? "USt-IdNr." : "VAT ID"} {cl.vatId}</p>}
+      {clientContact && <p style={{ fontSize: 8, color: PDF.label, margin: 0 }}>{clientContact}</p>}
+      {clientAddr.map((ln, i) => <p key={i} style={{ fontSize: 8, color: PDF.label, margin: 0 }}>{ln}</p>)}
+      {cl.vatId && <p style={{ fontSize: 8, color: PDF.label, margin: "2px 0 0" }}>{l ? "USt-IdNr." : "VAT ID"} {cl.vatId}</p>}
     </div>
   );
 
@@ -312,12 +312,12 @@ export default function A4Document({
   const iban = s.iban ? `IBAN ${s.iban}` : (l ? "[IBAN fehlt]" : "[IBAN missing]");
 
   return (
-    <div style={{ padding: "120px 62px 90px", fontSize: 9.5, lineHeight: 1.5, position: "relative", minHeight: 841, fontFamily: SANS, color: C.black, background: C.bg, WebkitTextSizeAdjust: "100%", textSizeAdjust: "100%" } as any}>
+    <div style={{ padding: "120px 62px 90px", fontSize: 9.5, lineHeight: 1.5, position: "relative", minHeight: 841, boxSizing: "border-box", fontFamily: SANS, color: PDF.ink, background: PDF.page, WebkitTextSizeAdjust: "100%", textSizeAdjust: "100%" } as any}>
 
       {/* ── TITLE ── */}
       <div style={{ margin: "0 0 22px" }}>
         <h1 style={{ fontFamily: SERIF, fontSize: 19, fontWeight: "normal", margin: "0 0 28px" }}>{docTitle(doc, lang)}</h1>
-        {kind !== "contract" && <p style={{ fontSize: 7.5, color: C.muted, margin: 0 }}>{creatorLine}</p>}
+        {kind !== "contract" && <p style={{ fontSize: 7.5, color: PDF.label, margin: 0 }}>{creatorLine}</p>}
       </div>
 
       {/* ── TO / DETAILS ── */}
@@ -330,30 +330,30 @@ export default function A4Document({
       {kind === "contract" && (
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, paddingBottom: 10, gap: 16 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 6.5, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" as const, margin: "0 0 3px" }}>{l ? "Zwischen" : "Between"}</p>
+            <p style={{ fontSize: 7, color: PDF.label, letterSpacing: 0, textTransform: "uppercase" as const, margin: "0 0 3px" }}>{l ? "Zwischen" : "Between"}</p>
             <p style={{ fontSize: 9, fontWeight: "500", margin: 0 }}>{s.company || s.name || "Lynn Hoa"}</p>
-            {s.name && s.company && <p style={{ fontSize: 8, color: C.muted, margin: "0 0 1px" }}>{s.name}</p>}
-            <p style={{ fontSize: 8, color: C.muted, margin: 0 }}>{creatorAddr}</p>
+            {s.name && s.company && <p style={{ fontSize: 8, color: PDF.label, margin: "0 0 1px" }}>{s.name}</p>}
+            <p style={{ fontSize: 8, color: PDF.label, margin: 0 }}>{creatorAddr}</p>
           </div>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 6.5, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" as const, margin: "0 0 3px" }}>{l ? "Und" : "And"}</p>
+            <p style={{ fontSize: 7, color: PDF.label, letterSpacing: 0, textTransform: "uppercase" as const, margin: "0 0 3px" }}>{l ? "Und" : "And"}</p>
             <p style={{ fontSize: 9, fontWeight: "500", margin: 0 }}>{clientName}</p>
-            {clientContact && <p style={{ fontSize: 8, color: C.muted, margin: 0 }}>{clientContact}</p>}
-            {clientAddr.length > 0 && <p style={{ fontSize: 8, color: C.muted, margin: 0 }}>{clientAddr.join(", ")}</p>}
+            {clientContact && <p style={{ fontSize: 8, color: PDF.label, margin: 0 }}>{clientContact}</p>}
+            {clientAddr.length > 0 && <p style={{ fontSize: 8, color: PDF.label, margin: 0 }}>{clientAddr.join(", ")}</p>}
           </div>
         </div>
       )}
 
       {/* ── LINE ITEMS (every document, incl. contracts) ── */}
-      <div style={{ borderTop: `1px solid ${C.rule}`, borderBottom: `1px solid ${C.rule}`, padding: "4px 0", display: "grid", gridTemplateColumns: "1fr 26px 62px 64px" }}>
+      <div style={{ borderTop: `1px solid ${PDF.rule}`, borderBottom: `1px solid ${PDF.rule}`, padding: "4px 0", display: "grid", gridTemplateColumns: "1fr 26px 62px 64px" }}>
         {[l ? "Leistung" : "Description", l ? "Anz." : "Qty", l ? "Einzelpreis" : "Unit price", l ? "Betrag" : "Amount"].map((h, i) => (
-          <span key={h} style={{ fontSize: 6, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted, textAlign: i > 0 ? "right" as const : "left" as const }}>{h}</span>
+          <span key={h} style={{ fontSize: 7, letterSpacing: 0, textTransform: "uppercase" as const, color: PDF.label, textAlign: i > 0 ? "right" as const : "left" as const }}>{h}</span>
         ))}
       </div>
       {lines.map((ln: any, i: number) => <TRow key={i} idx={i} ln={ln} prevLn={lines[i - 1]} />)}
 
       {kind === "contract" && quoteRef && (
-        <p style={{ fontSize: 8, color: C.muted, margin: "8px 0 0", fontStyle: "italic" }}>
+        <p style={{ fontSize: 8, color: PDF.label, margin: "8px 0 0", fontStyle: "italic" }}>
           {l ? `Bezugnehmend auf Angebot ${quoteRef}.` : `As per the agreed quote ${quoteRef}.`}
         </p>
       )}
@@ -363,10 +363,10 @@ export default function A4Document({
 
       {/* ── CONTRACT CLAUSES ── */}
       {kind === "contract" && (
-        <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${C.rule}` }}>
+        <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${PDF.rule}` }}>
           {clauses.map((c, ci) => (
             <div data-clause={ci} key={ci} style={{ paddingTop: 10 + (clauseGuards?.[ci] || 0), paddingBottom: 11 }}>
-              <p style={{ fontFamily: SERIF, fontSize: 7.5, fontWeight: "normal", color: "#5a5a5a", letterSpacing: "0.01em", margin: "0 0 5px" }}>{c.title}</p>
+              <p style={{ fontFamily: SERIF, fontSize: 7.5, fontWeight: "normal", color: PDF.label, letterSpacing: 0, margin: "0 0 5px" }}>{c.title}</p>
               <p style={{ fontSize: 8.5, lineHeight: 1.85, margin: 0, color: "#404040" }}>{c.text}</p>
             </div>
           ))}
@@ -379,8 +379,8 @@ export default function A4Document({
           <TotalBlock />
 
           {kind === "quote" && (
-            <div style={{ paddingTop: 14, borderTop: `1px solid ${C.rule}` }}>
-              <p style={{ fontSize: 8, color: C.muted, lineHeight: 1.75, margin: "0 0 6px" }}>
+            <div style={{ paddingTop: 14, borderTop: `1px solid ${PDF.rule}` }}>
+              <p style={{ fontSize: 8, color: PDF.label, lineHeight: 1.75, margin: "0 0 6px" }}>
                 {l
                   ? `${d.validUntil ? `Dieses Angebot ist gültig bis ${fmtD(d.validUntil)}. ` : ""}Preise basieren auf dem vereinbarten Umfang. Produkt von der Marke gestellt. Nutzungsrechte zeitlich begrenzt. 1 Korrektur je Leistung inklusive.${isRet ? ` Retainer-Vereinbarung über ${d.retMo} Monate · monatliche Abrechnung · −20 % Retainer-Rabatt inklusive.` : ""}${tax.mode === "domestic" ? ` Alle Preise zzgl. ${tax.rate} % USt.` : ""}`
                   : `${d.validUntil ? `This quote is valid until ${fmtD(d.validUntil)}. ` : ""}Prices based on agreed scope. Product provided by brand. Usage rights time-limited. One revision included per deliverable.${isRet ? ` Retainer agreement — ${d.retMo} months · invoiced monthly · −20 % retainer discount applied.` : ""}${tax.mode === "domestic" ? ` All prices plus ${tax.rate} % VAT.` : ""}`}
@@ -390,22 +390,22 @@ export default function A4Document({
           )}
 
           {kind === "amendment" && (
-            <div style={{ paddingTop: 14, borderTop: `1px solid ${C.rule}` }}>
-              <p style={{ fontSize: 8, color: C.muted, lineHeight: 1.75, margin: "0 0 18px" }}>
+            <div style={{ paddingTop: 14, borderTop: `1px solid ${PDF.rule}` }}>
+              <p style={{ fontSize: 8, color: PDF.label, lineHeight: 1.75, margin: "0 0 18px" }}>
                 {l ? "Dieser Nachtrag ergänzt den genannten Vertrag. Alle übrigen Bedingungen bleiben unverändert." : "This amendment extends the original contract. All other terms remain unchanged and in full effect."}
               </p>
             </div>
           )}
 
           {isInvoice && (
-            <div style={{ paddingTop: 14, borderTop: `1px solid ${C.rule}` }}>
+            <div style={{ paddingTop: 14, borderTop: `1px solid ${PDF.rule}` }}>
               {sub === "storno" ? (
-                <p style={{ fontSize: 8, color: C.muted, lineHeight: 1.75, margin: "0 0 8px" }}>
+                <p style={{ fontSize: 8, color: PDF.label, lineHeight: 1.75, margin: "0 0 8px" }}>
                   {l ? `Diese Stornorechnung hebt die Rechnung ${d.cancelsNo || ""} vollständig auf.` : `This cancellation invoice fully reverses invoice ${d.cancelsNo || ""}.`}
                   {note ? ` ${note}` : ""}
                 </p>
               ) : (
-                <p style={{ fontSize: 8, color: C.light, lineHeight: 1.75, margin: "0 0 8px" }}>
+                <p style={{ fontSize: 8, color: PDF.faint, lineHeight: 1.75, margin: "0 0 8px" }}>
                   {l
                     ? `Zahlbar bis ${doc.dueDate ? fmtD(doc.dueDate) : "14 Tage nach Rechnungsdatum"} an ${s.bankName || "[Bank]"}, ${iban}${s.bic ? `, BIC ${s.bic}` : ""}${s.paypalEmail ? ` oder per PayPal: ${s.paypalEmail}` : ""}. Verwendungszweck: ${doc.docNo || "—"}.`
                     : `Please pay by ${doc.dueDate ? fmtD(doc.dueDate) : "14 days after the invoice date"} to ${s.bankName || "[Bank]"}, ${iban}${s.bic ? `, BIC ${s.bic}` : ""}${s.paypalEmail ? ` or via PayPal: ${s.paypalEmail}` : ""}. Reference: ${doc.docNo || "—"}.`}
@@ -424,10 +424,10 @@ export default function A4Document({
           {[s.company || s.name || "Lynn Hoa", clientName].map((nm: string, i: number) => (
             <div key={i} style={{ width: "44%" }}>
               <p style={{ fontSize: 8.5, fontWeight: "500", margin: "0 0 2px" }}>{nm}</p>
-              <div style={{ borderBottom: `1px solid ${C.rule}`, margin: "30px 0 5px" }} />
-              <p style={{ fontSize: 7.5, color: C.muted, margin: "0 0 26px" }}>{l ? "Unterschrift" : "Signature"}</p>
-              <div style={{ borderBottom: `1px solid ${C.rule}`, margin: "0 0 5px" }} />
-              <p style={{ fontSize: 7.5, color: C.muted, margin: 0 }}>{l ? "Datum, Ort" : "Date and Place"}</p>
+              <div style={{ borderBottom: `1px solid ${PDF.rule}`, margin: "30px 0 5px" }} />
+              <p style={{ fontSize: 7.5, color: PDF.label, margin: "0 0 26px" }}>{l ? "Unterschrift" : "Signature"}</p>
+              <div style={{ borderBottom: `1px solid ${PDF.rule}`, margin: "0 0 5px" }} />
+              <p style={{ fontSize: 7.5, color: PDF.label, margin: 0 }}>{l ? "Datum, Ort" : "Date and Place"}</p>
             </div>
           ))}
         </div>
