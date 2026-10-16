@@ -122,3 +122,24 @@ window.ccEscHtml = window.ccEscHtml || function (s) {
   if (typeof window.ccDialog !== 'function') window.ccDialog = ccDialog;
   if (typeof window.ccConfirm !== 'function') window.ccConfirm = ccConfirm;
 })();
+
+/* ccPrompt — in-app version of prompt(): one field, Cancel / OK.
+   Returns the typed text, or null on Cancel / tap outside (like prompt()). */
+window.ccPrompt = window.ccPrompt || async function (title, label, value, okLabel) {
+  var inp = null;
+  var v = await window.ccDialog({
+    title: title,
+    body: (label ? '<label class="cc-dlg__lbl" for="ccDlgIn">' + ccEscHtml(label) + '</label>' : '') +
+          '<input class="cc-dlg__in" id="ccDlgIn" type="text" autocomplete="off" value="' + ccEscHtml(value == null ? '' : value) + '">',
+    actions: [{ label: 'Cancel', value: false }, { label: okLabel || 'OK', value: true, primary: true }],
+    onOpen: function (ov) {
+      inp = ov.querySelector('.cc-dlg__in');
+      if (!inp) return;
+      setTimeout(function () { try { inp.focus(); inp.select(); } catch (e) {} }, 60);
+      inp.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); var b = ov.querySelector('.cc-dlg__btn--primary'); if (b) b.click(); }
+      });
+    }
+  });
+  return v === true ? (inp ? inp.value : '') : null;
+};

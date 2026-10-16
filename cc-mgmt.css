@@ -121,3 +121,10 @@ html body .ct-toast {
 }
 .cc-alert-toast.show,
 html body .ct-toast.show { opacity: 1; }
+
+
+/* ═════════ P4 (16.10.2026) · the field inside the in-app question (ccPrompt) ═════════ */
+.cc-dlg__lbl { display: block; margin: 2px 0 4px; font-size: 11px; font-weight: 400; color: var(--cc-taupe); }
+.cc-dlg__in { display: block; width: 100%; height: 36px; padding: 0 10px; box-sizing: border-box; background: var(--cc-bg);
+  border: .5px solid var(--cc-rule); border-radius: 8px; font-family: inherit; font-size: 14px !important; color: var(--cc-charcoal); outline: none; }
+.cc-dlg__in:focus { border-color: var(--cc-gold); background: var(--cc-white); }
