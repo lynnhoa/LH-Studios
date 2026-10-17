@@ -424,6 +424,13 @@ export function usePlanner(userId: string | null, monday: string) {
     fail(error);
     setItems(prev => prev.filter(x => x.id !== id));
   }, [userId]);
+  // Undo: put a deleted idea / editorial back exactly as it was (same id, place and plan)
+  const restoreItem = useCallback(async (it: Item) => {
+    const row = { id: it.id, sort: it.sort, ...(it.createdAt ? { created_at: it.createdAt } : {}), ...itemToRow(it) };
+    const { data, error } = await supabase.from("planner_items").insert(row).select().single();
+    fail(error);
+    setItems(prev => [...prev.filter(x => x.id !== it.id), rowToItem(data)]);
+  }, []);
 
   // ── notes: concept, offer, weekly learning (one per account / week) ─
   const notesRef = useRef(notes); notesRef.current = notes;
@@ -497,6 +504,36 @@ export function usePlanner(userId: string | null, monday: string) {
       .sort((a, b) => b.sentOn.localeCompare(a.sentOn)), [pitches]);
   const contactName = useCallback((id: string) => contacts.find(c => c.id === id)?.company || "Contact", [contacts]);
 
+  // a logged pitch, deleted from the Manager pitch log: like Outreach, the contact's last
+  // contact date follows, and "Pitched" goes back to "not contacted" if it was the only one.
+  // Returns what the contact was before, so Undo can put it back.
+  const pitchesRef = useRef(pitches); pitchesRef.current = pitches;
+  const contactsRef = useRef(contacts); contactsRef.current = contacts;
+  const deletePitch = useCallback(async (p: Pitch) => {
+    const c = contactsRef.current.find(x => x.id === p.contactId);
+    const before = { status: c?.status || "new", lastContact: c?.lastContact ?? null };
+    const { error } = await supabase.from("outreach_pitches").delete().eq("id", p.id).eq("user_id", userId);
+    fail(error);
+    const rest = pitchesRef.current.filter(x => x.contactId === p.contactId && x.id !== p.id);
+    const last = rest.reduce<string | null>((m, x) => (!m || x.sentOn > m ? x.sentOn : m), null);
+    const backToNew = !rest.length && c?.status === "pitched";
+    const patch: any = { last_contact: last };
+    if (backToNew) patch.status = null;
+    const { error: e2 } = await supabase.from("outreach_contacts").update(patch).eq("id", p.contactId).eq("user_id", userId);
+    fail(e2);
+    setPitches(prev => prev.filter(x => x.id !== p.id));
+    setContacts(prev => prev.map(x => (x.id === p.contactId ? { ...x, lastContact: last, status: backToNew ? "new" : x.status } : x)));
+    return before;
+  }, [userId]);
+  const restorePitch = useCallback(async (p: Pitch, before: { status: string; lastContact: string | null }) => {
+    const { error } = await supabase.from("outreach_pitches").insert({ id: p.id, contact_id: p.contactId, account: p.account, kind: p.kind, sent_on: p.sentOn });
+    fail(error);
+    const { error: e2 } = await supabase.from("outreach_contacts").update({ status: before.status === "new" ? null : before.status, last_contact: before.lastContact }).eq("id", p.contactId).eq("user_id", userId);
+    fail(e2);
+    setPitches(prev => [...prev.filter(x => x.id !== p.id), p]);
+    setContacts(prev => prev.map(x => (x.id === p.contactId ? { ...x, status: before.status, lastContact: before.lastContact } : x)));
+  }, [userId]);
+
   // ── what a row shows: its entry plus what is filled in elsewhere ─
   const newContacts = useCallback((week: string) => contacts.filter(c => c.week === week), [contacts]);
   const autoOf = useCallback((t: Task, period: string): Auto | undefined => {
@@ -552,6 +589,7 @@ export function usePlanner(userId: string | null, monday: string) {
     saveSnapshot, newContacts, autoOf, stateOf, doneOf, targetOf, loginEmail,
     createItem, updateItem, setItemStatus, deleteItem, noteOf, saveNote,
     pitches, sprints, stage2Error, createSprint, updateSprint, deleteSprint, activeSprint, sprintStats, followUpsDue, pitchesInWeek, contactName,
+    restoreItem, deletePitch, restorePitch,
   };
 }
 

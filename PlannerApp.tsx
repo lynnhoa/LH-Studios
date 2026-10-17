@@ -19,6 +19,7 @@ import PlannerTodo, { DEFAULT_VIEW } from "./PlannerTodo";
 import PlannerManager from "./PlannerManager";
 import PlannerCreator from "./PlannerCreator";
 import PlannerOverview from "./PlannerOverview";
+import { UndoBar } from "./undo";
 import type { PlannerView } from "./PlannerTodo";
 import type { Role } from "./types";
 
@@ -123,6 +124,7 @@ export default function PlannerApp({ userId, settings, signOut, switchTo, banner
           </div>
         )}
       </div>
+      <UndoBar />
     </div>
   );
 }

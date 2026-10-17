@@ -21,6 +21,7 @@ import {
 import type { Task, AccountFilter, Owner, Phase, Account, Look } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import { Ico, IC, Toolbar, Subtitle, InlineText } from "./PlannerWindows";
+import { showUndo, XBtn } from "./undo";
 
 export interface PlannerView { tab: string; acc: AccountFilter; owner: "all" | Owner; phase: "all" | Phase; }
 export const DEFAULT_VIEW: PlannerView = { tab: "todo", acc: "lynnhoa", owner: "all", phase: "all" };
@@ -63,7 +64,6 @@ export default function PlannerTodo({ planner, view, setView, monday, setMonday,
   const [editing, setEditing]     = useState(false);
   const [showDone, setShowDone]   = useState(false);
   const [openRow, setOpenRow]     = useState<string | null>(null);     // a row opened in place (kit handover)
-  const [askDelete, setAskDelete] = useState<Task | null>(null);
   const [askStart, setAskStart]   = useState(false);
   const [newRow, setNewRow]       = useState(0);                       // focus the "add a row" field
   const set = (patch: Partial<PlannerView>) => setView({ ...view, ...patch });
@@ -114,10 +114,12 @@ export default function PlannerTodo({ planner, view, setView, monday, setMonday,
           style={{ background: "none", border: "none", padding: "6px 2px", cursor: "pointer", fontFamily: SANS }}>{tag(l.label, l.color)}</button>
       : tag(l.label, l.color);
   };
-  const delBtn = (t: Task) => (
-    <button onClick={(e) => { e.stopPropagation(); setAskDelete(t); }} aria-label={`Delete ${t.title}`} title="Delete"
-      style={{ width: 28, height: 28, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 14, flexShrink: 0 }}>✕</button>
-  );
+  // ✕ switches the task off (its ticks and numbers stay stored) — Undo switches it back on
+  const removeTask = (t: Task) => {
+    quiet(planner.updateTask(t.id, { active: false }));
+    showUndo(`“${t.title.length > 28 ? t.title.slice(0, 27) + "…" : t.title}” deleted`, () => planner.updateTask(t.id, { active: true }));
+  };
+  const delBtn = (t: Task) => <XBtn label={`Delete ${t.title}`} onClick={() => removeTask(t)} />;
 
   // ── one weekly row ──────────────────────────────────────────
   const weeklyRow = (t: Task) => {
@@ -233,13 +235,13 @@ export default function PlannerTodo({ planner, view, setView, monday, setMonday,
           {auto
             ? <span style={{ fontSize: 14, color: done ? C.light : C.black }}>{t.title}</span>
             : <InlineText value={t.title} muted={done} ariaLabel={t.title}
-                onSave={v => { if (!v.trim()) quiet(planner.deleteTask(t.id)); else quiet(planner.updateTask(t.id, { title: v.trim() })); }}
+                onSave={v => { if (!v.trim()) removeTask(t); else quiet(planner.updateTask(t.id, { title: v.trim() })); }}
                 onEnter={() => setNewRow(n => n + 1)} />}
         </div>
         {url && <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} aria-label="Open link" style={{ color: C.muted, display: "inline-flex", padding: 4 }}><Ico d={IC.link} size={14} /></a>}
         {auto && <span style={{ fontSize: 13, color: done ? C.green : C.black }}>{s.actual ?? 0} / {s.target ?? "–"}</span>}
         {whoTag(t, !auto)}
-        {editing && !auto && delBtn(t)}
+        {!auto ? delBtn(t) : <span style={{ width: 28, flexShrink: 0 }} />}
       </div>
     );
   };
@@ -288,8 +290,6 @@ export default function PlannerTodo({ planner, view, setView, monday, setMonday,
   return (
     <div>
       <style>{`.lh-prow:hover { background: rgba(0,0,0,0.018); }`}</style>
-      {askDelete && <ConfirmDialog title={`Delete “${askDelete.title}”?`} text="The task and its ticks and numbers are removed." okLabel="Delete" danger
-        onOk={() => { const t = askDelete; setAskDelete(null); quiet(planner.deleteTask(t.id)); }} onCancel={() => setAskDelete(null)} />}
       {askStart && st && nextStage && <ConfirmDialog title={`Start Stage ${nextStage.num} · ${nextStage.name}?`} text={`Stage ${st.num} is marked done. Its weekly tasks keep running.`} okLabel={`Start Stage ${nextStage.num}`}
         onOk={() => { setAskStart(false); quiet(planner.startNextStage(st)); }} onCancel={() => setAskStart(false)} />}
 
@@ -327,7 +327,7 @@ export default function PlannerTodo({ planner, view, setView, monday, setMonday,
         <p style={{ fontSize: TYPE.label.size, color: C.red, marginTop: 16, lineHeight: 1.5 }}>{loadError}</p>
       ) : (
         <>
-          {editing && <p style={{ fontSize: 12, color: C.muted, margin: "12px 0 0", lineHeight: 1.5 }}>Rename, tap who to switch, set the numbers (they carry over to the next weeks), or delete. Tap Done when finished.</p>}
+          {editing && <p style={{ fontSize: 12, color: C.muted, margin: "12px 0 0", lineHeight: 1.5 }}>Rename, tap who to switch, set the numbers (they carry over to the next weeks), or ✕ to delete. Tap Done when finished.</p>}
           {!editing && noNumber > 0 && (
             <button onClick={() => setEditing(true)}
               style={{ marginTop: 12, width: "100%", minHeight: 34, borderRadius: 3, background: "#fdf6ee", border: "1px solid #f0e2d0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 12px", fontFamily: SANS, fontSize: 12, color: "#a8804f", cursor: "pointer", textAlign: "left" as const }}>

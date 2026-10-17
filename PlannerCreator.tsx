@@ -21,6 +21,7 @@ import type { Account, Item, ItemList, ItemStatus, Task } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
 import { Ico, IC, Subtitle, ItemWindow, InlineText } from "./PlannerWindows";
+import { showUndo, XBtn } from "./undo";
 
 const microLabel: any = { fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted };
 const look = OWNER_LOOK.creator;
@@ -88,7 +89,7 @@ export default function PlannerCreator({ planner, view, isMobile }: PlannerCreat
     const color = it.status === "posted" || it.status === "in_kit" ? C.green : it.status === "idea" ? C.muted : C.black;
     return (
       <div key={it.id} className="lh-prow" role="button" tabIndex={0} onClick={() => setOpen(it.id)} onKeyDown={(e) => { if (e.key === "Enter") setOpen(it.id); }}
-        style={{ minHeight: 48, display: "flex", alignItems: "center", gap: 8, padding: "7px 6px 7px 12px", borderTop: "1px solid #f0ece7", cursor: "pointer" }}>
+        style={{ minHeight: 48, display: "flex", alignItems: "center", gap: 2, padding: "7px 4px 7px 12px", borderTop: "1px solid #f0ece7", cursor: "pointer" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, color: done ? C.light : C.black }}>{it.title}</div>
           {meta.length > 0 && (
@@ -102,8 +103,14 @@ export default function PlannerCreator({ planner, view, isMobile }: PlannerCreat
           style={{ background: "none", border: "none", cursor: it.status === "in_kit" ? "default" : "pointer", padding: "10px 6px", fontFamily: SANS, flexShrink: 0 }}>
           {tag(WORD[it.status], color)}
         </button>
+        <XBtn label={`Delete ${it.title}`} onClick={() => removeItem(it)} />
       </div>
     );
+  };
+  // ✕ deletes the idea / editorial with its plan — Undo puts it back exactly
+  const removeItem = (it: Item) => {
+    quiet(planner.deleteItem(it.id));
+    showUndo(`${it.list === "editorial" ? "Editorial" : "Idea"} deleted`, () => planner.restoreItem(it));
   };
   const quickAdd = (list: ItemList, placeholder: string) => <QuickAdd placeholder={placeholder} onAdd={(title) => quiet(planner.createItem({
     list, account: acc, title, status: "idea", plannedOn: null, views: null, link: "", direction: "",

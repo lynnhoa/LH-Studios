@@ -18,6 +18,7 @@ import {
 import type { Task, Stage, TaskAccount, AccountFilter, Phase, Rhythm, Item, ItemList, ItemStatus, ItemPlan, Account, NoteKind, Sprint, Owner } from "./planner";
 import { OUTREACH_CATEGORIES, OUTREACH_TIERS, catOf } from "./outreach";
 import type { PlannerHook } from "./usePlanner";
+import { showUndo, XBtn } from "./undo";
 
 // ── small line icons (same drawing style as Outreach) ─────────
 export const Ico = ({ d, size = 14, color = "currentColor" }: { d: string; size?: number; color?: string }) => (
@@ -766,7 +767,6 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
   planner: PlannerHook; itemId?: string; draft?: Partial<Item>; isMobile: boolean; onClose: () => void;
 }) {
   const it = planner.items.find(x => x.id === itemId);
-  const [askDelete, setAskDelete] = useState(false);
   // an item deleted elsewhere closes its window
   useEffect(() => { if (itemId && !it && !planner.loading) onClose(); }, [itemId, it, planner.loading]);
   if (!it) return null;
@@ -780,7 +780,12 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
   const move = isEd
     ? { label: "Move to ideas", onClick: () => save({ list: "idea", portfolio: false }) }
     : { label: "Move to editorial list", onClick: () => save({ list: "editorial", portfolio: true, format: FORMATS[it.account].includes(it.format) ? it.format : FORMATS[it.account][0] }) };
-  const del = async () => { setAskDelete(false); try { await planner.deleteItem(it.id); onClose(); } catch { /* the save toast reports it */ } };
+  const del = async () => {
+    const copy = it;
+    onClose();
+    try { await planner.deleteItem(copy.id); showUndo(`${copy.list === "editorial" ? "Editorial" : "Idea"} deleted`, () => planner.restoreItem(copy)); }
+    catch { /* the save toast reports it */ }
+  };
   const styleBtn = (k: "bullets" | "numbers", label: string) => (
     <button onClick={() => savePlan({ style: k })} aria-pressed={it.plan.style === k} title={k === "bullets" ? "Bullets" : "Numbers"}
       style={{ height: 24, minWidth: 30, padding: "0 7px", border: `1px solid ${it.plan.style === k ? C.black : C.rule}`, background: it.plan.style === k ? C.black : C.white, color: it.plan.style === k ? C.white : C.black, borderRadius: 2, cursor: "pointer", fontFamily: SANS, fontSize: 12 }}>{label}</button>
@@ -788,11 +793,10 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
 
   return (
     <>
-      {askDelete && <ConfirmDialog title={`Delete “${it.title}”?`} text="Its storyline, clips and links are removed too." okLabel="Delete" danger onOk={del} onCancel={() => setAskDelete(false)} />}
       <Window title={isEd ? "Editorial" : "Content idea"} isMobile={isMobile} onClose={onClose}
         footer={
           <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
-            <MoreMenu items={[move, { label: "Delete", danger: true, onClick: () => setAskDelete(true) }]} />
+            <MoreMenu items={[move, { label: "Delete", danger: true, onClick: del }]} />
             <B onClick={onClose}>Close</B>
           </div>
         }>
@@ -874,9 +878,19 @@ function LineList({ initial, checks: initialChecks, marker, placeholder, addLabe
     const cs = [...checks]; cs.splice(k + 1, 0, false);
     setLines(ls); setChecks(cs); setFocusAt(k + 1);
   };
-  const remove = (k: number) => {
+  const remove = (k: number, focus = true) => {
     const ls = lines.filter((_, i) => i !== k), cs = checks.filter((_, i) => i !== k);
-    setLines(ls); setChecks(cs); setFocusAt(Math.max(0, k - 1)); commit(ls, cs);
+    setLines(ls.length || marker === "check" ? ls : [""]); setChecks(cs); if (focus) setFocusAt(Math.max(0, k - 1)); commit(ls, cs);
+  };
+  // ✕ on a line: gone, Undo puts it back where it was
+  const removeX = (k: number) => {
+    const t = lines[k], before = lines, beforeC = checks;
+    if (!t.trim()) { remove(k, false); return; }
+    remove(k, false);
+    showUndo(`${marker === "check" ? "Clip" : "Point"} deleted`, () => {
+      const ls = [...before], cs = [...beforeC];
+      setLines(ls); setChecks(cs); commit(ls, cs);
+    });
   };
   const tick = (k: number) => { const cs = [...checks]; cs[k] = !cs[k]; setChecks(cs); commit(lines, cs); };
   return (
@@ -895,6 +909,7 @@ function LineList({ initial, checks: initialChecks, marker, placeholder, addLabe
                 if (e.key === "Backspace" && t === "" && lines.length > 1) { e.preventDefault(); remove(k); }
               }}
               style={{ flex: 1, minWidth: 0, minHeight: 34, border: "none", borderBottom: `1px solid ${ROW_LINE}`, outline: "none", background: "transparent", fontFamily: SANS, fontSize: 14, lineHeight: 1.45, color: marker === "check" && checks[k] ? C.light : C.black, textDecoration: marker === "check" && checks[k] ? "line-through" : "none", padding: "7px 0", resize: "none" as const, overflow: "hidden", boxSizing: "border-box" as const, display: "block" }} />
+            {(t.trim() || lines.length > 1) && <span style={{ paddingTop: 3 }}><XBtn label={`Delete ${addLabel.replace(/^Add an? /, "")} ${k + 1}`} onClick={() => removeX(k)} /></span>}
           </div>
         );
       })}
@@ -933,8 +948,11 @@ function RefTable({ initial, onSave }: { initial: { url: string; note: string }[
             {r.url.trim()
               ? <a href={href(r.url.trim())} target="_blank" rel="noreferrer" aria-label={`Open link ${k + 1}`} style={{ width: 26, height: 30, display: "inline-flex", alignItems: "center", justifyContent: "center", color: C.black }}><Ico d={IC.link} size={14} /></a>
               : <span style={{ width: 26 }} />}
-            <button onClick={() => { const rs = rows.filter((_, i) => i !== k); setRows(rs); commit(rs); }} aria-label={`Delete link ${k + 1}`}
-              style={{ width: 26, height: 30, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 13 }}>✕</button>
+            <XBtn label={`Delete link ${k + 1}`} size={26} onClick={() => {
+              const before = rows, rs = rows.filter((_, i) => i !== k);
+              setRows(rs); commit(rs);
+              if (r.url.trim() || r.note.trim()) showUndo("Link deleted", () => { setRows(before); commit(before); });
+            }} />
           </span>
         </div>
       ))}

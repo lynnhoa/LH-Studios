@@ -24,6 +24,7 @@ import type { PlannerView } from "./PlannerTodo";
 import { OUTREACH_TIERS, copyText } from "./outreach";
 import { fmtD, today } from "./formatters";
 import { Ico, IC, Bar, Toolbar, Subtitle, CatChip, NumField, SprintWindow, sprintRange, sprintDay } from "./PlannerWindows";
+import { showUndo, XBtn } from "./undo";
 
 const microLabel: any = { fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted };
 const look = OWNER_LOOK.manager;
@@ -233,7 +234,15 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
         {weekPitches.slice(0, 6).map(p => (
           <div key={p.id} style={{ minHeight: 36, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: 13, borderTop: "1px solid #f0ece7", marginTop: 6 }}>
             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{planner.contactName(p.contactId)} <span style={{ color: C.muted }}>· {p.kind === "follow_up" ? "Follow-up" : "Pitch"}</span></span>
-            <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{fmtD(p.sentOn).slice(0, 6)}</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
+              <span style={{ fontSize: 12, color: C.muted }}>{fmtD(p.sentOn).slice(0, 6)}</span>
+              <XBtn label={`Delete ${p.kind === "follow_up" ? "follow-up" : "pitch"} to ${planner.contactName(p.contactId)}`} onClick={async () => {
+                try {
+                  const before = await planner.deletePitch(p);
+                  showUndo(`${p.kind === "follow_up" ? "Follow-up" : "Pitch"} deleted`, () => planner.restorePitch(p, before));
+                } catch { /* the save toast reports it */ }
+              }} />
+            </span>
           </div>
         ))}
         {weekPitches.length > 6 && <p style={{ fontSize: 12, color: C.muted, margin: "6px 0 0" }}>+{weekPitches.length - 6} more in Outreach</p>}
