@@ -2,7 +2,7 @@
 // PlannerApp — Planner (tabs: Overview, To-do, Manager, Creator).
 // Same frame as Outreach: logo header, nav tabs, account menu
 // with all apps. Phone, iPad and desktop layouts.
-// All four tabs are live: Overview (read-only scoreboard), To-do,
+// All four tabs are live: Dashboard (read-only scoreboard), To-do,
 // Manager and Creator. One account at a time: @lynnhoa or
 // @createbylynn, chosen in the profile menu and remembered.
 // ─────────────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ import type { PlannerView } from "./PlannerTodo";
 import type { Role } from "./types";
 
 const TABS: { key: string; label: string; soon?: { phase: number; text: string } }[] = [
-  { key: "overview", label: "Overview" },
+  { key: "overview", label: "Dashboard" },
   { key: "todo",     label: "To-do" },
   { key: "manager",  label: "Manager" },
   { key: "creator",  label: "Creator" },
@@ -62,7 +62,15 @@ export default function PlannerApp({ userId, settings, signOut, switchTo, banner
   const isMobile = winW < BREAKPOINT;
   const isWide   = winW >= WIDE;
   const tab      = TABS.find(t => t.key === view.tab) || TABS[1];
-  const goTab    = (key: string) => { setView({ ...view, tab: key }); window.scrollTo(0, 0); };
+  // switch tab; with an anchor, scroll to that card (e.g. To-do → Manager › Following)
+  const goTab    = (key: string, anchor?: string) => {
+    setView({ ...view, tab: key });
+    window.scrollTo(0, 0);
+    if (anchor) setTimeout(() => {
+      const el = document.getElementById(anchor);
+      if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - (winW < BREAKPOINT ? 100 : 72), behavior: "smooth" });
+    }, 80);
+  };
   const openOutreach = () => switchTo("outreach");
   // the Manager app opens straight on Service Catalog (rate cards inside)
   const openCatalog = () => { try { sessionStorage.setItem("lh_manager_open", "catalog"); } catch { /* ignore */ } switchTo("manager"); };

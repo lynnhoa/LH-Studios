@@ -176,6 +176,9 @@ export function usePlanner(userId: string | null, monday: string) {
   const [pitches,   setPitches]   = useState<Pitch[]>([]);
   const [sprints,   setSprints]   = useState<Sprint[]>([]);
   const [stage2Error, setStage2Error] = useState<string | null>(null);
+  // every target ever set (they carry over to the following weeks / months)
+  const [targetLog, setTargetLog] = useState<Record<string, { p: string; v: number }[]>>({});
+  const [loginEmail, setLoginEmail] = useState("");
   const [outreachError, setOutreachError] = useState<string | null>(null);
   const [loading,   setLoading]   = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -222,6 +225,23 @@ export function usePlanner(userId: string | null, monday: string) {
     setSnaps(k);
   }, [userId, from, monday]);
 
+  // targets carry over: load all of them once (small)
+  const loadTargets = useCallback(async () => {
+    if (!userId) { setTargetLog({}); return; }
+    const res: any = await supabase.from("planner_entries").select("task_id, period_start, target").eq("user_id", userId);
+    if (res?.error) return;
+    const m: Record<string, { p: string; v: number }[]> = {};
+    (res?.data || []).forEach((r: any) => { if (r.target == null) return; (m[r.task_id] ||= []).push({ p: String(r.period_start).slice(0, 10), v: Number(r.target) }); });
+    Object.values(m).forEach(l => l.sort((x, y) => x.p.localeCompare(y.p)));
+    setTargetLog(m);
+  }, [userId]);
+  useEffect(() => { loadTargets(); }, [loadTargets]);
+  useEffect(() => {
+    let cancelled = false;
+    try { supabase.auth?.getSession?.().then((r: any) => { if (!cancelled) setLoginEmail(r?.data?.session?.user?.email || ""); }); } catch { /* no session info */ }
+    return () => { cancelled = true; };
+  }, [userId]);
+
   // Creator lists and notes, Outreach contacts and (Stage 2) the pitch log and sprints
   const loadOutside = useCallback(async () => {
     if (!userId) { setContacts([]); setItems([]); setNotes([]); setPitches([]); setSprints([]); return; }
@@ -256,7 +276,7 @@ export function usePlanner(userId: string | null, monday: string) {
   useEffect(() => { loadBase(); }, [loadBase]);
   useEffect(() => { loadEntries(); }, [loadEntries]);
   useEffect(() => { loadOutside(); }, [loadOutside]);
-  useEffect(() => registerReloader(() => { loadBase(); loadEntries(); loadOutside(); }), [loadBase, loadEntries, loadOutside]);
+  useEffect(() => registerReloader(() => { loadBase(); loadEntries(); loadOutside(); loadTargets(); }), [loadBase, loadEntries, loadOutside, loadTargets]);
 
   // ── tasks ───────────────────────────────────────────────────
   const setTaskStatus = useCallback(async (t: Task, status: TaskStatus) => {
@@ -310,6 +330,12 @@ export function usePlanner(userId: string | null, monday: string) {
     if ("done"   in patch) row.done   = patch.done;
     if ("note"   in patch) row.note   = patch.note;
     if ("data"   in patch) row.data   = patch.data;
+    if ("target" in patch) setTargetLog(m => {
+      const l = (m[taskId] || []).filter(x => x.p !== period);
+      if (patch.target != null) l.push({ p: period, v: patch.target });
+      l.sort((x, y) => x.p.localeCompare(y.p));
+      return { ...m, [taskId]: l };
+    });
     const { data, error } = await supabase.from("planner_entries").upsert(row, { onConflict: "task_id,period_start" }).select().single();
     fail(error);
     if (data) setEntries(m => ({ ...m, [key]: rowToEntry(data) }));
@@ -494,10 +520,22 @@ export function usePlanner(userId: string | null, monday: string) {
     }
     return undefined;
   }, [contacts, snaps, items, pitches]);
+  // this period's target, or the last one set before it (targets carry over)
+  const targetOf = useCallback((taskId: string, period: string): number | null => {
+    const own = entries[entryKey(taskId, period)]?.target;
+    if (own != null) return own;
+    const l = targetLog[taskId];
+    if (!l) return null;
+    for (let i = l.length - 1; i >= 0; i--) if (l[i].p <= period) return l[i].v;
+    return null;
+  }, [entries, targetLog]);
   const stateOf = useCallback((t: Task, monday_: string) => {
     const period = periodOf(t, monday_);
-    return rowState(t, entries[entryKey(t.id, period)], autoOf(t, period));
-  }, [entries, autoOf]);
+    const e = entries[entryKey(t.id, period)];
+    const tgt = targetOf(t.id, period);
+    const eff = e ? { ...e, target: tgt } : tgt != null ? { id: "", taskId: t.id, periodStart: period, target: tgt, actual: null, days: NO_DAYS, done: false, data: {}, note: "" } as Entry : undefined;
+    return rowState(t, eff, autoOf(t, period));
+  }, [entries, autoOf, targetOf]);
   // done for stage gates (one-time tasks; the first set counts itself)
   const doneOf = useCallback((t: Task) => stateOf(t, monday).done, [stateOf, monday]);
 
@@ -507,7 +545,7 @@ export function usePlanner(userId: string | null, monday: string) {
     stages, tasks, entries, snaps, items, notes, waiting, loading, loadError, outreachError, reload,
     setTaskStatus, updateTask, createTask, deleteTask,
     saveEntry, planTargets, updateStage, startNextStage,
-    saveSnapshot, newContacts, autoOf, stateOf, doneOf,
+    saveSnapshot, newContacts, autoOf, stateOf, doneOf, targetOf, loginEmail,
     createItem, updateItem, setItemStatus, deleteItem, noteOf, saveNote,
     pitches, sprints, stage2Error, createSprint, updateSprint, deleteSprint, activeSprint, sprintStats, followUpsDue, pitchesInWeek, contactName,
   };

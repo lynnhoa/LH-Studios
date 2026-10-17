@@ -38,6 +38,7 @@ export const IC = {
   lock:   "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z",
   arrow:  "M5 12h14M13 6l6 6-6 6",
   down:   "M6 9l6 6 6-6",
+  copy:   "M9 9h10v10H9zM5 15V5h10",
   up:     "M18 15l-6-6-6 6",
 };
 
@@ -55,6 +56,33 @@ export const Bar = ({ value, max, done, s, color, track, h = 3 }: { value: numbe
     </div>
   );
 };
+
+// Text you edit right where it is (no window): looks like text, saves when you leave it.
+// Enter (single line) runs onEnter, e.g. "add the next row".
+export function InlineText({ value, onSave, placeholder, multiline, ariaLabel, s, onEnter, autoFocus, muted }: {
+  value: string; onSave: (v: string) => void; placeholder?: string; multiline?: boolean; ariaLabel?: string; s?: any;
+  onEnter?: () => void; autoFocus?: boolean; muted?: boolean;
+}) {
+  const [t, setT] = useState(value);
+  const [focus, setFocus] = useState(false);
+  useEffect(() => { if (!focus) setT(value); }, [value, focus]);
+  const commit = () => { setFocus(false); if (t !== value) onSave(t); };
+  const base: any = {
+    width: "100%", boxSizing: "border-box" as const, fontFamily: SANS, fontSize: 14, color: muted ? C.light : C.black,
+    background: focus ? C.white : "transparent", border: `1px solid ${focus ? C.rule : "transparent"}`, borderRadius: 2,
+    outline: "none", padding: multiline ? "6px 8px" : "0 6px", margin: multiline ? "0 -8px" : "0 -6px", ...s,
+  };
+  if (multiline) {
+    const rows = Math.max(2, Math.min(10, (t || "").split("\n").length + Math.floor((t || "").length / 44)));
+    return <textarea value={t} rows={rows} placeholder={placeholder} aria-label={ariaLabel} autoFocus={autoFocus}
+      onFocus={() => setFocus(true)} onChange={(e) => setT(e.target.value)} onBlur={commit}
+      style={{ ...base, resize: "none" as const, lineHeight: 1.5, width: "calc(100% + 16px)" }} />;
+  }
+  return <input value={t} placeholder={placeholder} aria-label={ariaLabel} autoFocus={autoFocus}
+    onFocus={() => setFocus(true)} onChange={(e) => setT(e.target.value)} onBlur={commit}
+    onKeyDown={(e) => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); onEnter?.(); } }}
+    style={{ ...base, height: 32, width: "calc(100% + 12px)" }} />;
+}
 
 // Who does it, as a small coloured pill (Manager blue-grey · Creator mauve · Both warm grey)
 export const OwnerPill = ({ owner }: { owner: Owner }) => {
@@ -452,7 +480,7 @@ function WorkCard({ task, planner, monday }: { task: Task; planner: PlannerHook;
 }
 
 // A number field that saves when you leave it (or press Enter)
-function NumField({ label, value, onSave, decimal }: { label: string; value: number | null; onSave: (v: number | null) => void; decimal?: boolean }) {
+export function NumField({ label, value, onSave, decimal }: { label: string; value: number | null; onSave: (v: number | null) => void; decimal?: boolean }) {
   // German format in the field too: 1.180 · 4,85
   const show = (v: number | null) => (v == null ? "" : decimal
     ? v.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })

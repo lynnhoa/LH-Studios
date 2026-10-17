@@ -242,6 +242,61 @@ export const monthGoalOf = (t: Task | undefined, e: Entry | undefined, acc: Acco
 export const monthGoalPatch = (t: Task, e: Entry | undefined, acc: Account, v: number | null) =>
   t.account === "both" ? { data: { ...(e?.data || {}), goals: { ...(e?.data?.goals || {}), [acc]: v } } } : { target: v };
 
+// ── Goal status: one short word, the same everywhere ─────────
+// Reached ✓ (green) · "2 to go" (amber, week still running) ·
+// Not reached (muted red, week over) · No number (grey, no target)
+export type Tone = "ok" | "attn" | "miss" | "none";
+export const TONE: Record<Tone, string> = { ok: "#7aaa7a", attn: "#c49a6c", miss: "#c47b7b", none: "#b8b3ad" };
+export interface GoalStatus { text: string; tone: Tone; }
+export function goalStatus(t: Task, st: RowState, monday: string): GoalStatus | null {
+  const kind = rowKind(t);
+  const over = periodOf(t, monday) < periodOf(t, thisMonday());     // this week / month is over
+  const a = st.actual ?? 0;
+  if (t.source === "snapshot")    return st.done ? { text: "Entered ✓", tone: "ok" } : over ? { text: "Not entered", tone: "miss" } : { text: "Enter", tone: "attn" };
+  if (t.source === "kit_waiting") return st.done ? { text: "Done ✓", tone: "ok" } : { text: `${a} waiting`, tone: over ? "miss" : "attn" };
+  if (kind === "days")            return st.done ? { text: "Reached ✓", tone: "ok" } : over ? { text: "Not reached", tone: "miss" } : { text: `${7 - st.daysDone} to go`, tone: "attn" };
+  if (kind === "number" || t.source === "portfolio_total") {
+    if (st.done) return { text: "Reached ✓", tone: "ok" };
+    if (st.target == null) return { text: "No number", tone: "none" };
+    if (over && t.rhythm !== "once") return { text: "Not reached", tone: "miss" };
+    return { text: `${Math.max(0, st.target - a)} to go`, tone: "attn" };
+  }
+  if (st.done) return { text: "Done ✓", tone: "ok" };
+  if (over && t.rhythm !== "once") return { text: "Not done", tone: "miss" };
+  return null;
+}
+// Prompt for Claude: read the Instagram insights screenshot → one SQL insert for this account and week
+export function snapshotPrompt(account: Account, week: string, email: string): string {
+  const handle = account === "lynnhoa" ? "@lynnhoa" : "@createbylynn";
+  return `I'm sending you a screenshot of the Instagram insights of ${handle}.
+
+1. Read these numbers from the screenshot:
+   - Followers (total)
+   - Views (last 7 days)
+   - Interactions and Accounts reached (last 7 days)
+2. Engagement % = interactions ÷ accounts reached × 100, rounded to 2 decimals.
+   If a number isn't in the screenshot, use null.
+3. Output ONLY this SQL with the numbers filled in (no thousands separators, dot as decimal separator):
+
+insert into public.planner_snapshots (user_id, account, week_start, followers, views, engagement)
+select u.id, '${account}', '${week}', FOLLOWERS, VIEWS, ENGAGEMENT
+from auth.users u where lower(u.email) = lower('${email || "PUT-YOUR-LOGIN-EMAIL-HERE"}')
+on conflict (user_id, account, week_start) do update set
+  followers  = coalesce(excluded.followers,  public.planner_snapshots.followers),
+  views      = coalesce(excluded.views,      public.planner_snapshots.views),
+  engagement = coalesce(excluded.engagement, public.planner_snapshots.engagement);
+
+4. After the SQL, add one line with what you read, e.g. "Followers 1.180 · Views 6.450 · Engagement 4,85 %".
+
+I'll run the SQL in Supabase → SQL editor, then reopen the app.`;
+}
+
+// Short names for status lines (Dashboard, Manager)
+export const shortName = (t: Task): string =>
+  t.source === "snapshot" ? "Snapshot" : t.source === "outreach" ? "Emails" : t.source === "ideas" ? "Ideas" : t.source === "posts" ? "Posts"
+  : t.source === "pieces" ? "Pieces" : t.source === "kit_waiting" ? "Kits" : t.source === "following" ? "Following" : t.source === "pitches" ? "Pitches"
+  : t.area === "community" ? "Community" : t.area === "checkin" ? "Check-in" : t.title;
+
 // The account you're working on: chosen in the profile menu, remembered on this device
 const WORK_KEY = "lh_work_account";
 export const loadWorkAccount = (): Account => { try { return localStorage.getItem(WORK_KEY) === "createbylynn" ? "createbylynn" : "lynnhoa"; } catch { return "lynnhoa"; } };
