@@ -30,7 +30,8 @@ function useAuth() {
 
   const ROLES: Role[] = ["planner", "outreach", "manager", "creator"];
   const getRole = (): Role => {
-    try { const r = sessionStorage.getItem("lh_role") as Role; return ROLES.includes(r) ? r : "manager"; }
+    // the app you used last, remembered on this device (fallback: this session)
+    try { const r = (localStorage.getItem("lh_role") || sessionStorage.getItem("lh_role")) as Role; return ROLES.includes(r) ? r : "manager"; }
     catch { return "manager"; }
   };
 
@@ -75,7 +76,7 @@ function useAuth() {
   }, []);
 
   const signIn = async (email: string, password: string, r: Role): Promise<string | null> => {
-    try { sessionStorage.setItem("lh_role", r); } catch {}
+    try { sessionStorage.setItem("lh_role", r); localStorage.setItem("lh_role", r); } catch {}
     signingIn.current = true;
     setLoading(true);
     setError(null);
@@ -103,7 +104,7 @@ function useAuth() {
 
   // go straight to any of the four apps (no new login)
   const switchTo = (next: Role) => {
-    try { sessionStorage.setItem("lh_role", next); } catch {}
+    try { sessionStorage.setItem("lh_role", next); localStorage.setItem("lh_role", next); } catch {}
     setRole(next);
     window.scrollTo(0, 0);
   };

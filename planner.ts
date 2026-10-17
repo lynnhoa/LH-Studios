@@ -136,9 +136,16 @@ export const PHASES: { key: Phase; label: string; section: string }[] = [
 ];
 export const OWNERS: { key: Owner; label: string }[] = [
   { key: "manager", label: "Manager" },
-  { key: "creator", label: "You" },
+  { key: "creator", label: "Creator" },
   { key: "both",    label: "Both" },
 ];
+// Who does it, by colour: manager blue-grey · creator mauve · both warm grey
+// (account colours stay lavender for @lynnhoa and peach for @createbylynn)
+export const OWNER_LOOK: Record<Owner, Look> = {
+  manager: { label: "Manager", color: "#5a7a9a", bg: "#eef3f8", border: "#c8d6e6" },
+  creator: { label: "Creator", color: "#9a6a8a", bg: "#f7f0f4", border: "#e4cfdc" },
+  both:    { label: "Both",    color: "#6b655e", bg: "#f3f1ee", border: "#e8e4df" },
+};
 export const RHYTHMS: { key: Rhythm; label: string }[] = [
   { key: "once",    label: "Once" },
   { key: "daily",   label: "Daily" },

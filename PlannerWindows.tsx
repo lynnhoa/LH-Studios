@@ -10,7 +10,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE, Z } from "./constants";
-import { fmtD, today } from "./formatters";
+import { fmtD, today, monthStart, monthEnd, ymd } from "./formatters";
 import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN } from "./atoms";
 import {
   ACCOUNTS, PHASES, OWNERS, RHYTHMS, STATUSES, STAGE_SHORT, DAY_SHORT,
@@ -18,8 +18,9 @@ import {
   addDays, isoWeek, weekRange, weekLabel, thisMonday, monthName, todayIndex, gateOf, stageNumOf, taskAccounts, isVisible, byOrder,
   fmtInt, fmtPct2, parseDec, parseIntDe,
   ITEM_STATUSES, FORMATS, CLASSIC, formatLook, itemStatusLabel, daysBetween,
+  OWNER_LOOK, monthGoalOf, monthGoalPatch, loadWorkAccount,
 } from "./planner";
-import type { Task, Stage, TaskAccount, AccountFilter, Phase, Rhythm, Item, ItemList, Account, NoteKind, Sprint } from "./planner";
+import type { Task, Stage, TaskAccount, AccountFilter, Phase, Rhythm, Item, ItemList, Account, NoteKind, Sprint, Owner } from "./planner";
 import { OUTREACH_CATEGORIES, OUTREACH_TIERS, catOf } from "./outreach";
 import type { PlannerHook } from "./usePlanner";
 
@@ -36,6 +37,8 @@ export const IC = {
   link:   "M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1",
   lock:   "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z",
   arrow:  "M5 12h14M13 6l6 6-6 6",
+  down:   "M6 9l6 6 6-6",
+  up:     "M18 15l-6-6-6 6",
 };
 
 // ── pieces ────────────────────────────────────────────────────
@@ -44,14 +47,32 @@ export const AccChip = ({ acc, s }: { acc: TaskAccount; s?: any }) => {
   return <span style={{ fontSize: TYPE.micro.size, padding: "1px 7px", borderRadius: 10, border: `1px solid ${l.border}`, background: l.bg, color: l.color, whiteSpace: "nowrap" as const, flexShrink: 0, ...s }}>{l.label}</span>;
 };
 
-export const Bar = ({ value, max, done, s }: { value: number; max: number; done?: boolean; s?: any }) => {
+export const Bar = ({ value, max, done, s, color, track, h = 3 }: { value: number; max: number; done?: boolean; s?: any; color?: string; track?: string; h?: number }) => {
   const w = max > 0 ? Math.max(0, Math.min(100, Math.round((value / max) * 100))) : 0;
   return (
-    <div style={{ height: 3, background: C.rule, marginTop: 6, ...s }}>
-      <div style={{ height: 3, width: `${w}%`, background: done ? C.green : C.black }} />
+    <div style={{ height: h, background: track || C.rule, marginTop: 6, ...s }}>
+      <div style={{ height: h, width: `${w}%`, background: done ? C.green : (color || C.black) }} />
     </div>
   );
 };
+
+// Who does it, as a small coloured pill (Manager blue-grey · Creator mauve · Both warm grey)
+export const OwnerPill = ({ owner }: { owner: Owner }) => {
+  const l = OWNER_LOOK[owner];
+  return <span style={{ fontSize: TYPE.micro.size, padding: "1px 7px", borderRadius: 10, border: `1px solid ${l.border}`, background: l.bg, color: l.color, whiteSpace: "nowrap" as const, flexShrink: 0 }}>{l.label}</span>;
+};
+
+// A white card on the cream page (title row optional)
+export const Card = ({ title, right, children, pad = true, s }: { title?: string; right?: any; children: any; pad?: boolean; s?: any }) => (
+  <div style={{ background: C.white, border: `1px solid ${C.rule}`, borderRadius: 3, marginTop: 12, overflow: "hidden", ...s }}>
+    {title && (
+      <div style={{ minHeight: 34, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted }}>
+        <span>{title}</span>{right != null && <span>{right}</span>}
+      </div>
+    )}
+    <div style={{ padding: pad ? (title ? "0 12px 12px" : "12px") : 0 }}>{children}</div>
+  </div>
+);
 
 // display-only tick (rows whose box ticks itself)
 export const Box = ({ on, size = 18 }: { on: boolean; size?: number }) => (
@@ -128,12 +149,12 @@ export function Window({ title, isMobile, onClose, children, footer }: { title: 
   return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", background: isMobile ? C.bg : "rgba(250,249,247,0.85)", fontFamily: SANS, color: C.black }}>
       <div style={{ width: "100%", maxWidth: isMobile ? "none" : 480, maxHeight: isMobile ? "none" : "88vh", background: C.bg, border: isMobile ? "none" : `1px solid ${C.rule}`, borderRadius: isMobile ? 0 : 2, boxShadow: isMobile ? "none" : "0 8px 32px rgba(0,0,0,0.12)", display: "flex", flexDirection: "column", paddingTop: isMobile ? "env(safe-area-inset-top)" : 0 }}>
-        <div style={{ height: 44, display: "flex", alignItems: "center", gap: 6, padding: "0 8px 0 2px", borderBottom: `1px solid ${C.rule}`, flexShrink: 0 }}>
+        <div style={{ height: 44, display: "flex", alignItems: "center", gap: 6, padding: "0 8px 0 2px", borderBottom: `1px solid ${C.rule}`, flexShrink: 0, background: C.white }}>
           <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 20, flexShrink: 0 }}>✕</button>
           <span style={{ fontFamily: SERIF, fontSize: 15, color: C.black, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{title}</span>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px 16px" }}>{children}</div>
-        {footer && <div style={{ padding: `10px 14px ${isMobile ? "calc(10px + env(safe-area-inset-bottom))" : "10px"}`, borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>{footer}</div>}
+        {footer && <div style={{ padding: `10px 14px ${isMobile ? "calc(10px + env(safe-area-inset-bottom))" : "10px"}`, borderTop: `1px solid ${C.rule}`, flexShrink: 0, background: C.white }}>{footer}</div>}
       </div>
     </div>,
     document.body
@@ -178,8 +199,9 @@ const int = (v: string): number | null => { const n = parseInt(String(v).replace
 // ═════════════════════════════════════════════════════════════
 const EMPTY_DRAFT: Partial<Task> = { title: "", account: "both", owner: "creator", phase: "maintain", rhythm: "weekly", stageNum: 1, measure: null, how: "", doneWhen: "", link: "" };
 
-export function TaskWindow({ planner, taskId, draft, monday, isMobile, onClose, openOutreach }: {
-  planner: PlannerHook; taskId?: string; draft?: Partial<Task>; monday: string; isMobile: boolean; onClose: () => void; openOutreach?: () => void;
+export function TaskWindow({ planner, taskId, draft, monday, isMobile, onClose, openOutreach, openTab }: {
+  planner: PlannerHook; taskId?: string; draft?: Partial<Task>; monday: string; isMobile: boolean; onClose: () => void;
+  openOutreach?: () => void; openTab?: (tab: string) => void;
 }) {
   const [id, setId]       = useState<string | undefined>(taskId);
   const task              = planner.tasks.find(t => t.id === id);
@@ -226,6 +248,26 @@ export function TaskWindow({ planner, taskId, draft, monday, isMobile, onClose, 
     catch (e: any) { setErr(e?.message || "Couldn't delete."); }
   };
 
+  // the one main action of this task, in the footer (every tick can be undone here too)
+  const primary = (() => {
+    if (!task || edit) return null;
+    const st = planner.stateOf(task, monday);
+    const period = periodOf(task, monday);
+    const kind = rowKind(task);
+    const ti = todayIndex(monday);
+    if (["ideas", "posts", "pieces", "portfolio_total"].includes(task.source))
+      return openTab ? { label: "Open Creator", run: () => { onClose(); openTab("creator"); } } : null;
+    if (task.source === "outreach" || task.source === "pitches")
+      return openOutreach ? { label: "Open Outreach", run: openOutreach } : null;
+    if (kind === "days")
+      return ti >= 0 ? { label: st.days[ti] ? "Untick today" : "Tick today", run: () => { const days = [...st.days]; days[ti] = !days[ti]; quietP(planner.saveEntry(task.id, period, { days })); } } : null;
+    if (kind === "check")
+      return task.rhythm === "once"
+        ? { label: st.done ? "Reopen" : "Mark done", run: () => quietP(planner.setTaskStatus(task, st.done ? "open" : "done")) }
+        : { label: st.done ? "Undo" : "Mark done", run: () => quietP(planner.saveEntry(task.id, period, { done: !st.done })) };
+    return null;
+  })();
+
   const title = edit ? (task ? "Edit task" : "New task") : (task?.title || "Task");
 
   return (
@@ -239,151 +281,135 @@ export function TaskWindow({ planner, taskId, draft, monday, isMobile, onClose, 
           </div>
         ) : (
           <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
-            <MoreMenu items={[{ label: "Delete task", danger: true, onClick: () => setAskDelete(true) }]} />
-            <B onClick={() => { setF(task!); setEdit(true); }}>Edit</B>
+            <MoreMenu items={[
+              { label: "Edit task", onClick: () => { setF(task!); setEdit(true); } },
+              { label: "Delete task", danger: true, onClick: () => setAskDelete(true) },
+            ]} />
+            {primary ? <B onClick={primary.run}>{primary.label}</B> : <B v="sec" onClick={onClose}>Close</B>}
           </div>
         )}>
         {err && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
-        {edit ? <TaskForm f={f} set={set} stages={planner.stages} /> : task ? <TaskRead task={task} planner={planner} monday={monday} openOutreach={openOutreach} /> : null}
+        {edit ? <TaskForm f={f} set={set} stages={planner.stages} /> : task ? <TaskRead task={task} planner={planner} monday={monday} /> : null}
       </Window>
     </>
   );
 }
 
-function TaskRead({ task, planner, monday, openOutreach }: { task: Task; planner: PlannerHook; monday: string; openOutreach?: () => void }) {
+// ═════════════════════════════════════════════════════════════
+// TASK READ VIEW
+//   who · rhythm · account
+//   status card (owner colour): the number or Done / Not done yet,
+//     and what's left — amber when it needs you, green when done
+//   the work, right here (one white card per task kind)
+//   note for this week / month (for the check-in)
+//   How it's done (folds away) · last 4 weeks
+// ═════════════════════════════════════════════════════════════
+function TaskRead({ task, planner, monday }: { task: Task; planner: PlannerHook; monday: string }) {
   const period = periodOf(task, monday);
-  const entry  = planner.entries[entryKey(task.id, period)];
   const st     = planner.stateOf(task, monday);
   const kind   = rowKind(task);
   const ti     = todayIndex(monday);
-  const [num, setNum] = useState(st.actual == null ? "" : String(st.actual));
-  useEffect(() => { setNum(st.actual == null ? "" : String(st.actual)); }, [st.actual]);
-  const quiet = (p: Promise<any>) => p.catch(() => { /* the save toast reports it */ });
-
-  const saveNum = () => {
-    const v = num.trim() === "" ? null : int(num);
-    if (v === st.actual) return;
-    quiet(planner.saveEntry(task.id, period, { actual: v }));
-  };
+  const look   = OWNER_LOOK[task.owner];
+  const [howOpen, setHowOpen] = useState(false);
   const periodWord = task.rhythm === "monthly" ? `in ${monthName(period)}` : `in week ${isoWeek(monday)}`;
+
+  // ── status card ─────────────────────────────────────────────
+  const a = st.actual ?? 0;
+  const left = st.target != null ? Math.max(0, st.target - a) : null;
+  let big = "", label = "", sub = "", subColor: string = C.muted;
+  let bar: null | { value: number; max: number } = null;
+  if (task.source === "portfolio_total") {
+    big = `${a} / ${st.target ?? "–"}`; label = "Pieces for the first set"; bar = { value: a, max: st.target ?? 0 };
+    if (st.done) { sub = "First set complete ✓"; subColor = C.green; } else { sub = `${left} more ${left === 1 ? "piece" : "pieces"} to go`; subColor = C.amber; }
+  } else if (task.source === "kit_waiting") {
+    big = String(a); label = a === 1 ? "Piece waiting for the kits" : "Pieces waiting for the kits";
+    if (st.done) { sub = "Nothing waiting ✓"; subColor = C.green; } else { sub = "Add them to the kits, then tap In kit"; subColor = C.amber; }
+  } else if (task.source === "snapshot") {
+    const sn = task.account !== "both" ? planner.snaps[snapKey(task.account, monday)] : undefined;
+    big = sn?.followers != null ? fmtInt(sn.followers) : "–"; label = `Followers · week ${isoWeek(monday)}`;
+    if (st.done) { sub = "Entered ✓"; subColor = C.green; } else { sub = "Not entered yet — fill in below"; subColor = C.amber; }
+  } else if (kind === "days") {
+    big = `${st.daysDone} / 7`; label = `Days in week ${isoWeek(monday)}`; bar = { value: st.daysDone, max: 7 };
+    if (ti >= 0) { if (st.days[ti]) { sub = "Today ✓"; subColor = C.green; } else { sub = "Today isn't ticked yet"; subColor = C.amber; } }
+  } else if (kind === "number") {
+    big = `${a} / ${st.target ?? "–"}`; label = `${task.measure} ${periodWord}`; bar = { value: a, max: st.target ?? 0 };
+    if (st.done) { sub = "Reached ✓"; subColor = C.green; }
+    else if (st.target == null) { sub = "No number yet — set it in Plan week"; subColor = C.amber; }
+    else { sub = `${left} more to reach this week's number`; subColor = C.amber; }
+  } else if (task.rhythm === "once") {
+    big = st.done ? "Done" : task.status === "in_progress" ? "In progress" : "Open";
+    label = `${phaseLabel(task.phase)} · stage ${task.stageNum}`;
+    if (st.done) { sub = task.doneOn ? `Done on ${fmtD(task.doneOn)} ✓` : "Done ✓"; subColor = C.green; }
+    else { sub = "Tap Mark done when it's finished"; }
+  } else {
+    big = st.done ? "Done" : "Not done yet"; label = task.rhythm === "monthly" ? `For ${monthName(period)}` : `In week ${isoWeek(monday)}`;
+    if (st.done) { sub = "Done ✓ — tap Undo if that was a mistake"; subColor = C.green; } else { sub = "Tap Mark done when it's done"; }
+  }
 
   // last 4 weeks (this one included) for weekly and daily tasks
   // (the kit handover has no history: it only knows what is waiting now)
   const history = (task.rhythm === "daily" || task.rhythm === "weekly") && task.source !== "kit_waiting"
     ? [-21, -14, -7, 0].map(off => {
         const p = addDays(monday, off);
-        const s = planner.stateOf(task, p);
-        const value = kind === "number" ? `${s.actual ?? 0}/${s.target ?? "–"}` : kind === "days" ? `${s.daysDone}/7` : s.done ? "✓" : "–";
-        return { p, s, value, current: off === 0 };
+        const s2 = planner.stateOf(task, p);
+        const value = kind === "number" ? `${s2.actual ?? 0}/${s2.target ?? "–"}` : kind === "days" ? `${s2.daysDone}/7` : s2.done ? "✓" : "–";
+        return { p, s: s2, value, current: off === 0 };
       })
     : [];
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const }}>
-        <span style={microLabel}>{phaseLabel(task.phase)} · {rhythmLabel(task.rhythm)} · {ownerLabel(task.owner)}{task.stageNum > 1 ? ` · Stage ${task.stageNum}` : ""}</span>
-        <AccChip acc={task.account} />
+      {/* who · rhythm · account */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const }}>
+        <OwnerPill owner={task.owner} />
+        <span style={microLabel}>{rhythmLabel(task.rhythm)}{task.phase === "refine" ? " · until settled" : ""}{task.stageNum > 1 ? ` · Stage ${task.stageNum}` : ""}</span>
+        {task.account === "both"
+          ? <span style={{ fontSize: TYPE.micro.size, padding: "1px 7px", borderRadius: 10, border: `1px solid ${C.rule}`, color: C.muted, whiteSpace: "nowrap" as const }}>Both accounts</span>
+          : <AccChip acc={task.account} />}
       </div>
 
-      {/* ── the work: one control per kind ── */}
-      {task.source === "portfolio_total" ? (
-        <>
-          {bigLine(`${st.actual ?? 0} / ${st.target ?? "–"}`, `${task.measure || "pieces"} posted or in the kit`)}
-          <Bar value={st.actual ?? 0} max={st.target ?? 0} done={st.done} s={{ marginTop: 8 }} />
-          <p style={{ fontSize: 12, color: C.muted, margin: "8px 0 0", lineHeight: 1.5 }}>Counted from your editorial lists in Creator: portfolio pieces set to Posted or In kit. Ticks itself at {st.target}.</p>
-        </>
-      ) : task.source === "kit_waiting" ? (
-        <KitWaitingBlock task={task} planner={planner} />
-      ) : task.source === "pitches" ? (
-        <PitchesBlock task={task} planner={planner} monday={monday} openOutreach={openOutreach} />
-      ) : (task.source === "ideas" || task.source === "posts" || task.source === "pieces") ? (
-        <>
-          {bigLine(`${st.actual ?? 0} / ${st.target ?? "–"}`, `${task.measure} in week ${isoWeek(monday)}`)}
-          <Bar value={st.actual ?? 0} max={st.target ?? 0} done={st.done} s={{ marginTop: 8 }} />
-          <p style={{ fontSize: 12, color: C.muted, margin: "8px 0 0", lineHeight: 1.5 }}>
-            {task.source === "ideas" ? "Counted from Creator: ideas added this week." : task.source === "posts" ? "Counted from Creator: items set to Posted this week." : "Counted from Creator: portfolio pieces set to Posted this week."}
-            {" "}{st.target == null ? "Set the target in Plan week." : `Target: ${st.target} (Plan week).`}
-          </p>
-        </>
-      ) : task.rhythm === "once" ? (
-        <>
-          <Lbl>Status</Lbl>
-          <S value={task.status} onChange={(e: any) => quiet(planner.setTaskStatus(task, e.target.value))}>
-            {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-          </S>
-          {task.target != null && <p style={{ fontSize: 12, color: C.muted, margin: "6px 0 0" }}>Goal: {task.target} {task.measure || ""}{task.doneOn && task.status === "done" ? ` · done on ${fmtD(task.doneOn)}` : ""}</p>}
-          {task.target == null && task.doneOn && task.status === "done" && <p style={{ fontSize: 12, color: C.muted, margin: "6px 0 0" }}>Done on {fmtD(task.doneOn)}</p>}
-        </>
-      ) : task.source === "snapshot" ? (
-        <SnapshotBlock task={task} planner={planner} monday={monday} />
-      ) : task.source === "following" ? (
-        <FollowingBlock task={task} planner={planner} monday={monday} />
-      ) : task.source === "outreach" ? (
-        <OutreachBlock task={task} planner={planner} monday={monday} openOutreach={openOutreach} />
-      ) : kind === "number" ? (
-        <>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 14 }}>
-            <span style={{ fontFamily: SERIF, fontSize: 32, lineHeight: 1 }}>{st.actual ?? 0} / {st.target ?? "–"}</span>
-            <span style={microLabel}>{task.measure} {periodWord}</span>
-          </div>
-          <Bar value={st.actual ?? 0} max={st.target ?? 0} done={st.done} s={{ marginTop: 8 }} />
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8, alignItems: "end" }}>
-            <div><Lbl>So far</Lbl>
-              <I inputMode="numeric" value={num} placeholder="0" onChange={(e: any) => setNum(e.target.value.replace(/[^\d]/g, ""))}
-                onBlur={saveNum} onKeyDown={(e: any) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
-            </div>
-            <div><Lbl>Target</Lbl>
-              <div style={{ height: 36, display: "flex", alignItems: "center", fontSize: 13, color: st.target == null ? C.muted : C.black }}>{st.target == null ? "Set in Plan week" : `${st.target} ${task.measure}`}</div>
-            </div>
-          </div>
-        </>
-      ) : kind === "days" ? (
-        <>
-          <Lbl>Week {isoWeek(monday)} · {st.daysDone} of 7 days</Lbl>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0,1fr))", gap: 4 }}>
-            {DAY_SHORT.map((d, i) => {
-              const on = st.days[i];
-              return (
-                <button key={d} onClick={() => { const days = [...st.days]; days[i] = !days[i]; quiet(planner.saveEntry(task.id, period, { days })); }}
-                  aria-pressed={on} aria-label={`${d}${on ? ", done" : ""}`}
-                  style={{ height: 48, border: `1px solid ${i === ti ? C.black : on ? C.green : C.rule}`, background: on ? C.green : "transparent", color: on ? C.white : C.black, borderRadius: 2, cursor: "pointer", fontFamily: SANS, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: 0 }}>
-                  <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.06em", textTransform: "uppercase" as const, color: on ? C.white : i === ti ? C.black : C.muted }}>{d}</span>
-                  <span style={{ fontSize: 13, lineHeight: 1 }}>{on ? "✓" : ""}</span>
-                </button>
-              );
-            })}
-          </div>
-        </>
-      ) : (
-        <div style={{ marginTop: 14 }}>
-          <Tick on={st.done} color={C.green} size={22} label={task.rhythm === "monthly" ? `Done for ${monthName(period)}` : `Done in week ${isoWeek(monday)}`}
-            onClick={() => quiet(planner.saveEntry(task.id, period, { done: !st.done }))} />
+      {/* status */}
+      <div style={{ marginTop: 12, background: look.bg, border: `1px solid ${look.border}`, borderRadius: 3, padding: 12 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" as const }}>
+          <span style={{ fontFamily: SERIF, fontSize: 30, lineHeight: 1 }}>{big}</span>
+          <span style={{ ...microLabel, color: look.color }}>{label}</span>
         </div>
-      )}
+        {bar && <Bar value={bar.value} max={bar.max} done={st.done} color={look.color} track={look.border} h={4} s={{ marginTop: 10 }} />}
+        {sub && (
+          <div style={{ fontSize: 12, marginTop: 8, color: subColor, display: "flex", alignItems: "center", gap: 6 }}>
+            {subColor === C.amber && <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.amber, flexShrink: 0 }} />}
+            {sub}
+          </div>
+        )}
+      </div>
 
-      {textBlock("How", task.how)}
-      {textBlock("Done when", task.doneWhen)}
-      {task.link && (
-        <>
-          <Lbl>Link</Lbl>
-          <a href={task.link} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: C.black, display: "inline-flex", alignItems: "center", gap: 5, overflowWrap: "anywhere" as const }}><Ico d={IC.link} size={13} />{task.link}</a>
-        </>
+      {/* the work, right here */}
+      <WorkCard task={task} planner={planner} monday={monday} />
+
+      {/* note for the check-in */}
+      {task.rhythm !== "once" && <NoteCard task={task} planner={planner} period={period} label={task.rhythm === "monthly" ? `Note for ${monthName(period)}` : `Note for week ${isoWeek(monday)}`} />}
+
+      {/* how it's done — folds away */}
+      {(task.how || task.doneWhen) && (
+        <Card pad={false}>
+          <button onClick={() => setHowOpen(o => !o)} aria-expanded={howOpen}
+            style={{ width: "100%", height: 44, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: 14, color: C.black }}>
+            <span>How it's done</span><Ico d={howOpen ? IC.up : IC.down} size={14} color={C.muted} />
+          </button>
+          {howOpen && <div style={{ padding: "0 12px 12px", marginTop: -8 }}>{textBlock("How", task.how)}{textBlock("Done when", task.doneWhen)}</div>}
+        </Card>
       )}
 
       {history.length > 0 && (
         <>
           <Lbl>Last weeks</Lbl>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 6 }}>
-            {history.map(h => {
-              const past = !h.current;
-              const color = h.s.done ? C.green : past && (kind !== "number" || h.s.target != null) ? C.red : C.black;
-              return (
-                <div key={h.p} style={{ border: `1px solid ${h.current ? C.black : C.rule}`, borderRadius: 2, padding: "6px 4px", textAlign: "center" as const }}>
-                  <div style={{ ...microLabel, color: h.current ? C.black : C.muted }}>W{isoWeek(h.p)}</div>
-                  <div style={{ fontSize: 13, marginTop: 2, color }}>{h.value}</div>
-                </div>
-              );
-            })}
+            {history.map(h => (
+              <div key={h.p} style={{ border: `1px solid ${h.current ? C.black : h.s.done ? "#b8d4b8" : C.rule}`, background: h.s.done ? "#f0f5f0" : C.white, borderRadius: 2, padding: "6px 4px", textAlign: "center" as const }}>
+                <div style={{ ...microLabel, color: h.current ? C.black : h.s.done ? C.green : C.muted }}>W{isoWeek(h.p)}</div>
+                <div style={{ fontSize: 13, marginTop: 2, color: h.s.done ? C.green : C.black }}>{h.value}{h.s.done && h.value !== "✓" ? " ✓" : ""}</div>
+              </div>
+            ))}
           </div>
         </>
       )}
@@ -391,16 +417,39 @@ function TaskRead({ task, planner, monday, openOutreach }: { task: Task; planner
   );
 }
 
-// ── Work blocks for tasks whose numbers come from somewhere specific ─
-const bigLine = (value: any, unit: string) => (
-  <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 14, flexWrap: "wrap" as const }}>
-    <span style={{ fontFamily: SERIF, fontSize: 32, lineHeight: 1 }}>{value}</span>
-    <span style={microLabel}>{unit}</span>
+// ── Work cards: what this task is about, to do right here ─────
+const grid3: any = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8 };
+const quietP = (p: Promise<any>) => p.catch(() => { /* the save toast reports it */ });
+const dm = (d: string | null | undefined) => (d ? `${d.slice(8, 10)}.${d.slice(5, 7)}.` : "");
+const itemLine = (key: string, title: string, right: any, last = false) => (
+  <div key={key} style={{ minHeight: 40, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottom: last ? "none" : `1px solid #f0ece7`, fontSize: 14 }}>
+    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{title}</span>
+    <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6 }}>{right}</span>
   </div>
 );
-const targetLine = (target: number | null, unit: string) => (
-  <p style={{ fontSize: 12, color: C.muted, margin: "8px 0 0" }}>{target == null ? "Set the target in Plan week." : `Target: ${target} ${unit} (Plan week)`}</p>
-);
+const tagText = (t: string, color: string = C.muted) => <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color, whiteSpace: "nowrap" as const }}>{t}</span>;
+const emptyLine = (t: string) => <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>{t}</p>;
+
+function WorkCard({ task, planner, monday }: { task: Task; planner: PlannerHook; monday: string }) {
+  const period = periodOf(task, monday);
+  const kind   = rowKind(task);
+  switch (task.source) {
+    case "ideas":           return <IdeasCard task={task} planner={planner} period={period} />;
+    case "posts":           return <PostsCard task={task} planner={planner} monday={monday} portfolioOnly={false} />;
+    case "pieces":          return <PostsCard task={task} planner={planner} monday={monday} portfolioOnly={true} />;
+    case "portfolio_total": return <FirstSetCard task={task} planner={planner} />;
+    case "kit_waiting":     return <KitCard task={task} planner={planner} />;
+    case "outreach":        return <OutreachCard task={task} planner={planner} period={period} />;
+    case "pitches":         return <PitchesCard task={task} planner={planner} monday={monday} />;
+    case "following":       return <FollowingCard task={task} planner={planner} monday={monday} />;
+    case "snapshot":        return <SnapshotCard task={task} planner={planner} monday={monday} />;
+  }
+  if (kind === "days") return <DaysCard task={task} planner={planner} monday={monday} />;
+  if (task.rhythm === "monthly" && task.area === "portfolio") return <MonthGoalCard task={task} planner={planner} monday={monday} />;
+  if (task.rhythm === "once") return <OnceCard task={task} planner={planner} />;
+  if (kind === "number") return <TypedNumberCard task={task} planner={planner} monday={monday} />;
+  return null;
+}
 
 // A number field that saves when you leave it (or press Enter)
 function NumField({ label, value, onSave, decimal }: { label: string; value: number | null; onSave: (v: number | null) => void; decimal?: boolean }) {
@@ -422,84 +471,122 @@ function NumField({ label, value, onSave, decimal }: { label: string; value: num
     </div>
   );
 }
-const grid3: any = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8 };
-const quietP = (p: Promise<any>) => p.catch(() => { /* the save toast reports it */ });
 
-function FollowingBlock({ task, planner, monday }: { task: Task; planner: PlannerHook; monday: string }) {
-  const period = periodOf(task, monday);
-  const entry  = planner.entries[entryKey(task.id, period)];
-  const st     = planner.stateOf(task, monday);
-  const data   = entry?.data || {};
-  const num = (v: any): number | null => (v == null || v === "" ? null : Number(v));
+// Ideas added this week, and a quick add
+function IdeasCard({ task, planner, period }: { task: Task; planner: PlannerHook; period: string }) {
+  const accs = taskAccounts(task);
+  const list = planner.items.filter(i => i.list === "idea" && accs.includes(i.account) && i.createdWeek === period)
+    .sort((x, y) => y.createdAt.localeCompare(x.createdAt));
+  const [t, setT] = useState("");
+  const [busy, setBusy] = useState(false);
+  const acc = (task.account === "both" ? loadWorkAccount() : task.account) as Account;
+  const add = async () => {
+    const title = t.trim();
+    if (!title || busy) return;
+    setBusy(true);
+    try { await planner.createItem({ list: "idea", account: acc, title, format: CLASSIC, status: "idea", portfolio: false, direction: "", link: "", plannedOn: null, views: null }); setT(""); }
+    catch { /* the save toast reports it */ }
+    finally { setBusy(false); }
+  };
+  return (
+    <Card title="Added this week" right={list.length}>
+      {list.length === 0 ? emptyLine("No ideas yet this week.") : list.map((i, k) => itemLine(i.id, i.title, tagText(`${itemStatusLabel(i.status)} · ${dm(ymd(new Date(i.createdAt)))}`), k === list.length - 1))}
+      {period === thisMonday() && (
+        <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+          <I value={t} onChange={(e: any) => setT(e.target.value)} placeholder="New idea" aria-label="New idea"
+            onKeyDown={(e: any) => { if (e.key === "Enter") add(); }} s={{ flex: 1, minWidth: 0 }} />
+          <B v="sec" onClick={add} s={{ ...BAR_BTN, height: 36, minHeight: 36, color: C.black, flexShrink: 0, opacity: busy ? 0.5 : 1 }}>Add</B>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// Posts (or portfolio pieces) this week: posted ones, and planned ones with one tap to Posted
+function PostsCard({ task, planner, monday, portfolioOnly }: { task: Task; planner: PlannerHook; monday: string; portfolioOnly: boolean }) {
+  const accs = taskAccounts(task);
+  const end = addDays(monday, 6);
+  const mine = planner.items.filter(i => accs.includes(i.account) && (!portfolioOnly || i.portfolio));
+  const posted  = mine.filter(i => (i.status === "posted" || i.status === "in_kit") && !!i.postedOn && i.postedOn >= monday && i.postedOn <= end);
+  const planned = mine.filter(i => i.status !== "posted" && i.status !== "in_kit" && !!i.plannedOn && i.plannedOn >= monday && i.plannedOn <= end);
+  const all = [...planned.map(i => ({ i, posted: false })), ...posted.map(i => ({ i, posted: true }))];
+  return (
+    <Card title={portfolioOnly ? "Portfolio pieces this week" : "Posts this week"} right={`${posted.length} posted`}>
+      {all.length === 0 ? emptyLine("Nothing planned or posted this week. Plan it in Creator.") : all.map(({ i, posted: p }, k) => itemLine(i.id, i.title,
+        p ? tagText(`Posted ${dm(i.postedOn)}`, C.green)
+          : <>{tagText(`Planned ${dm(i.plannedOn)}`)}<B v="sec" onClick={() => quietP(planner.setItemStatus(i, "posted"))} s={{ ...BAR_BTN, height: 28, minHeight: 28, color: C.black }}>Posted</B></>,
+        k === all.length - 1))}
+    </Card>
+  );
+}
+
+// The first set: which pieces count so far
+function FirstSetCard({ task, planner }: { task: Task; planner: PlannerHook }) {
+  const accs = taskAccounts(task);
+  const list = planner.items.filter(i => accs.includes(i.account) && i.portfolio && (i.status === "posted" || i.status === "in_kit"))
+    .sort((x, y) => String(y.postedOn || "").localeCompare(String(x.postedOn || "")));
+  return (
+    <Card title="Counted so far" right={list.length}>
+      {list.length === 0 ? emptyLine("No portfolio piece posted yet.") : list.map((i, k) => itemLine(i.id, i.title, tagText(i.status === "in_kit" ? "In kit" : "Posted", C.green), k === list.length - 1))}
+    </Card>
+  );
+}
+
+// Kit handover: waiting pieces (one tap: In kit), what's in the kits, and the kit files
+function KitCard({ task, planner }: { task: Task; planner: PlannerHook }) {
+  const accs = taskAccounts(task);
+  const waiting = planner.waiting.filter(i => accs.includes(i.account));
+  const inKit = planner.items.filter(i => accs.includes(i.account) && i.status === "in_kit")
+    .sort((x, y) => String(y.postedOn || "").localeCompare(String(x.postedOn || "")));
+  const files = planner.tasks.filter(t => t.active && t.area === "kit" && t.phase !== "maintain" && (accs.includes(t.account as Account) || t.account === "both") && t.title !== "Email template" && t.title !== "Tracking system");
   return (
     <>
-      {bigLine(`${st.actual ?? 0} / ${st.target ?? "–"}`, `follow-backs in week ${isoWeek(monday)}`)}
-      <Bar value={st.actual ?? 0} max={st.target ?? 0} done={st.done} s={{ marginTop: 8 }} />
-      <div style={grid3}>
-        <NumField label="Followed" value={num(data.followed)} onSave={v => quietP(planner.saveEntry(task.id, period, { data: { ...data, followed: v } }))} />
-        <NumField label="Followed back" value={st.actual} onSave={v => quietP(planner.saveEntry(task.id, period, { actual: v }))} />
-        <NumField label="Unfollowed" value={num(data.unfollowed)} onSave={v => quietP(planner.saveEntry(task.id, period, { data: { ...data, unfollowed: v } }))} />
-      </div>
-      {targetLine(st.target, "follow-backs")}
+      <Card title="Waiting" right={waiting.length}>
+        {waiting.length === 0 ? <p style={{ fontSize: 13, color: C.green, margin: 0 }}>Nothing waiting ✓</p> : waiting.map((i, k) => itemLine(i.id, i.title,
+          <B v="sec" onClick={() => quietP(planner.setItemStatus(i, "in_kit"))} s={{ ...BAR_BTN, height: 28, minHeight: 28, color: C.black }}>In kit</B>, k === waiting.length - 1))}
+      </Card>
+      <Card title="In the kits" right={inKit.length}>
+        {inKit.length === 0 ? emptyLine("No pieces in the kits yet.") : inKit.slice(0, 6).map((i, k, arr) => itemLine(i.id, i.title, tagText(dm(i.postedOn)), k === arr.length - 1))}
+        {inKit.length > 6 && <p style={{ fontSize: 12, color: C.muted, margin: "6px 0 0" }}>+{inKit.length - 6} more</p>}
+      </Card>
+      {files.length > 0 && (
+        <Card title="Kit files">
+          {files.map((t, k) => itemLine(t.id, t.title, t.link
+            ? <a href={t.link} target="_blank" rel="noreferrer" style={{ color: C.black, display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12 }}><Ico d={IC.link} size={12} />Open</a>
+            : tagText("No file linked"), k === files.length - 1))}
+        </Card>
+      )}
     </>
   );
 }
 
-function SnapshotBlock({ task, planner, monday }: { task: Task; planner: PlannerHook; monday: string }) {
-  if (task.account === "both") return <p style={{ fontSize: 13, color: C.muted, marginTop: 14 }}>Pick one account for a snapshot task (Edit → Account).</p>;
-  const acc  = task.account;
-  const sn   = planner.snaps[snapKey(acc, monday)];
-  const prev = planner.snaps[snapKey(acc, addDays(monday, -7))];
-  const save = (patch: any) => quietP(planner.saveSnapshot(acc, monday, patch));
-  const entered = !!sn && (sn.followers != null || sn.views != null || sn.engagement != null);
-  const diff = sn?.followers != null && prev?.followers != null ? sn.followers - prev.followers : null;
-  return (
-    <>
-      <Lbl>Week {isoWeek(monday)} · from the account insights</Lbl>
-      <div style={grid3}>
-        <NumField label="Followers" value={sn?.followers ?? null} onSave={v => save({ followers: v })} />
-        <NumField label="Views" value={sn?.views ?? null} onSave={v => save({ views: v })} />
-        <NumField label="Engagement %" decimal value={sn?.engagement ?? null} onSave={v => save({ engagement: v })} />
-      </div>
-      <p style={{ fontSize: 12, margin: "8px 0 0", color: entered ? C.green : C.muted }}>
-        {entered ? `Entered ✓${diff != null ? ` · ${diff >= 0 ? "+" : "−"}${fmtInt(Math.abs(diff))} followers since last week` : ""}` : "Not entered yet."}
-      </p>
-      {prev && <p style={{ fontSize: 12, color: C.muted, margin: "4px 0 0" }}>Last week: {fmtInt(prev.followers)} followers · {fmtInt(prev.views)} views · {fmtPct2(prev.engagement)}</p>}
-    </>
-  );
-}
-
-function OutreachBlock({ task, planner, monday, openOutreach }: { task: Task; planner: PlannerHook; monday: string; openOutreach?: () => void }) {
-  const period = periodOf(task, monday);
-  const st     = planner.stateOf(task, monday);
+// New email contacts this week, by category and tier
+function OutreachCard({ task, planner, period }: { task: Task; planner: PlannerHook; period: string }) {
   const list   = planner.newContacts(period);
   const byCat  = OUTREACH_CATEGORIES.map(c => ({ c, n: list.filter(x => x.category === c.key).length })).filter(x => x.n);
   const byTier = OUTREACH_TIERS.map(t => ({ t, n: list.filter(x => x.tier === t.key).length })).filter(x => x.n);
   return (
-    <>
-      {bigLine(`${st.actual ?? 0} / ${st.target ?? "–"}`, `new contacts in week ${isoWeek(monday)}`)}
-      <Bar value={st.actual ?? 0} max={st.target ?? 0} done={st.done} s={{ marginTop: 8 }} />
-      {byCat.length > 0 && <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const, marginTop: 10 }}>{byCat.map(x => <CountChip key={x.c.key} label={x.c.label} n={x.n} look={x.c} />)}</div>}
-      {byTier.length > 0 && <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const, alignItems: "center", marginTop: 6 }}><span style={microLabel}>Tiers</span>{byTier.map(x => <CountChip key={x.t.key} label={x.t.label} n={x.n} />)}</div>}
-      <p style={{ fontSize: 12, color: C.muted, margin: "8px 0 0", lineHeight: 1.5 }}>Counted from Outreach: contacts added this week. {st.target == null ? "Set the target in Plan week." : `Target: ${st.target} contacts (Plan week).`}</p>
-      {planner.outreachError && <p style={{ fontSize: 12, color: C.red, margin: "4px 0 0" }}>Outreach couldn't be read ({planner.outreachError}).</p>}
-      {openOutreach && <B v="sec" onClick={openOutreach} s={{ ...BAR_BTN, height: 28, minHeight: 28, color: C.black, marginTop: 10, gap: 5 }}><Ico d={IC.link} size={12} />Open Outreach</B>}
-    </>
+    <Card title="Added in Outreach this week" right={list.length}>
+      {list.length === 0 ? emptyLine("No new contacts yet this week.") : (
+        <>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const }}>{byCat.map(x => <CountChip key={x.c.key} label={x.c.label} n={x.n} look={x.c} />)}</div>
+          {byTier.length > 0 && <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const, alignItems: "center", marginTop: 8 }}><span style={microLabel}>Tiers</span>{byTier.map(x => <CountChip key={x.t.key} label={x.t.label} n={x.n} />)}</div>}
+        </>
+      )}
+      {planner.outreachError && <p style={{ fontSize: 12, color: C.red, margin: "8px 0 0" }}>Outreach couldn't be read ({planner.outreachError}).</p>}
+    </Card>
   );
 }
 
-// Pitches: counted from the pitch log in Outreach, with a day-by-day strip
-function PitchesBlock({ task, planner, monday, openOutreach }: { task: Task; planner: PlannerHook; monday: string; openOutreach?: () => void }) {
-  const st   = planner.stateOf(task, monday);
+// Pitches by day (from the pitch log in Outreach)
+function PitchesCard({ task, planner, monday }: { task: Task; planner: PlannerHook; monday: string }) {
   const list = planner.pitchesInWeek(taskAccounts(task), monday);
   const ti   = todayIndex(monday);
   const per  = DAY_SHORT.map((_, k) => list.filter(p => p.kind === "pitch" && p.sentOn === addDays(monday, k)).length);
   const fu   = list.filter(p => p.kind === "follow_up").length;
   return (
-    <>
-      {bigLine(`${st.actual ?? 0} / ${st.target ?? "–"}`, `pitches in week ${isoWeek(monday)}`)}
-      <Bar value={st.actual ?? 0} max={st.target ?? 0} done={st.done} s={{ marginTop: 8 }} />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0,1fr))", gap: 4, marginTop: 12 }}>
+    <Card title="Pitches by day" right={`${fu} ${fu === 1 ? "follow-up" : "follow-ups"}`}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0,1fr))", gap: 4 }}>
         {DAY_SHORT.map((d, k) => (
           <div key={d} style={{ border: `1px solid ${k === ti ? C.black : C.rule}`, borderRadius: 2, padding: "5px 0", textAlign: "center" as const }}>
             <div style={{ ...microLabel, fontSize: 9 }}>{d}</div>
@@ -507,39 +594,139 @@ function PitchesBlock({ task, planner, monday, openOutreach }: { task: Task; pla
           </div>
         ))}
       </div>
-      <p style={{ fontSize: 12, color: C.muted, margin: "8px 0 0", lineHeight: 1.5 }}>
-        {fu} {fu === 1 ? "follow-up" : "follow-ups"} sent this week. Counted from the pitch log in Outreach. {st.target == null ? "Set the target in Plan week." : `Target: ${st.target} pitches (Plan week).`}
-      </p>
-      {planner.stage2Error && <p style={{ fontSize: 12, color: C.red, margin: "4px 0 0" }}>{planner.stage2Error}</p>}
-      {openOutreach && <B v="sec" onClick={openOutreach} s={{ ...BAR_BTN, height: 28, minHeight: 28, color: C.black, marginTop: 10, gap: 5 }}><Ico d={IC.link} size={12} />Open Outreach</B>}
-    </>
+      {planner.stage2Error && <p style={{ fontSize: 12, color: C.red, margin: "8px 0 0" }}>{planner.stage2Error}</p>}
+    </Card>
   );
 }
 
-// Pieces posted but not yet in the media kits / pitch deck: one tap each
-function KitWaitingBlock({ task, planner }: { task: Task; planner: PlannerHook }) {
-  const accs = taskAccounts(task);
-  const list = planner.waiting.filter(i => accs.includes(i.account));
+// Following: three numbers, only follow-backs count
+function FollowingCard({ task, planner, monday }: { task: Task; planner: PlannerHook; monday: string }) {
+  const period = periodOf(task, monday);
+  const entry  = planner.entries[entryKey(task.id, period)];
+  const st     = planner.stateOf(task, monday);
+  const data   = entry?.data || {};
+  const num = (v: any): number | null => (v == null || v === "" ? null : Number(v));
   return (
-    <>
-      <Lbl>Waiting for the kits · {list.length}</Lbl>
-      {list.length === 0 ? (
-        <p style={{ fontSize: 13, color: C.green, margin: 0 }}>Nothing waiting ✓</p>
-      ) : (
-        <div style={{ borderTop: `1px solid ${C.rule}` }}>
-          {list.map(it => (
-            <div key={it.id} style={{ minHeight: 44, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottom: `1px solid ${C.rule}` }}>
-              <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const }}>
-                <span style={{ fontSize: 14 }}>{it.title}</span>
-                <AccChip acc={it.account} />
-              </div>
-              <B v="sec" onClick={() => quietP(planner.setItemStatus(it, "in_kit"))} s={{ ...BAR_BTN, height: 28, minHeight: 28, color: C.black, flexShrink: 0 }}>In kit</B>
-            </div>
-          ))}
-        </div>
-      )}
-      <p style={{ fontSize: 12, color: C.muted, margin: "8px 0 0" }}>Add each piece to the media kit or pitch deck, then tap In kit.</p>
-    </>
+    <Card title={`Log for week ${isoWeek(monday)}`}>
+      <div style={{ ...grid3, marginTop: -8 }}>
+        <NumField label="Followed" value={num(data.followed)} onSave={v => quietP(planner.saveEntry(task.id, period, { data: { ...data, followed: v } }))} />
+        <NumField label="Followed back" value={st.actual} onSave={v => quietP(planner.saveEntry(task.id, period, { actual: v }))} />
+        <NumField label="Unfollowed" value={num(data.unfollowed)} onSave={v => quietP(planner.saveEntry(task.id, period, { data: { ...data, unfollowed: v } }))} />
+      </div>
+    </Card>
+  );
+}
+
+// Account snapshot: followers, views, engagement from the insights
+function SnapshotCard({ task, planner, monday }: { task: Task; planner: PlannerHook; monday: string }) {
+  if (task.account === "both") return <Card>{emptyLine("Pick one account for a snapshot task (··· → Edit task → Account).")}</Card>;
+  const acc  = task.account;
+  const sn   = planner.snaps[snapKey(acc, monday)];
+  const prev = planner.snaps[snapKey(acc, addDays(monday, -7))];
+  const save = (patch: any) => quietP(planner.saveSnapshot(acc, monday, patch));
+  const diff = sn?.followers != null && prev?.followers != null ? sn.followers - prev.followers : null;
+  return (
+    <Card title={`Week ${isoWeek(monday)} · from the insights`}>
+      <div style={{ ...grid3, marginTop: -8 }}>
+        <NumField label="Followers" value={sn?.followers ?? null} onSave={v => save({ followers: v })} />
+        <NumField label="Views" value={sn?.views ?? null} onSave={v => save({ views: v })} />
+        <NumField label="Engagement %" decimal value={sn?.engagement ?? null} onSave={v => save({ engagement: v })} />
+      </div>
+      {diff != null && <p style={{ fontSize: 12, margin: "8px 0 0", color: diff >= 0 ? C.green : C.red }}>{diff >= 0 ? "+" : "−"}{fmtInt(Math.abs(diff))} followers since last week</p>}
+      {prev && <p style={{ fontSize: 12, color: C.muted, margin: "4px 0 0" }}>Last week: {fmtInt(prev.followers)} followers · {fmtInt(prev.views)} views · {fmtPct2(prev.engagement)}</p>}
+    </Card>
+  );
+}
+
+// Daily task: the 7 days, tap any to tick or untick
+function DaysCard({ task, planner, monday }: { task: Task; planner: PlannerHook; monday: string }) {
+  const period = periodOf(task, monday);
+  const st = planner.stateOf(task, monday);
+  const ti = todayIndex(monday);
+  return (
+    <Card title={`Week ${isoWeek(monday)}`} right={`${st.daysDone} of 7`}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0,1fr))", gap: 4 }}>
+        {DAY_SHORT.map((d, i) => {
+          const on = st.days[i];
+          return (
+            <button key={d} onClick={() => { const days = [...st.days]; days[i] = !days[i]; quietP(planner.saveEntry(task.id, period, { days })); }}
+              aria-pressed={on} aria-label={`${d}${on ? ", done" : ""}`}
+              style={{ height: 48, border: `1px solid ${i === ti ? C.black : on ? C.green : C.rule}`, background: on ? C.green : C.white, color: on ? C.white : C.black, borderRadius: 2, cursor: "pointer", fontFamily: SANS, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: 0 }}>
+              <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.06em", textTransform: "uppercase" as const, color: on ? C.white : i === ti ? C.black : C.muted }}>{d}</span>
+              <span style={{ fontSize: 13, lineHeight: 1 }}>{on ? "✓" : ""}</span>
+            </button>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+// Monthly portfolio goal: the number, and the pieces posted this month
+function MonthGoalCard({ task, planner, monday }: { task: Task; planner: PlannerHook; monday: string }) {
+  const acc = (task.account === "both" ? loadWorkAccount() : task.account) as Account;
+  const ms = monthStart(monday), me = monthEnd(monday);
+  const entry = planner.entries[entryKey(task.id, ms)];
+  const goal = monthGoalOf(task, entry, acc);
+  const done = planner.items.filter(i => i.account === acc && i.portfolio && (i.status === "posted" || i.status === "in_kit") && !!i.postedOn && i.postedOn >= ms && i.postedOn <= me).length;
+  return (
+    <Card title={`${monthName(monday)} goal`} right={`${done} posted`}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8, marginTop: -8 }}>
+        <NumField label="Portfolio pieces" value={goal} onSave={v => quietP(planner.saveEntry(task.id, ms, monthGoalPatch(task, entry, acc, v)))} />
+        <div><Lbl>Posted so far</Lbl><div style={{ height: 36, display: "flex", alignItems: "center", fontSize: 14, color: goal != null && done >= goal ? C.green : C.black }}>{done}{goal != null ? ` of ${goal}` : ""}</div></div>
+      </div>
+      <p style={{ fontSize: 12, color: C.muted, margin: "8px 0 0" }}>Pick the editorials for it in Creator.</p>
+    </Card>
+  );
+}
+
+// One-time task: status, and the file it produced
+function OnceCard({ task, planner }: { task: Task; planner: PlannerHook }) {
+  const [link, setLink] = useState(task.link || "");
+  useEffect(() => { setLink(task.link || ""); }, [task.link]);
+  const saveLink = () => { if ((task.link || "") !== link.trim()) quietP(planner.updateTask(task.id, { link: link.trim() })); };
+  return (
+    <Card>
+      <Lbl>Status</Lbl>
+      <S value={task.status} onChange={(e: any) => quietP(planner.setTaskStatus(task, e.target.value))}>
+        {STATUSES.map(x => <option key={x.key} value={x.key}>{task.phase === "refine" && x.key === "done" ? "Settled" : x.label}</option>)}
+      </S>
+      <Lbl>File link</Lbl>
+      <div style={{ display: "flex", gap: 6 }}>
+        <I value={link} onChange={(e: any) => setLink(e.target.value)} onBlur={saveLink} onKeyDown={(e: any) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+          placeholder="https://" inputMode="url" aria-label="File link" s={{ flex: 1, minWidth: 0 }} />
+        {task.link && <a href={task.link} target="_blank" rel="noreferrer" aria-label="Open file" style={{ width: 36, height: 36, border: `1px solid ${C.rule}`, borderRadius: 2, display: "inline-flex", alignItems: "center", justifyContent: "center", color: C.black, flexShrink: 0 }}><Ico d={IC.link} size={14} /></a>}
+      </div>
+      {task.target != null && <p style={{ fontSize: 12, color: C.muted, margin: "8px 0 0" }}>Goal: {task.target} {task.measure || ""}</p>}
+    </Card>
+  );
+}
+
+// A number you type yourself (your own number tasks)
+function TypedNumberCard({ task, planner, monday }: { task: Task; planner: PlannerHook; monday: string }) {
+  const period = periodOf(task, monday);
+  const st = planner.stateOf(task, monday);
+  return (
+    <Card title={task.rhythm === "monthly" ? monthName(period) : `Week ${isoWeek(monday)}`}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8, marginTop: -8 }}>
+        <NumField label="So far" value={st.actual} onSave={v => quietP(planner.saveEntry(task.id, period, { actual: v }))} />
+        <div><Lbl>Target</Lbl><div style={{ height: 36, display: "flex", alignItems: "center", fontSize: 13, color: st.target == null ? C.muted : C.black }}>{st.target == null ? "Set in Plan week" : `${st.target} ${task.measure}`}</div></div>
+      </div>
+    </Card>
+  );
+}
+
+// Note for this week / month — saved when you leave the field
+function NoteCard({ task, planner, period, label }: { task: Task; planner: PlannerHook; period: string; label: string }) {
+  const entry = planner.entries[entryKey(task.id, period)];
+  const [t, setT] = useState(entry?.note || "");
+  useEffect(() => { setT(entry?.note || ""); }, [entry?.note]);
+  const save = () => { if ((entry?.note || "") !== t) quietP(planner.saveEntry(task.id, period, { note: t })); };
+  return (
+    <Card title={label}>
+      <textarea value={t} onChange={(e) => setT(e.target.value)} onBlur={save} placeholder="For the check-in" aria-label={label}
+        style={{ ...area, minHeight: 56, background: C.white }} />
+    </Card>
   );
 }
 
@@ -994,7 +1181,7 @@ export function PlanWeekWindow({ planner, monday, isMobile, onClose }: { planner
       {rows.length === 0 && <p style={{ fontSize: 13, color: C.muted, marginTop: 16 }}>No tasks with numbers this week.</p>}
       {groups.map(g => (
         <div key={g.key}>
-          <div style={{ ...microLabel, marginTop: 14, paddingBottom: 6, borderBottom: `1px solid ${C.rule}` }}>{g.key === "creator" ? "You" : g.label}</div>
+          <div style={{ ...microLabel, marginTop: 14, paddingBottom: 6, borderBottom: `1px solid ${C.rule}` }}>{g.label}</div>
           {g.list.map(t => (
             <div key={t.id} style={{ minHeight: 44, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, borderBottom: `1px solid ${C.rule}` }}>
               <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const }}>

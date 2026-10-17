@@ -162,7 +162,7 @@ export default function PlannerOverview({ planner, view, setView, monday, setMon
     const list = weekly.filter(t => t.owner === o);
     return { o, n: list.filter(isMet).length, of: list.length };
   }).filter(x => x.of > 0);
-  const ownerName = (o: string) => (o === "manager" ? "Manager" : o === "creator" ? "You" : "Both");
+  const ownerName = (o: string) => (o === "manager" ? "Manager" : o === "creator" ? "Creator" : "Both");
 
   // ── pipeline (Stage 2+) ─────────────────────────────────────
   const stage2 = accs.some(a => stageNumOf(stages, a) >= 2);

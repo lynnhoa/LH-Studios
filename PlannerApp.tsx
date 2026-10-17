@@ -29,8 +29,12 @@ const TABS: { key: string; label: string; soon?: { phase: number; text: string }
   { key: "creator",  label: "Creator" },
 ];
 
+// the tab (and switch) you used last, remembered on this device
 const VIEW_KEY = "lh_planner_view";
-const loadView = (): PlannerView => { try { return { ...DEFAULT_VIEW, ...JSON.parse(sessionStorage.getItem(VIEW_KEY) || "{}") }; } catch { return DEFAULT_VIEW; } };
+const loadView = (): PlannerView => {
+  try { return { ...DEFAULT_VIEW, ...JSON.parse(localStorage.getItem(VIEW_KEY) || sessionStorage.getItem(VIEW_KEY) || "{}") }; }
+  catch { return DEFAULT_VIEW; }
+};
 
 interface PlannerAppProps {
   userId:   string | null;
@@ -53,7 +57,7 @@ export default function PlannerApp({ userId, settings, signOut, switchTo, banner
     window.addEventListener("resize", fn);
     return () => window.removeEventListener("resize", fn);
   }, []);
-  useEffect(() => { try { sessionStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch { /* ignore */ } }, [view]);
+  useEffect(() => { try { localStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch { /* ignore */ } }, [view]);
 
   const isMobile = winW < BREAKPOINT;
   const isWide   = winW >= WIDE;
@@ -98,11 +102,11 @@ export default function PlannerApp({ userId, settings, signOut, switchTo, banner
         {tab.key === "overview" ? (
           <PlannerOverview planner={planner} view={view} setView={setView} monday={monday} setMonday={setMonday} isMobile={isMobile} />
         ) : tab.key === "todo" ? (
-          <PlannerTodo planner={planner} view={view} setView={setView} monday={monday} setMonday={setMonday} isMobile={isMobile} openOutreach={openOutreach} />
+          <PlannerTodo planner={planner} view={view} setView={setView} monday={monday} setMonday={setMonday} isMobile={isMobile} openOutreach={openOutreach} openTab={goTab} />
         ) : tab.key === "manager" ? (
-          <PlannerManager planner={planner} view={view} setView={setView} monday={monday} setMonday={setMonday} isMobile={isMobile} openOutreach={openOutreach} />
+          <PlannerManager planner={planner} view={view} setView={setView} monday={monday} setMonday={setMonday} isMobile={isMobile} openOutreach={openOutreach} openTab={goTab} />
         ) : tab.key === "creator" ? (
-          <PlannerCreator planner={planner} view={view} setView={setView} monday={monday} setMonday={setMonday} isMobile={isMobile} openCatalog={openCatalog} />
+          <PlannerCreator planner={planner} view={view} setView={setView} monday={monday} setMonday={setMonday} isMobile={isMobile} openCatalog={openCatalog} openTab={goTab} openOutreach={openOutreach} />
         ) : (
           <div>
             <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>{tab.label}</h2>

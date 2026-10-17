@@ -42,6 +42,8 @@ interface PlannerCreatorProps {
   setMonday: (m: string) => void;
   isMobile:  boolean;
   openCatalog?: () => void;
+  openTab?:  (tab: string) => void;
+  openOutreach?: () => void;
 }
 
 type Open =
@@ -50,7 +52,7 @@ type Open =
   | { kind: "task"; id: string }
   | null;
 
-export default function PlannerCreator({ planner, view, setView, monday, setMonday, isMobile, openCatalog }: PlannerCreatorProps) {
+export default function PlannerCreator({ planner, view, setView, monday, setMonday, isMobile, openCatalog, openTab, openOutreach }: PlannerCreatorProps) {
   const { tasks, stages, items, loading, loadError } = planner;
   const [open, setOpen]   = useState<Open>(null);
   const [filter, setFilter] = useState<StatusFilter>(() => { try { return (sessionStorage.getItem(VIEW_KEY) as StatusFilter) || "all"; } catch { return "all"; } });
@@ -285,7 +287,7 @@ export default function PlannerCreator({ planner, view, setView, monday, setMond
           action={open.note === "offer" && openCatalog ? { label: "Service Catalog", onClick: openCatalog } : undefined} />
       )}
       {open?.kind === "task" && (
-        <TaskWindow key={open.id} planner={planner} taskId={open.id} monday={monday} isMobile={isMobile} onClose={() => setOpen(null)} />
+        <TaskWindow key={open.id} planner={planner} taskId={open.id} monday={monday} isMobile={isMobile} onClose={() => setOpen(null)} openTab={openTab} openOutreach={openOutreach} />
       )}
     </div>
   );

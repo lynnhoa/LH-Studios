@@ -34,9 +34,10 @@ interface PlannerManagerProps {
   setMonday: (m: string) => void;
   isMobile:  boolean;
   openOutreach?: () => void;
+  openTab?:  (tab: string) => void;
 }
 
-export default function PlannerManager({ planner, view, setView, monday, setMonday, isMobile, openOutreach }: PlannerManagerProps) {
+export default function PlannerManager({ planner, view, setView, monday, setMonday, isMobile, openOutreach, openTab }: PlannerManagerProps) {
   const { stages, tasks, loading, loadError } = planner;
   const [openTask, setOpenTask] = useState<string | null>(null);
   const [openSprint, setOpenSprint] = useState<{ id?: string; acc?: Account } | null>(null);
@@ -299,7 +300,7 @@ export default function PlannerManager({ planner, view, setView, monday, setMond
         </>
       )}
 
-      {current && <TaskWindow key={current.id} planner={planner} taskId={current.id} monday={monday} isMobile={isMobile} onClose={() => setOpenTask(null)} openOutreach={openOutreach} />}
+      {current && <TaskWindow key={current.id} planner={planner} taskId={current.id} monday={monday} isMobile={isMobile} onClose={() => setOpenTask(null)} openOutreach={openOutreach} openTab={openTab} />}
       {openSprint && (
         <SprintWindow key={openSprint.id || `new-${openSprint.acc}`} planner={planner} sprintId={openSprint.id} isMobile={isMobile} onClose={() => setOpenSprint(null)}
           draft={openSprint.acc ? { account: openSprint.acc, startOn: thisMonday(), endOn: addDays(thisMonday(), sprintW * 7 - 1), focusCategory: "", focusTier: "now", pitchGoal: null, followUpGoal: null, review: "" } : undefined} />
