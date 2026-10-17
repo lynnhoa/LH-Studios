@@ -414,10 +414,13 @@ export function usePlanner(userId: string | null, monday: string) {
     fail(error);
   }, [userId]);
   // Posted / In kit get today's date (once); back to idea, planned or shot clears it
+  // Filmed keeps the day it was filmed; back to idea / planned clears it
   const setItemStatus = useCallback(async (it: Item, status: ItemStatus) => {
     const posted = status === "posted" || status === "in_kit";
     const postedOn = posted ? (it.postedOn || today()) : null;
-    await updateItem(it.id, { status, postedOn });
+    const filmed = status === "shot" || posted;
+    const filmedOn = filmed ? (it.plan.filmedOn || today()) : null;
+    await updateItem(it.id, { status, postedOn, ...(filmedOn !== (it.plan.filmedOn ?? null) ? { plan: { ...it.plan, filmedOn } } : {}) });
   }, [updateItem]);
   const deleteItem = useCallback(async (id: string) => {
     const { error } = await supabase.from("planner_items").delete().eq("id", id).eq("user_id", userId);
@@ -542,7 +545,6 @@ export function usePlanner(userId: string | null, monday: string) {
     const inWeek = (d: string | null) => !!d && d >= period && d <= addDays(period, 6);
     switch (t.source) {
       case "outreach": return { actual: contacts.filter(c => c.week === period).length };
-      case "pitches":  return { actual: pitches.filter(p => p.kind === "pitch" && accs.includes(p.account) && inWeek(p.sentOn)).length };
       case "snapshot": {
         const sn = t.account === "both" ? null : snaps[snapKey(t.account, period)];
         return { done: !!sn && (sn.followers != null || sn.views != null || sn.engagement != null) };

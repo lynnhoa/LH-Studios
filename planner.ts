@@ -98,6 +98,7 @@ export interface ItemPlan {
   style: "bullets" | "numbers";              // how the storyline is shown
   clips: { t: string; done: boolean }[];     // clips to shoot (tick when shot)
   refs:  { url: string; note: string }[];    // reference links + what they show
+  filmedOn?: string | null;                  // the day it was ticked "Filmed"
 }
 export const EMPTY_PLAN: ItemPlan = { style: "bullets", clips: [], refs: [] };
 export function planOf(v: any): ItemPlan {
@@ -106,6 +107,7 @@ export function planOf(v: any): ItemPlan {
     style: o.style === "numbers" ? "numbers" : "bullets",
     clips: Array.isArray(o.clips) ? o.clips.filter((c: any) => c && typeof c.t === "string").map((c: any) => ({ t: c.t, done: !!c.done })) : [],
     refs:  Array.isArray(o.refs) ? o.refs.filter((r: any) => r && (r.url || r.note)).map((r: any) => ({ url: String(r.url || ""), note: String(r.note || "") })) : [],
+    filmedOn: typeof o.filmedOn === "string" ? o.filmedOn : null,
   };
 }
 // storyline text → points (strips "- ", "• ", "1. " the way people type them)
@@ -181,8 +183,8 @@ export const STAGE_SHORT = ["Setup", "Sales", "Business", "Access", "Luxury"];
 
 export const ITEM_STATUSES: { key: ItemStatus; label: string }[] = [
   { key: "idea",    label: "Idea" },
-  { key: "planned", label: "Planned" },
-  { key: "shot",    label: "Shot" },
+  { key: "planned", label: "Planned · to shoot" },
+  { key: "shot",    label: "Filmed" },
   { key: "posted",  label: "Posted" },
   { key: "in_kit",  label: "In kit" },
 ];
@@ -285,6 +287,19 @@ export function goalStatus(t: Task, st: RowState, monday: string): GoalStatus | 
   if (over && t.rhythm !== "once") return { text: "Not done", tone: "miss" };
   return null;
 }
+// ── Which weekly goals live on which card ───────────────────
+// Manager card: engaging, following, new emails, pitches.
+// Creator strip: ideas, posts, pieces (+ first set, month goal).
+// Everything else that repeats (check-in, kit handover, your own
+// tasks) stays in To-do. The snapshot is no longer used.
+export const MANAGER_GOAL = (t: Task) => t.phase === "maintain" && (
+  t.source === "following" || t.source === "outreach" || t.source === "pitches" || t.source === "leads" || (t.area === "community" && t.rhythm === "daily"));
+export const CREATOR_GOAL = (t: Task) => t.phase === "maintain" && (t.source === "ideas" || t.source === "posts" || t.source === "pieces");
+export const ON_A_CARD = (t: Task) => MANAGER_GOAL(t) || CREATOR_GOAL(t) || t.source === "snapshot" || t.source === "portfolio_total"
+  || (t.rhythm === "monthly" && t.area === "portfolio");
+// order on the Manager card
+export const managerOrder = (t: Task) => (t.area === "community" ? 0 : t.source === "following" ? 1 : t.source === "outreach" ? 2 : t.source === "pitches" ? 3 : 4);
+
 // Prompt for Claude: read the Instagram insights screenshot → one SQL insert for this account and week
 export function snapshotPrompt(account: Account, week: string, email: string): string {
   const handle = account === "lynnhoa" ? "@lynnhoa" : "@createbylynn";
@@ -313,9 +328,9 @@ I'll run the SQL in Supabase → SQL editor, then reopen the app.`;
 
 // Short names for status lines (Dashboard, Manager)
 export const shortName = (t: Task): string =>
-  t.source === "snapshot" ? "Snapshot" : t.source === "outreach" ? "Emails" : t.source === "ideas" ? "Ideas" : t.source === "posts" ? "Posts"
-  : t.source === "pieces" ? "Pieces" : t.source === "kit_waiting" ? "Kits" : t.source === "following" ? "Following" : t.source === "pitches" ? "Pitches"
-  : t.area === "community" ? "Community" : t.area === "checkin" ? "Check-in" : t.title;
+  t.source === "snapshot" ? "Snapshot" : t.source === "outreach" ? "New emails" : t.source === "ideas" ? "Ideas" : t.source === "posts" ? "Posts"
+  : t.source === "pieces" ? "Pieces" : t.source === "kit_waiting" ? "Kits" : t.source === "following" ? "Following" : t.source === "pitches" ? "Pitches" : t.source === "leads" ? "Leads"
+  : t.area === "community" ? "Engaging" : t.area === "checkin" ? "Check-in" : t.title;
 
 // The account you're working on: chosen in the profile menu, remembered on this device
 const WORK_KEY = "lh_work_account";
@@ -360,7 +375,7 @@ export function isVisible(t: Task, stages: Stage[], f: AccountFilter): boolean {
 // auto   → filled in elsewhere (account snapshot); the box ticks itself
 export type RowKind = "check" | "days" | "number" | "auto";
 export const AUTO_DONE  = new Set(["snapshot", "kit_waiting", "portfolio_total"]);  // the box ticks itself
-export const AUTO_COUNT = new Set(["outreach", "ideas", "posts", "pieces", "pitches"]); // the number is counted, not typed
+export const AUTO_COUNT = new Set(["outreach", "ideas", "posts", "pieces"]); // the number is counted, not typed (pitches are typed)
 export const rowKind = (t: Task): RowKind =>
   AUTO_DONE.has(t.source) ? "auto" : t.rhythm === "once" ? "check" : t.measure ? "number" : t.rhythm === "daily" ? "days" : "check";
 

@@ -16,7 +16,7 @@ import { C, SANS, SERIF, TYPE } from "./constants";
 import { B, Tick, ConfirmDialog, BAR_BTN } from "./atoms";
 import {
   OWNER_LOOK, TONE, accLook, rowKind, periodOf, isoWeek, weekRange, monthName, todayIndex, stageOf, gateOf, isVisible, byOrder,
-  STAGE_SHORT, goalStatus, parseIntDe, monthGoalOf, monthGoalPatch,
+  STAGE_SHORT, goalStatus, parseIntDe, monthGoalOf, monthGoalPatch, ON_A_CARD, MANAGER_GOAL, CREATOR_GOAL,
 } from "./planner";
 import type { Task, AccountFilter, Owner, Phase, Account, Look } from "./planner";
 import type { PlannerHook } from "./usePlanner";
@@ -28,6 +28,7 @@ export const DEFAULT_VIEW: PlannerView = { tab: "todo", acc: "lynnhoa", owner: "
 
 const microLabel: any = { fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted };
 const ROW_RULE = "#f0ece7";
+const NEUTRAL_LOOK = { label: "", color: C.muted, bg: "#f3f1ee", border: C.rule };
 const NEXT_OWNER: Record<Owner, Owner> = { manager: "creator", creator: "both", both: "manager" };
 const URL_RE = /(https?:\/\/[^\s]+)/i;
 
@@ -75,16 +76,14 @@ export default function PlannerTodo({ planner, view, setView, monday, setMonday,
 
   // ── what shows ──────────────────────────────────────────────
   const inScope = useMemo(() => tasks.filter(t => isVisible(t, stages, view.acc)), [tasks, stages, view.acc]);
-  const mine    = (t: Task) => view.owner === "all" || t.owner === view.owner || t.owner === "both";
-  const weekly  = inScope.filter(t => t.phase === "maintain" && mine(t)).sort(byOrder);
-  const groups  = (["manager", "creator", "both"] as Owner[])
-    .filter(o => view.owner === "all" || o === view.owner || o === "both")
-    .map(o => ({ owner: o, list: weekly.filter(t => t.owner === o) }))
-    .filter(g => g.list.length > 0 || editing);
-  const build     = inScope.filter(t => t.phase !== "maintain" && mine(t)).sort(byOrder);
+  // Manager and Creator goals live on their tabs; To-do keeps what has no card
+  const forAcc  = (t: Task) => t.account === acc || t.account === "both";
+  const weekly  = inScope.filter(t => t.phase === "maintain" && !ON_A_CARD(t)).sort(byOrder);
+  const mgrGoals = inScope.filter(t => MANAGER_GOAL(t) && forAcc(t));
+  const crGoals  = inScope.filter(t => CREATOR_GOAL(t) && forAcc(t));
+  const build     = inScope.filter(t => t.phase !== "maintain").sort(byOrder);
   const buildOpen = build.filter(t => !stateOf(t).done);
   const buildDone = build.filter(t => stateOf(t).done);
-  const noNumber  = weekly.filter(t => rowKind(t) === "number" && stateOf(t).target == null).length;
   const st = stageOf(stages, acc);
   const aLook = accLook(acc);
 
@@ -122,7 +121,7 @@ export default function PlannerTodo({ planner, view, setView, monday, setMonday,
   const delBtn = (t: Task) => <XBtn label={`Delete ${t.title}`} onClick={() => removeTask(t)} />;
 
   // ── one weekly row ──────────────────────────────────────────
-  const weeklyRow = (t: Task) => {
+  const weeklyRow = (t: Task, who = false) => {
     const kind   = rowKind(t);
     const s      = stateOf(t);
     const period = periodOf(t, monday);
@@ -184,6 +183,7 @@ export default function PlannerTodo({ planner, view, setView, monday, setMonday,
           style={{ minHeight: 44, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", borderTop: `1px solid ${ROW_RULE}`, cursor: jump || isKit ? "pointer" : "default" }}>
           <span style={{ flex: 1, minWidth: 0, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, color: done ? C.light : C.black }}>{t.title}</span>
           {showStatus && status && tag(status.text, TONE[status.tone])}
+          {who && whoTag(t, false)}
           <span onClick={(e) => e.stopPropagation()} style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>{right}</span>
           {(jump || isKit) && <Ico d={isKit ? (opened ? IC.up : IC.down) : IC.right} size={13} color={C.light} />}
         </div>
@@ -247,7 +247,7 @@ export default function PlannerTodo({ planner, view, setView, monday, setMonday,
   };
   const addNote = async (title: string) => {
     if (!title.trim() || !st) return;
-    const owner: Owner = view.owner === "all" ? "both" : view.owner;
+    const owner: Owner = "both";
     await quiet(planner.createTask({ title: title.trim(), account: acc, owner, phase: "setup", rhythm: "once", stageNum: st.num, measure: null, how: "", doneWhen: "", link: "" }));
   };
   const addWeekly = async (owner: Owner, title: string) => {
@@ -305,19 +305,6 @@ export default function PlannerTodo({ planner, view, setView, monday, setMonday,
       </div>
       <div style={{ marginTop: 12, maxWidth: isMobile ? "none" : 420 }}>
         <Toolbar monday={monday} setMonday={setMonday} isMobile={true} />
-        <div role="tablist" aria-label="Who" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", marginTop: 6, border: `1px solid ${C.rule}`, borderRadius: 2, background: C.white, overflow: "hidden" }}>
-          {(["all", "manager", "creator"] as const).map((k, i) => {
-            const on = view.owner === k;
-            const l = k === "all" ? null : OWNER_LOOK[k];
-            return (
-              <button key={k} role="tab" aria-selected={on} onClick={() => set({ owner: k })}
-                style={{ height: 30, border: "none", borderLeft: i ? `1px solid ${C.rule}` : "none", background: on ? (l ? l.color : C.black) : C.white, color: on ? C.white : (l ? l.color : C.muted), fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                {l && <span style={{ width: 6, height: 6, borderRadius: "50%", background: on ? C.white : l.color }} />}
-                {k === "all" ? "All" : l!.label}
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       {/* ── CONTENT ── */}
@@ -327,34 +314,45 @@ export default function PlannerTodo({ planner, view, setView, monday, setMonday,
         <p style={{ fontSize: TYPE.label.size, color: C.red, marginTop: 16, lineHeight: 1.5 }}>{loadError}</p>
       ) : (
         <>
-          {editing && <p style={{ fontSize: 12, color: C.muted, margin: "12px 0 0", lineHeight: 1.5 }}>Rename, tap who to switch, set the numbers (they carry over to the next weeks), or ✕ to delete. Tap Done when finished.</p>}
-          {!editing && noNumber > 0 && (
-            <button onClick={() => setEditing(true)}
-              style={{ marginTop: 12, width: "100%", minHeight: 34, borderRadius: 3, background: "#fdf6ee", border: "1px solid #f0e2d0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 12px", fontFamily: SANS, fontSize: 12, color: "#a8804f", cursor: "pointer", textAlign: "left" as const }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: C.amber, flexShrink: 0 }} />{noNumber} {noNumber === 1 ? "task has" : "tasks have"} no number yet</span>
-              <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>Set numbers ›</span>
-            </button>
-          )}
+          {editing && <p style={{ fontSize: 12, color: C.muted, margin: "12px 0 0", lineHeight: 1.5 }}>Your own weekly tasks: rename, tap who to switch, or ✕ to delete. Goals for Manager and Creator are set on their tabs. Tap Done when finished.</p>}
           {!editing && stageCard}
 
-          {groups.map(g => {
-            const look = OWNER_LOOK[g.owner];
-            const done = g.list.filter(t => stateOf(t).done).length;
-            return (
-              <div key={g.owner} style={card}>
-                {band(look, `${look.label} · this week`, progress(look, done, g.list.length))}
-                {g.list.map(weeklyRow)}
-                {editing && (
-                  <div style={{ minHeight: 44, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", borderTop: `1px solid ${ROW_RULE}` }}>
-                    <Ico d={IC.plus} size={14} color={C.muted} />
-                    <div style={{ flex: 1 }}><AddField placeholder={`Add a weekly task for ${look.label.toLowerCase()}`} onAdd={v => addWeekly(g.owner, v)} /></div>
+          {/* this week, one line per person → their tab */}
+          {!editing && (
+            <div style={card}>
+              {band(NEUTRAL_LOOK, `This week · ${isoWeek(monday)}`, null)}
+              {([["manager", mgrGoals, "card-goals"], ["creator", crGoals, "card-shoot"]] as [Owner, Task[], string][]).filter(x => x[1].length).map(([o, list, anchor]) => {
+                const l = OWNER_LOOK[o];
+                const n = list.filter(t => stateOf(t).done).length;
+                const all = n === list.length;
+                return (
+                  <div key={o} className="lh-prow" role="button" tabIndex={0} onClick={() => openTab?.(o, anchor)} onKeyDown={(e) => { if (e.key === "Enter") openTab?.(o, anchor); }}
+                    style={{ minHeight: 44, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", borderTop: `1px solid ${ROW_RULE}`, cursor: "pointer" }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: l.color, flexShrink: 0 }} />
+                    <span style={{ flex: 1, fontSize: 14 }}>{l.label}</span>
+                    <span style={{ fontSize: 13, color: all ? C.green : C.black }}>{n} of {list.length} reached{all ? " ✓" : ""}</span>
+                    <Ico d={IC.right} size={13} color={C.light} />
                   </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
 
-          {st && (build.length > 0 || editing || view.owner === "all") && (
+          {/* what has no card: check-in, kit handover, your own weekly tasks */}
+          {(weekly.length > 0 || editing) && (
+            <div style={card}>
+              {band(NEUTRAL_LOOK, "Weekly tasks", progress(OWNER_LOOK.both, weekly.filter(t => stateOf(t).done).length, weekly.length))}
+              {weekly.map(t => weeklyRow(t, true))}
+              {editing && (
+                <div style={{ minHeight: 44, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", borderTop: `1px solid ${ROW_RULE}` }}>
+                  <Ico d={IC.plus} size={14} color={C.muted} />
+                  <div style={{ flex: 1 }}><AddField placeholder="Add a weekly task" onAdd={v => addWeekly("both", v)} /></div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {st && (
             <div style={card}>
               {band(aLook, `Stage ${st.num} · to build`, progress(aLook, buildDone.length, build.length))}
               {buildOpen.map(noteRow)}
@@ -374,7 +372,6 @@ export default function PlannerTodo({ planner, view, setView, monday, setMonday,
               )}
             </div>
           )}
-          {!editing && <p style={{ fontSize: 12, color: C.light, margin: "10px 0 0" }}>Week {isoWeek(monday)} · tap a number to go to its card</p>}
         </>
       )}
     </div>

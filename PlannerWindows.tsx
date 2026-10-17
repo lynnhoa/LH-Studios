@@ -35,6 +35,14 @@ export const IC = {
   arrow:  "M5 12h14M13 6l6 6-6 6",
   down:   "M6 9l6 6 6-6",
   copy:   "M9 9h10v10H9zM5 15V5h10",
+  heart:  "M19.5 12.6L12 20l-7.5-7.4A5 5 0 1 1 12 6a5 5 0 1 1 7.5 6.6z",
+  userPlus: "M8 7a4 4 0 1 0 8 0a4 4 0 1 0-8 0M6 21v-2a4 4 0 0 1 4-4h4M16 19h6M19 16v6",
+  mail:   "M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 7l9 6 9-6",
+  send:   "M10 14L21 3M21 3l-6.5 18a.55.55 0 0 1-1 0L10 14l-7-3.5a.55.55 0 0 1 0-1z",
+  camera: "M5 7h1a2 2 0 0 0 2-2a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1a2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2M9 13a3 3 0 1 0 6 0a3 3 0 0 0-6 0",
+  bulb:   "M3 12h1m8-9v1m8 8h1M5.6 5.6l.7.7m12.1-.7l-.7.7M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0-1 3a2 2 0 0 1-4 0a3.5 3.5 0 0 0-1-3M9.7 17h4.6",
+  spark:  "M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2-2a2 2 0 0 1-2-2a2 2 0 0 1-2 2zm0-12a2 2 0 0 1 2 2a2 2 0 0 1 2-2a2 2 0 0 1-2-2a2 2 0 0 1-2 2zM9 18a6 6 0 0 1 6-6a6 6 0 0 1-6-6a6 6 0 0 1-6 6a6 6 0 0 1 6 6z",
+  history: "M12 8v4l2 2M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5",
   up:     "M18 15l-6-6-6 6",
 };
 
@@ -78,6 +86,60 @@ export function InlineText({ value, onSave, placeholder, multiline, ariaLabel, s
     onFocus={() => setFocus(true)} onChange={(e) => setT(e.target.value)} onBlur={commit}
     onKeyDown={(e) => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); onEnter?.(); } }}
     style={{ ...base, height: 32, width: "calc(100% + 12px)" }} />;
+}
+
+// ── "How this tab works": shows on the first visit; Got it hides it, "?" brings it back ──
+export function useGuide(key: string) {
+  const k = `lh_guide_${key}`;
+  const [open, setOpen] = useState<boolean>(() => { try { return localStorage.getItem(k) !== "seen"; } catch { return true; } });
+  const close = () => { setOpen(false); try { localStorage.setItem(k, "seen"); } catch { /* ignore */ } };
+  return { open, close, toggle: () => (open ? close() : setOpen(true)) };
+}
+export const GuideBtn = ({ onClick, on }: { onClick: () => void; on: boolean }) => (
+  <button onClick={onClick} aria-label="How this tab works" aria-expanded={on}
+    style={{ width: 24, height: 24, borderRadius: "50%", border: `1px solid ${on ? C.black : C.rule}`, background: on ? C.black : C.white, color: on ? C.white : C.muted, fontFamily: SANS, fontSize: 12, cursor: "pointer", padding: 0, flexShrink: 0 }}>?</button>
+);
+export const GuideCard = ({ steps, onClose }: { steps: string[]; onClose: () => void }) => (
+  <div style={{ background: "#fdfcfa", border: `1px solid ${C.rule}`, borderRadius: 3, marginTop: 12, padding: 12 }}>
+    <div style={{ fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted }}>How this tab works</div>
+    <div style={{ display: "grid", gridTemplateColumns: "18px 1fr", rowGap: 6, marginTop: 8, fontSize: 13, lineHeight: 1.5 }}>
+      {steps.map((x, k) => [<span key={`n${k}`} style={{ color: C.muted }}>{k + 1}.</span>, <span key={`t${k}`}>{x}</span>])}
+    </div>
+    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+      <B onClick={onClose} s={{ ...BAR_BTN, height: 28, minHeight: 28 }}>Got it</B>
+    </div>
+  </div>
+);
+
+// A goal number you tap to change (dotted underline); saves on leave / Enter
+export function GoalNum({ value, onSave, label }: { value: number | null; onSave: (v: number | null) => void; label: string }) {
+  const [edit, setEdit] = useState(false);
+  if (edit) return (
+    <input autoFocus inputMode="numeric" defaultValue={value ?? ""} aria-label={label} placeholder="–" onFocus={(e) => e.target.select()}
+      onBlur={(e) => { setEdit(false); const v = e.target.value.trim() === "" ? null : parseIntDe(e.target.value); if (v !== value) onSave(v); }}
+      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEdit(false); }}
+      style={{ width: 52, height: 26, border: `1px solid ${C.black}`, borderRadius: 2, padding: "0 6px", textAlign: "right" as const, fontFamily: SANS, fontSize: 13, boxSizing: "border-box" as const }} />
+  );
+  return (
+    <button onClick={(e) => { e.stopPropagation(); setEdit(true); }} aria-label={label} title="Tap to set the goal"
+      style={{ background: "none", border: "none", borderBottom: `1px dotted ${C.muted}`, padding: "2px 0", fontFamily: SANS, fontSize: 13, color: C.black, cursor: "pointer", lineHeight: 1.2 }}>{value ?? "–"}</button>
+  );
+}
+
+// The mark at the end of a goal row: ✓ reached · "3 to go" while the week runs · "6 / 7" ✕ once it's over
+export function ResultMark({ state, text }: { state: "reached" | "togo" | "missed" | "none"; text?: string }) {
+  const circle = (bg: string, fg: string, border: string, ch: string, label: string) => (
+    <span role="img" aria-label={label} style={{ width: 24, height: 24, borderRadius: "50%", background: bg, color: fg, border: `1px solid ${border}`, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0, boxSizing: "border-box" as const }}>{ch}</span>
+  );
+  const word = (t: string, c: string) => <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: c, whiteSpace: "nowrap" as const }}>{t}</span>;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 6, minWidth: 70, flexShrink: 0 }}>
+      {state === "reached" && circle(C.green, C.white, C.green, "✓", "Reached")}
+      {state === "togo" && text && word(text, C.amber)}
+      {state === "none" && word(text || "No number", C.light)}
+      {state === "missed" && <>{text && <span style={{ fontSize: 11, color: C.red }}>{text}</span>}{circle("#f6e9e9", C.red, "#e8c9c9", "✕", "Not reached")}</>}
+    </span>
+  );
 }
 
 // Who does it, as a small coloured pill (Manager blue-grey · Creator mauve · Both warm grey)

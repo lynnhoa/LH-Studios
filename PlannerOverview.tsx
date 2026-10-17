@@ -10,6 +10,7 @@ import { C, SERIF, TYPE } from "./constants";
 import {
   OWNER_LOOK, TONE, accLook, rowKind, stageOf, stageNumOf, gateOf, isVisible, addDays, snapKey, entryKey, monthName,
   weekRange, isoWeek, fmtInt, fmtPct2, monthGoalOf, goalStatus, shortName, thisMonday, STAGE_SHORT,
+  MANAGER_GOAL, CREATOR_GOAL, ON_A_CARD,
 } from "./planner";
 import type { Account, Owner, Task, Look } from "./planner";
 import { monthStart, monthEnd, today } from "./formatters";
@@ -76,14 +77,18 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
   })();
 
   // ── this week: who reached what ─────────────────────────────
-  const weekly = visible.filter(t => t.phase === "maintain" && (t.rhythm === "weekly" || t.rhythm === "daily"));
+  // the same groups as the tabs: the Manager card, the Creator strip, the other weekly tasks (To-do)
+  const forAcc = (t: Task) => t.account === acc || t.account === "both";
+  const isWeekly = (t: Task) => t.phase === "maintain" && (t.rhythm === "weekly" || t.rhythm === "daily");
+  const groupsOf: { o: Owner | "other"; label: string; color: string; list: Task[] }[] = [
+    { o: "manager", label: "Manager", color: OWNER_LOOK.manager.color, list: visible.filter(t => MANAGER_GOAL(t) && forAcc(t)) },
+    { o: "creator", label: "Creator", color: OWNER_LOOK.creator.color, list: visible.filter(t => CREATOR_GOAL(t) && forAcc(t)) },
+    { o: "other", label: "Weekly tasks", color: OWNER_LOOK.both.color, list: visible.filter(t => isWeekly(t) && !ON_A_CARD(t)) },
+  ];
+  const weekly = groupsOf.flatMap(g => g.list);
   const reachedIn = (w: string) => weekly.filter(t => planner.stateOf(t, w).done).length;
   const met = reachedIn(monday);
-  const owners = (["manager", "creator", "both"] as Owner[]).map(o => {
-    const list = weekly.filter(t => t.owner === o);
-    const open = list.filter(t => !planner.stateOf(t, monday).done);
-    return { o, list, open };
-  }).filter(x => x.list.length > 0);
+  const owners = groupsOf.map(g => ({ ...g, open: g.list.filter(t => !planner.stateOf(t, monday).done) })).filter(x => x.list.length > 0);
   const label = (t: Task) => {
     const s = planner.stateOf(t, monday);
     const g = goalStatus(t, s, monday);
@@ -97,7 +102,7 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
     <div style={card}>
       {band(NEUTRAL, "This week", <span style={{ color: met === weekly.length && weekly.length ? C.green : C.black }}>{met} of {weekly.length} reached</span>)}
       {owners.map(x => {
-        const l = OWNER_LOOK[x.o];
+        const l = { label: x.label, color: x.color };
         const done = x.list.length - x.open.length;
         const over = isPast(monday);
         return (
@@ -126,32 +131,26 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
 
   // ── audience (6-week trend from the snapshots) ──────────────
   const audience = (() => {
-    const snap = (w: string) => planner.snaps[snapKey(acc, w)];
-    const newF = (w: string): number | null => { const a = snap(w)?.followers, b = snap(addDays(w, -7))?.followers; return a != null && b != null ? a - b : null; };
-    const value = (w: string): number | null => (acc === "lynnhoa" ? snap(w)?.views ?? null : newF(w));
+    const ft = visible.find(t => t.source === "following" && forAcc(t));
+    if (!ft) return null;
+    const val = (w: string) => planner.stateOf(ft, w).actual;
     const ws = [-35, -28, -21, -14, -7, 0].map(o => addDays(monday, o));
-    const cur = value(monday), prev = value(addDays(monday, -7));
-    let delta: { text: string; color: string } | null = null;
-    if (cur != null && prev != null) {
-      if (acc === "lynnhoa") { if (prev > 0) { const pct = ((cur - prev) / prev) * 100; delta = { text: `${pct >= 0 ? "+" : "−"}${fmtPct2(Math.abs(pct))} vs last week`, color: pct > 0 ? C.green : pct < 0 ? C.red : C.muted }; } }
-      else { const d = cur - prev; delta = { text: `${d >= 0 ? "+" : "−"}${fmtInt(Math.abs(d))} vs last week`, color: d > 0 ? C.green : d < 0 ? C.red : C.muted }; }
-    }
-    const vals = ws.map(value);
-    const max = Math.max(1, ...vals.map(v => Math.max(0, v ?? 0)));
-    const now = snap(monday);
-    const big = cur == null ? "–" : acc === "lynnhoa" ? fmtInt(cur) : `${cur >= 0 ? "+" : "−"}${fmtInt(Math.abs(cur))}`;
+    const vals = ws.map(val);
+    const cur = val(monday), prev = val(addDays(monday, -7));
+    const s0 = planner.stateOf(ft, monday);
+    const max = Math.max(1, ...vals.map(v => Math.max(0, v ?? 0)), s0.target ?? 0);
+    const d = cur != null && prev != null ? cur - prev : null;
     return (
       <div style={card}>
-        {band(NEUTRAL, acc === "lynnhoa" ? "Audience · revival" : "Audience · growth", <span>{acc === "lynnhoa" ? "Views this week" : "New followers"}</span>)}
+        {band(NEUTRAL, "Audience · following", <span>{s0.target != null ? `Goal ${fmtInt(s0.target)}` : "No goal"}</span>)}
         <div style={{ ...body, paddingTop: 2 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" as const }}>
-            <span style={{ fontFamily: SERIF, fontSize: 28, lineHeight: 1 }}>{big}</span>
-            <span style={{ fontSize: 12, color: delta?.color || C.muted }}>{delta?.text || (cur == null ? "Not entered yet" : "No week before to compare")}</span>
+            <span style={{ fontFamily: SERIF, fontSize: 26, lineHeight: 1, color: s0.done ? C.green : C.black }}>{cur == null ? "–" : fmtInt(cur)}{s0.done ? " ✓" : ""}</span>
+            <span style={{ fontSize: 12, color: d == null ? C.muted : d > 0 ? C.green : d < 0 ? C.red : C.muted }}>{d == null ? (cur == null ? "Not entered yet" : "No week before to compare") : `${d >= 0 ? "+" : "−"}${fmtInt(Math.abs(d))} vs last week`}</span>
           </div>
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 28, marginTop: 10 }} aria-label={`Last 6 weeks: ${vals.map(v => (v == null ? "–" : fmtInt(v))).join(", ")}`}>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 28, marginTop: 10 }} aria-label={`Following, last 6 weeks: ${vals.map(v => (v == null ? "–" : fmtInt(v))).join(", ")}`}>
             {vals.map((v, k) => <i key={k} title={`W${isoWeek(ws[k])}: ${v == null ? "–" : fmtInt(v)}`} style={{ flex: 1, height: v == null || v <= 0 ? 2 : `${Math.max(8, Math.round((v / max) * 100))}%`, background: k === 5 ? C.black : "#d6d1cb" }} />)}
           </div>
-          <div style={{ ...sub, marginTop: 6 }}>{now?.followers != null || now?.engagement != null ? `${fmtInt(now?.followers)} followers · ${fmtPct2(now?.engagement)}` : "No snapshot this week"}</div>
         </div>
       </div>
     );

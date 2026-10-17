@@ -1,33 +1,35 @@
 // ─────────────────────────────────────────────────────────────
-// PlannerManager — Planner › Manager (his workspace), one account.
-// Four cards, everything typed right here (no windows):
-//   Account snapshot · followers, views, engagement % — or the
-//     Prompt: screenshot → Claude → SQL
-//   Following · follow-backs (the only number that counts)
-//   Community · the 7 days
-//   New emails · counted from Outreach (just the number)
-// Each card shows its goal status; the week line sums them up.
-// Stage 2 adds the sprint and the pitch log.
+// PlannerManager — Planner › Manager (the manager's workspace), one
+// account. One card: this week's goals, one line each.
+//   Engaging   · a box per day (tap to tick / untick)
+//   Following  · his number, typed anytime during the week
+//   New emails · counted from Outreach
+//   Pitches    · his number, typed anytime during the week
+//   Leads      · his number, typed anytime during the week
+// The goal (dotted) is set at the check-in and carries over.
+// Each line ends with ✓ once reached, "3 to go" while the week
+// runs, or ✕ once the week is over. Stage 2 adds the sprint on top.
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE, Z } from "./constants";
+import { useState } from "react";
+import { C, SANS, SERIF, TYPE } from "./constants";
 import { B, BAR_BTN } from "./atoms";
 import {
-  DAY_SHORT, OWNER_LOOK, TONE, isVisible, snapKey, entryKey, periodOf, stageNumOf, todayIndex, goalStatus,
-  weekRange, fmtInt, fmtPct2, addDays, isoWeek, snapshotPrompt, thisMonday,
+  DAY_SHORT, OWNER_LOOK, isVisible, periodOf, stageNumOf, todayIndex, weekRange, fmtPct2, addDays, isoWeek, thisMonday,
+  MANAGER_GOAL, managerOrder, rowKind, parseIntDe,
 } from "./planner";
-import type { Task, Account, GoalStatus } from "./planner";
+import type { Task, Account } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
-import { OUTREACH_TIERS, copyText } from "./outreach";
+import { OUTREACH_TIERS } from "./outreach";
 import { fmtD, today } from "./formatters";
-import { Ico, IC, Bar, Toolbar, Subtitle, CatChip, NumField, SprintWindow, sprintRange, sprintDay } from "./PlannerWindows";
+import { Ico, IC, Bar, Toolbar, Subtitle, CatChip, SprintWindow, sprintRange, sprintDay, GoalNum, ResultMark, useGuide, GuideBtn, GuideCard } from "./PlannerWindows";
 import { showUndo, XBtn } from "./undo";
 
 const microLabel: any = { fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted };
 const look = OWNER_LOOK.manager;
+const NAME = (t: Task) => (t.area === "community" ? "Engaging" : t.source === "following" ? "Following" : t.source === "outreach" ? "New emails" : t.source === "pitches" ? "Pitches" : t.source === "leads" ? "Leads" : t.title);
+const ICON = (t: Task) => (t.area === "community" ? IC.heart : t.source === "following" ? IC.userPlus : t.source === "outreach" ? IC.mail : t.source === "leads" ? IC.spark : IC.send);
 
 interface PlannerManagerProps {
   planner:   PlannerHook;
@@ -43,136 +45,81 @@ interface PlannerManagerProps {
 export default function PlannerManager({ planner, view, monday, setMonday, isMobile, openOutreach }: PlannerManagerProps) {
   const { stages, tasks, loading, loadError } = planner;
   const [openSprint, setOpenSprint] = useState<{ id?: string; acc?: Account } | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 2200); return () => clearTimeout(t); }, [toast]);
+  const guide = useGuide("manager");
   const quiet = (p: Promise<any>) => p.catch(() => { /* the save toast reports it */ });
 
-  const acc     = (view.acc === "all" ? "lynnhoa" : view.acc) as Account;
-  const visible = tasks.filter(t => isVisible(t, stages, view.acc));
-  const bySource = (src: string) => visible.find(t => t.source === src && (t.account === acc || t.account === "both"));
-  const snapT   = bySource("snapshot");
-  const followT = bySource("following");
-  const emailT  = bySource("outreach");
-  const commT   = visible.find(t => t.area === "community" && t.rhythm === "daily" && (t.account === acc || t.account === "both"));
-  const ti      = todayIndex(monday);
-  const stage2  = stageNumOf(stages, acc) >= 2;
+  const acc    = (view.acc === "all" ? "lynnhoa" : view.acc) as Account;
+  const goals  = tasks.filter(t => isVisible(t, stages, view.acc) && MANAGER_GOAL(t) && (t.account === acc || t.account === "both"))
+    .sort((a, b) => managerOrder(a) - managerOrder(b));
+  const ti     = todayIndex(monday);
+  const over   = monday < thisMonday();                    // the week is closed
+  const stage2 = stageNumOf(stages, acc) >= 2;
   const sprintW = stages.find(s => s.num === 2 && s.account === acc)?.sprintWeeks ?? 2;
-
-  // the week line: his weekly goals
-  const his = visible.filter(t => t.phase === "maintain" && t.owner === "manager" && t.rhythm !== "monthly");
-  const reached = his.filter(t => planner.stateOf(t, monday).done).length;
+  const reached = goals.filter(t => planner.stateOf(t, monday).done).length;
 
   // ── pieces ──────────────────────────────────────────────────
-  const card: any = { background: C.white, border: `1px solid ${C.rule}`, borderRadius: 3, marginTop: 12, overflow: "hidden" };
-  const statusTag = (s: GoalStatus | null) => !s ? null : (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: TONE[s.tone], whiteSpace: "nowrap" as const }}>
-      {s.tone === "attn" && <span style={{ width: 6, height: 6, borderRadius: "50%", background: TONE.attn }} />}{s.text}
-    </span>
-  );
-  const band = (title: string, right: any) => (
-    <div style={{ minHeight: 34, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", background: look.bg, color: look.color, ...microLabel }}>
-      <span style={{ display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: look.color }} />{title}</span>
-      {right}
+  const card: any = { background: C.white, border: `1px solid ${C.rule}`, borderRadius: 3, marginTop: 10, overflow: "hidden" };
+  const band = (title: string, right?: any) => (
+    <div style={{ minHeight: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", background: look.bg, color: look.color, ...microLabel }}>
+      <span>{title}</span>{right}
     </div>
   );
   const hint = (t: string) => <p style={{ fontSize: 12, color: C.muted, margin: "8px 0 0", lineHeight: 1.4 }}>{t}</p>;
   const body: any = { padding: "10px 12px 12px" };
-  const grid3: any = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8, marginTop: -8 };
+  const field = (value: number | null, label: string, onSave: (v: number | null) => void) => (
+    <input key={`${label}-${value}`} inputMode="numeric" defaultValue={value ?? ""} placeholder="–" aria-label={label} onFocus={(e) => e.target.select()}
+      onBlur={(e) => { const v = e.target.value.trim() === "" ? null : parseIntDe(e.target.value); if (v !== value) onSave(v); }}
+      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+      style={{ width: 58, height: 28, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "0 8px", textAlign: "right" as const, fontFamily: SANS, fontSize: 13, background: "#faf9f7", boxSizing: "border-box" as const }} />
+  );
 
-  // ── account snapshot ────────────────────────────────────────
-  const sn   = planner.snaps[snapKey(acc, monday)];
-  const prev = planner.snaps[snapKey(acc, addDays(monday, -7))];
-  const snapStatus: GoalStatus = snapT ? goalStatus(snapT, planner.stateOf(snapT, monday), monday)!
-    : (sn && (sn.followers != null || sn.views != null || sn.engagement != null)) ? { text: "Entered ✓", tone: "ok" } : { text: "Enter", tone: "attn" };
-  const diff = sn?.followers != null && prev?.followers != null ? sn.followers - prev.followers : null;
-  const saveSnap = (patch: any) => quiet(planner.saveSnapshot(acc, monday, patch));
-  const copyPrompt = async () => {
-    const ok = await copyText(snapshotPrompt(acc, monday, planner.loginEmail));
-    setToast(ok ? "Prompt copied ✓ — paste it into Claude with your screenshot" : "Couldn't copy");
+  // one goal, one line: name · the number or the days · the mark
+  const goalRow = (t: Task) => {
+    const s = planner.stateOf(t, monday);
+    const period = periodOf(t, monday);
+    const kind = rowKind(t);
+    const days = kind === "days";
+    const left = s.target != null ? Math.max(0, s.target - (s.actual ?? 0)) : null;
+    const state: "reached" | "togo" | "missed" | "none" =
+      s.done ? "reached" : days ? (over ? "missed" : "togo") : s.target == null ? "none" : over ? "missed" : "togo";
+    const text = state === "togo" ? `${days ? 7 - s.daysDone : left} to go` : state === "missed" ? (days ? `${s.daysDone} / 7` : `−${left}`) : state === "none" ? "No number" : undefined;
+    const typed = t.source === "following" || t.source === "pitches" || t.source === "leads" || (kind === "number" && t.source !== "outreach");
+    return (
+      <div key={t.id} style={{ minHeight: 44, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", borderTop: "1px solid #f0ece7", fontSize: 13 }}>
+        <span style={{ width: 92, flexShrink: 0, display: "flex", alignItems: "center", gap: 6, color: s.done ? C.muted : C.black }}><Ico d={ICON(t)} size={13} color={look.color} />{NAME(t)}</span>
+        <span style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: days ? 4 : 6 }}>
+          {days ? DAY_SHORT.map((d, i) => {
+            const on = s.days[i];
+            return (
+              <button key={d} onClick={() => { const ds = [...s.days]; ds[i] = !ds[i]; quiet(planner.saveEntry(t.id, period, { days: ds })); }}
+                aria-pressed={on} aria-label={`${d}${on ? ", done" : ""}`} title={d}
+                style={{ width: 20, height: 20, padding: 0, flexShrink: 0, borderRadius: 3, cursor: "pointer", boxSizing: "border-box" as const,
+                  border: i === ti ? `2px solid ${C.black}` : `1.5px solid ${on ? C.green : C.light}`, background: on ? C.green : C.white, color: C.white, fontSize: 10, lineHeight: 1 }}>{on ? "✓" : ""}</button>
+            );
+          }) : (
+            <>
+              {typed ? field(s.actual, `${NAME(t)} this week`, v => quiet(planner.saveEntry(t.id, period, { actual: v }))) : <span>{s.actual ?? 0}</span>}
+              <span>/ <GoalNum value={s.target} label={`Goal for ${NAME(t)}`} onSave={v => quiet(planner.saveEntry(t.id, period, { target: v }))} /></span>
+              {!typed && <span style={{ fontSize: 11, color: C.light, whiteSpace: "nowrap" as const }}>from Outreach</span>}
+            </>
+          )}
+        </span>
+        <ResultMark state={state} text={text} />
+      </div>
+    );
   };
-  const snapshotCard = (
-    <div id="card-snapshot" style={card}>
-      {band("Account snapshot", statusTag(snapStatus))}
-      <div style={body}>
-        <div style={grid3}>
-          <NumField label="Followers" value={sn?.followers ?? null} onSave={v => saveSnap({ followers: v })} />
-          <NumField label="Views" value={sn?.views ?? null} onSave={v => saveSnap({ views: v })} />
-          <NumField label="Engagement %" decimal value={sn?.engagement ?? null} onSave={v => saveSnap({ engagement: v })} />
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 10 }}>
-          <span style={{ fontSize: 12, color: C.muted, lineHeight: 1.4 }}>Screenshot your insights, then use the prompt in Claude.</span>
-          <B v="sec" onClick={copyPrompt} s={{ ...BAR_BTN, height: 28, minHeight: 28, color: C.black, gap: 5, display: "inline-flex", alignItems: "center", flexShrink: 0 }}><Ico d={IC.copy} size={12} />Prompt</B>
-        </div>
-        {diff != null && <p style={{ fontSize: 12, margin: "6px 0 0", color: diff >= 0 ? C.green : C.red }}>{diff >= 0 ? "+" : "−"}{fmtInt(Math.abs(diff))} followers since last week</p>}
-        {prev && <p style={{ fontSize: 12, color: C.muted, margin: "4px 0 0" }}>Last week: {fmtInt(prev.followers)} followers · {fmtInt(prev.views)} views · {fmtPct2(prev.engagement)}</p>}
+
+  const goalsCard = (
+    <div id="card-goals" style={{ ...card, boxShadow: "0 6px 18px rgba(26,26,26,0.06)" }}>
+      {band("This week's goals", <span style={{ color: goals.length && reached === goals.length ? C.green : C.black }}>{reached} of {goals.length} reached</span>)}
+      {goals.length === 0 && <div style={body}><p style={{ fontSize: 13, color: C.muted, margin: 0 }}>No goals for this account yet.</p></div>}
+      {goals.map(goalRow)}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 12px", borderTop: "1px solid #f0ece7", background: "#fcfbf9" }}>
+        <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.4 }}>{over ? "Week closed · still editable if something was forgotten" : "Update anytime this week · by Sunday at the latest"}</span>
+        {openOutreach && <B v="sec" onClick={openOutreach} s={{ ...BAR_BTN, height: 24, minHeight: 24, color: C.black, gap: 4, display: "inline-flex", alignItems: "center", flexShrink: 0 }}>Outreach<Ico d={IC.link} size={11} /></B>}
       </div>
     </div>
   );
-
-  // ── following (follow-backs only) ───────────────────────────
-  const followCard = followT && (() => {
-    const s = planner.stateOf(followT, monday);
-    const period = periodOf(followT, monday);
-    return (
-      <div id="card-following" style={card}>
-        {band("Following", statusTag(goalStatus(followT, s, monday)))}
-        <div style={body}>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8, alignItems: "end", marginTop: -8 }}>
-            <NumField label="Follow-backs" value={s.actual} onSave={v => quiet(planner.saveEntry(followT.id, period, { actual: v }))} />
-            <div style={{ height: 36, display: "flex", alignItems: "center", justifyContent: "flex-end", fontSize: 14, color: s.done ? C.green : C.black }}>{s.actual ?? 0} / {s.target ?? "–"}</div>
-          </div>
-          <Bar value={s.actual ?? 0} max={s.target ?? 0} done={s.done} color={look.color} track={look.border} h={4} s={{ marginTop: 10 }} />
-          {hint("Only accounts that follow back count. Unfollow the rest at the end of the week.")}
-        </div>
-      </div>
-    );
-  })();
-
-  // ── community (the 7 days) ──────────────────────────────────
-  const commCard = commT && (() => {
-    const s = planner.stateOf(commT, monday);
-    const period = periodOf(commT, monday);
-    const st = goalStatus(commT, s, monday);
-    return (
-      <div id="card-community" style={card}>
-        {band("Community · daily", <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><span style={{ color: C.black }}>{s.daysDone} / 7</span>{statusTag(st)}</span>)}
-        <div style={body}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0,1fr))", gap: 4 }}>
-            {DAY_SHORT.map((d, i) => {
-              const on = s.days[i];
-              return (
-                <button key={d} onClick={() => { const days = [...s.days]; days[i] = !days[i]; quiet(planner.saveEntry(commT.id, period, { days })); }}
-                  aria-pressed={on} aria-label={`${d}${on ? ", done" : ""}`}
-                  style={{ height: 44, border: `1px solid ${i === ti ? C.black : on ? C.green : C.rule}`, background: on ? C.green : C.white, color: on ? C.white : C.black, borderRadius: 2, cursor: "pointer", fontFamily: SANS, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, padding: 0 }}>
-                  <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.06em", textTransform: "uppercase" as const, color: on ? C.white : i === ti ? C.black : C.muted }}>{d}</span>
-                  <span style={{ fontSize: 12, lineHeight: 1 }}>{on ? "✓" : ""}</span>
-                </button>
-              );
-            })}
-          </div>
-          {hint("Engage every day with followers and the accounts you follow.")}
-        </div>
-      </div>
-    );
-  })();
-
-  // ── new emails (just the number) ────────────────────────────
-  const emailCard = emailT && (() => {
-    const s = planner.stateOf(emailT, monday);
-    return (
-      <div id="card-emails" style={card}>
-        {band("New emails", statusTag(goalStatus(emailT, s, monday)))}
-        <div style={{ ...body, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 8 }}>
-            <span style={{ fontFamily: SERIF, fontSize: 26, lineHeight: 1, color: s.done ? C.green : C.black }}>{s.actual ?? 0} / {s.target ?? "–"}</span>
-            <span style={microLabel}>new contacts</span>
-          </span>
-          {openOutreach && <B v="sec" onClick={openOutreach} s={{ ...BAR_BTN, height: 28, minHeight: 28, color: C.black, gap: 5, display: "inline-flex", alignItems: "center" }}><Ico d={IC.link} size={12} />Outreach</B>}
-        </div>
-        <div style={{ padding: "0 12px 12px", marginTop: -8 }}>{hint("Counted from the contacts added in Outreach this week.")}</div>
-      </div>
-    );
-  })();
 
   // ── Stage 2: the sprint and the pitch log ───────────────────
   const sprintCard = (() => {
@@ -194,7 +141,6 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontSize: 14 }}><span>Pitches</span><span style={{ color: sp.pitchGoal != null && st.pitches >= sp.pitchGoal ? C.green : C.black }}>{st.pitches} / {sp.pitchGoal ?? "–"}</span></div>
             <Bar value={st.pitches} max={sp.pitchGoal ?? 0} done={sp.pitchGoal != null && st.pitches >= sp.pitchGoal} color={look.color} track={look.border} h={4} />
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontSize: 14 }}><span>Follow-ups</span><span>{st.followUps} / {sp.followUpGoal ?? "–"}{due > 0 && <span style={{ color: C.amber }}> · {due} due</span>}</span></div>
-            <p style={{ fontSize: 12, color: C.muted, margin: "8px 0 0" }}>Replied {st.replied} · Gifted {st.gifted} · Deals {st.deals}{st.rate != null ? ` · reply rate ${fmtPct2(st.rate)}` : ""}</p>
           </div>
         ) : (
           <div style={{ ...body, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
@@ -206,7 +152,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
           const ps = planner.sprintStats(p);
           return (
             <div key={p.id} className="lh-prow" onClick={() => setOpenSprint({ id: p.id })} style={row}>
-              <span style={{ fontSize: 13, minWidth: 0 }}>Sprint {p.num} <span style={{ color: C.muted }}>· {ps.pitches} pitches · {ps.replied} replied · {ps.deals} {ps.deals === 1 ? "deal" : "deals"}</span></span>
+              <span style={{ fontSize: 13, minWidth: 0 }}>Sprint {p.num} <span style={{ color: C.muted }}>· {ps.pitches} pitches · {ps.followUps} follow-ups</span></span>
               <span style={{ ...microLabel, flexShrink: 0 }}>Done</span>
             </div>
           );
@@ -251,13 +197,23 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     </div>
   );
 
+
   return (
     <div>
       <style>{`.lh-prow:hover { background: rgba(0,0,0,0.018); }`}</style>
       {/* ── HEADER ── */}
-      <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Manager</h2>
-      <Subtitle acc={acc} text={`His workspace · ${weekRange(monday)}`} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Manager</h2>
+        <GuideBtn on={guide.open} onClick={guide.toggle} />
+      </div>
+      <Subtitle acc={acc} text="Manager's workspace" />
+      {guide.open && <GuideCard onClose={guide.close} steps={[
+        "Tick Engaging every day you engage.",
+        "Type Following, the pitches sent and the new leads anytime during the week, by Sunday at the latest.",
+        "New emails count by themselves from Outreach. The goals (dotted) are set at the check-in.",
+      ]} />}
       <div style={{ marginTop: 12, maxWidth: isMobile ? "none" : 420 }}><Toolbar monday={monday} setMonday={setMonday} isMobile={true} /></div>
+      <p style={{ fontSize: 12, color: C.muted, margin: "6px 0 0" }}>{weekRange(monday)}{over ? " · closed" : ""}</p>
 
       {loading ? (
         <p style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 16 }}>Loading…</p>
@@ -265,19 +221,10 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
         <p style={{ fontSize: TYPE.label.size, color: C.red, marginTop: 16, lineHeight: 1.5 }}>{loadError}</p>
       ) : (
         <>
-          <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-            <span style={microLabel}>Week {isoWeek(monday)} · {reached} of {his.length} reached</span>
-            <span style={{ width: 120, height: 4, background: C.rule, display: "inline-block" }}><i style={{ display: "block", height: 4, width: `${his.length ? Math.round((reached / his.length) * 100) : 0}%`, background: reached === his.length && his.length ? C.green : look.color }} /></span>
-          </div>
-          {snapshotCard}
-          {followCard}
-          {commCard}
-          {emailCard}
-          {stage2 ? (
-            planner.stage2Error ? <p style={{ fontSize: 12, color: C.red, margin: "12px 0 0", lineHeight: 1.5 }}>{planner.stage2Error}</p> : <>{sprintCard}{pitchCard}</>
-          ) : (
-            <div style={{ marginTop: 14, fontSize: 13, color: C.light, display: "flex", alignItems: "center", gap: 6 }}><Ico d={IC.lock} size={13} />Sprints and pitch log · from Stage 2</div>
-          )}
+          {stage2 && (planner.stage2Error ? <p style={{ fontSize: 12, color: C.red, margin: "12px 0 0", lineHeight: 1.5 }}>{planner.stage2Error}</p> : sprintCard)}
+          {goalsCard}
+          {stage2 && !planner.stage2Error && pitchCard}
+          {!stage2 && <div style={{ marginTop: 12, fontSize: 12, color: C.light, display: "flex", alignItems: "center", gap: 6 }}><Ico d={IC.lock} size={12} />Sprint · from Stage 2, on top</div>}
         </>
       )}
 
@@ -285,9 +232,6 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
         <SprintWindow key={openSprint.id || `new-${openSprint.acc}`} planner={planner} sprintId={openSprint.id} isMobile={isMobile} onClose={() => setOpenSprint(null)}
           draft={openSprint.acc ? { account: openSprint.acc, startOn: thisMonday(), endOn: addDays(thisMonday(), sprintW * 7 - 1), focusCategory: "", focusTier: "now", pitchGoal: null, followUpGoal: null, review: "" } : undefined} />
       )}
-      {toast && createPortal(
-        <div style={{ position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", zIndex: Z.toast, background: C.black, color: C.white, fontFamily: SANS, fontSize: 12, padding: "8px 14px", borderRadius: 2, maxWidth: "calc(100vw - 32px)" }}>{toast}</div>,
-        document.body)}
     </div>
   );
 }
