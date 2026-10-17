@@ -13,7 +13,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "./useSupabase";
 import { registerReloader } from "./saveStatus";
 import { today, monthStart, ymd } from "./formatters";
-import { addDays, entryKey, snapKey, mondayOf, periodOf, rowState, taskAccounts, NO_DAYS } from "./planner";
+import {
+  addDays, entryKey, snapKey, mondayOf, periodOf, rowState, taskAccounts, NO_DAYS, planOf,
+} from "./planner";
 import { daysBetween } from "./planner";
 import type { Stage, Task, Entry, TaskStatus, Snapshot, Account, Item, ItemStatus, Note, NoteKind, Auto, Sprint, SprintStats } from "./planner";
 import { FOLLOW_UP_DAYS } from "./outreach";
@@ -98,6 +100,7 @@ const rowToItem = (r: any): Item => ({
   plannedOn:   r.planned_on ? String(r.planned_on).slice(0, 10) : null,
   postedOn:    r.posted_on ? String(r.posted_on).slice(0, 10) : null,
   direction:   r.direction ?? "",
+  plan:        planOf(r.plan),
   portfolio:   !!r.portfolio,
   link:        r.link ?? "",
   views:       r.views ?? null,
@@ -115,6 +118,7 @@ const itemToRow = (p: Partial<Item>) => {
   if (p.plannedOn !== undefined) row.planned_on = p.plannedOn || null;
   if (p.postedOn  !== undefined) row.posted_on  = p.postedOn || null;
   if (p.direction !== undefined) row.direction  = p.direction;
+  if (p.plan      !== undefined) row.plan       = p.plan;
   if (p.portfolio !== undefined) row.portfolio  = p.portfolio;
   if (p.link      !== undefined) row.link       = p.link.trim();
   if (p.views     !== undefined) row.views      = p.views;

@@ -7,20 +7,15 @@
 // Extra actions (Delete …) sit in the ⋯ menu; one main button.
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE, Z } from "./constants";
 import { fmtD, today, monthStart, monthEnd, ymd } from "./formatters";
 import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN } from "./atoms";
 import {
-  ACCOUNTS, PHASES, OWNERS, RHYTHMS, STATUSES, STAGE_SHORT, DAY_SHORT,
-  accLook, phaseLabel, ownerLabel, rhythmLabel, rowKind, entryKey, periodOf, snapKey,
-  addDays, isoWeek, weekRange, weekLabel, thisMonday, monthName, todayIndex, gateOf, stageNumOf, taskAccounts, isVisible, byOrder,
-  fmtInt, fmtPct2, parseDec, parseIntDe,
-  ITEM_STATUSES, FORMATS, CLASSIC, formatLook, itemStatusLabel, daysBetween,
-  OWNER_LOOK, monthGoalOf, monthGoalPatch, loadWorkAccount,
+  ACCOUNTS, PHASES, OWNERS, RHYTHMS, STATUSES, STAGE_SHORT, DAY_SHORT, accLook, phaseLabel, ownerLabel, rhythmLabel, rowKind, entryKey, periodOf, snapKey, addDays, isoWeek, weekRange, weekLabel, thisMonday, monthName, todayIndex, gateOf, stageNumOf, taskAccounts, isVisible, byOrder, fmtInt, fmtPct2, parseDec, parseIntDe, ITEM_STATUSES, FORMATS, CLASSIC, formatLook, itemStatusLabel, daysBetween, OWNER_LOOK, monthGoalOf, monthGoalPatch, loadWorkAccount, storyLines,
 } from "./planner";
-import type { Task, Stage, TaskAccount, AccountFilter, Phase, Rhythm, Item, ItemList, Account, NoteKind, Sprint, Owner } from "./planner";
+import type { Task, Stage, TaskAccount, AccountFilter, Phase, Rhythm, Item, ItemList, ItemStatus, ItemPlan, Account, NoteKind, Sprint, Owner } from "./planner";
 import { OUTREACH_CATEGORIES, OUTREACH_TIERS, catOf } from "./outreach";
 import type { PlannerHook } from "./usePlanner";
 
@@ -767,128 +762,187 @@ export const FormatChip = ({ f }: { f: string }) => {
 // ITEM WINDOW — an idea or an editorial (portfolio piece)
 // Status by dropdown right in the read view; Edit → Save → read view
 // ═════════════════════════════════════════════════════════════
-export function ItemWindow({ planner, itemId, draft, isMobile, onClose }: {
+export function ItemWindow({ planner, itemId, isMobile, onClose }: {
   planner: PlannerHook; itemId?: string; draft?: Partial<Item>; isMobile: boolean; onClose: () => void;
 }) {
-  const [id, setId]     = useState<string | undefined>(itemId);
-  const it              = planner.items.find(x => x.id === id);
-  const [edit, setEdit] = useState(!itemId);
-  const [f, setF]       = useState<Partial<Item>>(it || draft || {});
-  const [err, setErr]   = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const it = planner.items.find(x => x.id === itemId);
   const [askDelete, setAskDelete] = useState(false);
-  useEffect(() => { if (!edit && it) setF(it); }, [it, edit]);
-  useEffect(() => { if (id && !it && !planner.loading) onClose(); }, [id, it, planner.loading]);
+  // an item deleted elsewhere closes its window
+  useEffect(() => { if (itemId && !it && !planner.loading) onClose(); }, [itemId, it, planner.loading]);
+  if (!it) return null;
 
-  const isEditorial = (it?.list || f.list) === "editorial";
-  const kind = isEditorial ? "Editorial" : "Idea";
-  const save = async () => {
-    setErr(null);
-    if (!String(f.title || "").trim()) { setErr(`Give the ${kind.toLowerCase()} a name.`); return; }
-    setBusy(true);
-    try {
-      const fields: Partial<Item> = {
-        title: f.title, account: f.account, list: f.list, format: f.format || "", plannedOn: f.plannedOn || null,
-        direction: f.direction || "", portfolio: !!f.portfolio, link: f.link || "", views: f.views ?? null,
-      };
-      if (it) {
-        // a planned date on an idea makes it Planned
-        if (fields.plannedOn && it.status === "idea") fields.status = "planned";
-        await planner.updateItem(it.id, fields);
-      } else {
-        const n = await planner.createItem({ ...fields, status: fields.plannedOn ? "planned" : "idea" });
-        setId(n.id);
-      }
-      setEdit(false);
-    } catch (e: any) { setErr(e?.message || "Couldn't save."); }
-    finally { setBusy(false); }
-  };
-  const del = async () => {
-    setAskDelete(false);
-    if (!it) return;
-    try { await planner.deleteItem(it.id); onClose(); }
-    catch (e: any) { setErr(e?.message || "Couldn't delete."); }
-  };
-  const acc = (f.account || it?.account || "createbylynn") as Account;
-  const formats = [...FORMATS[acc], CLASSIC];
+  const isEd   = it.list === "editorial";
+  const posted = it.status === "posted" || it.status === "in_kit";
+  const save   = (patch: Partial<Item>) => quietP(planner.updateItem(it.id, patch));
+  const savePlan = (p: Partial<ItemPlan>) => save({ plan: { ...it.plan, ...p } });
+  const formats = Array.from(new Set([...(isEd ? FORMATS[it.account] : [CLASSIC, ...FORMATS[it.account]]), it.format].filter(Boolean)));
+  const shot = it.plan.clips.filter(c => c.done).length;
+  const move = isEd
+    ? { label: "Move to ideas", onClick: () => save({ list: "idea", portfolio: false }) }
+    : { label: "Move to editorial list", onClick: () => save({ list: "editorial", portfolio: true, format: FORMATS[it.account].includes(it.format) ? it.format : FORMATS[it.account][0] }) };
+  const del = async () => { setAskDelete(false); try { await planner.deleteItem(it.id); onClose(); } catch { /* the save toast reports it */ } };
+  const styleBtn = (k: "bullets" | "numbers", label: string) => (
+    <button onClick={() => savePlan({ style: k })} aria-pressed={it.plan.style === k} title={k === "bullets" ? "Bullets" : "Numbers"}
+      style={{ height: 24, minWidth: 30, padding: "0 7px", border: `1px solid ${it.plan.style === k ? C.black : C.rule}`, background: it.plan.style === k ? C.black : C.white, color: it.plan.style === k ? C.white : C.black, borderRadius: 2, cursor: "pointer", fontFamily: SANS, fontSize: 12 }}>{label}</button>
+  );
 
   return (
     <>
-      {askDelete && it && <ConfirmDialog title={`Delete “${it.title}”?`} text={`The ${kind.toLowerCase()} is removed from your list.`} okLabel="Delete" danger onOk={del} onCancel={() => setAskDelete(false)} />}
-      <Window title={edit ? (it ? `Edit ${kind.toLowerCase()}` : `New ${kind.toLowerCase()}`) : (it?.title || kind)} isMobile={isMobile}
-        onClose={() => { if (edit && it) { setEdit(false); setErr(null); } else onClose(); }}
-        footer={edit ? (
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <B v="sec" onClick={() => { if (it) { setEdit(false); setErr(null); } else onClose(); }}>Cancel</B>
-            <B onClick={save} s={{ opacity: busy ? 0.5 : 1 }}>{busy ? "Saving…" : "Save"}</B>
-          </div>
-        ) : (
+      {askDelete && <ConfirmDialog title={`Delete “${it.title}”?`} text="Its storyline, clips and links are removed too." okLabel="Delete" danger onOk={del} onCancel={() => setAskDelete(false)} />}
+      <Window title={isEd ? "Editorial" : "Content idea"} isMobile={isMobile} onClose={onClose}
+        footer={
           <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
-            <MoreMenu items={[{ label: `Delete ${kind.toLowerCase()}`, danger: true, onClick: () => setAskDelete(true) }]} />
-            <B onClick={() => { setF(it!); setEdit(true); }}>Edit</B>
+            <MoreMenu items={[move, { label: "Delete", danger: true, onClick: () => setAskDelete(true) }]} />
+            <B onClick={onClose}>Close</B>
           </div>
-        )}>
-        {err && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
-        {!edit && it ? (
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const }}>
-              <span style={microLabel}>{kind}{it.portfolio ? " · portfolio piece" : ""}</span>
-              <AccChip acc={it.account} />
-              {it.format && <FormatChip f={it.format} />}
-            </div>
-            <Lbl>Status</Lbl>
-            <S value={it.status} onChange={(e: any) => quietP(planner.setItemStatus(it, e.target.value))}>
-              {ITEM_STATUSES.map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
+        }>
+        {/* title + the basics */}
+        <InlineText value={it.title} ariaLabel="Title" onSave={v => { if (v.trim()) save({ title: v.trim() }); }} s={{ fontFamily: SERIF, fontSize: 20, height: 38 }} />
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
+          <div><Lbl>Status</Lbl>
+            <S value={it.status} aria-label="Status" onChange={(e: any) => quietP(planner.setItemStatus(it, e.target.value))}>
+              {ITEM_STATUSES.filter(x => isEd || x.key !== "in_kit" || it.status === "in_kit").map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
             </S>
-            <p style={{ fontSize: 12, color: C.muted, margin: "6px 0 0" }}>
-              {it.postedOn ? `Posted on ${fmtD(it.postedOn)}` : it.plannedOn ? `Planned for ${fmtD(it.plannedOn)}` : "No date yet"}
-              {it.portfolio && it.status === "posted" ? " · waiting for the kits" : ""}
-              {it.status === "in_kit" ? " · in the kit" : ""}
-            </p>
-            {textBlock(isEditorial ? "Creative direction" : "Notes", it.direction)}
-            {isEditorial && !it.direction && <p style={{ fontSize: 12, color: "#b07a4a", margin: "10px 0 0" }}>No creative direction yet — tap Edit to write it.</p>}
-            {it.link && (
-              <>
-                <Lbl>Post link</Lbl>
-                <a href={it.link} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: C.black, display: "inline-flex", alignItems: "center", gap: 5, overflowWrap: "anywhere" as const }}><Ico d={IC.link} size={13} />{it.link}</a>
-              </>
-            )}
-            {it.views != null && textBlock("Views", fmtInt(it.views))}
           </div>
-        ) : (
-          <div>
-            <Lbl>{kind}</Lbl>
-            <I value={f.title || ""} onChange={(e: any) => setF({ ...f, title: e.target.value })} placeholder={isEditorial ? "e.g. Golden water editorial" : "e.g. Espresso makeup"} autoFocus={!it} />
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
-              <div><Lbl>Account</Lbl>
-                <S value={acc} onChange={(e: any) => { const a = e.target.value as Account; setF({ ...f, account: a, format: f.format && ![...FORMATS[a], CLASSIC].includes(f.format) ? (isEditorial ? FORMATS[a][0] : CLASSIC) : f.format }); }}>
-                  {ACCOUNTS.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
-                </S>
-              </div>
-              <div><Lbl>Format</Lbl>
-                <S value={f.format || CLASSIC} onChange={(e: any) => setF({ ...f, format: e.target.value })}>
-                  {formats.map(x => <option key={x} value={x}>{x}</option>)}
-                </S>
-              </div>
-              <div><Lbl>Planned for</Lbl>
-                <I type="date" value={f.plannedOn || ""} onChange={(e: any) => setF({ ...f, plannedOn: e.target.value || null })} />
-              </div>
-              <div><Lbl>Views</Lbl>
-                <I inputMode="numeric" value={f.views == null ? "" : String(f.views)} placeholder="–" onChange={(e: any) => setF({ ...f, views: parseIntDe(e.target.value) })} />
-              </div>
-            </div>
-            <div style={{ marginTop: 12 }}>
-              <Tick on={!!f.portfolio} color={C.green} label="Portfolio piece (counts toward the first set)" onClick={() => setF({ ...f, portfolio: !f.portfolio })} />
-            </div>
-            <Lbl>{isEditorial ? "Creative direction" : "Notes"}</Lbl>
-            <textarea value={f.direction || ""} onChange={(e) => setF({ ...f, direction: e.target.value })} style={{ ...area, minHeight: isEditorial ? 110 : 72 }}
-              placeholder={isEditorial ? "Mood, look, products, shots" : ""} />
-            <Lbl>Post link</Lbl>
-            <I value={f.link || ""} onChange={(e: any) => setF({ ...f, link: e.target.value })} placeholder="https://" inputMode="url" />
+          <div><Lbl>Date</Lbl>
+            <I type="date" aria-label="Date" value={it.plannedOn || ""} onChange={(e: any) => save({ plannedOn: e.target.value || null, ...(e.target.value && it.status === "idea" ? { status: "planned" as ItemStatus } : {}) })} />
           </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: isEd ? "minmax(0,1fr) auto" : "minmax(0,1fr)", gap: 8, alignItems: "end" }}>
+          <div><Lbl>Format</Lbl>
+            <S value={it.format} aria-label="Format" onChange={(e: any) => save({ format: e.target.value })}>
+              {formats.map(f => <option key={f} value={f}>{f}</option>)}
+            </S>
+          </div>
+          {isEd && <div style={{ height: 36, display: "flex", alignItems: "center" }}><Tick on={it.portfolio} color={C.green} size={18} label="Portfolio" onClick={() => save({ portfolio: !it.portfolio })} /></div>}
+        </div>
+
+        {/* storyline: bullets or numbers */}
+        <Card title="Storyline" right={<span style={{ display: "inline-flex", gap: 4 }}>{styleBtn("bullets", "•")}{styleBtn("numbers", "1.")}</span>}>
+          <LineList key={`s-${it.id}`} initial={storyLines(it.direction)} marker={it.plan.style === "numbers" ? "numbers" : "bullets"}
+            placeholder="First beat of the story" addLabel="Add a point" onSave={lines => save({ direction: lines.join("\n") })} />
+        </Card>
+
+        {/* clips to shoot */}
+        <Card title="Clips to shoot" right={it.plan.clips.length ? `${shot} of ${it.plan.clips.length} shot` : undefined}>
+          <LineList key={`c-${it.id}`} initial={it.plan.clips.map(c => c.t)} checks={it.plan.clips.map(c => c.done)} marker="check"
+            placeholder="Close-up, product in hand" addLabel="Add a clip"
+            onSave={(lines, checks) => savePlan({ clips: lines.map((t, k) => ({ t, done: !!checks?.[k] })) })} />
+        </Card>
+
+        {/* reference links */}
+        <Card title="References" right={it.plan.refs.length || undefined}>
+          <RefTable key={`r-${it.id}`} initial={it.plan.refs} onSave={refs => savePlan({ refs })} />
+        </Card>
+
+        {/* once posted */}
+        {posted && (
+          <Card title="Posted" right={it.postedOn ? fmtD(it.postedOn) : undefined}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr)", gap: 8, marginTop: -8 }}>
+              <div><Lbl>Post link</Lbl><InlineText value={it.link} placeholder="https://" ariaLabel="Post link" onSave={v => save({ link: v.trim() })} s={{ border: `1px solid ${C.rule}`, background: C.white, height: 36 }} /></div>
+              <NumField label="Views" value={it.views} onSave={v => save({ views: v })} />
+            </div>
+          </Card>
         )}
       </Window>
     </>
+  );
+}
+
+// A list you write like notes: Enter adds the next line, Backspace on an
+// empty line removes it. Bullets, numbers, or a tick box per line.
+// Saves (without empty lines) when you leave a line or tick a box.
+function LineList({ initial, checks: initialChecks, marker, placeholder, addLabel, onSave }: {
+  initial: string[]; checks?: boolean[]; marker: "bullets" | "numbers" | "check"; placeholder: string; addLabel: string;
+  onSave: (lines: string[], checks?: boolean[]) => void;
+}) {
+  // an empty storyline starts with one line ready to type (clips start with the add button)
+  const [lines, setLines]   = useState<string[]>(initial.length || marker === "check" ? initial : [""]);
+  const [checks, setChecks] = useState<boolean[]>(initialChecks || initial.map(() => false));
+  const [focusAt, setFocusAt] = useState<number | null>(null);
+  const refs = useRef<(HTMLTextAreaElement | null)[]>([]);
+  useEffect(() => { if (focusAt != null) { refs.current[focusAt]?.focus(); setFocusAt(null); } }, [focusAt, lines.length]);
+  // long points wrap: each line grows with its text
+  const fit = (el: HTMLTextAreaElement | null) => { if (el) { el.style.height = "auto"; el.style.height = `${Math.max(34, el.scrollHeight)}px`; } };
+  useEffect(() => { refs.current.forEach(fit); }, [lines]);
+  const commit = (ls = lines, cs = checks) => {
+    const keep = ls.map((t, k) => ({ t: t.trim(), c: !!cs[k] })).filter(x => x.t);
+    onSave(keep.map(x => x.t), marker === "check" ? keep.map(x => x.c) : undefined);
+  };
+  const insertAfter = (k: number) => {
+    const ls = [...lines]; ls.splice(k + 1, 0, "");
+    const cs = [...checks]; cs.splice(k + 1, 0, false);
+    setLines(ls); setChecks(cs); setFocusAt(k + 1);
+  };
+  const remove = (k: number) => {
+    const ls = lines.filter((_, i) => i !== k), cs = checks.filter((_, i) => i !== k);
+    setLines(ls); setChecks(cs); setFocusAt(Math.max(0, k - 1)); commit(ls, cs);
+  };
+  const tick = (k: number) => { const cs = [...checks]; cs[k] = !cs[k]; setChecks(cs); commit(lines, cs); };
+  return (
+    <div style={{ marginTop: -4 }}>
+      {lines.map((t, k) => {
+        return (
+          <div key={k} style={{ display: "flex", alignItems: "flex-start", gap: 8, minHeight: 36 }}>
+            {marker === "check"
+              ? <span style={{ paddingTop: 8 }}><Tick on={!!checks[k]} color={C.green} size={18} onClick={() => tick(k)} /></span>
+              : <span style={{ width: 18, flexShrink: 0, textAlign: "right" as const, fontSize: 14, color: C.muted, paddingTop: 8 }}>{marker === "numbers" ? `${k + 1}.` : "•"}</span>}
+            <textarea ref={el => { refs.current[k] = el; fit(el); }} rows={1} value={t} placeholder={k === 0 ? placeholder : ""} aria-label={`${addLabel.replace(/^Add an? /, "")} ${k + 1}`}
+              onChange={(e) => { fit(e.target); setLines(ls => ls.map((x, i) => (i === k ? e.target.value.replace(/\n/g, " ") : x))); }}
+              onBlur={() => commit()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); insertAfter(k); }
+                if (e.key === "Backspace" && t === "" && lines.length > 1) { e.preventDefault(); remove(k); }
+              }}
+              style={{ flex: 1, minWidth: 0, minHeight: 34, border: "none", borderBottom: `1px solid ${ROW_LINE}`, outline: "none", background: "transparent", fontFamily: SANS, fontSize: 14, lineHeight: 1.45, color: marker === "check" && checks[k] ? C.light : C.black, textDecoration: marker === "check" && checks[k] ? "line-through" : "none", padding: "7px 0", resize: "none" as const, overflow: "hidden", boxSizing: "border-box" as const, display: "block" }} />
+          </div>
+        );
+      })}
+      <button onClick={() => insertAfter(lines.length - 1)}
+        style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 6, background: "none", border: "none", padding: "6px 0", cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.muted }}>
+        <Ico d={IC.plus} size={13} />{addLabel}
+      </button>
+    </div>
+  );
+}
+const ROW_LINE = "#f0ece7";
+
+// Reference links as a small table: link · what it shows · open · delete
+function RefTable({ initial, onSave }: { initial: { url: string; note: string }[]; onSave: (refs: { url: string; note: string }[]) => void }) {
+  const [rows, setRows] = useState(initial.length ? initial : []);
+  const [focusNew, setFocusNew] = useState(false);
+  const lastRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => { if (focusNew) { lastRef.current?.focus(); setFocusNew(false); } }, [focusNew, rows.length]);
+  const commit = (rs = rows) => onSave(rs.map(r => ({ url: r.url.trim(), note: r.note.trim() })).filter(r => r.url || r.note));
+  const set = (k: number, patch: Partial<{ url: string; note: string }>) => setRows(rs => rs.map((r, i) => (i === k ? { ...r, ...patch } : r)));
+  const cell: any = { height: 34, width: "100%", border: `1px solid ${C.rule}`, borderRadius: 2, padding: "0 8px", fontFamily: SANS, fontSize: 13, outline: "none", boxSizing: "border-box" as const, background: C.white, color: C.black };
+  const href = (u: string) => (/^https?:\/\//i.test(u) ? u : `https://${u}`);
+  return (
+    <div style={{ marginTop: -4 }}>
+      {rows.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.2fr) 56px", gap: 6, ...microLabel, marginBottom: 4 }}>
+          <span>Link</span><span>What it shows</span><span />
+        </div>
+      )}
+      {rows.map((r, k) => (
+        <div key={k} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.2fr) 56px", gap: 6, alignItems: "center", marginBottom: 6 }}>
+          <input ref={k === rows.length - 1 ? lastRef : undefined} value={r.url} placeholder="https://" inputMode="url" aria-label={`Link ${k + 1}`} onChange={(e) => set(k, { url: e.target.value })} onBlur={() => commit()} style={cell} />
+          <input value={r.note} placeholder="Lighting, hook, pacing…" aria-label={`What link ${k + 1} shows`} onChange={(e) => set(k, { note: e.target.value })} onBlur={() => commit()}
+            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} style={cell} />
+          <span style={{ display: "inline-flex", justifyContent: "flex-end", gap: 2 }}>
+            {r.url.trim()
+              ? <a href={href(r.url.trim())} target="_blank" rel="noreferrer" aria-label={`Open link ${k + 1}`} style={{ width: 26, height: 30, display: "inline-flex", alignItems: "center", justifyContent: "center", color: C.black }}><Ico d={IC.link} size={14} /></a>
+              : <span style={{ width: 26 }} />}
+            <button onClick={() => { const rs = rows.filter((_, i) => i !== k); setRows(rs); commit(rs); }} aria-label={`Delete link ${k + 1}`}
+              style={{ width: 26, height: 30, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 13 }}>✕</button>
+          </span>
+        </div>
+      ))}
+      <button onClick={() => { setRows(rs => [...rs, { url: "", note: "" }]); setFocusNew(true); }}
+        style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: "6px 0", cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.muted }}>
+        <Ico d={IC.plus} size={13} />Add a link
+      </button>
+    </div>
   );
 }
 

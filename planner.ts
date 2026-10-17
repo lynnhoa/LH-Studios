@@ -84,7 +84,8 @@ export interface Item {
   status:      ItemStatus;
   plannedOn:   string | null;
   postedOn:    string | null;
-  direction:   string;           // written creative direction (notes for ideas)
+  direction:   string;           // the storyline: one line per point
+  plan:        ItemPlan;         // clips to shoot, reference links, list style
   portfolio:   boolean;          // counts toward the portfolio
   link:        string;
   views:       number | null;
@@ -92,6 +93,25 @@ export interface Item {
   createdAt:   string;
   createdWeek: string;           // Monday of the week it was added
 }
+// What an idea / editorial is planned with (stored as one jsonb column "plan")
+export interface ItemPlan {
+  style: "bullets" | "numbers";              // how the storyline is shown
+  clips: { t: string; done: boolean }[];     // clips to shoot (tick when shot)
+  refs:  { url: string; note: string }[];    // reference links + what they show
+}
+export const EMPTY_PLAN: ItemPlan = { style: "bullets", clips: [], refs: [] };
+export function planOf(v: any): ItemPlan {
+  const o = v && typeof v === "object" ? v : {};
+  return {
+    style: o.style === "numbers" ? "numbers" : "bullets",
+    clips: Array.isArray(o.clips) ? o.clips.filter((c: any) => c && typeof c.t === "string").map((c: any) => ({ t: c.t, done: !!c.done })) : [],
+    refs:  Array.isArray(o.refs) ? o.refs.filter((r: any) => r && (r.url || r.note)).map((r: any) => ({ url: String(r.url || ""), note: String(r.note || "") })) : [],
+  };
+}
+// storyline text → points (strips "- ", "• ", "1. " the way people type them)
+export const storyLines = (s: string): string[] =>
+  String(s || "").split("\n").map(l => l.replace(/^\s*(?:[-•*]|\d+[.)])\s+/, "").trim()).filter(Boolean);
+
 // Stage 2: a sales sprint (one focus, a pitch goal, follow-ups, then a review)
 export interface Sprint {
   id:            string;

@@ -16,7 +16,7 @@ import { C, SANS, SERIF, TYPE } from "./constants";
 import { B, Tick, ConfirmDialog, BAR_BTN } from "./atoms";
 import {
   OWNER_LOOK, TONE, accLook, rowKind, periodOf, isoWeek, weekRange, monthName, todayIndex, stageOf, gateOf, isVisible, byOrder,
-  STAGE_SHORT, goalStatus, parseIntDe,
+  STAGE_SHORT, goalStatus, parseIntDe, monthGoalOf, monthGoalPatch,
 } from "./planner";
 import type { Task, AccountFilter, Owner, Phase, Account, Look } from "./planner";
 import type { PlannerHook } from "./usePlanner";
@@ -40,10 +40,10 @@ export function jumpOf(t: Task): { tab: string; anchor: string } | null {
     case "ideas":           return { tab: "creator", anchor: "card-ideas" };
     case "posts":           return { tab: "creator", anchor: "card-editorial" };
     case "pieces":          return { tab: "creator", anchor: "card-editorial" };
-    case "portfolio_total": return { tab: "creator", anchor: "card-portfolio" };
+    case "portfolio_total": return { tab: "creator", anchor: "card-editorial" };
   }
   if (t.area === "community" && t.rhythm === "daily") return { tab: "manager", anchor: "card-community" };
-  if (t.rhythm === "monthly" && t.area === "portfolio") return { tab: "creator", anchor: "card-portfolio" };
+  if (t.rhythm === "monthly" && t.area === "portfolio") return { tab: "creator", anchor: "card-editorial" };
   return null;
 }
 
@@ -142,6 +142,15 @@ export default function PlannerTodo({ planner, view, setView, monday, setMonday,
         <div key={t.id} style={{ minHeight: 44, display: "flex", alignItems: "center", gap: 6, padding: "0 6px 0 12px", borderTop: `1px solid ${ROW_RULE}` }}>
           <div style={{ flex: 1, minWidth: 0 }}><InlineText value={t.title} ariaLabel={`Name of ${t.title}`} onSave={v => { if (v.trim()) quiet(planner.updateTask(t.id, { title: v.trim() })); }} s={{ border: `1px solid ${C.rule}`, background: C.white }} /></div>
           {whoTag(t, true)}
+          {t.rhythm === "monthly" && t.area === "portfolio" && (() => {
+            const goal = t.account === "both" ? monthGoalOf(t, planner.entries[`${t.id}|${period}`], acc) : s.target;
+            return (
+              <input inputMode="numeric" aria-label={`Goal for ${t.title}`} placeholder="–" defaultValue={goal ?? ""} title={`Pieces for ${monthName(period)}`}
+                onBlur={(e) => { const v = e.target.value.trim() === "" ? null : parseIntDe(e.target.value); if (v !== goal) quiet(planner.saveEntry(t.id, period, t.account === "both" ? monthGoalPatch(t, planner.entries[`${t.id}|${period}`], acc, v) : { target: v })); }}
+                onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                style={{ width: 52, height: 32, border: `1px solid ${C.rule}`, borderRadius: 2, textAlign: "right" as const, padding: "0 8px", fontFamily: SANS, fontSize: 14, boxSizing: "border-box" as const }} />
+            );
+          })()}
           {kind === "number" && (
             <input inputMode="numeric" aria-label={`Target for ${t.title}`} placeholder="–" defaultValue={s.target ?? ""}
               onBlur={(e) => { const v = e.target.value.trim() === "" ? null : parseIntDe(e.target.value); if (v !== s.target) quiet(planner.saveEntry(t.id, period, { target: v })); }}
