@@ -61,6 +61,7 @@ const rowToStage = (r: any): Stage => ({
   status:      r.status ?? "upcoming",
   sprintWeeks: r.sprint_weeks ?? null,
   startedOn:   r.started_on ?? null,
+  moved:       Array.isArray(r.moved) ? r.moved : [],
   doneOn:      r.done_on ?? null,
 });
 
@@ -374,18 +375,34 @@ export function usePlanner(userId: string | null, monday: string) {
     setStages(prev => prev.map(s => (s.id === id ? { ...s, ...patch } : s)));
   }, [userId]);
 
-  const startNextStage = useCallback(async (stage: Stage) => {
+  const startNextStage = useCallback(async (stage: Stage, moved: string[] = []) => {
     const next = stagesRef.current.find(s => s.account === stage.account && s.num === stage.num + 1);
     const t = today();
-    const a = await supabase.from("planner_stages").update({ status: "done", done_on: t }).eq("id", stage.id).eq("user_id", userId);
+    const a = await supabase.from("planner_stages").update({ status: "done", done_on: t, ...(moved.length ? { moved } : {}) }).eq("id", stage.id).eq("user_id", userId);
     fail(a.error);
     if (next) {
       const b = await supabase.from("planner_stages").update({ status: "active", started_on: t }).eq("id", next.id).eq("user_id", userId);
       fail(b.error);
     }
     setStages(prev => prev.map(s =>
-      s.id === stage.id ? { ...s, status: "done", doneOn: t } :
+      s.id === stage.id ? { ...s, status: "done", doneOn: t, moved } :
       next && s.id === next.id ? { ...s, status: "active", startedOn: t } : s));
+  }, [userId]);
+
+  // Reopen a finished stage: it's active again, every later stage back to upcoming,
+  // and the tasks that moved on when it was finished come back to it
+  const reopenStage = useCallback(async (stage: Stage) => {
+    const later = stagesRef.current.filter(s => s.account === stage.account && s.num > stage.num && s.status !== "upcoming");
+    for (const s of later) { const r = await supabase.from("planner_stages").update({ status: "upcoming", done_on: null }).eq("id", s.id).eq("user_id", userId); fail(r.error); }
+    const a = await supabase.from("planner_stages").update({ status: "active", done_on: null, moved: [] }).eq("id", stage.id).eq("user_id", userId);
+    fail(a.error);
+    const back = new Set(stage.moved || []);
+    later.forEach(s => (s.moved || []).forEach(id => back.add(id)));
+    for (const id of back) { const r = await supabase.from("planner_tasks").update({ stage_num: stage.num }).eq("id", id).eq("user_id", userId); fail(r.error); }
+    setTasks(prev => prev.map(x => (back.has(x.id) ? { ...x, stageNum: stage.num } : x)));
+    setStages(prev => prev.map(s =>
+      s.id === stage.id ? { ...s, status: "active", doneOn: null, moved: [] } :
+      later.some(l => l.id === s.id) ? { ...s, status: "upcoming", doneOn: null, moved: [] } : s));
   }, [userId]);
 
   // ── account snapshot (followers, views, engagement) ────────
@@ -553,6 +570,7 @@ export function usePlanner(userId: string | null, monday: string) {
       case "ideas":  return { actual: mine.filter(i => i.list === "idea" && i.createdWeek === period).length };
       case "posts":  return { actual: mine.filter(i => (i.status === "posted" || i.status === "in_kit") && inWeek(i.postedOn)).length };
       case "pieces": return { actual: mine.filter(i => i.portfolio && (i.status === "posted" || i.status === "in_kit") && inWeek(i.postedOn)).length };
+      case "filmed": return { actual: mine.filter(i => !!i.plan.filmedOn && inWeek(i.plan.filmedOn)).length };
       case "portfolio_total": {
         const n = mine.filter(i => i.portfolio && (i.status === "posted" || i.status === "in_kit")).length;
         return { actual: n, target: t.target, done: t.target != null && n >= t.target };
@@ -589,7 +607,7 @@ export function usePlanner(userId: string | null, monday: string) {
     stages, tasks, entries, snaps, items, notes, waiting, loading, loadError, outreachError, reload,
     setTaskStatus, updateTask, createTask, deleteTask,
     saveEntry, planTargets, updateStage, startNextStage,
-    saveSnapshot, newContacts, autoOf, stateOf, doneOf, targetOf, loginEmail,
+    saveSnapshot, newContacts, autoOf, stateOf, doneOf, targetOf, loginEmail, reopenStage,
     createItem, updateItem, setItemStatus, deleteItem, noteOf, saveNote,
     pitches, sprints, stage2Error, createSprint, updateSprint, deleteSprint, activeSprint, sprintStats, followUpsDue, pitchesInWeek, contactName,
     restoreItem, deletePitch, restorePitch,

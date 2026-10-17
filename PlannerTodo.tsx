@@ -71,10 +71,19 @@ export default function PlannerTodo({ planner, view, isMobile }: PlannerTodoProp
   const finishStage = async () => {
     setAskNext(false);
     if (!st) return;
+    const stage = st;
     try {
-      if (next) for (const t of openOnes) if (rowKind(t) !== "auto") await planner.updateTask(t.id, { stageNum: next.num });
-      await planner.startNextStage(st);
+      const moved = next ? openOnes.filter(t => rowKind(t) !== "auto").map(t => t.id) : [];
+      if (next) for (const id of moved) await planner.updateTask(id, { stageNum: next.num });
+      await planner.startNextStage(stage, moved);
+      if (next) showUndo(`Stage ${next.num} started`, () => planner.reopenStage({ ...stage, moved }));
     } catch { /* the save toast reports it */ }
+  };
+  const [askReopen, setAskReopen] = useState<Stage | null>(null);
+  const reopen = async () => {
+    const s = askReopen; setAskReopen(null);
+    if (!s) return;
+    try { await planner.reopenStage(s); setOpenStage(null); } catch { /* the save toast reports it */ }
   };
 
   // ── pieces ──────────────────────────────────────────────────
@@ -187,6 +196,11 @@ export default function PlannerTodo({ planner, view, isMobile }: PlannerTodoProp
           <Ico d={open ? IC.up : IC.down} size={13} />
         </button>
         {open && (l.length ? l.map(noteRow) : <p style={{ fontSize: 13, color: C.muted, margin: 0, padding: "10px 12px", borderTop: `1px solid ${ROW_RULE}` }}>No tasks.</p>)}
+        {open && s.num === Math.max(...finished.map(x => x.num)) && (
+          <div style={{ padding: "8px 12px", borderTop: `1px solid ${ROW_RULE}`, background: "#fcfbf9", display: "flex", justifyContent: "flex-end" }}>
+            <B v="sec" onClick={() => setAskReopen(s)} s={{ height: 28, minHeight: 28, fontSize: TYPE.micro.size, letterSpacing: "0.1em" }}>Reopen Stage {s.num}</B>
+          </div>
+        )}
       </div>
     );
   });
@@ -199,6 +213,11 @@ export default function PlannerTodo({ planner, view, isMobile }: PlannerTodoProp
             ? `${openOnes.filter(t => rowKind(t) !== "auto").length} open ${openOnes.filter(t => rowKind(t) !== "auto").length === 1 ? "task moves" : "tasks move"} to Stage ${next.num} · ${next.name}. The weekly goals keep running.`
             : `Stage ${next.num} · ${next.name} starts with its prefilled list. The weekly goals keep running.`}
           okLabel={`Start Stage ${next.num}`} onOk={finishStage} onCancel={() => setAskNext(false)} />
+      )}
+      {askReopen && (
+        <ConfirmDialog title={`Reopen Stage ${askReopen.num} · ${askReopen.name}?`}
+          text={`Stage ${askReopen.num} is active again and the later stages go back to upcoming. ${askReopen.moved?.length ? `The ${askReopen.moved.length} ${askReopen.moved.length === 1 ? "task" : "tasks"} that moved on come back. ` : ""}Nothing is lost.`}
+          okLabel={`Reopen Stage ${askReopen.num}`} onOk={reopen} onCancel={() => setAskReopen(null)} />
       )}
       <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>To-do</h2>
       <Subtitle acc={acc} text={st ? `Stage ${st.num} of 5` : "Stages"} />

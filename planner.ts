@@ -28,6 +28,7 @@ export interface Stage {
   sprintWeeks: number | null;    // Stage 2
   startedOn:   string | null;
   doneOn:      string | null;
+  moved:       string[];         // open tasks that moved on when this stage was finished (they come back on Reopen)
 }
 
 export interface Task {
@@ -297,7 +298,8 @@ export function goalStatus(t: Task, st: RowState, monday: string): GoalStatus | 
 // tasks) stays in To-do. The snapshot is no longer used.
 export const MANAGER_GOAL = (t: Task) => t.phase === "maintain" && (
   t.source === "following" || t.source === "outreach" || t.source === "pitches" || t.source === "leads" || (t.area === "community" && t.rhythm === "daily"));
-export const CREATOR_GOAL = (t: Task) => t.phase === "maintain" && (t.source === "ideas" || t.source === "posts" || t.source === "pieces");
+export const CREATOR_GOAL = (t: Task) => t.phase === "maintain" && (t.source === "ideas" || t.source === "filmed" || t.source === "posts" || t.source === "pieces");
+export const creatorOrder = (t: Task) => (t.source === "ideas" ? 0 : t.source === "filmed" ? 1 : t.source === "posts" ? 2 : 3);
 export const ON_A_CARD = (t: Task) => MANAGER_GOAL(t) || CREATOR_GOAL(t) || t.source === "snapshot" || t.source === "portfolio_total"
   || (t.rhythm === "monthly" && t.area === "portfolio");
 // order on the Manager card
@@ -306,25 +308,26 @@ export const managerOrder = (t: Task) => (t.area === "community" ? 0 : t.source 
 // Prompt for Claude: read the Instagram insights screenshot → one SQL insert for this account and week
 export function snapshotPrompt(account: Account, week: string, email: string): string {
   const handle = account === "lynnhoa" ? "@lynnhoa" : "@createbylynn";
-  return `I'm sending you a screenshot of the Instagram insights of ${handle}.
+  const who = `(select id from auth.users where lower(email) = lower('${email || "PUT-YOUR-LOGIN-EMAIL-HERE"}'))`;
+  return `I'm sending you a screenshot of the Instagram profile of ${handle}.
 
-1. Read these numbers from the screenshot:
-   - Followers (total)
-   - Views (last 7 days)
-   - Interactions and Accounts reached (last 7 days)
-2. Engagement % = interactions ÷ accounts reached × 100, rounded to 2 decimals.
+1. Read two numbers from the profile header: Followers and Following.
    If a number isn't in the screenshot, use null.
-3. Output ONLY this SQL with the numbers filled in (no thousands separators, dot as decimal separator):
+2. Output ONLY this SQL with the numbers filled in (no thousands separators):
 
-insert into public.planner_snapshots (user_id, account, week_start, followers, views, engagement)
-select u.id, '${account}', '${week}', FOLLOWERS, VIEWS, ENGAGEMENT
-from auth.users u where lower(u.email) = lower('${email || "PUT-YOUR-LOGIN-EMAIL-HERE"}')
-on conflict (user_id, account, week_start) do update set
-  followers  = coalesce(excluded.followers,  public.planner_snapshots.followers),
-  views      = coalesce(excluded.views,      public.planner_snapshots.views),
-  engagement = coalesce(excluded.engagement, public.planner_snapshots.engagement);
+insert into public.planner_snapshots (user_id, account, week_start, followers)
+values (${who}, '${account}', '${week}', FOLLOWERS)
+on conflict (user_id, account, week_start) do update
+  set followers = coalesce(excluded.followers, public.planner_snapshots.followers);
 
-4. After the SQL, add one line with what you read, e.g. "Followers 1.180 · Views 6.450 · Engagement 4,85 %".
+insert into public.planner_entries (user_id, task_id, period_start, actual)
+select t.user_id, t.id, '${week}', FOLLOWING
+from public.planner_tasks t
+where t.user_id = ${who} and t.source = 'following' and t.account = '${account}' and t.active is not false
+on conflict (task_id, period_start) do update
+  set actual = coalesce(excluded.actual, public.planner_entries.actual);
+
+3. After the SQL, add one line with what you read, e.g. "Followers 1.204 · Following 384".
 
 I'll run the SQL in Supabase → SQL editor, then reopen the app.`;
 }
@@ -332,7 +335,7 @@ I'll run the SQL in Supabase → SQL editor, then reopen the app.`;
 // Short names for status lines (Dashboard, Manager)
 export const shortName = (t: Task): string =>
   t.source === "snapshot" ? "Snapshot" : t.source === "outreach" ? "New emails" : t.source === "ideas" ? "Ideas" : t.source === "posts" ? "Posts"
-  : t.source === "pieces" ? "Pieces" : t.source === "kit_waiting" ? "Kits" : t.source === "following" ? "Following" : t.source === "pitches" ? "Pitches" : t.source === "leads" ? "Leads"
+  : t.source === "pieces" ? "Pieces" : t.source === "filmed" ? "Filmed" : t.source === "kit_waiting" ? "Kits" : t.source === "following" ? "Following" : t.source === "pitches" ? "Pitches" : t.source === "leads" ? "Leads"
   : t.area === "community" ? "Engaging" : t.area === "checkin" ? "Check-in" : t.title;
 
 // The account you're working on: chosen in the profile menu, remembered on this device
@@ -378,7 +381,7 @@ export function isVisible(t: Task, stages: Stage[], f: AccountFilter): boolean {
 // auto   → filled in elsewhere (account snapshot); the box ticks itself
 export type RowKind = "check" | "days" | "number" | "auto";
 export const AUTO_DONE  = new Set(["snapshot", "kit_waiting", "portfolio_total"]);  // the box ticks itself
-export const AUTO_COUNT = new Set(["outreach", "ideas", "posts", "pieces"]); // the number is counted, not typed (pitches are typed)
+export const AUTO_COUNT = new Set(["outreach", "ideas", "posts", "pieces", "filmed"]); // the number is counted, not typed (pitches are typed)
 export const rowKind = (t: Task): RowKind =>
   AUTO_DONE.has(t.source) ? "auto" : t.rhythm === "once" ? "check" : t.measure ? "number" : t.rhythm === "daily" ? "days" : "check";
 

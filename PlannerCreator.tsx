@@ -16,11 +16,12 @@ import { B, Tick, BAR_BTN } from "./atoms";
 import { parseYMD, monthStart, monthEnd, today } from "./formatters";
 import {
   FORMATS, CLASSIC, OWNER_LOOK, TONE, isVisible, monthName, entryKey, monthGoalOf, monthGoalPatch, thisMonday, storyLines, isoWeek,
+  CREATOR_GOAL, creatorOrder, shortName, parseIntDe,
 } from "./planner";
 import type { Account, Item, ItemList, Task } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
-import { Ico, IC, Subtitle, ItemWindow, InlineText, GoalNum, useGuide, GuideBtn, GuideCard } from "./PlannerWindows";
+import { Ico, IC, Subtitle, ItemWindow, InlineText, GoalNum, useGuide, GuideBtn, GuideCard, ResultMark } from "./PlannerWindows";
 import { showUndo, XBtn } from "./undo";
 
 const microLabel: any = { fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted };
@@ -109,43 +110,64 @@ export default function PlannerCreator({ planner, view, isMobile }: PlannerCreat
     <div style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, color: muted ? C.muted : C.black }}>{it.title}{edChip(it)}</div>
   );
 
-  // ── week strip ──────────────────────────────────────────────
-  const cell = (label: string, t: Task | undefined, first = false) => {
-    if (!t) return null;
-    const s = planner.stateOf(t, now);
-    const color = s.done ? C.green : s.target == null ? C.black : AMBER;
-    return (
-      <div key={label} style={{ padding: "8px 2px", textAlign: "center" as const, borderLeft: first ? "none" : "1px solid #f0ece7" }}>
-        <div style={microLabel}>{label}</div>
-        <div style={{ fontSize: 14, marginTop: 3, color }}>
-          {s.actual ?? 0} / <GoalNum value={s.target} label={`Goal for ${label.toLowerCase()} this week`} onSave={v => quiet(planner.saveEntry(t.id, now, { target: v }))} />{s.done ? " ✓" : ""}
-        </div>
-      </div>
-    );
-  };
+  // ── this week's goals: Done (counted from the plan) | Goal (locked; Edit goals opens them) ──
+  const [editGoals, setEditGoals] = useState(false);
+  const GRID = "92px 56px 56px minmax(0,1fr)";
+  const over = false;   // Creator always shows this week
   const fsT = visible.find(t => t.source === "portfolio_total" && t.account === acc);
   const fs = fsT ? planner.stateOf(fsT, now) : null;
   const ms = monthStart(now), me = monthEnd(now);
   const monthEntry = monthTask ? planner.entries[entryKey(monthTask.id, ms)] : undefined;
   const goal = monthTask ? (monthTask.account === "both" ? monthGoalOf(monthTask, monthEntry, acc) : planner.targetOf(monthTask.id, ms)) : null;
   const doneMonth = items.filter(i => i.account === acc && i.portfolio && (i.status === "posted" || i.status === "in_kit") && !!i.postedOn && i.postedOn >= ms && i.postedOn <= me).length;
+  const goalField = (value: number | null, label: string, onSave: (v: number | null) => void) => (
+    <input key={`${label}-${value}`} inputMode="numeric" defaultValue={value ?? ""} placeholder="–" aria-label={label} onFocus={(e) => e.target.select()}
+      onBlur={(e) => { const v = e.target.value.trim() === "" ? null : parseIntDe(e.target.value); if (v !== value) onSave(v); }}
+      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+      style={{ width: "100%", height: 28, border: `1px solid ${look.color}`, borderRadius: 2, padding: "0 7px", textAlign: "right" as const, fontFamily: SANS, fontSize: 13, background: C.white, boxSizing: "border-box" as const }} />
+  );
+  const num = (v: any, muted = false, color?: string) => <span style={{ textAlign: "right" as const, paddingRight: 8, fontSize: 13, color: color || (muted ? C.light : C.black) }}>{v ?? "–"}</span>;
+  const goalLine = (key: string, icon: string, name: string, done: number, target: number | null, onGoal: (v: number | null) => void, mark: any) => (
+    <div key={key} style={{ display: "grid", gridTemplateColumns: GRID, alignItems: "center", columnGap: 8, padding: "0 12px", minHeight: 40, borderTop: "1px solid #f0ece7", fontSize: 13 }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Ico d={icon} size={13} color={look.color} />{name}</span>
+      {num(done)}
+      {editGoals ? goalField(target, `Goal for ${name}`, onGoal) : num(target, target == null)}
+      <span style={{ display: "flex", justifyContent: "flex-end" }}>{mark}</span>
+    </div>
+  );
+  const markFor = (done: number, target: number | null, isOver: boolean) =>
+    target == null ? <ResultMark state="none" text="No goal set" />
+      : done >= target ? <ResultMark state="reached" />
+      : <ResultMark state={isOver ? "missed" : "togo"} text={isOver ? `−${target - done}` : `${target - done} to go`} />;
+  const weekGoals = visible.filter(t => CREATOR_GOAL(t) && (t.account === acc || t.account === "both")).sort((a, b) => creatorOrder(a) - creatorOrder(b));
+  const ICON_OF = (t: Task) => (t.source === "ideas" ? IC.spark : t.source === "filmed" ? IC.camera : t.source === "posts" ? IC.send : IC.bulb);
+  const reached = weekGoals.filter(t => planner.stateOf(t, now).done).length;
   const strip = (
-    <div style={card}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))" }}>
-        {cell("Ideas", find("ideas"), true)}
-        {cell("Posts", find("posts"))}
-        {cell("Pieces", find("pieces"))}
+    <div id="card-goals-creator" style={{ ...card, marginTop: 12 }}>
+      <div style={{ minHeight: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", background: look.bg, color: look.color, ...microLabel }}>
+        <span>This week's goals</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <span style={{ color: weekGoals.length && reached === weekGoals.length ? C.green : C.black }}>{reached} of {weekGoals.length} reached</span>
+          <button onClick={() => setEditGoals(e => !e)} aria-pressed={editGoals}
+            style={{ height: 22, padding: "0 7px", borderRadius: 2, border: `1px solid ${editGoals ? C.black : C.rule}`, background: editGoals ? C.black : C.white, color: editGoals ? C.white : C.black, fontFamily: SANS, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase" as const, cursor: "pointer" }}>
+            {editGoals ? "Done" : "Edit goals"}
+          </button>
+        </span>
       </div>
-      {(monthTask || fs) && (
-        <div style={{ borderTop: "1px solid #f0ece7", padding: "7px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, ...microLabel }}>
-          <span>Portfolio</span>
-          <span style={{ color: C.black, letterSpacing: "0.04em", display: "inline-flex", gap: 10, alignItems: "baseline" }}>
-            {monthTask && <span style={{ color: goal != null && doneMonth >= goal ? C.green : C.black }}>{monthName(now).slice(0, 3)} {doneMonth} / <GoalNum value={goal} label={`Goal for ${monthName(now)}`}
-              onSave={v => quiet(planner.saveEntry(monthTask.id, ms, monthTask.account === "both" ? monthGoalPatch(monthTask, monthEntry, acc, v) : { target: v }))} /></span>}
-            {fs && !fs.done && <span>First set {fs.actual ?? 0} / {fs.target ?? "–"}</span>}
-          </span>
-        </div>
-      )}
+      <div style={{ display: "grid", gridTemplateColumns: GRID, columnGap: 8, padding: "0 12px", minHeight: 24, alignItems: "center", background: "#fcfbf9", fontSize: 9, letterSpacing: "0.1em", color: C.muted }}>
+        <span /><span style={{ textAlign: "right" as const, paddingRight: 8 }}>DONE</span><span style={{ textAlign: "right" as const, paddingRight: 8, color: editGoals ? look.color : C.muted, display: "inline-flex", justifyContent: "flex-end", alignItems: "center", gap: 3 }}>{!editGoals && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2.2" aria-hidden="true"><path d="M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3" /></svg>}GOAL</span><span />
+      </div>
+      {weekGoals.map(t => {
+        const s0 = planner.stateOf(t, now);
+        return goalLine(t.id, ICON_OF(t), shortName(t), s0.actual ?? 0, s0.target, v => quiet(planner.saveEntry(t.id, now, { target: v })), markFor(s0.actual ?? 0, s0.target, over));
+      })}
+      {monthTask && goalLine("month", IC.history, monthName(now), doneMonth, goal,
+        v => quiet(planner.saveEntry(monthTask.id, ms, monthTask.account === "both" ? monthGoalPatch(monthTask, monthEntry, acc, v) : { target: v })),
+        markFor(doneMonth, goal, false))}
+      {fsT && fs && goalLine("firstset", IC.camera, "First set", fs.actual ?? 0, fsT.target ?? null,
+        v => quiet(planner.updateTask(fsT.id, { target: v })),
+        fs.done ? <ResultMark state="reached" /> : fsT.target != null ? <ResultMark state="togo" text={`${(fsT.target ?? 0) - (fs.actual ?? 0)} to go`} /> : <ResultMark state="none" text="No goal set" />)}
+      <div style={{ padding: "6px 12px", borderTop: "1px solid #f0ece7", background: "#fcfbf9", fontSize: 11, color: C.muted }}>Counted from the content plan · {monthName(now)}{fsT && fs ? " and First set are" : " counts"} portfolio pieces</div>
     </div>
   );
 

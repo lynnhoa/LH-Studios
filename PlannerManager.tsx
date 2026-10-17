@@ -12,16 +12,17 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
-import { C, SANS, SERIF, TYPE } from "./constants";
+import { createPortal } from "react-dom";
+import { C, SANS, SERIF, TYPE, Z } from "./constants";
 import { B, BAR_BTN } from "./atoms";
 import {
   DAY_SHORT, OWNER_LOOK, isVisible, periodOf, stageNumOf, todayIndex, weekRange, fmtPct2, addDays, thisMonday, mondayOf,
-  MANAGER_GOAL, managerOrder, rowKind, parseIntDe, daysBetween,
+  MANAGER_GOAL, managerOrder, rowKind, parseIntDe, daysBetween, snapKey, fmtInt, snapshotPrompt,
 } from "./planner";
 import type { Task, Account, Sprint } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
-import { OUTREACH_TIERS, OUTREACH_CATEGORIES } from "./outreach";
+import { OUTREACH_TIERS, OUTREACH_CATEGORIES, copyText } from "./outreach";
 import { today } from "./formatters";
 import { Ico, IC, Bar, Toolbar, Subtitle, SprintWindow, sprintRange, sprintDay, ResultMark, useGuide, GuideBtn, GuideCard, InlineText } from "./PlannerWindows";
 import { XBtn } from "./undo";
@@ -53,6 +54,8 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
   const [pastOpen, setPastOpen]   = useState(false);
   const [pick, setPick]           = useState<string | null>(null);   // a sprint day picked in the strip (default today)
   const guide = useGuide("manager");
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 2400); return () => clearTimeout(t); }, [toast]);
   const quiet = (p: Promise<any>) => p.catch(() => { /* the save toast reports it */ });
 
   const acc    = (view.acc === "all" ? "lynnhoa" : view.acc) as Account;
@@ -163,6 +166,26 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     );
   };
 
+  // followers: the outcome of following — typed or read from a screenshot with the Prompt; no goal
+  const sn = planner.snaps[snapKey(acc, monday)];
+  const prevSn = planner.snaps[snapKey(acc, addDays(monday, -7))];
+  const fDiff = sn?.followers != null && prevSn?.followers != null ? sn.followers - prevSn.followers : null;
+  const copyPrompt = async () => {
+    const ok = await copyText(snapshotPrompt(acc, monday, planner.loginEmail));
+    setToast(ok ? "Prompt copied ✓ — paste it into Claude with a profile screenshot" : "Couldn't copy");
+  };
+  const followersRow = (
+    <div key="followers" style={{ display: "grid", gridTemplateColumns: GRID, alignItems: "center", columnGap: 8, padding: "0 12px", minHeight: 42, borderTop: "1px solid #f0ece7", fontSize: 13 }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Ico d={IC.userPlus} size={13} color={look.color} />Followers</span>
+      {numField(sn?.followers ?? null, "Followers this week", v => quiet(planner.saveSnapshot(acc, monday, { followers: v })))}
+      <button onClick={copyPrompt} aria-label="Copy the prompt for a profile screenshot" title="Prompt: Claude reads followers and following from a screenshot"
+        style={{ height: 26, justifySelf: "end", padding: "0 6px", border: `1px solid ${C.rule}`, borderRadius: 2, background: C.white, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontFamily: SANS, fontSize: 9, letterSpacing: "0.08em", color: C.black }}>
+        <Ico d={IC.copy} size={11} />PROMPT
+      </button>
+      <span style={{ textAlign: "right" as const, fontSize: 12, color: fDiff == null ? C.light : fDiff >= 0 ? C.green : C.red }}>{fDiff == null ? "" : `${fDiff >= 0 ? "+" : "−"}${fmtInt(Math.abs(fDiff))}`}</span>
+    </div>
+  );
+
   // kits: pieces waiting for the media kit / pitch deck
   const kitsRow = kitT && (() => {
     const s = planner.stateOf(kitT, monday);
@@ -219,7 +242,8 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
         <span style={{ textAlign: "right" as const, paddingRight: 8, display: "inline-flex", justifyContent: "flex-end", alignItems: "center", gap: 3, color: editGoals ? look.color : C.muted }}>{!editGoals && lock}GOAL</span><span />
       </div>
       {goals.length === 0 && <p style={{ fontSize: 13, color: C.muted, margin: 0, padding: "10px 12px" }}>No goals for this account yet.</p>}
-      {goals.map(goalRow)}
+      {goals.flatMap(t => (t.source === "following" ? [goalRow(t), followersRow] : [goalRow(t)]))}
+      {!goals.some(t => t.source === "following") && followersRow}
       {kitsRow}
       {checkNote}
     </div>
@@ -322,7 +346,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
       <Subtitle acc={acc} text="Manager's workspace" />
       {guide.open && <GuideCard onClose={guide.close} steps={[
         "Tick Engaging every day you engage.",
-        "Type Following, Pitches and Leads anytime during the week, by Sunday at the latest. New emails count by themselves from the email list.",
+        "Type Following, Followers, Pitches and Leads anytime during the week, by Sunday at the latest — or use Prompt with a profile screenshot for followers and following. New emails count by themselves.",
         stage2 ? "In a sales sprint, type the pitches and follow-ups each day. At the end: End & review." : "Goals are set with Edit goals, usually at the check-in.",
       ]} />}
       <div style={{ marginTop: 12, maxWidth: isMobile ? "none" : 420 }}><Toolbar monday={monday} setMonday={setMonday} isMobile={true} /></div>
@@ -345,6 +369,9 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
         </>
       )}
 
+      {toast && createPortal(
+        <div role="status" style={{ position: "fixed", left: "50%", bottom: "calc(84px + env(safe-area-inset-bottom))", transform: "translateX(-50%)", zIndex: Z.toast, background: C.black, color: C.white, fontFamily: SANS, fontSize: 12, padding: "9px 14px", borderRadius: 2, maxWidth: "calc(100vw - 32px)" }}>{toast}</div>,
+        document.body)}
       {sprintWin && (
         <SprintWindow key={`${sprintWin.id || "new"}-${sprintWin.review ? "r" : ""}`} planner={planner} sprintId={sprintWin.id} review={sprintWin.review} isMobile={isMobile} onClose={() => setSprintWin(null)}
           draft={sprintWin.acc ? { account: sprintWin.acc, startOn: thisMonday(), endOn: addDays(thisMonday(), sprintW * 7 - 1), focusCategory: "", focusTier: "now", pitchGoal: null, followUpGoal: null, review: "" } : undefined} />
