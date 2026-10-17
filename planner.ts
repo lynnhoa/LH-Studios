@@ -127,8 +127,11 @@ export interface Sprint {
   followUpGoal:  number | null;
   review:        string;
   status:        "active" | "done";
+  days:          Record<string, { p?: number | null; f?: number | null }>;   // per day: pitches, follow-ups (typed)
+  results:       SprintResults;                                             // typed in the review
 }
-// what a sprint brought (from the pitch log and the contacts' status)
+export interface SprintResults { replied?: number | null; gifted?: number | null; deals?: number | null; worked?: string; change?: string; }
+// what a sprint brought: the typed day numbers and the typed results
 export interface SprintStats { pitches: number; followUps: number; contacted: number; replied: number; gifted: number; deals: number; rate: number | null; }
 
 export type NoteKind = "concept" | "offer" | "learning";

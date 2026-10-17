@@ -30,6 +30,8 @@ const rowToSprint = (r: any): Sprint => ({
   focusCategory: r.focus_category ?? "", focusTier: r.focus_tier || "now",
   pitchGoal: r.pitch_goal ?? null, followUpGoal: r.follow_up_goal ?? null,
   review: r.review ?? "", status: r.status === "done" ? "done" : "active",
+  days: r.days && typeof r.days === "object" ? r.days : {},
+  results: r.results && typeof r.results === "object" ? r.results : {},
 });
 const sprintToRow = (p: Partial<Sprint>) => {
   const row: any = {};
@@ -43,6 +45,8 @@ const sprintToRow = (p: Partial<Sprint>) => {
   if (p.followUpGoal  !== undefined) row.follow_up_goal = p.followUpGoal;
   if (p.review        !== undefined) row.review         = p.review;
   if (p.status        !== undefined) row.status         = p.status;
+  if (p.days          !== undefined) row.days           = p.days;
+  if (p.results       !== undefined) row.results        = p.results;
   return row;
 };
 
@@ -476,22 +480,19 @@ export function usePlanner(userId: string | null, monday: string) {
   const activeSprint = useCallback((acc: Account) => sprints.find(x => x.account === acc && x.status === "active"), [sprints]);
 
   // what a sprint brought: pitches and follow-ups sent in its days, and where those contacts stand now
+  // a sprint's numbers: pitches and follow-ups typed per day; replies, gifted, deals typed in the review
   const sprintStats = useCallback((sp: Sprint): SprintStats => {
-    const mine = pitches.filter(p => p.account === sp.account && p.sentOn >= sp.startOn && p.sentOn <= sp.endOn);
-    const pitched = new Set(mine.filter(p => p.kind === "pitch").map(p => p.contactId));
-    const status = new Map(contacts.map(c => [c.id, c.status]));
-    const st = (id: string) => status.get(id) || "new";
-    const replied = [...pitched].filter(id => ["replied", "gifted", "deal"].includes(st(id))).length;
+    const ds = Object.entries(sp.days || {}).filter(([d]) => d >= sp.startOn && d <= sp.endOn).map(([, v]) => v || {});
+    const pitchesN = ds.reduce((m, v) => m + (Number(v.p) || 0), 0);
+    const followN  = ds.reduce((m, v) => m + (Number(v.f) || 0), 0);
+    const r = sp.results || {};
+    const replied = Number(r.replied) || 0;
     return {
-      pitches: mine.filter(p => p.kind === "pitch").length,
-      followUps: mine.filter(p => p.kind === "follow_up").length,
-      contacted: pitched.size,
-      replied,
-      gifted: [...pitched].filter(id => st(id) === "gifted").length,
-      deals: [...pitched].filter(id => st(id) === "deal").length,
-      rate: pitched.size ? (replied / pitched.size) * 100 : null,
+      pitches: pitchesN, followUps: followN, contacted: pitchesN,
+      replied, gifted: Number(r.gifted) || 0, deals: Number(r.deals) || 0,
+      rate: pitchesN && r.replied != null ? (replied / pitchesN) * 100 : null,
     };
-  }, [pitches, contacts]);
+  }, []);
 
   // pitched contacts of this account without a reply for 7+ days
   const followUpsDue = useCallback((acc: Account, on: string = today()) => {

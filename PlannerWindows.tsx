@@ -15,7 +15,7 @@ import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN } from "./atoms";
 import {
   ACCOUNTS, PHASES, OWNERS, RHYTHMS, STATUSES, STAGE_SHORT, DAY_SHORT, accLook, phaseLabel, ownerLabel, rhythmLabel, rowKind, entryKey, periodOf, snapKey, addDays, isoWeek, weekRange, weekLabel, thisMonday, monthName, todayIndex, gateOf, stageNumOf, taskAccounts, isVisible, byOrder, fmtInt, fmtPct2, parseDec, parseIntDe, ITEM_STATUSES, FORMATS, CLASSIC, formatLook, itemStatusLabel, daysBetween, OWNER_LOOK, monthGoalOf, monthGoalPatch, loadWorkAccount, storyLines,
 } from "./planner";
-import type { Task, Stage, TaskAccount, AccountFilter, Phase, Rhythm, Item, ItemList, ItemStatus, ItemPlan, Account, NoteKind, Sprint, Owner } from "./planner";
+import type { Task, Stage, TaskAccount, AccountFilter, Phase, Rhythm, Item, ItemList, ItemStatus, ItemPlan, Account, NoteKind, Sprint, SprintResults, Owner } from "./planner";
 import { OUTREACH_CATEGORIES, OUTREACH_TIERS, catOf } from "./outreach";
 import type { PlannerHook } from "./usePlanner";
 import { showUndo, XBtn } from "./undo";
@@ -1107,72 +1107,93 @@ export const sprintDay = (sp: { startOn: string; endOn: string }, on: string) =>
   return { day, total };
 };
 
-export function SprintWindow({ planner, sprintId, draft, isMobile, onClose }: {
-  planner: PlannerHook; sprintId?: string; draft?: Partial<Sprint>; isMobile: boolean; onClose: () => void;
+export function SprintWindow({ planner, sprintId, draft, isMobile, onClose, review }: {
+  planner: PlannerHook; sprintId?: string; draft?: Partial<Sprint>; isMobile: boolean; onClose: () => void; review?: boolean;
 }) {
   const [id, setId] = useState<string | undefined>(sprintId);
   const sp = planner.sprints.find(x => x.id === id);
   const weeksOf = (x?: Partial<Sprint>) => (x?.startOn && x?.endOn ? Math.max(1, Math.round((daysBetween(x.startOn, x.endOn) + 1) / 7)) : 2);
-  const [edit, setEdit] = useState(!sprintId);
+  // "new" = start a sprint · "review" = End & review · "edit" = change it · "read"
+  const [mode, setMode] = useState<"new" | "review" | "edit" | "read">(!sprintId ? "new" : review ? "review" : "read");
   const [f, setF]       = useState<Partial<Sprint>>(sp || draft || {});
+  const [res, setRes]   = useState<SprintResults>(sp?.results || {});
   const [weeks, setWeeks] = useState<number>(weeksOf(sp || draft));
   const [err, setErr]   = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [ask, setAsk]   = useState<null | "end" | "delete">(null);
-  useEffect(() => { if (!edit && sp) { setF(sp); setWeeks(weeksOf(sp)); } }, [sp, edit]);
+  const [ask, setAsk]   = useState<null | "delete">(null);
+  useEffect(() => { if (mode === "read" && sp) { setF(sp); setRes(sp.results || {}); setWeeks(weeksOf(sp)); } }, [sp, mode]);
   useEffect(() => { if (id && !sp && !planner.loading) onClose(); }, [id, sp, planner.loading]);
 
   const save = async () => {
     setErr(null);
-    if (!f.startOn) { setErr("Pick the start day."); return; }
-    if (!weeks || weeks < 1) { setErr("A sprint is at least 1 week."); return; }
+    if (mode === "new" || mode === "edit") {
+      if (!f.startOn) { setErr("Pick the start day."); return; }
+      if (!weeks || weeks < 1) { setErr("A sprint is at least 1 week."); return; }
+    }
     setBusy(true);
     try {
-      const fields: Partial<Sprint> = {
-        startOn: f.startOn, endOn: addDays(f.startOn, weeks * 7 - 1), focusCategory: f.focusCategory || "", focusTier: (f.focusTier || "now") as any,
-        pitchGoal: f.pitchGoal ?? null, followUpGoal: f.followUpGoal ?? null, review: f.review || "",
-      };
-      if (sp) await planner.updateSprint(sp.id, fields);
-      else { const n = await planner.createSprint({ ...fields, account: f.account as Account }); setId(n.id); }
-      setEdit(false);
+      if (mode === "review" && sp) {
+        await planner.updateSprint(sp.id, { results: res, status: "done" });
+        setMode("read");
+      } else {
+        const fields: Partial<Sprint> = {
+          startOn: f.startOn, endOn: addDays(f.startOn!, weeks * 7 - 1), focusCategory: f.focusCategory || "", focusTier: (f.focusTier || "now") as any,
+          pitchGoal: f.pitchGoal ?? null, followUpGoal: f.followUpGoal ?? null, ...(sp ? { results: res } : {}),
+        };
+        if (sp) await planner.updateSprint(sp.id, fields);
+        else { const n = await planner.createSprint({ ...fields, account: f.account as Account, days: {}, results: {} }); setId(n.id); }
+        setMode("read");
+      }
     } catch (e: any) { setErr(e?.message || "Couldn't save."); }
     finally { setBusy(false); }
   };
-  const end = async () => { setAsk(null); if (!sp) return; try { await planner.updateSprint(sp.id, { status: "done" }); } catch (e: any) { setErr(e?.message || "Couldn't end the sprint."); } };
   const del = async () => { setAsk(null); if (!sp) return; try { await planner.deleteSprint(sp.id); onClose(); } catch (e: any) { setErr(e?.message || "Couldn't delete."); } };
 
   const st = sp ? planner.sprintStats(sp) : null;
-  const due = sp ? planner.followUpsDue(sp.account) : 0;
   const d = sp ? sprintDay(sp, today()) : null;
   const num = (v: any) => (v === "" || v == null ? null : parseIntDe(String(v)));
-  const statRow = (label: string, value: any, extra?: any) => (
+  const statRow = (label: string, value: any) => (
     <div style={{ minHeight: 36, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottom: `1px solid ${C.rule}`, fontSize: 14 }}>
-      <span style={microLabel}>{label}</span><span style={{ textAlign: "right" as const }}>{value}{extra}</span>
+      <span style={microLabel}>{label}</span><span style={{ textAlign: "right" as const }}>{value}</span>
     </div>
   );
+  const resultFields = (
+    <>
+      <Lbl>Results · from your contacts</Lbl>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8 }}>
+        <div><Lbl>Replied</Lbl><I inputMode="numeric" aria-label="Replied" placeholder="–" value={res.replied == null ? "" : String(res.replied)} onChange={(e: any) => setRes({ ...res, replied: num(e.target.value) })} /></div>
+        <div><Lbl>Gifted</Lbl><I inputMode="numeric" aria-label="Gifted" placeholder="–" value={res.gifted == null ? "" : String(res.gifted)} onChange={(e: any) => setRes({ ...res, gifted: num(e.target.value) })} /></div>
+        <div><Lbl>Deals</Lbl><I inputMode="numeric" aria-label="Deals" placeholder="–" value={res.deals == null ? "" : String(res.deals)} onChange={(e: any) => setRes({ ...res, deals: num(e.target.value) })} /></div>
+      </div>
+      <Lbl>Worked</Lbl>
+      <I aria-label="Worked" value={res.worked || ""} placeholder="What worked" onChange={(e: any) => setRes({ ...res, worked: e.target.value })} />
+      <Lbl>Change</Lbl>
+      <I aria-label="Change" value={res.change || ""} placeholder="What to do differently next sprint" onChange={(e: any) => setRes({ ...res, change: e.target.value })} />
+    </>
+  );
+  const title = mode === "new" ? "New sprint" : mode === "review" && sp ? `Sprint ${sp.num} · review` : sp ? `Sprint ${sp.num}` : "Sprint";
 
   return (
     <>
-      {ask === "end" && sp && <ConfirmDialog title={`End Sprint ${sp.num}?`} text="It moves to the past sprints. You can still write the review." okLabel="End sprint" onOk={end} onCancel={() => setAsk(null)} />}
-      {ask === "delete" && sp && <ConfirmDialog title={`Delete Sprint ${sp.num}?`} text="The sprint is removed. The pitch log stays in Outreach." okLabel="Delete" danger onOk={del} onCancel={() => setAsk(null)} />}
-      <Window title={sp ? `Sprint ${sp.num}` : "New sprint"} isMobile={isMobile}
-        onClose={() => { if (edit && sp) { setEdit(false); setErr(null); } else onClose(); }}
-        footer={edit ? (
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <B v="sec" onClick={() => { if (sp) { setEdit(false); setErr(null); } else onClose(); }}>Cancel</B>
-            <B onClick={save} s={{ opacity: busy ? 0.5 : 1 }}>{busy ? "Saving…" : sp ? "Save" : "Start sprint"}</B>
-          </div>
-        ) : (
+      {ask === "delete" && sp && <ConfirmDialog title={`Delete Sprint ${sp.num}?`} text="The sprint, its day numbers and its review are removed." okLabel="Delete" danger onOk={del} onCancel={() => setAsk(null)} />}
+      <Window title={title} isMobile={isMobile}
+        onClose={() => { if ((mode === "edit") && sp) { setMode("read"); setErr(null); } else onClose(); }}
+        footer={mode === "read" ? (
           <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
             <MoreMenu items={[{ label: "Delete sprint", danger: true, onClick: () => setAsk("delete") }]} />
             <div style={{ display: "flex", gap: 8 }}>
-              {sp?.status === "active" && <B v="sec" onClick={() => setAsk("end")}>End sprint</B>}
-              <B onClick={() => setEdit(true)}>Edit</B>
+              {sp?.status === "active" && <B v="sec" onClick={() => { setRes(sp.results || {}); setMode("review"); }}>End &amp; review</B>}
+              <B onClick={() => setMode("edit")}>Edit</B>
             </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <B v="sec" onClick={() => { if (sp && mode !== "review") { setMode("read"); setErr(null); } else onClose(); }}>Cancel</B>
+            <B onClick={save} s={{ opacity: busy ? 0.5 : 1 }}>{busy ? "Saving…" : mode === "new" ? "Start sprint" : mode === "review" ? "Close sprint" : "Save"}</B>
           </div>
         )}>
         {err && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
-        {!edit && sp && st && d ? (
+        {mode === "read" && sp && st && d ? (
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const }}>
               <AccChip acc={sp.account} />
@@ -1184,22 +1205,28 @@ export function SprintWindow({ planner, sprintId, draft, isMobile, onClose }: {
               {sp.focusCategory ? <CatChip k={sp.focusCategory} /> : <span style={{ fontSize: 14 }}>Any category</span>}
               <span style={{ fontSize: 14 }}>· {OUTREACH_TIERS.find(t => t.key === sp.focusTier)?.label || "Now"}</span>
             </div>
-            <Lbl>Results</Lbl>
+            <Lbl>Numbers</Lbl>
             <div style={{ borderTop: `1px solid ${C.rule}` }}>
               {statRow("Pitches", `${st.pitches} / ${sp.pitchGoal ?? "–"}`)}
-              {statRow("Follow-ups", `${st.followUps} / ${sp.followUpGoal ?? "–"}`, due ? <span style={{ color: C.amber }}> · {due} due</span> : null)}
-              {statRow("Replied", st.replied)}
-              {statRow("Gifted", st.gifted)}
-              {statRow("Deals", st.deals)}
-              {statRow("Reply rate", st.rate == null ? "–" : fmtPct2(st.rate))}
+              {statRow("Follow-ups", `${st.followUps} / ${sp.followUpGoal ?? "–"}`)}
+              {sp.status === "done" && <>
+                {statRow("Replied", sp.results.replied ?? "–")}
+                {statRow("Gifted", sp.results.gifted ?? "–")}
+                {statRow("Deals", sp.results.deals ?? "–")}
+                {statRow("Reply rate", st.rate == null ? "–" : fmtPct2(st.rate))}
+              </>}
             </div>
-            <Bar value={st.pitches} max={sp.pitchGoal ?? 0} done={sp.pitchGoal != null && st.pitches >= sp.pitchGoal} s={{ marginTop: 10 }} />
-            {textBlock("Review", sp.review)}
-            {!sp.review && <p style={{ fontSize: 12, color: C.muted, margin: "10px 0 0" }}>{sp.status === "active" ? "At the end: what worked, what to change next sprint." : "No review yet — tap Edit to write it."}</p>}
+            {sp.status === "done" && <>{textBlock("Worked", sp.results.worked || "")}{textBlock("Change", sp.results.change || "")}</>}
+            {sp.status === "active" && <p style={{ fontSize: 12, color: C.muted, margin: "10px 0 0" }}>At the end: End &amp; review, then type the results and what to change.</p>}
+          </div>
+        ) : mode === "review" && sp && st ? (
+          <div>
+            <p style={{ fontSize: 14, margin: 0 }}>{sprintRange(sp)} · {st.pitches} pitches · {st.followUps} follow-ups</p>
+            {resultFields}
           </div>
         ) : (
           <div>
-            {!sp && (
+            {mode === "new" && (
               <>
                 <Lbl>Account</Lbl>
                 <S value={f.account || "lynnhoa"} onChange={(e: any) => setF({ ...f, account: e.target.value })}>
@@ -1209,24 +1236,23 @@ export function SprintWindow({ planner, sprintId, draft, isMobile, onClose }: {
             )}
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
               <div><Lbl>Start</Lbl><I type="date" value={f.startOn || ""} onChange={(e: any) => setF({ ...f, startOn: e.target.value })} /></div>
-              <div><Lbl>Weeks</Lbl><I inputMode="numeric" value={String(weeks || "")} onChange={(e: any) => setWeeks(Number(e.target.value.replace(/[^\d]/g, "")) || 0)} /></div>
+              <div><Lbl>Weeks</Lbl><I inputMode="numeric" aria-label="Weeks" value={String(weeks || "")} onChange={(e: any) => setWeeks(Number(e.target.value.replace(/[^\d]/g, "")) || 0)} /></div>
               <div><Lbl>Focus category</Lbl>
-                <S value={f.focusCategory || ""} onChange={(e: any) => setF({ ...f, focusCategory: e.target.value })}>
+                <S value={f.focusCategory || ""} aria-label="Focus category" onChange={(e: any) => setF({ ...f, focusCategory: e.target.value })}>
                   <option value="">Any category</option>
                   {OUTREACH_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
                 </S>
               </div>
               <div><Lbl>Focus tier</Lbl>
-                <S value={f.focusTier || "now"} onChange={(e: any) => setF({ ...f, focusTier: e.target.value })}>
+                <S value={f.focusTier || "now"} aria-label="Focus tier" onChange={(e: any) => setF({ ...f, focusTier: e.target.value })}>
                   {OUTREACH_TIERS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
                 </S>
               </div>
-              <div><Lbl>Pitch goal</Lbl><I inputMode="numeric" value={f.pitchGoal == null ? "" : String(f.pitchGoal)} placeholder="–" onChange={(e: any) => setF({ ...f, pitchGoal: num(e.target.value) })} /></div>
-              <div><Lbl>Follow-up goal</Lbl><I inputMode="numeric" value={f.followUpGoal == null ? "" : String(f.followUpGoal)} placeholder="–" onChange={(e: any) => setF({ ...f, followUpGoal: num(e.target.value) })} /></div>
+              <div><Lbl>Pitch goal</Lbl><I inputMode="numeric" aria-label="Pitch goal" value={f.pitchGoal == null ? "" : String(f.pitchGoal)} placeholder="–" onChange={(e: any) => setF({ ...f, pitchGoal: num(e.target.value) })} /></div>
+              <div><Lbl>Follow-up goal</Lbl><I inputMode="numeric" aria-label="Follow-up goal" value={f.followUpGoal == null ? "" : String(f.followUpGoal)} placeholder="–" onChange={(e: any) => setF({ ...f, followUpGoal: num(e.target.value) })} /></div>
             </div>
-            {f.startOn && weeks > 0 && <p style={{ fontSize: 12, color: C.muted, margin: "8px 0 0" }}>Ends {fmtD(addDays(f.startOn, weeks * 7 - 1))}</p>}
-            <Lbl>Review</Lbl>
-            <textarea value={f.review || ""} onChange={(e) => setF({ ...f, review: e.target.value })} style={{ ...area, minHeight: 80 }} placeholder="What worked, what to change next sprint" />
+            {f.startOn && weeks > 0 && <p style={{ fontSize: 12, color: C.muted, margin: "8px 0 0" }}>Ends {fmtD(addDays(f.startOn, weeks * 7 - 1))}{f.pitchGoal ? ` · daily target ${Math.ceil(f.pitchGoal / (weeks * 5))} pitches over ${weeks * 5} work days` : ""}</p>}
+            {mode === "edit" && sp?.status === "done" && resultFields}
           </div>
         )}
       </Window>
