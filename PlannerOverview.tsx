@@ -4,21 +4,21 @@
 //   This week   · ring "5 of 8", On track / Behind, best + weakest,
 //                 the last 6 weeks
 //   Stage       · "Stage 1 of 5", name, progress, what's next
-//   Manager     · Following (+ followers), Engaging, New emails,
-//                 Pitches (+ leads) — small rings
+//   Manager     · Engaging, Following, Followers (+/− vs last week),
+//                 New emails, Pitches (+ leads) — small rings
 //   Sales sprint (from Stage 2) · Creator · Content flow
 // ─────────────────────────────────────────────────────────────
 
 import { C, SANS, SERIF, TYPE } from "./constants";
 import {
   OWNER_LOOK, TONE, accLook, stageOf, stageNumOf, gateOf, isVisible, addDays, entryKey, monthName, isoWeek, weekRange,
-  fmtInt, fmtPct2, monthGoalOf, thisMonday, todayIndex, MANAGER_GOAL, CREATOR_GOAL, managerOrder, creatorOrder, rowKind, snapKey, shortName,
+  fmtInt, fmtPct2, monthGoalOf, thisMonday, todayIndex, MANAGER_GOAL, CREATOR_GOAL, managerOrder, creatorOrder, rowKind, snapKey, shortName, isTotal,
 } from "./planner";
 import type { Account, Task } from "./planner";
 import { monthStart, monthEnd, today } from "./formatters";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
-import { Ico, IC, Subtitle, sprintDay } from "./PlannerWindows";
+import { Ico, IC, TabTitle, sprintDay } from "./PlannerWindows";
 
 const microLabel: any = { fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted };
 
@@ -29,6 +29,7 @@ interface PlannerOverviewProps {
   monday:    string;
   setMonday: (m: string) => void;
   isMobile:  boolean;
+  onAccount?: (a: Account) => void;
 }
 
 // a small progress ring (green ✓ when reached)
@@ -50,7 +51,7 @@ const Ring = ({ ratio, done, size = 30, stroke = 4, label }: { ratio: number; do
   );
 };
 
-export default function PlannerOverview({ planner, view, monday, setMonday, isMobile }: PlannerOverviewProps) {
+export default function PlannerOverview({ planner, view, monday, setMonday, isMobile, onAccount }: PlannerOverviewProps) {
   const { stages, tasks, items, loading, loadError } = planner;
   const acc     = (view.acc === "all" ? "lynnhoa" : view.acc) as Account;
   const forAcc  = (t: Task) => t.account === acc || t.account === "both";
@@ -68,6 +69,14 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
     const s = planner.stateOf(t, w);
     if (s.done) return 1;
     if (rowKind(t) === "days") return s.daysDone / 7;
+    // totals (following, followers): the way from last week's number to the goal,
+    // otherwise 84.827 of 85.000 would always look almost done
+    if (isTotal(t)) {
+      if (s.actual == null || s.target == null) return 0;
+      const base = planner.stateOf(t, addDays(w, -7)).actual;
+      if (base == null || s.target <= base) return 0;
+      return Math.max(0, Math.min(1, (s.actual - base) / (s.target - base)));
+    }
     return s.target ? Math.min(1, (s.actual ?? 0) / s.target) : 0;
   };
   const reachedIn = (w: string) => all.filter(t => planner.stateOf(t, w).done).length;
@@ -80,7 +89,12 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
     : { t: "Behind", c: "#a8804f", bg: "#fdf6ee", b: "#f0e2d0" };
   const best = all.find(t => planner.stateOf(t, monday).done);
   const weakest = [...all].filter(t => !planner.stateOf(t, monday).done && planner.stateOf(t, monday).target != null).sort((a, b) => ratioOf(a, monday) - ratioOf(b, monday))[0];
-  const valText = (t: Task, w = monday) => { const s = planner.stateOf(t, w); return rowKind(t) === "days" ? `${s.daysDone} / 7` : `${s.actual ?? 0} / ${s.target ?? "–"}`; };
+  const valText = (t: Task, w = monday) => {
+    const s = planner.stateOf(t, w);
+    if (rowKind(t) === "days") return `${s.daysDone} / 7`;
+    const a = s.actual == null && isTotal(t) ? "–" : fmtInt(s.actual ?? 0);
+    return `${a} / ${s.target != null ? fmtInt(s.target) : "–"}`;
+  };
   const weeks = [-35, -28, -21, -14, -7, 0].map(o => addDays(monday, o));
 
   // ── pieces ──────────────────────────────────────────────────
@@ -88,8 +102,8 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
   const section = (color: string, title: string) => (
     <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 16, ...microLabel, color }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: color }} />{title}</div>
   );
-  const tile = (key: string, accent: string, label: string, value: any, sub: any, ring?: { ratio: number; done: boolean }) => (
-    <div key={key} style={{ background: C.white, border: `1px solid ${C.rule}`, borderRadius: 4, padding: "10px 10px 9px 13px", display: "flex", gap: 10, alignItems: "center", position: "relative", overflow: "hidden", minWidth: 0 }}>
+  const tile = (key: string, accent: string, label: string, value: any, sub: any, ring?: { ratio: number; done: boolean }, wide = false) => (
+    <div key={key} style={{ background: C.white, border: `1px solid ${C.rule}`, borderRadius: 4, padding: "10px 10px 9px 13px", display: "flex", gap: 10, alignItems: "center", position: "relative", overflow: "hidden", minWidth: 0, ...(wide ? { gridColumn: "1 / -1" } : {}) }}>
       <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: accent }} />
       {ring && <Ring ratio={ring.ratio} done={ring.done} />}
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -105,8 +119,9 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
     if (s.done) return <span style={{ color: C.green }}>Reached</span>;
     if (rowKind(t) === "days") return <span style={{ color: past ? TONE.miss : TONE.attn }}>{past ? "Not reached" : `${7 - s.daysDone} to go`}</span>;
     if (s.target == null) return <span style={{ color: C.light }}>No goal</span>;
+    if (isTotal(t) && s.actual == null) return <span style={{ color: past ? TONE.miss : C.light }}>Not entered</span>;
     const left = Math.max(0, s.target - (s.actual ?? 0));
-    return <span style={{ color: past ? TONE.miss : TONE.attn }}>{past ? `−${left}` : `${left} to go`}</span>;
+    return <span style={{ color: past ? TONE.miss : TONE.attn }}>{past ? `−${fmtInt(left)}` : `${fmtInt(left)} to go`}</span>;
   };
 
   // ── hero ────────────────────────────────────────────────────
@@ -171,17 +186,23 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
   const spWeekPitches = spNow ? Object.entries(spNow.days || {}).filter(([d]) => d >= monday && d <= addDays(monday, 6)).reduce((m, [, v]) => m + (Number(v?.p) || 0), 0) : 0;
   const spWeeks = spNow ? Math.max(1, Math.round((Math.round((Date.parse(spNow.endOn) - Date.parse(spNow.startOn)) / 864e5) + 1) / 7)) : 1;
   const spShare = spNow?.pitchGoal ? Math.ceil(spNow.pitchGoal / spWeeks) : null;
-  const mTiles = mCounted.map(t => {
+  const hasFollowers = mCounted.some(t => t.source === "followers");
+  const diffText = fDiff != null && <span style={{ color: fDiff >= 0 ? C.green : C.red }}> · {fDiff >= 0 ? "+" : "−"}{fmtInt(Math.abs(fDiff))}</span>;
+  const mTiles = mCounted.map((t, k) => {
     const s0 = planner.stateOf(t, monday);
     const s = t.source === "pitches" && spCovers ? { ...s0, actual: spWeekPitches, target: spShare, done: spShare != null && spWeekPitches >= spShare } : s0;
     const days = rowKind(t) === "days";
-    const value = days ? <>{s.daysDone} {small("/ 7 days")}</> : <>{fmtInt(s.actual ?? 0)} {small(`/ ${s.target != null ? fmtInt(s.target) : "–"}`)}</>;
+    const shown = s.actual == null && isTotal(t) ? "–" : fmtInt(s.actual ?? 0);
+    const value = days ? <>{s.daysDone} {small("/ 7 days")}</> : <>{shown} {small(`/ ${s.target != null ? fmtInt(s.target) : "–"}`)}</>;
     let sub: any = goalSub(t);
-    if (t.source === "following" && sn?.followers != null) sub = <span style={{ color: C.muted }}>Followers {fmtInt(sn.followers)}{fDiff != null && <span style={{ color: fDiff >= 0 ? C.green : C.red }}> · {fDiff >= 0 ? "+" : "−"}{fmtInt(Math.abs(fDiff))}</span>}</span>;
+    // followers: own tile with +/− vs last week; before the Followers line exists, under Following as before
+    if (t.source === "followers") sub = <>{sub}{diffText}</>;
+    if (t.source === "following" && !hasFollowers && sn?.followers != null) sub = <span style={{ color: C.muted }}>Followers {fmtInt(sn.followers)}{diffText}</span>;
     if (t.source === "pitches" && spCovers) sub = <span style={{ color: s.done ? C.green : TONE.attn }}>{s.done ? "Reached" : `${Math.max(0, (s.target ?? 0) - (s.actual ?? 0))} to go`} · sprint</span>;
     if (t.source === "pitches" && leadsN != null) sub = <>{sub}<span style={{ color: C.muted }}> · {leadsN} {leadsN === 1 ? "lead" : "leads"}</span></>;
     const ratio = t.source === "pitches" && spCovers ? (s.target ? Math.min(1, (s.actual ?? 0) / s.target) : 0) : ratioOf(t, monday);
-    return tile(t.id, mLook.border, shortName(t), value, sub, { ratio, done: s.done });
+    // an odd last tile spans both columns, so the grid stays even
+    return tile(t.id, mLook.border, shortName(t), value, sub, { ratio, done: s.done }, mCounted.length % 2 === 1 && k === mCounted.length - 1);
   });
 
   // ── sales sprint (from Stage 2) ─────────────────────────────
@@ -256,13 +277,13 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
   );
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Dashboard</h2>
-        <span style={{ display: "inline-flex", alignItems: "center", border: `1px solid ${C.rule}`, borderRadius: 14, background: C.white, height: 28, fontSize: 12 }}>
+      <TabTitle title="Dashboard" acc={acc} onAccount={onAccount} isMobile={isMobile} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 6 }}>
+        <span style={{ ...microLabel, letterSpacing: "0.06em" }}>{weekRange(monday)}</span>
+        <span style={{ display: "inline-flex", alignItems: "center", border: `1px solid ${C.rule}`, borderRadius: 14, background: C.white, height: 28, fontSize: 12, flexShrink: 0 }}>
           {weekBtn("Previous week", -7, "‹")}<span style={{ minWidth: 58, textAlign: "center" as const }}>Week {isoWeek(monday)}</span>{weekBtn("Next week", 7, "›")}
         </span>
       </div>
-      <Subtitle acc={acc} text={weekRange(monday)} />
       {loading ? (
         <p style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 16 }}>Loading…</p>
       ) : loadError ? (

@@ -17,7 +17,7 @@ import { fmtD } from "./formatters";
 import { OWNER_LOOK, accLook, rowKind, stageOf, gateOf, byOrder, STAGE_SHORT, thisMonday } from "./planner";
 import type { Task, AccountFilter, Owner, Phase, Account, Look, Stage } from "./planner";
 import type { PlannerHook } from "./usePlanner";
-import { Ico, IC, Subtitle, InlineText } from "./PlannerWindows";
+import { Ico, IC, Subtitle, TabTitle, InlineText } from "./PlannerWindows";
 import { showUndo, XBtn } from "./undo";
 
 export interface PlannerView { tab: string; acc: AccountFilter; owner: "all" | Owner; phase: "all" | Phase; }
@@ -35,11 +35,12 @@ interface PlannerTodoProps {
   monday:    string;
   setMonday: (m: string) => void;
   isMobile:  boolean;
+  onAccount?: (a: Account) => void;
   openOutreach?: () => void;
   openTab?:  (tab: string, anchor?: string) => void;
 }
 
-export default function PlannerTodo({ planner, view, isMobile }: PlannerTodoProps) {
+export default function PlannerTodo({ planner, view, isMobile, onAccount }: PlannerTodoProps) {
   const { stages, tasks, loading, loadError } = planner;
   const [showDone, setShowDone] = useState(false);
   const [openStage, setOpenStage] = useState<string | null>(null);   // a finished stage, folded open
@@ -219,8 +220,8 @@ export default function PlannerTodo({ planner, view, isMobile }: PlannerTodoProp
           text={`Stage ${askReopen.num} is active again and the later stages go back to upcoming. ${askReopen.moved?.length ? `The ${askReopen.moved.length} ${askReopen.moved.length === 1 ? "task" : "tasks"} that moved on come back. ` : ""}Nothing is lost.`}
           okLabel={`Reopen Stage ${askReopen.num}`} onOk={reopen} onCancel={() => setAskReopen(null)} />
       )}
-      <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>To-do</h2>
-      <Subtitle acc={acc} text={st ? `Stage ${st.num} of 5` : "Stages"} />
+      <TabTitle title="To-do" acc={acc} onAccount={onAccount} isMobile={isMobile} />
+      <Subtitle text={st ? `Stage ${st.num} of 5` : "Stages"} />
       {loading ? (
         <p style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 16 }}>Loading…</p>
       ) : loadError ? (

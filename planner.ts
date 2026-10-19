@@ -292,50 +292,29 @@ export function goalStatus(t: Task, st: RowState, monday: string): GoalStatus | 
   return null;
 }
 // ── Which weekly goals live on which card ───────────────────
-// Manager card: engaging, following, new emails, pitches.
+// Manager card: engaging, following, followers, new emails, pitches, leads.
 // Creator strip: ideas, posts, pieces (+ first set, month goal).
 // Everything else that repeats (check-in, kit handover, your own
-// tasks) stays in To-do. The snapshot is no longer used.
+// tasks) stays in To-do. The snapshot task is no longer used — the
+// followers number is still typed into the weekly snapshot row.
 export const MANAGER_GOAL = (t: Task) => t.phase === "maintain" && (
-  t.source === "following" || t.source === "outreach" || t.source === "pitches" || t.source === "leads" || (t.area === "community" && t.rhythm === "daily"));
+  t.source === "following" || t.source === "followers" || t.source === "outreach" || t.source === "pitches" || t.source === "leads" || (t.area === "community" && t.rhythm === "daily"));
 export const CREATOR_GOAL = (t: Task) => t.phase === "maintain" && (t.source === "ideas" || t.source === "filmed" || t.source === "posts" || t.source === "pieces");
 export const creatorOrder = (t: Task) => (t.source === "ideas" ? 0 : t.source === "filmed" ? 1 : t.source === "posts" ? 2 : 3);
 export const ON_A_CARD = (t: Task) => MANAGER_GOAL(t) || CREATOR_GOAL(t) || t.source === "snapshot" || t.source === "portfolio_total"
   || (t.rhythm === "monthly" && t.area === "portfolio");
 // order on the Manager card
-export const managerOrder = (t: Task) => (t.area === "community" ? 0 : t.source === "following" ? 1 : t.source === "outreach" ? 2 : t.source === "pitches" ? 3 : 4);
-
-// Prompt for Claude: read the Instagram insights screenshot → one SQL insert for this account and week
-export function snapshotPrompt(account: Account, week: string, email: string): string {
-  const handle = account === "lynnhoa" ? "@lynnhoa" : "@createbylynn";
-  const who = `(select id from auth.users where lower(email) = lower('${email || "PUT-YOUR-LOGIN-EMAIL-HERE"}'))`;
-  return `I'm sending you a screenshot of the Instagram profile of ${handle}.
-
-1. Read two numbers from the profile header: Followers and Following.
-   If a number isn't in the screenshot, use null.
-2. Output ONLY this SQL with the numbers filled in (no thousands separators):
-
-insert into public.planner_snapshots (user_id, account, week_start, followers)
-values (${who}, '${account}', '${week}', FOLLOWERS)
-on conflict (user_id, account, week_start) do update
-  set followers = coalesce(excluded.followers, public.planner_snapshots.followers);
-
-insert into public.planner_entries (user_id, task_id, period_start, actual)
-select t.user_id, t.id, '${week}', FOLLOWING
-from public.planner_tasks t
-where t.user_id = ${who} and t.source = 'following' and t.account = '${account}' and t.active is not false
-on conflict (task_id, period_start) do update
-  set actual = coalesce(excluded.actual, public.planner_entries.actual);
-
-3. After the SQL, add one line with what you read, e.g. "Followers 1.204 · Following 384".
-
-I'll run the SQL in Supabase → SQL editor, then reopen the app.`;
-}
+export const managerOrder = (t: Task) => (t.area === "community" ? 0 : t.source === "following" ? 1 : t.source === "followers" ? 2 : t.source === "outreach" ? 3 : t.source === "pitches" ? 4 : 5);
+// Rows whose Done is a total read off the profile (following 374, followers 84.827),
+// not a count of this week: without a typed number they show "Not entered", and
+// their progress is counted from last week's number
+export const TOTAL_SOURCES = new Set(["following", "followers"]);
+export const isTotal = (t: Task) => TOTAL_SOURCES.has(t.source);
 
 // Short names for status lines (Dashboard, Manager)
 export const shortName = (t: Task): string =>
   t.source === "snapshot" ? "Snapshot" : t.source === "outreach" ? "New emails" : t.source === "ideas" ? "Ideas" : t.source === "posts" ? "Posts"
-  : t.source === "pieces" ? "Pieces" : t.source === "filmed" ? "Filmed" : t.source === "kit_waiting" ? "Kits" : t.source === "following" ? "Following" : t.source === "pitches" ? "Pitches" : t.source === "leads" ? "Leads"
+  : t.source === "pieces" ? "Pieces" : t.source === "filmed" ? "Filmed" : t.source === "kit_waiting" ? "Kits" : t.source === "following" ? "Following" : t.source === "followers" ? "Followers" : t.source === "pitches" ? "Pitches" : t.source === "leads" ? "Leads"
   : t.area === "community" ? "Engaging" : t.area === "checkin" ? "Check-in" : t.title;
 
 // The account you're working on: chosen in the profile menu, remembered on this device

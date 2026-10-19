@@ -563,6 +563,8 @@ export function usePlanner(userId: string | null, monday: string) {
     const inWeek = (d: string | null) => !!d && d >= period && d <= addDays(period, 6);
     switch (t.source) {
       case "outreach": return { actual: contacts.filter(c => c.week === period).length };
+      // followers: the number typed for this account and week (kept in the snapshot row)
+      case "followers": return { actual: t.account === "both" ? null : snaps[snapKey(t.account, period)]?.followers ?? null };
       case "snapshot": {
         const sn = t.account === "both" ? null : snaps[snapKey(t.account, period)];
         return { done: !!sn && (sn.followers != null || sn.views != null || sn.engagement != null) };

@@ -4,7 +4,8 @@
 // with all apps. Phone, iPad and desktop layouts.
 // All four tabs are live: Dashboard (read-only scoreboard), To-do,
 // Manager and Creator. One account at a time: @lynnhoa or
-// @createbylynn, chosen in the profile menu and remembered.
+// @createbylynn, chosen with the switch next to each tab title (or in
+// the profile menu — same choice) and remembered on this device.
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
@@ -46,7 +47,7 @@ interface PlannerAppProps {
 }
 
 export default function PlannerApp({ userId, settings, signOut, switchTo, banners }: PlannerAppProps) {
-  // the account comes from the profile menu (remembered on this device), never "all"
+  // the account comes from the title switch / profile menu (remembered on this device), never "all"
   const [view, setView]     = useState<PlannerView>(() => ({ ...loadView(), acc: loadWorkAccount() }));
   const setAccount = (a: Account) => { saveWorkAccount(a); setView(v => ({ ...v, acc: a })); };
   const [monday, setMonday] = useState<string>(thisMonday);
@@ -109,13 +110,13 @@ export default function PlannerApp({ userId, settings, signOut, switchTo, banner
       <div style={{ maxWidth: isWide ? 1200 : 960, margin: "0 auto", padding: isMobile ? "14px 14px 28px" : "24px 20px 40px" }}>
         {banners}
         {tab.key === "overview" ? (
-          <PlannerOverview planner={planner} view={view} setView={setView} monday={monday} setMonday={setMonday} isMobile={isMobile} />
+          <PlannerOverview planner={planner} view={view} setView={setView} onAccount={setAccount} monday={monday} setMonday={setMonday} isMobile={isMobile} />
         ) : tab.key === "todo" ? (
-          <PlannerTodo planner={planner} view={view} setView={setView} monday={monday} setMonday={setMonday} isMobile={isMobile} openOutreach={openOutreach} openTab={goTab} />
+          <PlannerTodo planner={planner} view={view} setView={setView} onAccount={setAccount} monday={monday} setMonday={setMonday} isMobile={isMobile} openOutreach={openOutreach} openTab={goTab} />
         ) : tab.key === "manager" ? (
-          <PlannerManager planner={planner} view={view} setView={setView} monday={monday} setMonday={setMonday} isMobile={isMobile} openOutreach={openOutreach} openTab={goTab} />
+          <PlannerManager planner={planner} view={view} setView={setView} onAccount={setAccount} monday={monday} setMonday={setMonday} isMobile={isMobile} openOutreach={openOutreach} openTab={goTab} />
         ) : tab.key === "creator" ? (
-          <PlannerCreator planner={planner} view={view} setView={setView} monday={monday} setMonday={setMonday} isMobile={isMobile} openCatalog={openCatalog} openTab={goTab} openOutreach={openOutreach} />
+          <PlannerCreator planner={planner} view={view} setView={setView} onAccount={setAccount} monday={monday} setMonday={setMonday} isMobile={isMobile} openCatalog={openCatalog} openTab={goTab} openOutreach={openOutreach} />
         ) : (
           <div>
             <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>{tab.label}</h2>

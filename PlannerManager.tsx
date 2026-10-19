@@ -1,39 +1,45 @@
 // ─────────────────────────────────────────────────────────────
 // PlannerManager — Planner › Manager (the manager's workspace).
-// One card, this week's goals, two columns: Done (his number) and
-// Goal (yours — locked; "Edit goals" opens them, "Done" locks them).
+// One card, this week's goals, two columns: Done (the manager's number)
+// and Goal (yours — locked; "Edit goals" opens them, "Done" locks them).
+// Every line belongs to the account picked with the switch next to the
+// title — goals are set per account.
 //   Engaging · a box per day (goal: 7 days)
-//   Following · New emails (counted from the email list) · Pitches
-//   Leads (no goal) · Kits (pieces waiting, In kit right here)
-//   Check-in note for the week
+//   Following · Followers (typed totals) · New emails (counted from the
+//   email list) · Pitches · Leads (no goal) · Kits (pieces waiting,
+//   In kit right here) · Check-in note for the week
 // From Stage 2: the sales sprint on top while it runs — pitches and
 // follow-ups typed per day, a 14-day strip, End & review. Between
 // sprints a thin Start row (✕ hides it).
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE, Z } from "./constants";
+import { C, SANS, TYPE } from "./constants";
 import { B, BAR_BTN } from "./atoms";
 import {
   DAY_SHORT, OWNER_LOOK, isVisible, periodOf, stageNumOf, todayIndex, weekRange, fmtPct2, addDays, thisMonday, mondayOf,
-  MANAGER_GOAL, managerOrder, rowKind, parseIntDe, daysBetween, snapKey, fmtInt, snapshotPrompt,
+  MANAGER_GOAL, managerOrder, rowKind, parseIntDe, daysBetween, snapKey, fmtInt, isTotal,
 } from "./planner";
 import type { Task, Account, Sprint } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
-import { OUTREACH_TIERS, OUTREACH_CATEGORIES, copyText } from "./outreach";
+import { OUTREACH_TIERS, OUTREACH_CATEGORIES } from "./outreach";
 import { today } from "./formatters";
-import { Ico, IC, Bar, Toolbar, Subtitle, SprintWindow, sprintRange, sprintDay, ResultMark, useGuide, GuideBtn, GuideCard, InlineText } from "./PlannerWindows";
+import { Ico, IC, Bar, Toolbar, Subtitle, TabTitle, SprintWindow, sprintRange, sprintDay, ResultMark, useGuide, GuideBtn, GuideCard, InlineText } from "./PlannerWindows";
 import { XBtn } from "./undo";
 
 const microLabel: any = { fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted };
 const look = OWNER_LOOK.manager;
-const NAME = (t: Task) => (t.area === "community" ? "Engaging" : t.source === "following" ? "Following" : t.source === "outreach" ? "New emails" : t.source === "pitches" ? "Pitches" : t.source === "leads" ? "Leads" : t.title);
-const ICON = (t: Task) => (t.area === "community" ? IC.heart : t.source === "following" ? IC.userPlus : t.source === "outreach" ? IC.mail : t.source === "leads" ? IC.spark : IC.send);
+const NAME = (t: Task) => (t.area === "community" ? "Engaging" : t.source === "following" ? "Following" : t.source === "followers" ? "Followers" : t.source === "outreach" ? "New emails" : t.source === "pitches" ? "Pitches" : t.source === "leads" ? "Leads" : t.title);
+const ICON = (t: Task) => (t.area === "community" ? IC.heart : t.source === "following" || t.source === "followers" ? IC.userPlus : t.source === "outreach" ? IC.mail : t.source === "leads" ? IC.spark : IC.send);
 const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const dayLabel = (d: string) => { const [y, m, dd] = d.split("-").map(Number); const dt = new Date(y, m - 1, dd); return `${WD[dt.getDay()]} ${String(dd).padStart(2, "0")}.${String(m).padStart(2, "0")}.`; };
-const GRID = "92px 56px 56px minmax(0,1fr)";
+// name · Done · Goal · status. Number fields type at 16 px (iPhone rule in
+// index.html), so Done and Goal take 64–72 px: 100.000 fits on a 375-px
+// phone too; the status keeps at least 80 px ("Not entered").
+const GRID = "88px minmax(64px,72px) minmax(64px,72px) minmax(80px,1fr)";
+const GAP  = 5;
+const PAD  = 4;   // inner padding of a number field; labels and plain numbers line up with it (+ 1 px border)
 
 interface PlannerManagerProps {
   planner:   PlannerHook;
@@ -42,11 +48,12 @@ interface PlannerManagerProps {
   monday:    string;
   setMonday: (m: string) => void;
   isMobile:  boolean;
+  onAccount?: (a: Account) => void;
   openOutreach?: () => void;
   openTab?:  (tab: string, anchor?: string) => void;
 }
 
-export default function PlannerManager({ planner, view, monday, setMonday, isMobile }: PlannerManagerProps) {
+export default function PlannerManager({ planner, view, monday, setMonday, isMobile, onAccount }: PlannerManagerProps) {
   const { stages, tasks, loading, loadError } = planner;
   const [sprintWin, setSprintWin] = useState<{ id?: string; acc?: Account; review?: boolean } | null>(null);
   const [editGoals, setEditGoals] = useState(false);
@@ -54,11 +61,12 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
   const [pastOpen, setPastOpen]   = useState(false);
   const [pick, setPick]           = useState<string | null>(null);   // a sprint day picked in the strip (default today)
   const guide = useGuide("manager");
-  const [toast, setToast] = useState<string | null>(null);
-  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 2400); return () => clearTimeout(t); }, [toast]);
   const quiet = (p: Promise<any>) => p.catch(() => { /* the save toast reports it */ });
 
   const acc    = (view.acc === "all" ? "lynnhoa" : view.acc) as Account;
+  // another account picked: goals lock again (no editing the other account's goals by accident)
+  const [shownAcc, setShownAcc] = useState<Account>(acc);
+  if (shownAcc !== acc) { setShownAcc(acc); setEditGoals(false); setKitsOpen(false); setPastOpen(false); setPick(null); }
   const forAcc = (t: Task) => t.account === acc || t.account === "both";
   const visible = tasks.filter(t => isVisible(t, stages, view.acc));
   const goals  = visible.filter(t => MANAGER_GOAL(t) && forAcc(t)).sort((a, b) => managerOrder(a) - managerOrder(b));
@@ -114,13 +122,14 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
       <span>{title}</span>{right}
     </div>
   );
-  const numField = (value: number | null, label: string, onSave: (v: number | null) => void, goal = false) => (
-    <input key={`${label}-${value}`} inputMode="numeric" defaultValue={value ?? ""} placeholder="–" aria-label={label} onFocus={(e) => e.target.select()}
+  // id = the line it belongs to, so a field never carries a value over to another account or line
+  const numField = (id: string, value: number | null, label: string, onSave: (v: number | null) => void, goal = false) => (
+    <input key={`${id}|${value}`} inputMode="numeric" defaultValue={value == null ? "" : fmtInt(value)} placeholder="–" aria-label={label} onFocus={(e) => e.target.select()}
       onBlur={(e) => { const v = e.target.value.trim() === "" ? null : parseIntDe(e.target.value); if (v !== value) onSave(v); }}
       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-      style={{ width: "100%", height: 28, border: `1px solid ${goal ? look.color : C.rule}`, borderRadius: 2, padding: "0 7px", textAlign: "right" as const, fontFamily: SANS, fontSize: 13, background: goal ? C.white : "#faf9f7", boxSizing: "border-box" as const }} />
+      style={{ width: "100%", height: 28, border: `1px solid ${goal ? look.color : C.rule}`, borderRadius: 2, padding: `0 ${PAD}px`, textAlign: "right" as const, fontFamily: SANS, fontSize: 13, background: goal ? C.white : "#faf9f7", boxSizing: "border-box" as const }} />
   );
-  const plain = (v: any, muted = false) => <span style={{ textAlign: "right" as const, paddingRight: 8, fontSize: 13, color: muted ? C.light : C.black }}>{v ?? "–"}</span>;
+  const plain = (v: any, muted = false) => <span style={{ textAlign: "right" as const, paddingRight: PAD + 1, fontSize: 13, color: muted ? C.light : C.black }}>{v == null ? "–" : typeof v === "number" ? fmtInt(v) : v}</span>;
   const lock = <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2.2" aria-hidden="true"><path d="M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3" /></svg>;
 
   // one goal line
@@ -129,14 +138,18 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     const period = periodOf(t, monday);
     const days = rowKind(t) === "days";
     const leads = t.source === "leads";
+    const followers = t.source === "followers";
     const fromSprint = t.source === "pitches" && sprintThisWeek;
     const left = s.target != null ? Math.max(0, s.target - (s.actual ?? 0)) : null;
+    // totals (following, followers) with nothing typed yet: "Not entered", never "85.000 to go"
+    const notEntered = isTotal(t) && s.target != null && s.actual == null && !s.done;
     const state: "reached" | "togo" | "missed" | "none" =
-      s.done ? "reached" : days ? (over ? "missed" : "togo") : s.target == null ? "none" : over ? "missed" : "togo";
-    const text = state === "togo" ? `${days ? 7 - s.daysDone : left} to go` : state === "missed" ? (days ? `${s.daysDone} / 7` : `−${left}`) : state === "none" ? "No goal set" : undefined;
+      s.done ? "reached" : days ? (over ? "missed" : "togo") : s.target == null || notEntered ? "none" : over ? "missed" : "togo";
+    const text = state === "togo" ? `${days ? 7 - s.daysDone : fmtInt(left)} to go` : state === "missed" ? (days ? `${s.daysDone} / 7` : `−${fmtInt(left)}`)
+      : state === "none" ? (notEntered ? "Not entered" : "No goal set") : undefined;
     const typed = !fromSprint && (t.source === "following" || t.source === "pitches" || leads);
     return (
-      <div key={t.id} style={{ display: "grid", gridTemplateColumns: GRID, alignItems: "center", columnGap: 8, padding: "0 12px", minHeight: 42, borderTop: "1px solid #f0ece7", fontSize: 13 }}>
+      <div key={t.id} style={{ display: "grid", gridTemplateColumns: GRID, alignItems: "center", columnGap: GAP, padding: "0 12px", minHeight: 42, borderTop: "1px solid #f0ece7", fontSize: 13 }}>
         <span style={{ display: "flex", alignItems: "center", gap: 6, color: s.done ? C.muted : C.black }}><Ico d={ICON(t)} size={13} color={look.color} />{NAME(t)}</span>
         {days ? (
           <span style={{ gridColumn: "span 2", display: "flex", justifyContent: "space-between", gap: 2 }}>
@@ -152,10 +165,12 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
           </span>
         ) : (
           <>
-            {typed ? numField(s.actual, `${NAME(t)} this week`, v => quiet(planner.saveEntry(t.id, period, { actual: v }))) : plain(s.actual ?? 0)}
+            {followers ? numField(`${t.id}|done`, s.actual, "Followers this week", v => quiet(planner.saveSnapshot(acc, monday, { followers: v })))
+              : typed ? numField(`${t.id}|done`, s.actual, `${NAME(t)} this week`, v => quiet(planner.saveEntry(t.id, period, { actual: v })))
+              : plain(s.actual ?? 0)}
             {leads ? plain("–", true)
               : fromSprint ? plain(s.target)
-              : editGoals ? numField(s.target, `Goal for ${NAME(t)}`, v => quiet(planner.saveEntry(t.id, period, { target: v })), true)
+              : editGoals ? numField(`${t.id}|goal`, s.target, `Goal for ${NAME(t)}`, v => quiet(planner.saveEntry(t.id, period, { target: v })), true)
               : plain(s.target, s.target == null)}
           </>
         )}
@@ -166,22 +181,17 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     );
   };
 
-  // followers: the outcome of following — typed or read from a screenshot with the Prompt; no goal
+  // followers: has its own goal line once the SQL added it; until then this line
+  // (typed, no goal, +/− vs last week) — the number is the same snapshot either way
+  const hasFollowers = goals.some(t => t.source === "followers");
   const sn = planner.snaps[snapKey(acc, monday)];
   const prevSn = planner.snaps[snapKey(acc, addDays(monday, -7))];
   const fDiff = sn?.followers != null && prevSn?.followers != null ? sn.followers - prevSn.followers : null;
-  const copyPrompt = async () => {
-    const ok = await copyText(snapshotPrompt(acc, monday, planner.loginEmail));
-    setToast(ok ? "Prompt copied ✓ — paste it into Claude with a profile screenshot" : "Couldn't copy");
-  };
   const followersRow = (
-    <div key="followers" style={{ display: "grid", gridTemplateColumns: GRID, alignItems: "center", columnGap: 8, padding: "0 12px", minHeight: 42, borderTop: "1px solid #f0ece7", fontSize: 13 }}>
+    <div key="followers" style={{ display: "grid", gridTemplateColumns: GRID, alignItems: "center", columnGap: GAP, padding: "0 12px", minHeight: 42, borderTop: "1px solid #f0ece7", fontSize: 13 }}>
       <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Ico d={IC.userPlus} size={13} color={look.color} />Followers</span>
-      {numField(sn?.followers ?? null, "Followers this week", v => quiet(planner.saveSnapshot(acc, monday, { followers: v })))}
-      <button onClick={copyPrompt} aria-label="Copy the prompt for a profile screenshot" title="Prompt: Claude reads followers and following from a screenshot"
-        style={{ height: 26, justifySelf: "end", padding: "0 6px", border: `1px solid ${C.rule}`, borderRadius: 2, background: C.white, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontFamily: SANS, fontSize: 9, letterSpacing: "0.08em", color: C.black }}>
-        <Ico d={IC.copy} size={11} />PROMPT
-      </button>
+      {numField(`followers|${acc}`, sn?.followers ?? null, "Followers this week", v => quiet(planner.saveSnapshot(acc, monday, { followers: v })))}
+      {plain("–", true)}
       <span style={{ textAlign: "right" as const, fontSize: 12, color: fDiff == null ? C.light : fDiff >= 0 ? C.green : C.red }}>{fDiff == null ? "" : `${fDiff >= 0 ? "+" : "−"}${fmtInt(Math.abs(fDiff))}`}</span>
     </div>
   );
@@ -194,7 +204,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     return (
       <div key="kits">
         <button onClick={() => setKitsOpen(o => !o)} aria-expanded={kitsOpen}
-          style={{ width: "100%", display: "grid", gridTemplateColumns: GRID, alignItems: "center", columnGap: 8, padding: "0 12px", minHeight: 42, border: "none", borderTop: "1px solid #f0ece7", background: C.white, cursor: "pointer", fontFamily: SANS, fontSize: 13, textAlign: "left" as const, color: C.black }}>
+          style={{ width: "100%", display: "grid", gridTemplateColumns: GRID, alignItems: "center", columnGap: GAP, padding: "0 12px", minHeight: 42, border: "none", borderTop: "1px solid #f0ece7", background: C.white, cursor: "pointer", fontFamily: SANS, fontSize: 13, textAlign: "left" as const, color: C.black }}>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Ico d={IC.copy} size={13} color={look.color} />Kits</span>
           <span style={{ gridColumn: "span 2", fontSize: 12, color: waiting.length ? C.amber : C.muted }}>{waiting.length ? `${waiting.length} ${waiting.length === 1 ? "piece" : "pieces"} waiting` : "Nothing waiting"} <Ico d={kitsOpen ? IC.up : IC.down} size={11} /></span>
           <span style={{ display: "flex", justifyContent: "flex-end" }}>{s.done ? <ResultMark state="reached" /> : null}</span>
@@ -237,13 +247,13 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
             {editGoals ? "Done" : <><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.black} strokeWidth="2" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" /></svg>Edit goals</>}
           </button>
         </span>)}
-      <div style={{ display: "grid", gridTemplateColumns: GRID, columnGap: 8, padding: "0 12px", minHeight: 24, alignItems: "center", background: "#fcfbf9", fontSize: 9, letterSpacing: "0.1em", color: C.muted }}>
-        <span /><span style={{ textAlign: "right" as const, paddingRight: 8 }}>DONE</span>
-        <span style={{ textAlign: "right" as const, paddingRight: 8, display: "inline-flex", justifyContent: "flex-end", alignItems: "center", gap: 3, color: editGoals ? look.color : C.muted }}>{!editGoals && lock}GOAL</span><span />
+      <div style={{ display: "grid", gridTemplateColumns: GRID, columnGap: GAP, padding: "0 12px", minHeight: 24, alignItems: "center", background: "#fcfbf9", fontSize: 9, letterSpacing: "0.1em", color: C.muted }}>
+        <span /><span style={{ textAlign: "right" as const, paddingRight: PAD + 1 }}>DONE</span>
+        <span style={{ textAlign: "right" as const, paddingRight: PAD + 1, display: "inline-flex", justifyContent: "flex-end", alignItems: "center", gap: 3, color: editGoals ? look.color : C.muted }}>{!editGoals && lock}GOAL</span><span />
       </div>
       {goals.length === 0 && <p style={{ fontSize: 13, color: C.muted, margin: 0, padding: "10px 12px" }}>No goals for this account yet.</p>}
-      {goals.flatMap(t => (t.source === "following" ? [goalRow(t), followersRow] : [goalRow(t)]))}
-      {!goals.some(t => t.source === "following") && followersRow}
+      {goals.flatMap(t => (t.source === "following" && !hasFollowers ? [goalRow(t), followersRow] : [goalRow(t)]))}
+      {!hasFollowers && !goals.some(t => t.source === "following") && followersRow}
       {kitsRow}
       {checkNote}
     </div>
@@ -270,7 +280,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     const row = (label: string, key: "p" | "f", target: number | null) => (
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 56px 44px 72px", alignItems: "center", columnGap: 8, padding: "0 12px", minHeight: 42, borderTop: "1px solid #f0ece7", fontSize: 13 }}>
         <span>{label} {isToday ? "today" : <span style={{ color: C.muted }}>· {dayLabel(day)}</span>}</span>
-        {numField(v[key] ?? null, `${label} ${isToday ? "today" : dayLabel(day)}`, val => saveDay(sp, day, key, val))}
+        {numField(`${sp.id}|${day}|${key}`, v[key] ?? null, `${label} ${isToday ? "today" : dayLabel(day)}`, val => saveDay(sp, day, key, val))}
         <span style={{ fontSize: 13 }}>/ {target ?? "–"}</span>
         <span style={{ display: "flex", justifyContent: "flex-end" }}>{mark(v[key], target)}</span>
       </div>
@@ -339,14 +349,11 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Manager</h2>
-        <GuideBtn on={guide.open} onClick={guide.toggle} />
-      </div>
-      <Subtitle acc={acc} text="Manager's workspace" />
+      <TabTitle title="Manager" acc={acc} onAccount={onAccount} isMobile={isMobile} right={<GuideBtn on={guide.open} onClick={guide.toggle} />} />
+      <Subtitle text="Manager's workspace" />
       {guide.open && <GuideCard onClose={guide.close} steps={[
         "Tick Engaging every day you engage.",
-        "Type Following, Followers, Pitches and Leads anytime during the week, by Sunday at the latest — or use Prompt with a profile screenshot for followers and following. New emails count by themselves.",
+        "Type Following, Followers, Pitches and Leads anytime during the week, by Sunday at the latest. New emails count by themselves.",
         stage2 ? "In a sales sprint, type the pitches and follow-ups each day. At the end: End & review." : "Goals are set with Edit goals, usually at the check-in.",
       ]} />}
       <div style={{ marginTop: 12, maxWidth: isMobile ? "none" : 420 }}><Toolbar monday={monday} setMonday={setMonday} isMobile={true} /></div>
@@ -369,9 +376,6 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
         </>
       )}
 
-      {toast && createPortal(
-        <div role="status" style={{ position: "fixed", left: "50%", bottom: "calc(84px + env(safe-area-inset-bottom))", transform: "translateX(-50%)", zIndex: Z.toast, background: C.black, color: C.white, fontFamily: SANS, fontSize: 12, padding: "9px 14px", borderRadius: 2, maxWidth: "calc(100vw - 32px)" }}>{toast}</div>,
-        document.body)}
       {sprintWin && (
         <SprintWindow key={`${sprintWin.id || "new"}-${sprintWin.review ? "r" : ""}`} planner={planner} sprintId={sprintWin.id} review={sprintWin.review} isMobile={isMobile} onClose={() => setSprintWin(null)}
           draft={sprintWin.acc ? { account: sprintWin.acc, startOn: thisMonday(), endOn: addDays(thisMonday(), sprintW * 7 - 1), focusCategory: "", focusTier: "now", pitchGoal: null, followUpGoal: null, review: "" } : undefined} />

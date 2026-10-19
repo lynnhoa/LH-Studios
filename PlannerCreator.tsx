@@ -21,7 +21,7 @@ import {
 import type { Account, Item, ItemList, Task } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
-import { Ico, IC, Subtitle, ItemWindow, InlineText, GoalNum, useGuide, GuideBtn, GuideCard, ResultMark } from "./PlannerWindows";
+import { Ico, IC, Subtitle, TabTitle, ItemWindow, InlineText, GoalNum, useGuide, GuideBtn, GuideCard, ResultMark } from "./PlannerWindows";
 import { showUndo, XBtn } from "./undo";
 
 const microLabel: any = { fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted };
@@ -38,12 +38,13 @@ interface PlannerCreatorProps {
   monday:    string;
   setMonday: (m: string) => void;
   isMobile:  boolean;
+  onAccount?: (a: Account) => void;
   openCatalog?: () => void;
   openTab?:  (tab: string, anchor?: string) => void;
   openOutreach?: () => void;
 }
 
-export default function PlannerCreator({ planner, view, isMobile }: PlannerCreatorProps) {
+export default function PlannerCreator({ planner, view, isMobile, onAccount }: PlannerCreatorProps) {
   const { tasks, stages, items, loading, loadError } = planner;
   const [open, setOpen]       = useState<string | null>(null);
   const [show, setShow]       = useState<Show>("all");
@@ -277,11 +278,8 @@ export default function PlannerCreator({ planner, view, isMobile }: PlannerCreat
   return (
     <div>
       <style>{`.lh-prow:hover { background: rgba(0,0,0,0.018); }`}</style>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Creator</h2>
-        <GuideBtn on={guide.open} onClick={guide.toggle} />
-      </div>
-      <Subtitle acc={acc} text={`Creator's workspace · week ${isoWeek(now)}`} />
+      <TabTitle title="Creator" acc={acc} onAccount={onAccount} isMobile={isMobile} right={<GuideBtn on={guide.open} onClick={guide.toggle} />} />
+      <Subtitle text={`Creator's workspace · week ${isoWeek(now)}`} />
       {guide.open && <GuideCard onClose={guide.close} steps={[
         "Add ideas. Tap Plan to give one a date, and it moves to To shoot.",
         "On shooting day, open it for the storyline and clips, then tick the box: filmed.",

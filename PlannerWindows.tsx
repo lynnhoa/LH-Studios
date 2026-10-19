@@ -212,10 +212,45 @@ export function Toolbar({ monday, setMonday, isMobile, children }: {
 }
 
 // Under each tab title: the account you're working on · the week (or more)
-export const Subtitle = ({ acc, text }: { acc: Account; text: string }) => (
+export const Subtitle = ({ text }: { text: string }) => (
   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" as const }}>
-    <AccChip acc={acc} />
     <span style={{ ...microLabel, letterSpacing: "0.06em" }}>{text}</span>
+  </div>
+);
+
+// ── the account switch: @lynnhoa · @createbylynn, next to every tab title ─
+// One tap switches the whole Planner (remembered on this device, same as the
+// profile menu). A number still being typed is saved first, to the account it
+// was typed for — the field is left (blur) before the account changes.
+export const AccSwitch = ({ acc, onPick }: { acc: Account; onPick?: (a: Account) => void }) => (
+  <span role="group" aria-label="Account" style={{ display: "inline-flex", alignItems: "center", gap: 2, height: 28, padding: 2, boxSizing: "border-box" as const, border: `1px solid ${C.rule}`, borderRadius: 14, background: C.white, flexShrink: 0 }}>
+    {ACCOUNTS.map(a => {
+      const on = a.key === acc;
+      return (
+        <button key={a.key} type="button" aria-pressed={on}
+          onClick={() => {
+            if (on || !onPick) return;
+            const el = document.activeElement as HTMLElement | null;
+            if (el && el !== document.body && typeof el.blur === "function") el.blur();
+            onPick(a.key);
+          }}
+          style={{ height: 22, padding: "0 9px", borderRadius: 11, boxSizing: "border-box" as const, border: `1px solid ${on ? a.border : "transparent"}`, background: on ? a.bg : "transparent",
+            color: on ? a.color : C.muted, fontFamily: SANS, fontSize: 12, letterSpacing: "0.01em", lineHeight: 1, whiteSpace: "nowrap" as const, cursor: on ? "default" : "pointer" }}>
+          {a.label}
+        </button>
+      );
+    })}
+  </span>
+);
+
+// The title row of every Planner tab: title + account switch, extras (e.g. "?") on the right
+export const TabTitle = ({ title, acc, onAccount, isMobile, right }: { title: string; acc: Account; onAccount?: (a: Account) => void; isMobile: boolean; right?: any }) => (
+  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 12, flexWrap: "wrap" as const, rowGap: 6, minWidth: 0 }}>
+      <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>{title}</h2>
+      <AccSwitch acc={acc} onPick={onAccount} />
+    </div>
+    {right}
   </div>
 );
 
