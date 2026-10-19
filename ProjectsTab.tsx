@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef } from "react";
-import { C, SERIF, TYPE, expiryColor, expiryTint } from "./constants";
+import { C, SERIF, SANS, TYPE, expiryColor, expiryTint, PAL, STATUS_TONE, STATUS_NAME } from "./constants";
 import { fmt, fmtD, fmtE, today, addM, dLeft } from "./formatters";
 import { projectLicenses, ACTION_LABEL } from "./licenses";
 import { pdfFlow, finalizeQuestion } from "./docFlow";
@@ -15,10 +15,7 @@ import RenewalModal from "./RenewalModal";
 import ProductionSection from "./ProductionSection";
 import PDFModal from "./PDFModal";
 import type { DocAction } from "./PDFModal";
-import {
-  sortDocs, docLabel, currentContract, projectInvoice, monthlyInvoices, nextRetainerMonth,
-  renewalInvoice, amendmentDoc,
-} from "./docs";
+import { sortDocs, docLabel, currentContract, projectInvoice, monthlyInvoices, nextRetainerMonth, renewalInvoice, amendmentDoc, docsOf, isPaidInvoice, isOpenInvoice } from "./docs";
 import type { DocRecord } from "./types";
 
 // Document chip dot colour by status
@@ -546,9 +543,11 @@ export default function ProjectsTab({
 
   const done  = all.filter((pr: any) => pr.paid).sort((a: any, b: any) => String(b.date || "").localeCompare(String(a.date || "")));
 
-  const FILTERS = [["all","All"],["active","Active (signed)"],["production","Production"],["invoiced","Invoiced"],["contracted","Contracted"],["quoted","Quoted"],["lead","Leads"]];
+  const FILTERS = [["all","All"],["signed","Signed · not invoiced"],["active","Active (signed)"],["production","Production"],["invoiced","Invoiced"],["contracted","Contracted"],["quoted","Quoted"],["lead","Leads"]];
   const filteredActive = statusFilter === "all"
     ? active
+    : statusFilter === "signed"
+    ? active.filter((pr: any) => ["contracted","production"].includes(pr.status))
     : statusFilter === "active"
     ? active.filter((pr: any) => ["contracted","production","invoiced"].includes(pr.status))
     : active.filter((pr: any) => pr.status === statusFilter || (statusFilter === "quoted" && pr.status === "revised"));
@@ -560,33 +559,38 @@ export default function ProjectsTab({
 
   return (
     <div>
-      <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 12px", color: C.black }}>Projects</h2>
+      <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : TYPE.pageTitle.size, fontWeight: "normal", margin: 0, lineHeight: 1.1, color: C.black }}>Projects</h2>
+      {(() => {
+        const tone = PAL[statusFilter === "signed" || statusFilter === "active" ? "progress" : STATUS_TONE[statusFilter] || "neutral"];
+        // "signed, not invoiced": what's already invoiced on a project is taken off (same as the dashboard)
+        const open = (pr: any) => statusFilter !== "signed" ? (Number(pr.amount) || 0)
+          : Math.max(0, (Number(pr.amount) || 0) - docsOf(pr).filter((d: any) => d.kind === "invoice" && (isPaidInvoice(d) || isOpenInvoice(d))).reduce((m: number, d: any) => m + (Number(d.net) || 0), 0));
+        const sum = filteredActive.reduce((s: number, pr: any) => s + open(pr), 0);
+        const what = statusFilter === "all" ? "active" : statusFilter === "signed" ? "signed, not invoiced" : (FILTERS.find(f => f[0] === statusFilter)?.[1] || "").toLowerCase();
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8a847d", marginTop: 4, fontFamily: SANS }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: tone.mid, flexShrink: 0 }} />
+            {filteredActive.length} {what} · <span style={{ color: C.black, fontWeight: 500 }}>{fmt(sum)}</span>
+          </div>
+        );
+      })()}
 
-      {/* ── STATS BAR ── */}
-      <div style={{ display: "flex", gap: isMobile ? 10 : 16, flexWrap: "wrap" as const, marginBottom: 10, alignItems: "center" }}>
-        {[
-          { label: "Active",     val: active.length,          color: C.black },
-          { label: "Pipeline",   val: fmt(activeTotal),       color: C.amber },
-          { label: "Production", val: byStatus("production"), color: C.black },
-          { label: "Invoiced",   val: `${byStatus("invoiced")}${invoicedAmt > 0 ? ` · ${fmt(invoicedAmt)}` : ""}`, color: C.amber },
-          ...(!isMobile ? [{ label: "Quoted", val: byStatus("quoted") + byStatus("revised"), color: C.black }] : []),
-        ].map((item, i, arr) => (
-          <span key={item.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: TYPE.label.size, color: C.muted }}>
-              {item.label} <strong style={{ color: item.color, fontWeight: "500" }}>{item.val}</strong>
+      {/* ── FILTER (pill) + SORT ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, margin: "12px 0 4px" }}>
+        {(() => {
+          const t = PAL[statusFilter === "signed" || statusFilter === "active" ? "progress" : STATUS_TONE[statusFilter] || "neutral"];
+          const on = statusFilter !== "all";
+          return (
+            <span style={{ position: "relative", display: "inline-flex", alignItems: "center", height: 30, borderRadius: 15, border: `1px solid ${on ? t.fill : C.rule}`, background: on ? t.wash : C.white, color: on ? t.ink : "#4a4540", paddingLeft: 11, paddingRight: 28 }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: t.mid, marginRight: 7, flexShrink: 0 }} />
+              <select className="psel" value={statusFilter} onChange={(e: any) => setStatusFilter(e.target.value)} aria-label="Filter"
+                style={{ appearance: "none" as const, WebkitAppearance: "none" as const, border: "none", background: "transparent", color: "inherit", fontFamily: SANS, height: 28, padding: 0, cursor: "pointer", outline: "none" }}>
+                {FILTERS.map(([val, lbl]) => <option key={val} value={val}>{lbl}</option>)}
+              </select>
+              <span style={{ position: "absolute", right: 10, pointerEvents: "none" as const, fontSize: 10 }}>▾</span>
             </span>
-            {i < arr.length - 1 && <span style={{ color: C.light, fontSize: TYPE.label.size }}>·</span>}
-          </span>
-        ))}
-      </div>
-
-      {/* ── FILTER + SORT — standard list toolbar: text selects, top right ── */}
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 16 }}>
-        <TSelWrap>
-          <TSel value={statusFilter} onChange={(e: any) => setStatusFilter(e.target.value)}>
-            {FILTERS.map(([val, lbl]) => <option key={val} value={val}>{`Filter: ${lbl}`}</option>)}
-          </TSel>
-        </TSelWrap>
+          );
+        })()}
         <TSelWrap>
           <TSel value={sortOrder} onChange={(e: any) => setSortOrder(e.target.value)}>
             <option value="newest">Sort: Newest</option>
@@ -596,37 +600,51 @@ export default function ProjectsTab({
         </TSelWrap>
       </div>
 
-      {/* ── ACTIVE SECTION ── */}
+      {/* ── ACTIVE SECTION — grouped by stage ── */}
       {active.length > 0 && <>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 5 }}>
-          <span style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const, fontWeight: "500" }}>Active — {active.length}</span>
-          <span style={{ fontSize: TYPE.micro.size, color: C.black }}>{fmt(activeTotal)}</span>
-        </div>
         {!isMobile && (
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 110px 100px", padding: "4px 0 6px", borderBottom: `1px solid ${C.rule}` }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 110px 100px", padding: "8px 0 2px" }}>
             {["Client · Project", "Delivery", "Amount"].map((h, i) => (
               <span key={i} style={{ fontSize: TYPE.micro.size, letterSpacing: "0.07em", textTransform: "uppercase" as const, color: C.light, textAlign: i >= 1 ? "right" as const : "left" as const }}>{h}</span>
             ))}
           </div>
         )}
-        {isMobile && <div style={{ borderBottom: `1px solid ${C.rule}` }} />}
-        {filteredActive.map(pr => (
-          <ProjectRow
-            key={pr.id}
-            pr={pr}
-            clients={clients}
-            isMobile={isMobile}
-            isExpanded={expanded === pr.id}
-            onToggle={() => setExpanded(expanded === pr.id ? null : pr.id)}
-            clientsHook={clientsHook}
-            onRevise={onRevise}
-            onAmend={onAmend}
-            onGoToCalc={onGoToCalc}
-            rc={rc}
-            settings={settings}
-            onModalClosed={() => setScrollTrigger(t => t + 1)}
-          />
-        ))}
+        {["production", "contracted", "invoiced", "revised", "quoted", "lead"].map(st => {
+          const list = filteredActive.filter((pr: any) => pr.status === st);
+          if (!list.length) return null;
+          const t = PAL[STATUS_TONE[st] || "neutral"];
+          return (
+            <div key={st}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "14px 4px 6px", fontFamily: SANS }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "#8a847d" }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: t.mid }} />{STATUS_NAME[st] || st} · {list.length}
+                </span>
+                <span style={{ fontSize: 11, color: "#6b655e" }}>{fmt(list.reduce((s: number, pr: any) => s + (Number(pr.amount) || 0), 0))}</span>
+              </div>
+              <div style={{ background: C.white, border: "1px solid #efebe6", borderRadius: 12, overflow: "hidden", padding: "0 12px" }}>
+                <div style={{ marginBottom: -1 }}>
+                {list.map((pr: any) => (
+                  <ProjectRow
+                    key={pr.id}
+                    pr={pr}
+                    clients={clients}
+                    isMobile={isMobile}
+                    isExpanded={expanded === pr.id}
+                    onToggle={() => setExpanded(expanded === pr.id ? null : pr.id)}
+                    clientsHook={clientsHook}
+                    onRevise={onRevise}
+                    onAmend={onAmend}
+                    onGoToCalc={onGoToCalc}
+                    rc={rc}
+                    settings={settings}
+                    onModalClosed={() => setScrollTrigger(t => t + 1)}
+                  />
+                ))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
         {filteredActive.length === 0 && (
           <p style={{ fontSize: TYPE.subtext.size, color: C.light, padding: "20px 0" }}>No projects match this filter.</p>
         )}

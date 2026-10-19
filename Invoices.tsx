@@ -1,17 +1,19 @@
 // ─────────────────────────────────────────────────────────────
 // Invoices — every issued invoice (project, retainer month,
-// renewal, Storno), grouped by year/month. Preview, bulk PDF
-// download per month, CSV export.
-// filterTab prop: "unpaid" | "paid" | undefined (show all)
+// renewal, Storno). Chips All · Unpaid · Overdue · Paid, grouped by
+// month: the invoice date, or the PAID date in the Paid view (when
+// the money came in — same as the dashboard). Overdue first in a
+// month. Tap → preview. Export a year or month as PDF or CSV.
+// filterTab / focusMonth ("2026-10") come from a dashboard card.
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
-import { C, SANS, SERIF, TYPE } from "./constants";
+import { C, SANS, SERIF, TYPE, PAL } from "./constants";
 import { fmt, fmtD, today } from "./formatters";
-import { Segmented } from "./atoms";
+import { Ico, IC } from "./PlannerWindows";
 import PDFModal from "./PDFModal";
 import { downloadInvoiceReport } from "./InvoiceReport";
-import { invoiceRows, invoicesCsv, invoiceTypeLabel, invoicePeriods, STATUS_LABEL, isOpenInvoice, isPaidInvoice, isOverdue, MONTH_DE } from "./docs";
+import { invoiceRows, invoicesCsv, invoiceTypeLabel, invoicePeriods, isOpenInvoice, isPaidInvoice, isOverdue, paidDateOf, MONTH_DE } from "./docs";
 import type { InvoiceRow, InvoicePeriod } from "./docs";
 
 const MO_LONG = MONTH_DE;
@@ -28,9 +30,11 @@ interface InvoicesProps {
   settings:   any;
   isMobile:   boolean;
   filterTab?: "unpaid" | "paid" | "overdue";
+  focusMonth?: string | null;
 }
+type ToneSet = { fill: string; wash: string; mid: string; ink: string };
 
-export default function Invoices({ clients, settings, isMobile, filterTab }: InvoicesProps) {
+export default function Invoices({ clients, settings, isMobile, filterTab, focusMonth }: InvoicesProps) {
   const [preview,    setPreview]    = useState<InvoiceRow | null>(null);
   const [dropOpen,   setDropOpen]   = useState(false);
   const [bulkStatus, setBulkStatus] = useState<string | null>(null);
@@ -69,42 +73,87 @@ export default function Invoices({ clients, settings, isMobile, filterTab }: Inv
   };
   const downloadCsvFor = (p: InvoicePeriod) => { setDropOpen(false); setDlErr(null); downloadCsv(p.rows, fileFor(p)); };
 
-  // Group by year → month
-  const grouped: { year: number; months: { month: number; rows: InvoiceRow[] }[] }[] = [];
-  rows.forEach(r => {
-    let yg = grouped.find(g => g.year === r.year); if (!yg) { yg = { year: r.year, months: [] }; grouped.push(yg); }
-    let mg = yg.months.find(m => m.month === r.month); if (!mg) { mg = { month: r.month, rows: [] }; yg.months.push(mg); }
-    mg.rows.push(r);
+  // ── month groups (newest first; overdue → unpaid → the rest inside a month) ──
+  const dateOf = (r: InvoiceRow) => (st === "paid" ? paidDateOf(r.doc) || r.dateStr : r.dateStr);
+  const rank = (r: InvoiceRow) => (isOverdue(r.doc, todayStr) ? 0 : isOpenInvoice(r.doc) ? 1 : 2);
+  const groups: { key: string; year: number; month: number; rows: InvoiceRow[]; total: number }[] = [];
+  [...rows].sort((a, b) => dateOf(b).localeCompare(dateOf(a))).forEach(r => {
+    const ds = dateOf(r), key = ds.slice(0, 7);
+    let g = groups.find(x => x.key === key);
+    if (!g) { g = { key, year: parseInt(ds.slice(0, 4)) || 0, month: (parseInt(ds.slice(5, 7)) || 1) - 1, rows: [], total: 0 }; groups.push(g); }
+    g.rows.push(r); g.total += Number(r.doc.gross) || 0;
   });
+  groups.forEach(g => g.rows.sort((a, b) => rank(a) - rank(b) || dateOf(b).localeCompare(dateOf(a))));
 
-  const btnStyle: any = { height: 28, padding: "0 10px", border: `1px solid ${C.rule}`, borderRadius: 2, background: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.07em", color: C.muted, display: "flex", alignItems: "center", whiteSpace: "nowrap" as const };
-  const stCol = (st: string) => st === "paid" ? C.green : st === "cancelled" ? C.red : C.amber;
+  // a month bar tapped on the dashboard → scroll to that month
+  useEffect(() => {
+    if (!focusMonth) return;
+    const t = setTimeout(() => {
+      const el = document.getElementById(`inv-${focusMonth}`);
+      if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - (isMobile ? 110 : 80), behavior: "smooth" });
+    }, 150);
+    return () => clearTimeout(t);
+  }, [focusMonth, st]);
+
+  const toneOfF = (f: F): ToneSet => (f === "unpaid" ? PAL.waiting : f === "overdue" ? PAL.late : f === "paid" ? PAL.done : PAL.neutral);
+  const rowTone = (d: any): ToneSet => (d.subtype === "storno" || d.status === "cancelled" ? PAL.neutral : isPaidInvoice(d) ? PAL.done : isOverdue(d, todayStr) ? PAL.late : PAL.waiting);
+  const rowIcon = (d: any) => (isPaidInvoice(d) ? IC.checkCircle : isOverdue(d, todayStr) ? IC.alert : d.subtype === "storno" ? IC.file : IC.hourglass);
+  const daysLate = (due: string) => Math.max(1, Math.round((Date.parse(todayStr) - Date.parse(due)) / 864e5));
+  const tagText = (d: any) => d.subtype === "storno" ? "Storno" : d.status === "cancelled" ? "Cancelled" : isPaidInvoice(d) ? "Paid"
+    : isOverdue(d, todayStr) ? `Overdue · ${daysLate(d.dueDate)} ${daysLate(d.dueDate) === 1 ? "day" : "days"}` : "Unpaid";
+  const metaText = (r: InvoiceRow) => {
+    const d = r.doc;
+    const when = isPaidInvoice(d) && d.paidAt ? `paid ${fmtD(d.paidAt).slice(0, 6)}` : isOpenInvoice(d) && d.dueDate ? `due ${fmtD(d.dueDate).slice(0, 6)}` : fmtD(d.docDate);
+    const type = invoiceTypeLabel(d);
+    return [d.docNo, type !== "Project" ? type : null, when].filter(Boolean).join(" · ");
+  };
+  const shown = rows.reduce((s, r) => s + (Number(st === "paid" ? r.doc.net : r.doc.gross) || 0), 0);
+  const chip = (f: F, label: string) => {
+    const on = st === f, t = toneOfF(f);
+    return (
+      <button key={f} onClick={() => setSt(f)} aria-pressed={on}
+        style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 11px", borderRadius: 15, border: `1px solid ${on ? (f === "all" ? "#d9d3cc" : t.fill) : C.rule}`, background: on ? (f === "all" ? PAL.neutral.fill : t.wash) : C.white,
+          color: on ? (f === "all" ? C.black : t.ink) : "#4a4540", fontFamily: SANS, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" as const, flexShrink: 0 }}>
+        {f !== "all" && <span style={{ width: 7, height: 7, borderRadius: "50%", background: t.mid }} />}{label}
+        <span style={{ fontSize: 11, color: on ? (f === "all" ? "#6b655e" : t.ink) : C.muted }}>{count(f)}</span>
+      </button>
+    );
+  };
 
   if (preview) {
     return <PDFModal doc={preview.doc} settings={settings} client={preview.client} editable={false} onClose={() => setPreview(null)} />;
   }
 
+  const btnStyle: any = { height: 30, padding: "0 10px", border: `1px solid ${C.rule}`, borderRadius: 15, background: C.white, cursor: "pointer", fontFamily: SANS, fontSize: 11, color: C.black, display: "flex", alignItems: "center", whiteSpace: "nowrap" as const };
+  const ft = toneOfF(st);
+
   return (
-    <div>
-      {/* ── HEADER ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap" as const, gap: 8 }}>
-        <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: 0 }}>Invoices</h2>
-        <div style={{ position: "relative" }}>
+    <div style={{ fontFamily: SANS, color: C.black }}>
+      {/* ── HEADER: title, what's shown, export ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Invoices</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8a847d", marginTop: 4 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: ft.mid, flexShrink: 0 }} />
+            {rows.length} {st === "all" ? "" : st === "paid" ? "paid " : st === "overdue" ? "overdue " : "unpaid "}invoice{rows.length === 1 ? "" : "s"} · <span style={{ color: C.black, fontWeight: 500 }}>{fmt(shown)}</span>
+          </div>
+        </div>
+        <div style={{ position: "relative", flexShrink: 0 }}>
           {dropOpen && <div style={{ position: "fixed", inset: 0, zIndex: 199 }} onClick={() => setDropOpen(false)} />}
           <button
             onClick={() => { if (periods.length && !bulkStatus) setDropOpen(o => !o); }}
             disabled={!periods.length || !!bulkStatus}
-            title={periods.length ? "Download a year or month as PDF or CSV" : "No invoices yet"}
-            style={{ ...btnStyle, height: 36, padding: "0 14px", position: "relative", zIndex: 200, opacity: periods.length ? 1 : 0.4, cursor: periods.length && !bulkStatus ? "pointer" : "default", color: C.black }}>
-            {bulkStatus || (periods.length ? "Download ▾" : "No invoices yet")}
+            title={periods.length ? "Export a year or month as PDF or CSV" : "No invoices yet"}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 13px", borderRadius: 15, background: C.white, border: "1px solid #e6e1db", fontFamily: SANS, fontSize: 12, color: C.black, position: "relative", zIndex: 200, opacity: periods.length ? 1 : 0.45, cursor: periods.length && !bulkStatus ? "pointer" : "default" }}>
+            <Ico d={IC.download} size={14} />{bulkStatus || "Export"}
           </button>
           {dropOpen && (
-            <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, boxShadow: "0 4px 16px rgba(0,0,0,0.08)", minWidth: 250, zIndex: 200, maxHeight: 320, overflowY: "auto" }}>
+            <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: C.white, border: `1px solid ${C.rule}`, borderRadius: 12, boxShadow: "0 8px 24px rgba(26,26,26,0.10)", minWidth: 250, zIndex: 200, maxHeight: 320, overflowY: "auto", padding: "4px 0" }}>
               {periods.map((p, i) => (
-                <div key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: p.kind === "year" ? "9px 12px" : "6px 12px 6px 22px", borderTop: i > 0 && p.kind === "year" ? `1px solid ${C.rule}` : "none" }}>
-                  <span style={{ flex: 1, fontFamily: SANS, fontSize: TYPE.label.size, color: p.kind === "year" ? C.black : C.muted, fontWeight: p.kind === "year" ? 600 : 400 }}>{p.label}</span>
-                  <button onClick={() => downloadPdf(p)} style={{ ...btnStyle, height: 30 }}>PDF</button>
-                  <button onClick={() => downloadCsvFor(p)} style={{ ...btnStyle, height: 30 }}>CSV</button>
+                <div key={p.key} style={{ display: "flex", alignItems: "center", gap: 6, padding: p.kind === "year" ? "8px 12px" : "5px 12px 5px 22px", borderTop: i > 0 && p.kind === "year" ? "1px solid #f4f1ed" : "none" }}>
+                  <span style={{ flex: 1, fontSize: 12, color: p.kind === "year" ? C.black : C.muted, fontWeight: p.kind === "year" ? 500 : 400 }}>{p.label}</span>
+                  <button onClick={() => downloadPdf(p)} style={btnStyle}>PDF</button>
+                  <button onClick={() => downloadCsvFor(p)} style={btnStyle}>CSV</button>
                 </div>
               ))}
             </div>
@@ -112,55 +161,42 @@ export default function Invoices({ clients, settings, isMobile, filterTab }: Inv
         </div>
       </div>
 
-      <div style={{ marginBottom: 6 }}>
-        <Segmented<F> options={[["all", `All · ${count("all")}`], ["unpaid", `Unpaid · ${count("unpaid")}`], ["overdue", `Overdue · ${count("overdue")}`], ["paid", `Paid · ${count("paid")}`]]} value={st} onChange={setSt} />
+      <div style={{ display: "flex", gap: 6, marginTop: 12, overflowX: "auto" as const, paddingBottom: 2 }}>
+        {chip("all", "All")}{chip("unpaid", "Unpaid")}{chip("overdue", "Overdue")}{chip("paid", "Paid")}
       </div>
 
-      {dlErr && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "6px 0" }}>{dlErr}</p>}
-
+      {dlErr && <p style={{ fontSize: 12, color: C.red, margin: "8px 0 0" }}>{dlErr}</p>}
       {rows.length === 0 && (
-        <p style={{ fontSize: TYPE.label.size, color: C.muted }}>{allRows.length ? "No invoices in this view." : "No invoices yet. Invoices appear here once they are finalized."}</p>
+        <p style={{ fontSize: 13, color: C.muted, margin: "16px 4px" }}>{allRows.length ? "No invoices in this view." : "No invoices yet. They appear here once they're finalized."}</p>
       )}
 
-      {/* ── GROUPED LIST ── */}
-      {grouped.map(yg => (
-        <div key={yg.year}>
-          <div style={{ marginBottom: 8, marginTop: 18 }}>
-            <p style={{ fontSize: TYPE.subtext.size, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" as const, margin: 0, fontWeight: "600" }}>{yg.year}</p>
+      {/* ── MONTHS ── */}
+      {groups.map(g => (
+        <div key={g.key} id={`inv-${g.key}`}>
+          <div style={{ display: "flex", justifyContent: "space-between", margin: "14px 4px 6px", fontSize: 11, color: "#6b655e" }}>
+            <span style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "#8a847d" }}>{MO_LONG[g.month]} {g.year}</span>
+            <span>{fmt(g.total)}</span>
           </div>
-          {yg.months.map(mg => (
-            <div key={mg.month} style={{ marginBottom: 14 }}>
-              <div style={{ padding: "6px 0", borderBottom: `1px solid ${C.rule}` }}>
-                <p style={{ fontSize: TYPE.subtext.size, color: C.light, letterSpacing: "0.09em", textTransform: "uppercase" as const, margin: 0 }}>{MO_LONG[mg.month]} {yg.year}</p>
-              </div>
-              {mg.rows.map(r => {
-                const d = r.doc;
-                return (
-                  <div key={r.key} onClick={() => setPreview(r)}
-                    style={{ display: "flex", alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${C.rule}`, gap: 8, cursor: "pointer" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 7, flexWrap: "wrap" as const }}>
-                        <span style={{ fontSize: TYPE.label.size, color: C.black, fontWeight: "500" }}>{d.docNo}</span>
-                        <span style={{ fontSize: TYPE.subtext.size, color: C.muted }}>{r.cName}</span>
-                        <span style={{ fontSize: TYPE.subtext.size, color: C.light }}>·</span>
-                        <span style={{ fontSize: TYPE.subtext.size, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, maxWidth: isMobile ? 100 : 200 }}>{r.pr.name}</span>
-                      </div>
-                      <div style={{ display: "flex", gap: 6, marginTop: 3, flexWrap: "wrap" as const, alignItems: "center" }}>
-                        <span style={{ fontSize: TYPE.micro.size, color: C.light, letterSpacing: "0.07em" }}>{fmtD(d.docDate)}</span>
-                        <span style={{ fontSize: TYPE.micro.size, color: C.light }}>·</span>
-                        <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{invoiceTypeLabel(d)}</span>
-                        <span style={{ fontSize: TYPE.micro.size, color: stCol(d.status), border: `1px solid ${stCol(d.status)}`, padding: "1px 6px", borderRadius: 2, letterSpacing: "0.06em" }}>
-                          {STATUS_LABEL[d.status] || d.status}{d.paidAt ? ` · ${fmtD(d.paidAt)}` : ""}
-                        </span>
-                        {isOverdue(d, todayStr) && <span style={{ fontSize: TYPE.micro.size, color: C.red }}>overdue since {fmtD(d.dueDate)}</span>}
-                      </div>
-                    </div>
-                    <span style={{ fontFamily: SERIF, fontSize: TYPE.subtext.size, color: C.black, flexShrink: 0 }}>{fmt(d.gross)}</span>
+          <div style={{ background: C.white, border: "1px solid #efebe6", borderRadius: 12, overflow: "hidden" }}>
+            {g.rows.map((r, i) => {
+              const d = r.doc, t = rowTone(d);
+              return (
+                <div key={r.key} role="button" tabIndex={0} onClick={() => setPreview(r)} onKeyDown={(e) => { if (e.key === "Enter") setPreview(r); }}
+                  style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 54, padding: "7px 10px 7px 12px", borderTop: i ? "1px solid #f4f1ed" : "none", cursor: "pointer" }}>
+                  <span style={{ width: 30, height: 30, borderRadius: "50%", background: t.wash, color: t.ink, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={rowIcon(d)} size={15} /></span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{r.cName}<span style={{ color: C.muted }}> · {r.pr.name}</span></div>
+                    <div style={{ fontSize: 12, color: "#8a847d", marginTop: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{metaText(r)}</div>
                   </div>
-                );
-              })}
-            </div>
-          ))}
+                  <div style={{ textAlign: "right" as const, flexShrink: 0 }}>
+                    <div style={{ fontSize: 14, whiteSpace: "nowrap" as const }}>{fmt(d.gross)}</div>
+                    <span style={{ display: "inline-block", fontSize: 10, letterSpacing: "0.03em", padding: "2px 8px", borderRadius: 9, marginTop: 3, background: t.fill, color: t.ink, whiteSpace: "nowrap" as const }}>{tagText(d)}</span>
+                  </div>
+                  <Ico d={IC.right} size={15} color="#cfc9c2" />
+                </div>
+              );
+            })}
+          </div>
         </div>
       ))}
     </div>

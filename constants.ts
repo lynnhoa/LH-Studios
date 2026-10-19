@@ -20,7 +20,35 @@ export const TYPE = {
   micro:           { size: 10, font: SANS  },
 } as const;
 
+// ─── PALETTE (Gelato Days) — one colour = one meaning, all four apps ─
+//   waiting  butter     waiting · to go · unpaid · expiring · pitched · delivered
+//   progress blue       in progress · signed (contracted, production) · replied · created
+//   done     pistachio  done · paid · reached · posted · gifted / deal · active license
+//   late     pink       late · overdue · missed · expired · follow-up overdue
+//   lynnhoa  lavender   @lynnhoa          createbylynn  peach  @createbylynn
+//   neutral  warm grey  not started · maybe (idea, lead, quoted, draft) · categories · who
+// fill = the pastel · wash = lighter (tiles, icon circles) · mid = dots, edges, bars
+// ink = text on fill / wash (the pastels are too light to read as text)
+export const PAL = {
+  waiting:      { fill: "#F9E1A8", wash: "#FCF0D3", mid: "#E9C46A", ink: "#7A5A12" },
+  progress:     { fill: "#BCD8EC", wash: "#DEECF6", mid: "#84B3D8", ink: "#2D5878" },
+  done:         { fill: "#D6E5BD", wash: "#EBF2DE", mid: "#9DBE78", ink: "#415E24" },
+  late:         { fill: "#FFCBE1", wash: "#FFE5F0", mid: "#F49AC1", ink: "#9A3463" },
+  lynnhoa:      { fill: "#DCCCEC", wash: "#EEE6F6", mid: "#B49ADB", ink: "#5A4291" },
+  createbylynn: { fill: "#FFDAB4", wash: "#FFEDDA", mid: "#F5B27A", ink: "#8A4A1C" },
+  neutral:      { fill: "#F1EEEA", wash: "#F6F4F1", mid: "#C9C2BA", ink: "#6B655E" },
+} as const;
+export type Tone = keyof typeof PAL;
+
+// ─── SPACING · CORNERS · DEPTH (compact, not cramped) ────────
+// 12 inside cards · 8 between cards · 14 before a section
+export const SPACE  = { xs: 4, sm: 8, md: 12, sec: 14, lg: 16 } as const;
+export const RADIUS = { tile: 12, card: 14, pill: 15 } as const;
+export const SHADOW = { card: "0 6px 18px rgba(26,26,26,0.05)" } as const;
+
 // ─── COLORS ──────────────────────────────────────────────────
+// amber / red / green / blue = the readable text shades of the palette
+// (waiting · late · done · in progress)
 export const C = {
   bg:     "#faf9f7",
   black:  "#1a1a1a",
@@ -28,30 +56,35 @@ export const C = {
   light:  "#b8b3ad",
   rule:   "#e8e4df",
   white:  "#ffffff",
-  amber:  "#c49a6c",
-  red:    "#c47b7b",
-  green:  "#7aaa7a",
-  blue:   "#7a9ec4",
+  amber:  "#B38A2E",
+  red:    "#C2537F",
+  green:  "#6E9A4E",
+  blue:   "#4F86B8",
 } as const;
 
 // ─── TINTS (backgrounds for status boxes) ────────────────────
 export const TINT = {
-  amber: "#fdf6ee",
-  red:   "#fdf0f0",
-  green: "#f0f5f0",
-  rose:  "#b8a090",   // revised
-  sage:  "#8fa89a",   // production
+  amber: PAL.waiting.wash,
+  red:   PAL.late.wash,
+  green: PAL.done.wash,
+  rose:  PAL.neutral.mid,    // revised (still a quote)
+  sage:  PAL.progress.mid,   // production (in progress)
 } as const;
 
 // ─── PROJECT STATUS — one colour + one name everywhere ───────
 export const STATUS_COLOR: Record<string, string> = {
   lead:       C.light,
   quoted:     C.light,
-  revised:    TINT.rose,
-  contracted: C.muted,
-  production: TINT.sage,
+  revised:    "#9a9188",
+  contracted: C.blue,
+  production: C.blue,
   invoiced:   C.amber,
   paid:       C.green,
+};
+// the palette tone of each project status (pastel badges, cards)
+export const STATUS_TONE: Record<string, Tone> = {
+  lead: "neutral", quoted: "neutral", revised: "neutral",
+  contracted: "progress", production: "progress", invoiced: "waiting", paid: "done",
 };
 export const STATUS_NAME: Record<string, string> = {
   lead: "Lead", quoted: "Quoted", revised: "Revised", contracted: "Contracted",
@@ -61,10 +94,10 @@ export const STATUS_NAME: Record<string, string> = {
 // ─── CATEGORIES — one label + one colour everywhere ──────────
 // key = quote line `cat`; the workspace uses "Influencer" / "UGC" / "Editorial"
 export const CATEGORY: Record<string, { label: string; long: string; color: string; bg: string; border: string }> = {
-  influencer: { label: "Brand Collab", long: "Brand Collaboration", color: "#6a6aaa", bg: "#f0f0f5", border: "#c8c8e0" },
-  ugc:        { label: "UGC",          long: "UGC",                 color: C.amber,    bg: "#fdf5ee", border: "#e8d8c8" },
-  editorial:  { label: "Editorial",    long: "Editorial",           color: C.green,    bg: "#f0f5f0", border: "#b8d4b8" },
-  hotels:     { label: "Hotels",       long: "Hotels & Hospitality",color: C.blue,     bg: "#eef3f8", border: "#c8d6e6" },
+  influencer: { label: "Brand Collab", long: "Brand Collaboration", color: PAL.neutral.ink, bg: PAL.neutral.fill, border: "#e2ddd6" },
+  ugc:        { label: "UGC",          long: "UGC",                 color: PAL.neutral.ink, bg: PAL.neutral.fill, border: "#e2ddd6" },
+  editorial:  { label: "Editorial",    long: "Editorial",           color: PAL.neutral.ink, bg: PAL.neutral.fill, border: "#e2ddd6" },
+  hotels:     { label: "Hotels",       long: "Hotels & Hospitality",color: PAL.neutral.ink, bg: PAL.neutral.fill, border: "#e2ddd6" },
 };
 const CAT_ALIAS: Record<string, string> = {
   influencer: "influencer", "brand collab": "influencer", collab: "influencer", "brand collaboration": "influencer",

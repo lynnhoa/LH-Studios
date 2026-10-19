@@ -9,14 +9,14 @@
 export type OutreachCategory = "fashion" | "beauty" | "agency" | "ugc" | "hotel" | "restaurants" | "events" | "others";
 
 export const OUTREACH_CATEGORIES: { key: OutreachCategory; label: string; color: string; bg: string; border: string }[] = [
-  { key: "fashion",     label: "Fashion",     color: "#6a6aaa", bg: "#f0f0f5", border: "#c8c8e0" },
-  { key: "beauty",      label: "Beauty",      color: "#a8804f", bg: "#fdf5ee", border: "#e8d8c8" },
-  { key: "agency",      label: "Agency",      color: "#6b655e", bg: "#f3f1ee", border: "#e8e4df" },
-  { key: "ugc",         label: "UGC",         color: "#9a6a8a", bg: "#f7f0f4", border: "#e4cfdc" },
-  { key: "hotel",       label: "Hotel",       color: "#5a7a9a", bg: "#eef3f8", border: "#c8d6e6" },
-  { key: "restaurants", label: "Restaurants", color: "#6f8f6f", bg: "#f0f5f0", border: "#b8d4b8" },
-  { key: "events",      label: "Events",      color: "#5f8580", bg: "#eef5f4", border: "#c6dcd9" },
-  { key: "others",      label: "Others",      color: "#888888", bg: "#f5f4f2", border: "#e0dcd6" },
+  { key: "fashion",     label: "Fashion",     color: "#6B655E", bg: "#F1EEEA", border: "#e2ddd6" },
+  { key: "beauty",      label: "Beauty",      color: "#6B655E", bg: "#F1EEEA", border: "#e2ddd6" },
+  { key: "agency",      label: "Agency",      color: "#6B655E", bg: "#F1EEEA", border: "#e2ddd6" },
+  { key: "ugc",         label: "UGC",         color: "#6B655E", bg: "#F1EEEA", border: "#e2ddd6" },
+  { key: "hotel",       label: "Hotel",       color: "#6B655E", bg: "#F1EEEA", border: "#e2ddd6" },
+  { key: "restaurants", label: "Restaurants", color: "#6B655E", bg: "#F1EEEA", border: "#e2ddd6" },
+  { key: "events",      label: "Events",      color: "#6B655E", bg: "#F1EEEA", border: "#e2ddd6" },
+  { key: "others",      label: "Others",      color: "#6B655E", bg: "#F1EEEA", border: "#e2ddd6" },
 ];
 export const catOf = (k: string) => OUTREACH_CATEGORIES.find(c => c.key === k) || OUTREACH_CATEGORIES.find(c => c.key === "others")!;
 

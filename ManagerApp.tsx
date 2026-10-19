@@ -75,6 +75,8 @@ export default function ManagerApp({
   const [fromDrill,       setFromDrill]       = useState<string | null>(null);
   const [dashDrill,       setDashDrill]       = useState<any>(null);
   const [invoiceFilter,   setInvoiceFilter]   = useState<any>(null);   // from a dashboard tile
+  const [invoiceMonth,    setInvoiceMonth]    = useState<string | null>(null);   // a month bar ("2026-10")
+  const [licenseFilter,   setLicenseFilter]   = useState<any>(null);
   const [projectFilter,   setProjectFilter]   = useState<string | null>(null);
   const [dashReset,       setDashReset]       = useState(0);
 
@@ -94,7 +96,7 @@ export default function ManagerApp({
   };
 
   // Navigation by the user (tabs, menu) also ends a dashboard drill context
-  const navTo = (n: number) => { setFromDrill(null); setInvoiceFilter(null); setProjectFilter(null); goTo(n); };
+  const navTo = (n: number) => { setFromDrill(null); setInvoiceFilter(null); setInvoiceMonth(null); setLicenseFilter(null); setProjectFilter(null); goTo(n); };
 
   const goToDash = () => {
     setFromDrill(null);
@@ -279,9 +281,9 @@ export default function ManagerApp({
             clients={clientsHook.clients}
             isMobile={isMobile}
             settings={settings}
-            onOpenInvoices={(f: any) => { setInvoiceFilter(f); goTo(NAV_INVOICES); }}
+            onOpenInvoices={(f: any, month?: string) => { setInvoiceFilter(f); setInvoiceMonth(month || null); goTo(NAV_INVOICES); }}
             onOpenProjects={(f: string) => { setProjectFilter(f); goTo(NAV_PROJECTS); }}
-            onOpenLicenses={() => goTo(NAV_LICENSES)}
+            onOpenLicenses={(f?: any) => { setLicenseFilter(f || null); goTo(NAV_LICENSES); }}
           />
         )}
 
@@ -355,6 +357,7 @@ export default function ManagerApp({
             settings={settings}
             isMobile={isMobile}
             filterTab={invoiceFilter || undefined}
+            focusMonth={invoiceMonth}
           />
         )}
 
@@ -366,6 +369,7 @@ export default function ManagerApp({
             rc={rateCardsHook.rc}
             isMobile={isMobile}
             onAfterRenew={(pid: string) => goToProjects(pid)}
+            initialFilter={licenseFilter}
           />
         )}
 

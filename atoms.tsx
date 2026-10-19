@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, expiryColor, expiryTint, Z, SIZE } from "./constants";
+import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, expiryColor, expiryTint, Z, SIZE, PAL, STATUS_TONE } from "./constants";
 import { fmtD, dLeft, today, parseDE, fmtNumDE } from "./formatters";
 import { saveStatus } from "./saveStatus";
 
@@ -156,10 +156,10 @@ export const Pill = ({ on, onClick, children, size }: any) => (
     onClick={onClick}
     style={{
       padding:       size === "sm" ? "0 9px" : "0 11px",
-      border:        `1px solid ${on ? C.black : C.rule}`,
-      background:    on ? C.black : "transparent",
-      color:         on ? C.white : C.muted,
-      borderRadius:  2,
+      border:        `1px solid ${on ? "#d9d3cc" : C.rule}`,
+      background:    on ? PAL.neutral.fill : C.white,
+      color:         on ? C.black : C.muted,
+      borderRadius:  15,
       cursor:        "pointer",
       fontFamily:    SANS,
       fontSize:      TYPE.micro.size,
@@ -388,16 +388,16 @@ export const scol = (s: string): string => STATUS_COLOR[String(s || "").toLowerC
 // ─── STATUS BADGE ────────────────────────────────────────────
 export const StatusBadge = ({ status }: { status: string }) => {
   const key = String(status || "").toLowerCase();
-  const col = scol(key);
+  const t = PAL[STATUS_TONE[key] || "neutral"];
   return (
     <span
       style={{
         fontSize:      TYPE.micro.size,
         fontFamily:    SANS,
-        color:         col,
-        border:        `1px solid ${col}`,
+        color:         t.ink,
+        background:    t.fill,
         padding:       "2px 8px",
-        borderRadius:  2,
+        borderRadius:  9,
         letterSpacing: "0.07em",
         textTransform: "uppercase" as const,
         whiteSpace:    "nowrap" as const,

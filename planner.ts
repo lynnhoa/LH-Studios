@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { ymd, parseYMD, monthStart, today, fmtD } from "./formatters";
+import { C, PAL } from "./constants";
 
 export type Account       = "lynnhoa" | "createbylynn";
 export type TaskAccount   = Account | "both";
@@ -149,10 +150,10 @@ export interface Note {
 // ── Accounts (chip colours match Outreach: Fashion / Beauty) ──
 export interface Look { label: string; color: string; bg: string; border: string; }
 export const ACCOUNTS: (Look & { key: Account })[] = [
-  { key: "lynnhoa",      label: "@lynnhoa",      color: "#6a6aaa", bg: "#f0f0f5", border: "#c8c8e0" },
-  { key: "createbylynn", label: "@createbylynn", color: "#a8804f", bg: "#fdf5ee", border: "#e8d8c8" },
+  { key: "lynnhoa",      label: "@lynnhoa",      color: PAL.lynnhoa.ink,      bg: PAL.lynnhoa.wash,      border: PAL.lynnhoa.fill },
+  { key: "createbylynn", label: "@createbylynn", color: PAL.createbylynn.ink, bg: PAL.createbylynn.wash, border: PAL.createbylynn.fill },
 ];
-export const BOTH_LOOK: Look = { label: "Both", color: "#6b655e", bg: "#f3f1ee", border: "#e8e4df" };
+export const BOTH_LOOK: Look = { label: "Both", color: PAL.neutral.ink, bg: PAL.neutral.fill, border: "#e2ddd6" };
 export const accLook = (k: TaskAccount): Look => ACCOUNTS.find(a => a.key === k) || BOTH_LOOK;
 
 export const PHASES: { key: Phase; label: string; section: string }[] = [
@@ -168,9 +169,10 @@ export const OWNERS: { key: Owner; label: string }[] = [
 // Who does it, by colour: manager blue-grey · creator mauve · both warm grey
 // (account colours stay lavender for @lynnhoa and peach for @createbylynn)
 export const OWNER_LOOK: Record<Owner, Look> = {
-  manager: { label: "Manager", color: "#5a7a9a", bg: "#eef3f8", border: "#c8d6e6" },
-  creator: { label: "Creator", color: "#9a6a8a", bg: "#f7f0f4", border: "#e4cfdc" },
-  both:    { label: "Both",    color: "#6b655e", bg: "#f3f1ee", border: "#e8e4df" },
+  // who does it isn't a status: no colour of its own (the word says it)
+  manager: { label: "Manager", color: PAL.neutral.ink, bg: PAL.neutral.fill, border: "#e2ddd6" },
+  creator: { label: "Creator", color: PAL.neutral.ink, bg: PAL.neutral.fill, border: "#e2ddd6" },
+  both:    { label: "Both",    color: PAL.neutral.ink, bg: PAL.neutral.fill, border: "#e2ddd6" },
 };
 export const RHYTHMS: { key: Rhythm; label: string }[] = [
   { key: "once",    label: "Once" },
@@ -200,15 +202,8 @@ export const FORMATS: Record<Account, string[]> = {
   lynnhoa:      ["Fashion editorial", "Branded content"],
   createbylynn: ["Product video", "Problem → solution", "Beauty editorial", "Brand content"],
 };
-const FORMAT_LOOK: Record<string, Look> = {
-  "Product video":      { label: "Product video",      color: "#5a7a9a", bg: "#eef3f8", border: "#c8d6e6" },
-  "Problem → solution": { label: "Problem → solution", color: "#6f8f6f", bg: "#f0f5f0", border: "#b8d4b8" },
-  "Beauty editorial":   { label: "Beauty editorial",   color: "#6a6aaa", bg: "#f0f0f5", border: "#c8c8e0" },
-  "Fashion editorial":  { label: "Fashion editorial",  color: "#9a6a8a", bg: "#f7f0f4", border: "#e4cfdc" },
-  "Brand content":      { label: "Brand content",      color: "#6b655e", bg: "#f3f1ee", border: "#e8e4df" },
-  "Branded content":    { label: "Branded content",    color: "#6b655e", bg: "#f3f1ee", border: "#e8e4df" },
-};
-export const formatLook = (f: string): Look => FORMAT_LOOK[f] || { label: f || CLASSIC, color: "#888888", bg: "#f5f4f2", border: "#e0dcd6" };
+const FORMAT_LOOK: Record<string, Look> = {};   // formats are categories: neutral, the word says it
+export const formatLook = (f: string): Look => FORMAT_LOOK[f] || { label: f || CLASSIC, color: PAL.neutral.ink, bg: PAL.neutral.fill, border: "#e2ddd6" };
 
 // Order in a list: shot → planned (soonest first) → ideas → posted → in the kit (newest first)
 const RANK: Record<ItemStatus, number> = { shot: 0, planned: 1, idea: 2, posted: 3, in_kit: 4 };
@@ -272,7 +267,7 @@ export const monthGoalPatch = (t: Task, e: Entry | undefined, acc: Account, v: n
 // Reached ✓ (green) · "2 to go" (amber, week still running) ·
 // Not reached (muted red, week over) · No number (grey, no target)
 export type Tone = "ok" | "attn" | "miss" | "none";
-export const TONE: Record<Tone, string> = { ok: "#7aaa7a", attn: "#c49a6c", miss: "#c47b7b", none: "#b8b3ad" };
+export const TONE: Record<Tone, string> = { ok: C.green, attn: C.amber, miss: C.red, none: C.light };
 export interface GoalStatus { text: string; tone: Tone; }
 export function goalStatus(t: Task, st: RowState, monday: string): GoalStatus | null {
   const kind = rowKind(t);
