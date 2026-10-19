@@ -228,7 +228,7 @@ function RateCardPreview({ card, settings, onSave, onClose }: any) {
             <I value={staged.sub || ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, sub: e.target.value }))} s={{ marginBottom: 10 }} />
             <Lbl>Fine Print</Lbl>
             <textarea value={staged.fine || ""} onChange={(e: any) => setStaged((p: any) => ({ ...p, fine: e.target.value }))}
-              style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: TYPE.sectionHeading.size, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 96 }} />
+              style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: TYPE.sectionHeading.size, color: C.black, borderRadius: 10, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 96 }} />
             <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "12px 0 0", lineHeight: 1.6 }}>Items, prices and percentages are edited in the catalog (Edit).</p>
           </>
         }
@@ -302,7 +302,7 @@ function AddCardModal({ rc, settings, onSave, onClose }: any) {
         const optionKind = kind === "usage" || kind === "exclusivity";
         const lib = optionKind ? [] : library(kind).filter((it: any) => !(sec.items || []).some((x: any) => x.n === it.n && x.p === it.p));
         return (
-          <div key={sec.id || si} style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "10px 12px", marginBottom: 10, background: C.white }}>
+          <div key={sec.id || si} style={{ border: `1px solid ${C.rule}`, borderRadius: 10, padding: "10px 12px", marginBottom: 10, background: C.white }}>
             <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
               <I value={sec.t} onChange={(e: any) => upSec(si, s => ({ ...s, t: e.target.value }))} s={{ flex: 1 }} />
               <button onClick={() => setCard((c: any) => ({ ...c, sections: c.sections.filter((_: any, i: number) => i !== si) }))} title="Remove section" style={{ background: "none", border: "none", cursor: "pointer", color: C.red, fontSize: TYPE.body.size, minWidth: 32, minHeight: 32 }}>✕</button>
@@ -402,7 +402,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, i
     <button onClick={onClick} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, padding: "17px 0", lineHeight: 1, flexShrink: 0 }}>{children}</button>
   );
   const CompactB = ({ onClick, children }: any) => (
-    <button onClick={onClick} style={{ background: C.black, color: C.white, border: "none", borderRadius: 2, minHeight: 36, padding: "0 16px", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.10em", textTransform: "uppercase" as const, flexShrink: 0 }}>{children}</button>
+    <button onClick={onClick} style={{ background: C.black, color: C.white, border: "none", borderRadius: 10, minHeight: 36, padding: "0 16px", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.10em", textTransform: "uppercase" as const, flexShrink: 0 }}>{children}</button>
   );
   const smallX = (onClick: () => void, title = "Remove") => (
     <button onClick={onClick} title={title} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: TYPE.body.size, minWidth: 32, minHeight: 32, flexShrink: 0 }}>✕</button>
@@ -476,7 +476,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, i
                   {smallX(() => setAskSection(si), "Remove section")}
                 </>
               ) : (
-                <span style={{ fontSize: TYPE.label.size, color: C.muted, letterSpacing: "0.09em", textTransform: "uppercase" as const, border: `1px solid ${C.rule}`, padding: "3px 9px", borderRadius: 2 }}>{cleanSecT(sec.t)}</span>
+                <span style={{ fontSize: TYPE.label.size, color: C.muted, letterSpacing: "0.09em", textTransform: "uppercase" as const, border: `1px solid ${C.rule}`, padding: "3px 9px", borderRadius: 10 }}>{cleanSecT(sec.t)}</span>
               )}
             </div>
 
@@ -540,7 +540,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, i
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, alignItems: "center" }}>
                           <span style={{ fontSize: TYPE.label.size, color: C.muted }}>Includes:</span>
                           {(it.includes || []).map((inc: any, k: number) => (
-                            <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: TYPE.label.size, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "2px 4px 2px 8px" }}>
+                            <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: TYPE.label.size, border: `1px solid ${C.rule}`, borderRadius: 10, padding: "2px 4px 2px 8px" }}>
                               <input type="number" min={1} value={inc.qty || 1}
                                 onChange={(e: any) => upItem(si, it.id, { includes: it.includes.map((x: any, j: number) => j === k ? { ...x, qty: Math.max(1, parseInt(e.target.value) || 1) } : x) })}
                                 style={{ width: 44, fontSize: TYPE.sectionHeading.size, border: "none", background: "transparent", fontFamily: SANS }} />
@@ -582,7 +582,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, i
         <div style={{ marginTop: 10 }}>
           <Lbl>Fine Print</Lbl>
           <textarea value={card.fine || ""} onChange={(e: any) => setCard(c => ({ ...c, fine: e.target.value }))}
-            style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: TYPE.sectionHeading.size, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 64 }} />
+            style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: TYPE.sectionHeading.size, color: C.black, borderRadius: 10, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const, minHeight: 64 }} />
         </div>
       ) : (
         <p style={{ fontSize: TYPE.label.size, color: C.muted, lineHeight: 1.75, marginTop: 10 }}>{pctSpace(card.fine)}</p>

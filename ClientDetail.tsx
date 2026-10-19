@@ -6,13 +6,13 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
-import { C, SANS, SERIF, PAL, STATUS_TONE, STATUS_NAME } from "./constants";
+import { C, SANS, SERIF, PAL, STATUS_TONE, STATUS_NAME, WORDS } from "./constants";
 import { fmt, fmtD, today } from "./formatters";
 import { I, S, Lbl, Tag, ConfirmDialog, PillBtn, SectionHead, ListCard, Row, TonedTag, IconCircle } from "./atoms";
 import type { ToneSet } from "./atoms";
 import { projectLicenses, ACTION_LABEL } from "./licenses";
 import type { License } from "./licenses";
-import { clientTotals, statusSince, daysSince, STATUS_ORDER, STALE_QUOTE_DAYS } from "./money";
+import { clientTotals, STATUS_ORDER, followUp, validUntil, currentContractOf, daysSince } from "./money";
 import { editLock } from "./saveStatus";
 import { Ico, IC } from "./PlannerWindows";
 
@@ -98,12 +98,19 @@ export default function ClientDetail({
     const tone = PAL[STATUS_TONE[pr.paid ? "paid" : pr.status] || "neutral"];
     const word = <span style={{ color: tone.ink }}>{STATUS_NAME[pr.paid ? "paid" : pr.status] || pr.status}</span>;
     if (pr.paid) return <>{word}{pr.deliveryDate ? ` · delivered ${fmtD(pr.deliveryDate)}` : ""}</>;
-    if (pr.status === "contracted" || pr.status === "production")
+    const fu = followUp(pr, todayStr);
+    const fuText = fu && <span style={{ color: PAL[fu.tone].ink }}> · {fu.label.toLowerCase()}, {fu.text}</span>;
+    if (pr.status === "production")
       return <>{word} · {pr.deliveryDate ? `delivery ${fmtD(pr.deliveryDate)}` : <span style={{ color: PAL.waiting.ink }}>No delivery date</span>}</>;
-    if (pr.status === "quoted" || pr.status === "revised") {
-      const d = daysSince(statusSince(pr), todayStr);
-      return <>{word}{d != null ? ` · ${d} ${d === 1 ? "day" : "days"} ago` : ""}{d != null && d > STALE_QUOTE_DAYS && <span style={{ color: PAL.waiting.ink }}> · 30+ days</span>}</>;
+    if (pr.status === "contracted") {
+      const c = currentContractOf(pr);
+      return <>{word}{fuText || (c?.status === "sent" ? ` · sent ${daysSince(c.sentAt || c.docDate, todayStr) ?? 0} days ago` : c ? " · contract draft" : "")}</>;
     }
+    if (pr.status === "quoted" || pr.status === "revised") {
+      const v = validUntil(pr);
+      return <>{word}{fuText || (v ? ` · valid until ${fmtD(v)}` : "")}</>;
+    }
+    if (pr.status === "invoiced") return <>{word}{fuText}</>;
     return word;
   };
 
@@ -135,10 +142,10 @@ export default function ClientDetail({
       )}
 
       <button onClick={() => { setSel(null); setEditMode(false); }}
-        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SANS, fontSize: 12, color: "#8a847d" }}>‹ Clients</button>
+        style={{ background: "none", border: "none", padding: "0 8px 0 0", minHeight: 44, display: "inline-flex", alignItems: "center", cursor: "pointer", fontFamily: SANS, fontSize: 12, color: "#8a847d" }}>‹ Clients</button>
 
       {/* ── HEADER ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginTop: 6 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginTop: 0 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           {editMode
             ? <I value={ed.name} onChange={(e: any) => setEd((p: any) => ({ ...p, name: e.target.value }))} s={{ fontFamily: SERIF }} />
@@ -155,11 +162,11 @@ export default function ClientDetail({
 
       {/* ── TOTALS ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 6, marginTop: 12 }}>
-        {([["Open", t.signed, PAL.progress], ["Owed", t.owed, PAL.waiting], [`Paid ${year}`, t.paidYear, PAL.done]] as [string, number, ToneSet][]).map(([lbl, v, tn]) => (
+        {([[WORDS.toInvoice, t.signed, PAL.progress], [WORDS.unpaid, t.owed, PAL.waiting], [`${WORDS.paid} ${year}`, t.paidYear, PAL.done]] as [string, number, ToneSet][]).map(([lbl, v, tn]) => (
           <div key={lbl} style={{ background: tn.wash, borderRadius: 12, padding: "9px 10px", minWidth: 0 }}>
             <div style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: tn.ink }}>{lbl}</div>
             <div style={{ fontFamily: SERIF, fontSize: 16, marginTop: 4, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{fmt(v)}</div>
-            {lbl === "Owed" && t.overdue > 0 && <div style={{ fontSize: 10, color: PAL.late.ink, marginTop: 2 }}>{t.overdue} overdue</div>}
+            {lbl === WORDS.unpaid && t.overdue > 0 && <div style={{ fontSize: 10, color: PAL.late.ink, marginTop: 2 }}>{t.overdue} overdue</div>}
           </div>
         ))}
       </div>
@@ -182,7 +189,7 @@ export default function ClientDetail({
           <PillBtn dark onClick={addProject}>Add</PillBtn>
           <PillBtn onClick={() => { setShowAddP(false); setNewPN(""); }}>Cancel</PillBtn>
         </> : (
-          <button onClick={() => setShowAddP(true)} style={{ fontSize: 12, color: "#8a847d", background: "none", border: "none", cursor: "pointer", fontFamily: SANS, padding: "4px 4px" }}>+ Add a lead without a quote</button>
+          <button onClick={() => setShowAddP(true)} style={{ fontSize: 12, color: "#8a847d", background: "none", border: "none", cursor: "pointer", fontFamily: SANS, padding: "0 4px", minHeight: 44 }}>+ Add a lead without a quote</button>
         )}
       </div>
 
@@ -253,7 +260,7 @@ export default function ClientDetail({
       </div>
 
       <div style={{ textAlign: "center" as const, margin: "18px 0 6px" }}>
-        <button onClick={() => deleteClient()} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: 12, color: C.red }}>Delete client</button>
+        <button onClick={() => deleteClient()} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: 12, color: C.red, minHeight: 44, padding: "0 12px" }}>Delete client</button>
       </div>
     </div>
   );

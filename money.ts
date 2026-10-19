@@ -10,6 +10,8 @@
 // ─────────────────────────────────────────────────────────────
 
 import { docsOf, isPaidInvoice, isOpenInvoice, isOverdue, paidDateOf } from "./docs";
+import { addD } from "./formatters";
+import { WORDS } from "./constants";
 
 export const DORMANT_DAYS = 90;
 export const STALE_QUOTE_DAYS = 30;
@@ -70,4 +72,42 @@ export function clientTotals(c: any, year: number, todayStr: string) {
     lastActivity: last,
     dormant:   !prs.some(hasOpenWork) && idle != null && idle > DORMANT_DAYS,
   };
+}
+
+// ── FOLLOW-UP — one rule for the three documents (shown in tabs, never on the Dashboard)
+//   quote     after its "valid until" date (no date stored → quote date + 14 days)
+//   contract  sent and not signed for more than 7 days
+//   invoice   past its due date (= overdue)
+export const QUOTE_VALID_DAYS = 14;
+export const CONTRACT_FOLLOW_DAYS = 7;
+const liveDocs = (pr: any, kind: string) => docsOf(pr)
+  .filter((d: any) => d.kind === kind && d.status !== "superseded" && d.status !== "cancelled")
+  .sort((a: any, b: any) => (Number(b.revision) || 0) - (Number(a.revision) || 0) || String(b.docDate || "").localeCompare(String(a.docDate || "")));
+export const currentContractOf = (pr: any) => liveDocs(pr, "contract")[0] || null;
+export function validUntil(pr: any): string | null {
+  const q = liveDocs(pr, "quote")[0];
+  const v = q?.data?.validUntil || pr?.qd?.validUntil;
+  if (v) return String(v).slice(0, 10);
+  const base = q?.docDate || pr?.qd?.date || pr?.date;
+  return base ? addD(String(base).slice(0, 10), QUOTE_VALID_DAYS) : null;
+}
+export type FollowUp = { tone: "waiting" | "late"; label: string; text: string };
+export function followUp(pr: any, todayStr: string): FollowUp | null {
+  if (!pr || pr.paid || pr.status === "lost") return null;
+  if (pr.status === "quoted" || pr.status === "revised") {
+    const d = daysSince(validUntil(pr), todayStr);
+    return d != null && d > 0 ? { tone: "waiting", label: WORDS.followUp, text: `expired ${d} ${d === 1 ? "day" : "days"} ago` } : null;
+  }
+  if (pr.status === "contracted") {
+    const c = currentContractOf(pr);
+    if (!c || c.status !== "sent") return null;
+    const d = daysSince(c.sentAt || c.docDate, todayStr);
+    return d != null && d > CONTRACT_FOLLOW_DAYS ? { tone: "waiting", label: WORDS.followUp, text: `contract sent ${d} days ago` } : null;
+  }
+  const over = invoicesOf(pr).filter(isOpenInvoice).find((d: any) => isOverdue(d, todayStr));
+  if (over) {
+    const d = daysSince(over.dueDate, todayStr) || 0;
+    return { tone: "late", label: WORDS.overdue, text: `due ${d} ${d === 1 ? "day" : "days"} ago` };
+  }
+  return null;
 }

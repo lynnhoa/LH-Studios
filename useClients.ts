@@ -1096,7 +1096,7 @@ export function useClients(userId: string | null): UseClientsReturn {
     const revs = (project.documents || []).filter(d => d.kind === "contract").map(d => d.revision);
     const rev  = revs.length ? Math.max(...revs) + 1 : 0;
     const { sender: _s, client: _c, ...qd } = project.qd || ({} as any);
-    const content = { ...qd, qNo: quoteNo(pno), quoteNo: quoteNo(pno), contractNo: contractNo(pno), footer: "" };
+    const content = { ...qd, qNo: quoteNo(pno), quoteNo: quoteNo(pno), contractNo: contractNo(pno), footer: "", clauseSet: 2 };   // § 4 with the start date
     const d = await insertDoc(clientId, projectId, {
       kind: "contract", docNo: contractNo(pno), revision: rev, status: "draft",
       docDate: today(), lang: q?.lang || "en", data: content, ...money("contract", content, settings, client),
@@ -1113,7 +1113,8 @@ export function useClients(userId: string | null): UseClientsReturn {
     if (cur.status === "signed") throw new Error("A signed contract can't be revised — use Amend instead.");
     await patchDoc(clientId, projectId, cur.id, { status: "superseded" });
     const rev = cur.revision + 1;
-    const { sender: _s, client: _c, ...content } = cur.data || {};
+    const { sender: _s, client: _c, ...rest } = cur.data || {};
+    const content = { ...rest, clauseSet: 2 };   // not signed yet → the new § 4 wording
     const d = await insertDoc(clientId, projectId, {
       kind: "contract", docNo: cur.docNo, revision: rev, status: "draft",
       docDate: today(), lang: cur.lang, data: content, ...money("contract", content, settings, client),

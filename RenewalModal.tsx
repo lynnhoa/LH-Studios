@@ -132,7 +132,7 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
 
   // plain render helpers (not components) so inputs keep focus while typing
   const section = (n: string, title: string, children: any) => (
-    <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "10px 12px", marginBottom: 10, background: C.white }}>
+    <div style={{ border: `1px solid ${C.rule}`, borderRadius: 10, padding: "10px 12px", marginBottom: 10, background: C.white }}>
       <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 10px", paddingBottom: 6, borderBottom: `1px solid ${C.rule}` }}>{n} — {title}</p>
       {children}
     </div>
@@ -194,9 +194,9 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
                 <span style={{ fontSize: TYPE.micro.size, color: C.light }}>base {fmt(l._unitBase)} each · max {max}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                <button onClick={() => setQty(l._key, max, qty - 1)} style={{ width: 32, height: 32, border: `1px solid ${C.rule}`, borderRadius: 2, background: "none", cursor: "pointer", fontSize: TYPE.body.size, color: qty > 0 ? C.black : C.light }}>−</button>
+                <button onClick={() => setQty(l._key, max, qty - 1)} style={{ width: 32, height: 32, border: `1px solid ${C.rule}`, borderRadius: 10, background: "none", cursor: "pointer", fontSize: TYPE.body.size, color: qty > 0 ? C.black : C.light }}>−</button>
                 <span style={{ fontSize: TYPE.label.size, fontFamily: SERIF, minWidth: 18, textAlign: "center" as const }}>{qty}</span>
-                <button onClick={() => setQty(l._key, max, qty + 1)} style={{ width: 32, height: 32, border: `1px solid ${C.rule}`, borderRadius: 2, background: "none", cursor: "pointer", fontSize: TYPE.body.size, color: qty < max ? C.black : C.light }}>+</button>
+                <button onClick={() => setQty(l._key, max, qty + 1)} style={{ width: 32, height: 32, border: `1px solid ${C.rule}`, borderRadius: 10, background: "none", cursor: "pointer", fontSize: TYPE.body.size, color: qty < max ? C.black : C.light }}>+</button>
               </div>
             </div>
           );

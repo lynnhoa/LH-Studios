@@ -17,12 +17,12 @@ export const I = ({ s, ...p }: any) => (
       width:       "100%",
       height:      SIZE.field,
       padding:     "0 10px",
-      border:      `1px solid ${C.rule}`,
-      background:  C.bg,
+      border:      "1px solid #ebe7e2",
+      background:  C.white,
       fontFamily:  SANS,
       fontSize:    16,  // iOS auto-zooms inputs < 16px — never go below
       color:       C.black,
-      borderRadius: 2,
+      borderRadius: 10,
       outline:     "none",
       boxSizing:   "border-box" as const,
       WebkitAppearance: "none" as const,
@@ -76,15 +76,15 @@ export const S = ({ s, ...p }: any) => (
       width:        "100%",
       height:       SIZE.field,
       padding:      "0 28px 0 10px",
-      border:       `1px solid ${C.rule}`,
-      backgroundColor: C.bg,
+      border:       "1px solid #ebe7e2",
+      backgroundColor: C.white,
       backgroundImage: SELECT_ARROW,
       backgroundRepeat: "no-repeat",
       backgroundPosition: "right 10px center",
       fontFamily:   SANS,
       fontSize:     16,  // iOS auto-zooms selects < 16px — never go below
       color:        C.black,
-      borderRadius: 2,
+      borderRadius: 10,
       outline:      "none",
       boxSizing:    "border-box" as const,
       cursor:       "pointer",
@@ -101,48 +101,33 @@ export const S = ({ s, ...p }: any) => (
 // v="ghost"  no border, muted text        — inline / low-emphasis
 // v="danger" red border, red text         — destructive action
 export const B = ({ v = "pri", s, ...p }: any) => {
+  // Pill buttons (Gelato look): pri = the one dark main action, sec = light pill,
+  // ghost = text only, danger = light pill with red text. Text never below 12 px.
   const styles: Record<string, any> = {
-    pri: {
-      background:  C.black,
-      color:       C.white,
-      border:      "none",
-    },
-    sec: {
-      background:  "transparent",
-      color:       C.muted,
-      border:      `1px solid ${C.rule}`,
-    },
-    ghost: {
-      background:  "none",
-      color:       C.muted,
-      border:      "none",
-    },
-    danger: {
-      background:  "transparent",
-      color:       C.red,
-      border:      `1px solid ${C.red}`,
-    },
+    pri:    { background: C.black, color: C.white, border: `1px solid ${C.black}` },
+    sec:    { background: C.white, color: C.black, border: "1px solid #e2ddd6" },
+    ghost:  { background: "none",  color: C.muted, border: "none" },
+    danger: { background: C.white, color: C.red,   border: `1px solid ${PAL.late.fill}` },
   };
-
+  const fs = Math.max(12, Number(s?.fontSize) || 13);
   return (
     <button
       style={{
-        padding:       "0 14px",
-        borderRadius:  2,
+        padding:       "0 15px",
+        borderRadius:  18,
         cursor:        "pointer",
         fontFamily:    SANS,
-        fontSize:      TYPE.button.size,
-        letterSpacing: "0.10em",
-        textTransform: "uppercase" as const,
+        letterSpacing: "0.01em",
+        textTransform: "none" as const,
         whiteSpace:    "nowrap" as const,
         lineHeight:    1,
-        // compact density (the whole app uses the same height)
         minHeight:     SIZE.button,
         display:       "inline-flex",
         alignItems:    "center",
         justifyContent:"center",
         ...styles[v] ?? styles.pri,
         ...s,
+        fontSize:      fs,
       }}
       {...p}
     />
@@ -235,7 +220,7 @@ export const Tag = ({ children, onRemove }: any) => (
       alignItems:  "center",
       gap:         4,
       border:      `1px solid ${C.rule}`,
-      borderRadius: 2,
+      borderRadius: 9,
       padding:     "3px 10px",
       fontSize:    TYPE.micro.size,
       fontFamily:  SANS,
@@ -319,7 +304,7 @@ export function UBadge({
         border:       `1px solid ${bd}`,
         background:   bg,
         padding:      "3px 10px",
-        borderRadius: 2,
+        borderRadius: 9,
         whiteSpace:   "nowrap" as const,
       }}
     >
@@ -346,7 +331,7 @@ export const Empty = ({ message }: { message: string }) => (
   <div
     style={{
       border:       `1px solid ${C.rule}`,
-      borderRadius: 2,
+      borderRadius: 12,
       padding:      "40px 20px",
       textAlign:    "center" as const,
     }}
@@ -390,7 +375,7 @@ export const StatusBadge = ({ status }: { status: string }) => {
   const key = String(status || "").toLowerCase();
   const t = PAL[STATUS_TONE[key] || "neutral"];
   return (
-    <span
+    <span data-tag=""
       style={{
         fontSize:      TYPE.micro.size,
         fontFamily:    SANS,
@@ -455,7 +440,7 @@ export const ConfirmDialog = ({ title, text, dateLabel, okLabel, cancelLabel = "
   const [date, setDate] = useState(today());
   return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: Z.dialog, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(250,249,247,0.88)", padding: 16 }}>
-      <div style={{ background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, padding: "24px 28px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)", width: "100%", maxWidth: 340 }}>
+      <div style={{ background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 14, padding: "24px 28px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)", width: "100%", maxWidth: 340 }}>
         <p style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black, margin: "0 0 8px" }}>{title}</p>
         {text && <p style={{ fontSize: TYPE.label.size, fontFamily: SANS, color: C.muted, margin: "0 0 12px", lineHeight: 1.5 }}>{text}</p>}
         {error && <p style={{ fontSize: TYPE.label.size, fontFamily: SANS, color: C.red, margin: "0 0 12px", lineHeight: 1.5 }}>{error}</p>}
@@ -484,7 +469,7 @@ export const SaveToast = () => {
     const t = setTimeout(() => setShowSaved(false), 1500);
     return () => clearTimeout(t);
   }, [st.savedAt, st.pending]);
-  const base: any = { position: "fixed", left: "50%", bottom: 20, transform: "translateX(-50%)", zIndex: Z.toast, borderRadius: 2, padding: "8px 14px", fontFamily: SANS, fontSize: TYPE.label.size, letterSpacing: "0.04em", boxShadow: "0 2px 12px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 12, maxWidth: "calc(100vw - 32px)" };
+  const base: any = { position: "fixed", left: "50%", bottom: 20, transform: "translateX(-50%)", zIndex: Z.toast, borderRadius: 12, padding: "8px 14px", fontFamily: SANS, fontSize: TYPE.label.size, letterSpacing: "0.04em", boxShadow: "0 2px 12px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 12, maxWidth: "calc(100vw - 32px)" };
   if (st.error) return (
     <div style={{ ...base, background: TINT_RED, border: `1px solid ${C.red}`, color: C.red }}>
       <span>Couldn't save — {st.error}. Your last change was undone.</span>
@@ -499,7 +484,7 @@ const TINT_RED = "#fdf0f0";
 
 // ─── LOAD ERROR BANNER (data could not be loaded) ────────────
 export const LoadErrorBanner = ({ what, message, onRetry }: { what: string; message: string; onRetry: () => void }) => (
-  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 14px", marginBottom: 14, background: TINT_RED, border: `1px solid ${C.red}`, borderRadius: 2 }}>
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 14px", marginBottom: 14, background: TINT_RED, border: `1px solid ${C.red}`, borderRadius: 12 }}>
     <span style={{ fontSize: TYPE.label.size, fontFamily: SANS, color: C.red }}>{what} couldn't be loaded ({message}). Tap Retry.</span>
     <B v="danger" onClick={onRetry} s={{ minHeight: 36, padding: "0 14px" }}>Retry</B>
   </div>
@@ -520,7 +505,7 @@ export const Card = ({
     onClick={onClick}
     style={{
       border:       `1px solid ${C.rule}`,
-      borderRadius: 2,
+      borderRadius: 12,
       padding:      "14px 16px",
       background:   C.bg,
       cursor:       onClick ? "pointer" : "default",
@@ -660,7 +645,7 @@ export const ListCard = ({ children, s }: { children: any; s?: any }) => (
 );
 
 export const TonedTag = ({ tone, children, s }: { tone: ToneSet; children: any; s?: any }) => (
-  <span style={{ display: "inline-block", fontSize: 10, letterSpacing: "0.03em", padding: "2px 8px", borderRadius: 9, background: tone.fill, color: tone.ink, whiteSpace: "nowrap" as const, ...s }}>{children}</span>
+  <span data-tag="" style={{ display: "inline-block", fontSize: 10, letterSpacing: "0.03em", padding: "2px 8px", borderRadius: 9, background: tone.fill, color: tone.ink, whiteSpace: "nowrap" as const, ...s }}>{children}</span>
 );
 
 export const IconCircle = ({ tone, children, size = 30, s }: { tone: ToneSet; children: any; size?: number; s?: any }) => (
@@ -672,7 +657,7 @@ export const Row = ({ icon, title, meta, right, onClick, first, chevron = true, 
   icon?: any; title: any; meta?: any; right?: any; onClick?: () => void; first?: boolean; chevron?: boolean; highlight?: boolean; s?: any;
 }) => (
   <div role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} onKeyDown={onClick ? (e: any) => { if (e.key === "Enter") onClick(); } : undefined}
-    style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 54, padding: "7px 10px 7px 12px", borderTop: first ? "none" : "1px solid #f4f1ed",
+    style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 54, padding: "9px 10px 9px 12px", borderTop: first ? "none" : "1px solid #f4f1ed",
       cursor: onClick ? "pointer" : "default", background: highlight ? PAL.progress.wash : undefined, fontFamily: SANS, ...s }}>
     {icon}
     <div style={{ flex: 1, minWidth: 0 }}>
@@ -687,5 +672,42 @@ export const Row = ({ icon, title, meta, right, onClick, first, chevron = true, 
 export const TimeBar = ({ pct, color, s }: { pct: number; color: string; s?: any }) => (
   <div style={{ height: 3, background: "#f1eeea", borderRadius: 2, ...s }}>
     <div style={{ width: `${Math.max(0, Math.min(100, pct))}%`, height: 3, background: color, borderRadius: 2 }} />
+  </div>
+);
+
+
+// switch (on/off) — 44 px tap area around a 30×18 track
+export const Switch = ({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) => (
+  <button role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)}
+    style={{ minWidth: 44, minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+    <span style={{ width: 30, height: 18, borderRadius: 9, background: on ? C.black : "#e8e4df", position: "relative", transition: "background .15s" }}>
+      <span style={{ position: "absolute", top: 2, left: on ? 14 : 2, width: 14, height: 14, borderRadius: "50%", background: C.white, transition: "left .15s" }} />
+    </span>
+  </button>
+);
+
+// − n + (whole numbers, min 1)
+export const Stepper = ({ value, onChange, min = 1, label }: { value: number; onChange: (v: number) => void; min?: number; label: string }) => (
+  <div role="group" aria-label={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: SIZE.field, border: "1px solid #ebe7e2", borderRadius: 10, background: C.white, fontFamily: SANS }}>
+    <button aria-label={`${label} minus`} onClick={() => onChange(Math.max(min, value - 1))} style={{ width: 44, height: "100%", background: "none", border: "none", fontSize: 18, color: C.muted, cursor: "pointer" }}>−</button>
+    <span style={{ fontSize: 15 }}>{value}</span>
+    <button aria-label={`${label} plus`} onClick={() => onChange(value + 1)} style={{ width: 44, height: "100%", background: "none", border: "none", fontSize: 18, color: C.muted, cursor: "pointer" }}>+</button>
+  </div>
+);
+
+// one quiet line of details with an edit pencil (date · validity · language …)
+export const DetailLine = ({ children, onEdit, s }: { children: any; onEdit?: () => void; s?: any }) => (
+  <div onClick={onEdit} role={onEdit ? "button" : undefined} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minHeight: 32, fontSize: 12, color: "#4a4540", fontFamily: SANS, cursor: onEdit ? "pointer" : "default", ...s }}>
+    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{children}</span>
+    {onEdit && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a847d" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>}
+  </div>
+);
+
+// bar fixed to the bottom of the screen (total + main action); content needs paddingBottom: BOTTOM_BAR_SPACE
+export const BOTTOM_BAR_SPACE = 96;
+export const BottomBar = ({ children }: { children: any }) => (
+  <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: C.white, borderTop: "1px solid #efebe6", boxShadow: "0 -6px 18px rgba(26,26,26,0.06)",
+    padding: "11px 14px calc(14px + env(safe-area-inset-bottom, 0px))", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontFamily: SANS }}>
+    {children}
   </div>
 );

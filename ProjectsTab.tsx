@@ -6,8 +6,8 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef } from "react";
-import { C, SERIF, SANS, TYPE, expiryColor, expiryTint, PAL, STATUS_TONE, STATUS_NAME } from "./constants";
-import { signedOpen } from "./money";
+import { C, SERIF, SANS, TYPE, expiryColor, expiryTint, PAL, STATUS_TONE, STATUS_NAME, WORDS } from "./constants";
+import { signedOpen, followUp, validUntil, currentContractOf, daysSince } from "./money";
 import { fmt, fmtD, fmtE, today, addM, dLeft } from "./formatters";
 import { projectLicenses, ACTION_LABEL } from "./licenses";
 import { pdfFlow, finalizeQuestion } from "./docFlow";
@@ -32,7 +32,7 @@ function LicenseLine({ label, end }: { label: string; end: string }) {
   const bd  = col;
   const txt = d < 0 ? `${Math.abs(d)}d expired` : `${d}d left`;
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 8px", background: bg, border: `1px solid ${bd}`, borderRadius: 2, marginBottom: 3 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 8px", background: bg, border: `1px solid ${bd}`, borderRadius: 10, marginBottom: 3 }}>
       <span style={{ fontSize: TYPE.micro.size, color: col, fontWeight: "500" }}>{label}</span>
       <span style={{ fontSize: TYPE.micro.size, color: col, fontWeight: "600" }}>{fmtD(end)} · {txt}</span>
     </div>
@@ -46,12 +46,12 @@ function ProjectLicenseTracker({ pr }: { pr: any }) {
     <div style={{ marginBottom: 8, marginTop: 4 }}>
       <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 4px" }}>Licenses</p>
       {lic.map(l => l.action
-        ? <div key={l.key} style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", marginBottom: 3, border: `1px solid ${C.rule}`, borderRadius: 2 }}>
+        ? <div key={l.key} style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", marginBottom: 3, border: `1px solid ${C.rule}`, borderRadius: 10 }}>
             <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{l.label}</span>
             <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{fmtD(l.end)} · {ACTION_LABEL[l.action.action] || l.action.action}</span>
           </div>
         : !l.alerts
-        ? <div key={l.key} style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", marginBottom: 3, border: `1px solid ${C.rule}`, borderRadius: 2 }}>
+        ? <div key={l.key} style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", marginBottom: 3, border: `1px solid ${C.rule}`, borderRadius: 10 }}>
             <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{l.label}</span>
             <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{fmtD(l.end)}</span>
           </div>
@@ -105,6 +105,8 @@ function ProjectRow({
   const cid    = pr._cid;
   const pid    = pr.id;
   const upP    = (data: any) => h.updateProject(cid, pid, data);
+  // the one next step of this stage: dark, first, full width on the phone
+  const NEXT: any = { order: -1, fontSize: 14, minHeight: 42, ...(isMobile ? { flexBasis: "100%" } : { paddingLeft: 20, paddingRight: 20 }) };
   // signed without a delivery date → ask once (can be skipped; invoices and licenses need it).
   // The question lives in the Projects tab: after signing, this row moves to the Production group.
   const askDelivery = () => { if (!pr.deliveryDate && onAskDelivery) onAskDelivery({ cid, pid, name: pr.name }); };
@@ -268,13 +270,18 @@ function ProjectRow({
       {(() => {
         const since = sinceDays(pr);
         const quote = !pr.paid && (pr.status === "quoted" || pr.status === "revised");
-        const stale = quote && (since ?? 0) > 30;
+        const fu = followUp(pr, today());
+        const fuMeta = fu ? <span style={{ color: PAL[fu.tone].ink }}> · {fu.text}</span> : null;
+        const ct = pr.status === "contracted" ? currentContractOf(pr) : null;
+        const vu = quote ? validUntil(pr) : null;
         const meta = pr.paid ? <> · <span style={{ color: PAL.done.ink }}>paid</span></>
           : pr.status === "lost" ? <> · lost</>
-          : pr.status === "contracted" || pr.status === "production"
+          : pr.status === "production"
             ? <> · {pr.deliveryDate ? `delivery ${fmtD(pr.deliveryDate)}` : <span style={{ color: PAL.waiting.ink }}>No delivery date</span>}{since != null ? ` · ${since} d` : ""}</>
-          : pr.status === "invoiced" ? <> · <span style={{ color: PAL.waiting.ink }}>invoiced</span>{since != null ? ` · ${since} d` : ""}</>
-          : quote ? <> · {pr.status}{since != null ? ` ${since} ${since === 1 ? "day" : "days"} ago` : ""}</>
+          : pr.status === "contracted"
+            ? (fuMeta || <> · {ct?.status === "sent" ? `contract sent ${daysSince(ct.sentAt || ct.docDate, today()) ?? 0} days ago` : ct ? "contract draft" : "contracted"}</>)
+          : pr.status === "invoiced" ? (fuMeta || <> · <span style={{ color: PAL.waiting.ink }}>invoiced</span>{since != null ? ` · ${since} d` : ""}</>)
+          : quote ? (fuMeta || <> · {vu ? `valid until ${fmtD(vu)}` : pr.status}</>)
           : <> · lead</>;
         return (
           <div onClick={onToggle} style={{ padding: "9px 0", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, fontFamily: SANS }}>
@@ -286,14 +293,14 @@ function ProjectRow({
               <div style={{ fontSize: 12, color: "#8a847d", marginTop: 2, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>
                 {onOpenClient
                   ? <button onClick={(e) => { e.stopPropagation(); onOpenClient(pr._cname); }} aria-label={`Open client ${pr._cname}`}
-                      style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textDecoration: "underline", textDecorationColor: "#d9d3cc", textUnderlineOffset: 2 }}>{pr._cname}</button>
+                      style={{ background: "none", border: "none", padding: "9px 2px", margin: "-9px -2px", font: "inherit", color: "inherit", cursor: "pointer", textDecoration: "underline", textDecorationColor: "#d9d3cc", textUnderlineOffset: 2 }}>{pr._cname}</button>
                   : pr._cname}
                 {meta}
               </div>
             </div>
             <div style={{ textAlign: "right" as const, flexShrink: 0 }}>
               <div style={{ fontFamily: SERIF, fontSize: 15, color: pr.status === "lost" ? C.muted : C.black }}>{fmt(pr.amount)}</div>
-              {stale ? <TonedTag tone={PAL.waiting} s={{ marginTop: 3 }}>30+ days</TonedTag>
+              {fu ? <TonedTag tone={PAL[fu.tone]} s={{ marginTop: 3 }}>{fu.label}</TonedTag>
                 : (pr.paid || pr.status === "lost") ? <div style={{ marginTop: 3 }}><StatusBadge status={pr.paid ? "paid" : "lost"} /></div> : null}
             </div>
             <span style={{ color: "#cfc9c2", fontSize: 11, flexShrink: 0 }}>{isExpanded ? "▴" : "▾"}</span>
@@ -342,7 +349,7 @@ function ProjectRow({
                   <div key={li} style={{ marginBottom: li < (pr.qd.lines || []).length - 1 ? 8 : 0, paddingBottom: li < (pr.qd.lines || []).length - 1 ? 8 : 0, borderBottom: li < (pr.qd.lines || []).length - 1 ? `1px solid ${C.rule}` : "none" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3, flexWrap: "wrap" as const }}>
                       <span style={{ fontSize: TYPE.body.size, color: C.black, fontWeight: 500 }}>{qty > 1 ? `${qty}× ` : ""}{ln.name}</span>
-                      {ln.usageLabel && <span style={{ fontSize: TYPE.micro.size, color: C.muted, padding: "1px 5px", border: `1px solid ${C.rule}`, borderRadius: 2 }}>{ln.usageLabel}</span>}
+                      {ln.usageLabel && <span style={{ fontSize: TYPE.micro.size, color: C.muted, padding: "1px 5px", border: `1px solid ${C.rule}`, borderRadius: 10 }}>{ln.usageLabel}</span>}
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: TYPE.label.size }}>
                       <span style={{ color: C.muted }}>{qty > 1 ? `${fmtE(amt / qty)} € each` : "Rate"}</span>
@@ -405,7 +412,7 @@ function ProjectRow({
 
             {["quoted","revised"].includes(pr.status) && <>
               <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => onRevise(pr, cl)}>Revise quote</B>
-              <B s={{ fontSize: TYPE.micro.size }} onClick={() => act(async () => openDoc(await h.createContract(cid, pid, settings)))}>Create contract</B>
+              <B s={NEXT} onClick={() => act(async () => openDoc(await h.createContract(cid, pid, settings)))}>Create contract</B>
               <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted }} onClick={() => setDialog({ title: "Mark lost", text: "The quote leaves the pipeline and moves to Lost. You can undo it.", okLabel: "Mark lost", run: () => upP({ status: "lost" }) })}>Mark lost</B>
             </>}
             {pr.status === "lost" && (
@@ -417,14 +424,14 @@ function ProjectRow({
                 {con?.status === "draft" ? "Edit contract" : "Revise contract"}
               </B>
               {con && (
-                <B s={{ fontSize: TYPE.micro.size }} onClick={() => setDialog({ title: "Mark signed", dateLabel: "Signed on", okLabel: "Mark signed", run: async (dt: string) => { await h.markContractSigned(cid, pid, con.id, dt, settings); askDelivery(); } })}>Mark signed</B>
+                <B s={NEXT} onClick={() => setDialog({ title: "Mark signed", dateLabel: "Signed on", okLabel: "Mark signed", run: async (dt: string) => { await h.markContractSigned(cid, pid, con.id, dt, settings); askDelivery(); } })}>Mark signed</B>
               )}
             </>}
 
             {pr.status === "production" && !isRet && (
               pInv && pInv.status === "draft"
-                ? <B s={{ fontSize: TYPE.micro.size }} onClick={() => openDoc(pInv)}>Open invoice draft</B>
-                : <B s={{ fontSize: TYPE.micro.size, opacity: pr.deliveryDate ? 1 : 0.35, cursor: pr.deliveryDate ? "pointer" : "not-allowed" as const }}
+                ? <B s={NEXT} onClick={() => openDoc(pInv)}>Open invoice draft</B>
+                : <B s={{ ...NEXT, opacity: pr.deliveryDate ? 1 : 0.35, cursor: pr.deliveryDate ? "pointer" : "not-allowed" as const }}
                     title={pr.deliveryDate ? "" : "Set the delivery date first"}
                     onClick={() => { if (pr.deliveryDate) act(async () => openDoc(await h.createProjectInvoice(cid, pid, settings))); else setRowErr("Set the delivery date first."); }}>
                     Create invoice
@@ -433,20 +440,20 @@ function ProjectRow({
 
             {pr.status === "production" && isRet && (
               draftM
-                ? <B s={{ fontSize: TYPE.micro.size }} onClick={() => openDoc(draftM)}>Open M{String(draftM.monthNo || "").padStart(2, "0")} draft</B>
+                ? <B s={NEXT} onClick={() => openDoc(draftM)}>Open M{String(draftM.monthNo || "").padStart(2, "0")} draft</B>
                 : nextM
-                  ? <B s={{ fontSize: TYPE.micro.size }} onClick={() => act(async () => openDoc(await h.createMonthlyInvoice(cid, pid, settings)))}>Create invoice M{String(nextM).padStart(2, "0")}</B>
+                  ? <B s={NEXT} onClick={() => act(async () => openDoc(await h.createMonthlyInvoice(cid, pid, settings)))}>Create invoice M{String(nextM).padStart(2, "0")}</B>
                   : null
             )}
 
             {pr.status === "invoiced" && !pr.paid && pInv && (
-              <B s={{ fontSize: TYPE.micro.size }} onClick={() => setDialog({ title: "Mark paid", dateLabel: "Paid on", okLabel: "Mark paid", run: (dt: string) => h.markInvoicePaid(cid, pid, pInv.id, dt) })}>Mark paid</B>
+              <B s={NEXT} onClick={() => setDialog({ title: "Mark paid", dateLabel: "Paid on", okLabel: "Mark paid", run: (dt: string) => h.markInvoicePaid(cid, pid, pInv.id, dt) })}>Mark paid</B>
             )}
 
             {pr.paid && !isRet && <>
-              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.green, borderColor: C.green }} onClick={() => setRenewT(pr)}>Add renewal</B>
+              <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => setRenewT(pr)}>Add renewal</B>
               {pInv && pInv.status === "paid" && (
-                <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber }} onClick={() => setDialog({ title: "Undo paid", text: "The invoice goes back to unpaid.", okLabel: "Undo paid", run: () => h.markInvoiceUnpaid(cid, pid, pInv.id) })}>Undo paid</B>
+                <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted }} onClick={() => setDialog({ title: "Undo paid", text: "The invoice goes back to unpaid.", okLabel: "Undo paid", run: () => h.markInvoiceUnpaid(cid, pid, pInv.id) })}>Undo paid</B>
               )}
             </>}
 
@@ -454,7 +461,7 @@ function ProjectRow({
               const inv = renewalInvoice(pr, r.id);
               if (inv && inv.status !== "draft") return null;
               return (
-                <B key={r.id || ri} v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber }}
+                <B key={r.id || ri} v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted }}
                   onClick={() => setDialog({ title: `Undo renewal ${ri + 1}`, text: "The renewal and its draft invoice are removed.", okLabel: "Undo renewal", danger: true, run: () => h.removeRenewal(cid, pid, r.id) })}>
                   Undo R{ri + 1}
                 </B>
@@ -564,7 +571,7 @@ export default function ProjectsTab({
 
   const done  = all.filter((pr: any) => pr.paid).sort((a: any, b: any) => String(b.date || "").localeCompare(String(a.date || "")));
 
-  const FILTERS = [["all","All"],["signed","Signed · not invoiced"],["active","Active (signed)"],["production","Production"],["invoiced","Invoiced"],["contracted","Contracted"],["quoted","Quoted"],["lead","Leads"]];
+  const FILTERS = [["all","All"],["signed","To invoice"],["active","Active (signed)"],["production","Production"],["invoiced","Invoiced"],["contracted","Contracted"],["quoted","Quoted"],["lead","Leads"]];
   const filteredActive = statusFilter === "all"
     ? active
     : statusFilter === "signed"
@@ -583,10 +590,10 @@ export default function ProjectsTab({
       <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : TYPE.pageTitle.size, fontWeight: "normal", margin: 0, lineHeight: 1.1, color: C.black }}>Projects</h2>
       {(() => {
         const tone = PAL[statusFilter === "signed" || statusFilter === "active" ? "progress" : STATUS_TONE[statusFilter] || "neutral"];
-        // "signed, not invoiced": what's already invoiced on a project is taken off (same as the dashboard)
+        // "to invoice": what's already invoiced on a project is taken off (same as the dashboard)
         const open = (pr: any) => (statusFilter !== "signed" ? (Number(pr.amount) || 0) : signedOpen(pr));   // money.ts
         const sum = filteredActive.reduce((s: number, pr: any) => s + open(pr), 0);
-        const what = statusFilter === "all" ? "open" : statusFilter === "signed" ? "signed, not invoiced" : (FILTERS.find(f => f[0] === statusFilter)?.[1] || "").toLowerCase();
+        const what = statusFilter === "all" ? "open" : statusFilter === "signed" ? "to invoice" : (FILTERS.find(f => f[0] === statusFilter)?.[1] || "").toLowerCase();
         return (
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8a847d", marginTop: 4, fontFamily: SANS }}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: tone.mid, flexShrink: 0 }} />
@@ -629,43 +636,52 @@ export default function ProjectsTab({
             ))}
           </div>
         )}
-        {["production", "contracted", "invoiced", "revised", "quoted", "lead"].map(st => {
-          const list = filteredActive.filter((pr: any) => pr.status === st);
-          if (!list.length) return null;
-          const t = PAL[STATUS_TONE[st] || "neutral"];
-          return (
-            <div key={st}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "14px 4px 6px", fontFamily: SANS }}>
+        {(() => {
+          // ONE flat list (headers + rows) under the same parent: a row that changes stage
+          // (Create contract, Create invoice …) moves without being rebuilt, so the document
+          // it just opened (or a question it asks) stays open.
+          const out: any[] = [];
+          ["production", "contracted", "invoiced", "revised", "quoted", "lead"].forEach(st => {
+            const list = filteredActive.filter((pr: any) => pr.status === st);
+            if (!list.length) return;
+            const t = PAL[STATUS_TONE[st] || "neutral"];
+            out.push(
+              <div key={`h-${st}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "14px 4px 6px", fontFamily: SANS }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "#8a847d" }}>
                   <span style={{ width: 7, height: 7, borderRadius: "50%", background: t.mid }} />{STATUS_NAME[st] || st} · {list.length}
                 </span>
                 <span style={{ fontSize: 11, color: "#6b655e" }}>{fmt(list.reduce((s: number, pr: any) => s + (Number(pr.amount) || 0), 0))}</span>
               </div>
-              <div style={{ background: C.white, border: "1px solid #efebe6", borderRadius: 12, overflow: "hidden", padding: "0 12px" }}>
-                <div style={{ marginBottom: -1 }}>
-                {list.map((pr: any) => (
-                  <ProjectRow
-                    key={pr.id}
-                    pr={pr}
-                    clients={clients}
-                    isMobile={isMobile}
-                    isExpanded={expanded === pr.id}
-                    onToggle={() => setExpanded(expanded === pr.id ? null : pr.id)}
-                    clientsHook={clientsHook}
-                    onRevise={onRevise}
-                    onAmend={onAmend}
-                    onGoToCalc={onGoToCalc}
-                    rc={rc}
-                    settings={settings}
-                    onModalClosed={() => setScrollTrigger(t => t + 1)}
-                    onOpenClient={onOpenClient} onAskDelivery={setAskDeliv}
-                  />
-                ))}
+            );
+            list.forEach((pr: any, i: number) => {
+              const first = i === 0, last = i === list.length - 1;
+              out.push(
+                <div key={pr.id} style={{ background: C.white, borderLeft: "1px solid #efebe6", borderRight: "1px solid #efebe6",
+                  borderTop: first ? "1px solid #efebe6" : "none", borderBottom: last ? "1px solid #efebe6" : "none",
+                  borderRadius: `${first ? 12 : 0}px ${first ? 12 : 0}px ${last ? 12 : 0}px ${last ? 12 : 0}px`, overflow: "hidden", padding: "0 12px" }}>
+                  <div style={{ marginBottom: last ? -1 : 0 }}>
+                    <ProjectRow
+                      pr={pr}
+                      clients={clients}
+                      isMobile={isMobile}
+                      isExpanded={expanded === pr.id}
+                      onToggle={() => setExpanded(expanded === pr.id ? null : pr.id)}
+                      clientsHook={clientsHook}
+                      onRevise={onRevise}
+                      onAmend={onAmend}
+                      onGoToCalc={onGoToCalc}
+                      rc={rc}
+                      settings={settings}
+                      onModalClosed={() => setScrollTrigger(t => t + 1)}
+                      onOpenClient={onOpenClient} onAskDelivery={setAskDeliv}
+                    />
+                  </div>
                 </div>
-              </div>
-            </div>
-          );
-        })}
+              );
+            });
+          });
+          return out;
+        })()}
         {filteredActive.length === 0 && (
           <p style={{ fontSize: TYPE.subtext.size, color: C.light, padding: "20px 0" }}>No projects match this filter.</p>
         )}

@@ -12,7 +12,7 @@ import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE, PAL, STATUS_TONE, STATUS_NAME } from "./constants";
 import { fmt, addM, today } from "./formatters";
 import { I, S, Lbl, Tag, TSel, TSelWrap, SummaryLine, Strong, Chip, ChipRow, PillBtn, SearchField, ListCard, Row, TonedTag } from "./atoms";
-import { clientTotals } from "./money";
+import { clientTotals, followUp } from "./money";
 import { projectLicenses } from "./licenses";
 import ClientDetail from "./ClientDetail";
 
@@ -125,6 +125,12 @@ export default function ClientList({
   };
 
   // the most urgent license of a client (expired / ending soon)
+  const fuHint = (c: any) => {
+    const fus = c.projects.map((pr: any) => followUp(pr, todayStr)).filter(Boolean) as any[];
+    if (!fus.length) return null;
+    const late = fus.find(f => f.tone === "late");
+    return late ? { tone: PAL.late, text: late.label.toLowerCase() } : { tone: PAL.waiting, text: fus[0].label.toLowerCase() };
+  };
   const licHint = (c: any) => {
     const ls = c.projects.flatMap((pr: any) => projectLicenses(pr, c)).filter((l: any) => l.alerts && !l.action && (l.state === "expired" || l.state === "expiring"));
     if (!ls.length) return null;
@@ -240,7 +246,7 @@ export default function ClientList({
           {filtered.map((c: any, i: number) => {
             const t = T(c);
             const nn = needsName(c);
-            const hint = licHint(c);
+            const hint = fuHint(c) || licHint(c);
             const st = t.urgent ? t.urgent.status : null;
             const tone = st ? PAL[STATUS_TONE[st] || "neutral"] : PAL.neutral;
             const value = t.signed + t.owed > 0 ? t.signed + t.owed : t.quotes;
