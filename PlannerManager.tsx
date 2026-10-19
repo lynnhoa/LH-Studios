@@ -6,8 +6,7 @@
 // title — goals are set per account.
 //   Engaging · a box per day (goal: 7 days)
 //   Following · Followers (typed totals) · New emails (counted from the
-//   email list) · Pitches · Leads (no goal) · Kits (pieces waiting,
-//   In kit right here) · Check-in note for the week
+//   email list) · Pitches · Leads (no goal) · Check-in note for the week
 // From Stage 2: the sales sprint on top while it runs — pitches and
 // follow-ups typed per day, a 14-day strip, End & review. Between
 // sprints a thin Start row (✕ hides it).
@@ -57,7 +56,6 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
   const { stages, tasks, loading, loadError } = planner;
   const [sprintWin, setSprintWin] = useState<{ id?: string; acc?: Account; review?: boolean } | null>(null);
   const [editGoals, setEditGoals] = useState(false);
-  const [kitsOpen, setKitsOpen]   = useState(false);
   const [pastOpen, setPastOpen]   = useState(false);
   const [pick, setPick]           = useState<string | null>(null);   // a sprint day picked in the strip (default today)
   const guide = useGuide("manager");
@@ -66,12 +64,11 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
   const acc    = (view.acc === "all" ? "lynnhoa" : view.acc) as Account;
   // another account picked: goals lock again (no editing the other account's goals by accident)
   const [shownAcc, setShownAcc] = useState<Account>(acc);
-  if (shownAcc !== acc) { setShownAcc(acc); setEditGoals(false); setKitsOpen(false); setPastOpen(false); setPick(null); }
+  if (shownAcc !== acc) { setShownAcc(acc); setEditGoals(false); setPastOpen(false); setPick(null); }
   const forAcc = (t: Task) => t.account === acc || t.account === "both";
   const visible = tasks.filter(t => isVisible(t, stages, view.acc));
   const goals  = visible.filter(t => MANAGER_GOAL(t) && forAcc(t)).sort((a, b) => managerOrder(a) - managerOrder(b));
   const counted = goals.filter(t => t.source !== "leads");                    // leads has no goal
-  const kitT   = visible.find(t => t.source === "kit_waiting" && forAcc(t));
   const checkT = visible.find(t => t.area === "checkin" && forAcc(t));
   const pitchT = goals.find(t => t.source === "pitches");
   const ti     = todayIndex(monday);
@@ -196,34 +193,6 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     </div>
   );
 
-  // kits: pieces waiting for the media kit / pitch deck
-  const kitsRow = kitT && (() => {
-    const s = planner.stateOf(kitT, monday);
-    const accs = kitT.account === "both" ? ["lynnhoa", "createbylynn"] : [kitT.account];
-    const waiting = planner.waiting.filter(i => accs.includes(i.account));
-    return (
-      <div key="kits">
-        <button onClick={() => setKitsOpen(o => !o)} aria-expanded={kitsOpen}
-          style={{ width: "100%", display: "grid", gridTemplateColumns: GRID, alignItems: "center", columnGap: GAP, padding: "0 12px", minHeight: 42, border: "none", borderTop: "1px solid #f0ece7", background: C.white, cursor: "pointer", fontFamily: SANS, fontSize: 13, textAlign: "left" as const, color: C.black }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Ico d={IC.copy} size={13} color={look.color} />Kits</span>
-          <span style={{ gridColumn: "span 2", fontSize: 12, color: waiting.length ? C.amber : C.muted }}>{waiting.length ? `${waiting.length} ${waiting.length === 1 ? "piece" : "pieces"} waiting` : "Nothing waiting"} <Ico d={kitsOpen ? IC.up : IC.down} size={11} /></span>
-          <span style={{ display: "flex", justifyContent: "flex-end" }}>{s.done ? <ResultMark state="reached" /> : null}</span>
-        </button>
-        {kitsOpen && (
-          <div style={{ padding: "0 12px 8px 30px", background: "#fcfbf9" }}>
-            {waiting.length === 0 ? <p style={{ fontSize: 12, color: C.green, margin: 0, padding: "8px 0" }}>Nothing waiting ✓</p> : waiting.map(i => (
-              <div key={i.id} style={{ minHeight: 38, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, borderTop: "1px solid #f0ece7" }}>
-                <span style={{ fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{i.title}</span>
-                <B v="sec" onClick={() => quiet(planner.setItemStatus(i, "in_kit"))} s={{ ...BAR_BTN, height: 26, minHeight: 26, color: C.black, flexShrink: 0 }}>In kit</B>
-              </div>
-            ))}
-            <p style={{ fontSize: 11, color: C.muted, margin: "6px 0 0" }}>Add the piece to the media kit or pitch deck, then tap In kit.</p>
-          </div>
-        )}
-      </div>
-    );
-  })();
-
   const checkNote = checkT && (() => {
     const e = planner.entries[`${checkT.id}|${periodOf(checkT, monday)}`];
     return (
@@ -254,7 +223,6 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
       {goals.length === 0 && <p style={{ fontSize: 13, color: C.muted, margin: 0, padding: "10px 12px" }}>No goals for this account yet.</p>}
       {goals.flatMap(t => (t.source === "following" && !hasFollowers ? [goalRow(t), followersRow] : [goalRow(t)]))}
       {!hasFollowers && !goals.some(t => t.source === "following") && followersRow}
-      {kitsRow}
       {checkNote}
     </div>
   );

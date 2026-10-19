@@ -901,8 +901,8 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
         <InlineText value={it.title} ariaLabel="Title" onSave={v => { if (v.trim()) save({ title: v.trim() }); }} s={{ fontFamily: SERIF, fontSize: 20, height: 38 }} />
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
           <div><Lbl>Status</Lbl>
-            <S value={it.status} aria-label="Status" onChange={(e: any) => quietP(planner.setItemStatus(it, e.target.value))}>
-              {ITEM_STATUSES.filter(x => isEd || x.key !== "in_kit" || it.status === "in_kit").map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
+            <S value={it.status === "in_kit" ? "posted" : it.status} aria-label="Status" onChange={(e: any) => quietP(planner.setItemStatus(it, e.target.value))}>
+              {ITEM_STATUSES.filter(x => x.key !== "in_kit").map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
             </S>
           </div>
           <div><Lbl>Date</Lbl>

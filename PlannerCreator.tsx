@@ -252,14 +252,12 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
       <div key={it.id} className="lh-prow" role="button" tabIndex={0} onClick={() => setOpen(it.id)} onKeyDown={(e) => { if (e.key === "Enter") setOpen(it.id); }} style={{ ...rowS, minHeight: 44 }}>
         <span onClick={(e) => e.stopPropagation()}><Tick on={true} color={C.green} size={22} onClick={() => unfilm(it)} /></span>
         <div style={{ flex: 1, minWidth: 0 }}>{title(it, true)}{metaLine(parts)}</div>
-        {it.status === "in_kit"
-          ? <span style={{ ...microLabel, color: C.green, flexShrink: 0 }}>In kit ✓</span>
-          : <button onClick={(e) => { e.stopPropagation(); posted(it); }} aria-pressed={isPosted} title={isPosted ? "Tap to undo" : "Tap once it's live"}
-              style={isPosted
-                ? { background: "none", border: "none", padding: "6px 2px", cursor: "pointer", fontFamily: SANS, ...microLabel, color: C.green, flexShrink: 0 }
-                : { ...BAR_BTN, height: 26, minHeight: 26, padding: "0 8px", border: `1px solid ${C.rule}`, borderRadius: 2, background: C.white, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.black, flexShrink: 0 }}>
-              {isPosted ? "Posted ✓" : "Posted"}
-            </button>}
+        <button onClick={(e) => { e.stopPropagation(); posted(it); }} aria-pressed={isPosted} title={isPosted ? "Tap to undo" : "Tap once it's live"}
+          style={isPosted
+            ? { background: "none", border: "none", padding: "6px 2px", cursor: "pointer", fontFamily: SANS, ...microLabel, color: C.green, flexShrink: 0 }
+            : { ...BAR_BTN, height: 26, minHeight: 26, padding: "0 8px", border: `1px solid ${C.rule}`, borderRadius: 2, background: C.white, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.black, flexShrink: 0 }}>
+          {isPosted ? "Posted ✓" : "Posted"}
+        </button>
         <XBtn label={`Delete ${it.title}`} onClick={() => remove(it)} />
       </div>
     );
