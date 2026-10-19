@@ -21,6 +21,7 @@ export interface License {
   kind:        LicenseKind;
   label:       string;
   end:         string;
+  start:       string | null;     // when the rights started (delivery date) — for the time bar
   daysLeft:    number;
   extended:    boolean;             // renewed / extended at least once
   action:      { action: string; at: string } | null;
@@ -92,7 +93,7 @@ export function projectLicenses(pr: any, client?: any): License[] {
       : daysLeft <= EXPIRY_WARN_DAYS ? "expiring"
       : "active";
     return {
-      key, kind, label: LICENSE_LABEL[kind], end, daysLeft, extended: extended[kind], action, state, alerts,
+      key, kind, label: LICENSE_LABEL[kind], end, start: start || null, daysLeft, extended: extended[kind], action, state, alerts,
       projectId: pr.id, projectName: pr.name, clientId: client?.id || pr.clientId, clientName: client?.name || "",
     };
   });

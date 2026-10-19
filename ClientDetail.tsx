@@ -1,14 +1,20 @@
 // ─────────────────────────────────────────────────────────────
-// ClientDetail — right panel: client info, edit, projects list
+// ClientDetail — one client: totals (open · owed · paid this year),
+// its projects (tap → opens in Projects, where the work happens),
+// its licenses, contact and notes. Edit in place; Delete at the
+// bottom (blocked while issued invoices exist — they must be kept).
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
-import { C, SANS, SERIF, TYPE } from "./constants";
-import { fmt, fmtD, addM, today, uid } from "./formatters";
-import { I, S, B, Lbl, Tag, ConfirmDialog } from "./atoms";
-import { clientMoney } from "./docs";
+import { C, SANS, SERIF, PAL, STATUS_TONE, STATUS_NAME } from "./constants";
+import { fmt, fmtD, today } from "./formatters";
+import { I, S, Lbl, Tag, ConfirmDialog, PillBtn, SectionHead, ListCard, Row, TonedTag, IconCircle } from "./atoms";
+import type { ToneSet } from "./atoms";
+import { projectLicenses, ACTION_LABEL } from "./licenses";
+import type { License } from "./licenses";
+import { clientTotals, statusSince, daysSince, STATUS_ORDER, STALE_QUOTE_DAYS } from "./money";
 import { editLock } from "./saveStatus";
-import ProjectCard from "./ProjectCard";
+import { Ico, IC } from "./PlannerWindows";
 
 interface ClientDetailProps {
   cl:               any;
@@ -23,25 +29,24 @@ interface ClientDetailProps {
   setSel:           (id: string | null) => void;
   highlightedQNo:   string | null;
   onClearHighlight: () => void;
+  onOpenProject?:   (projectId: string) => void;
 }
 
 export default function ClientDetail({
-  cl, clients, isMobile, settings, rc, clientsHook,
-  onGoToCalc, onRevise, onAmend, setSel, highlightedQNo, onClearHighlight,
+  cl, isMobile, clientsHook, onGoToCalc, setSel, highlightedQNo, onClearHighlight, onOpenProject,
 }: ClientDetailProps) {
 
-  const [editMode,      setEditMode]      = useState(false);
-  const [ed,            setEd]            = useState<any>({ ...cl });
-  const [tagI,          setTagI]          = useState("");
-  const [showAddP,      setShowAddP]      = useState(false);
-  const [newPN,         setNewPN]         = useState("");
-  const [delConfirm,    setDelConfirm]    = useState<string | null>(null);
-  const [editPrName,    setEditPrName]    = useState<string | null>(null);
-  const [editPrNameVal, setEditPrNameVal] = useState("");
-  const [askDelete,     setAskDelete]     = useState<null | { blocked: boolean; text: string }>(null);
+  const [editMode,  setEditMode]  = useState(false);
+  const [ed,        setEd]        = useState<any>({ ...cl });
+  const [tagI,      setTagI]      = useState("");
+  const [showAddP,  setShowAddP]  = useState(false);
+  const [newPN,     setNewPN]     = useState("");
+  const [askDelete, setAskDelete] = useState<null | { blocked: boolean; text: string }>(null);
   useEffect(() => (editMode ? editLock.acquire() : undefined), [editMode]);   // no reload while editing
 
-  const f = clientMoney(cl, today());     // from the invoices themselves
+  const todayStr = today();
+  const year = parseInt(todayStr.slice(0, 4));
+  const t = clientTotals(cl, year, todayStr);       // money.ts — same rule as Dashboard and Projects
 
   const saveClient = async () => {
     await clientsHook.updateClient(cl.id, ed);
@@ -86,6 +91,35 @@ export default function ClientDetail({
     setShowAddP(false);
   };
 
+  // projects: open work first (most urgent), then paid, then lost
+  const rank = (pr: any) => (pr.paid ? 50 : pr.status === "lost" ? 60 : Math.max(0, STATUS_ORDER.indexOf(pr.status)));
+  const prs = [...(cl.projects || [])].sort((a: any, b: any) => rank(a) - rank(b) || String(b.date || "").localeCompare(String(a.date || "")));
+  const projMeta = (pr: any) => {
+    const tone = PAL[STATUS_TONE[pr.paid ? "paid" : pr.status] || "neutral"];
+    const word = <span style={{ color: tone.ink }}>{STATUS_NAME[pr.paid ? "paid" : pr.status] || pr.status}</span>;
+    if (pr.paid) return <>{word}{pr.deliveryDate ? ` · delivered ${fmtD(pr.deliveryDate)}` : ""}</>;
+    if (pr.status === "contracted" || pr.status === "production")
+      return <>{word} · {pr.deliveryDate ? `delivery ${fmtD(pr.deliveryDate)}` : <span style={{ color: PAL.waiting.ink }}>No delivery date</span>}</>;
+    if (pr.status === "quoted" || pr.status === "revised") {
+      const d = daysSince(statusSince(pr), todayStr);
+      return <>{word}{d != null ? ` · ${d} ${d === 1 ? "day" : "days"} ago` : ""}{d != null && d > STALE_QUOTE_DAYS && <span style={{ color: PAL.waiting.ink }}> · 30+ days</span>}</>;
+    }
+    return word;
+  };
+
+  const lics: License[] = (cl.projects || []).flatMap((pr: any) => projectLicenses(pr, cl));
+  const licTone = (l: License): ToneSet => l.action || l.state === "done" || l.state === "info" ? PAL.neutral : l.state === "expired" ? PAL.late : l.state === "expiring" ? PAL.waiting : PAL.done;
+  const licTag = (l: License) => l.action ? `${ACTION_LABEL[l.action.action] || l.action.action}` : !l.alerts ? "info only"
+    : l.daysLeft < 0 ? `${Math.abs(l.daysLeft)} days expired` : `${l.daysLeft} ${l.daysLeft === 1 ? "day" : "days"}`;
+
+  const card: any = { background: C.white, border: "1px solid #efebe6", borderRadius: 12, padding: "4px 12px" };
+  const infoRow = (lbl: string, val: any, first = false) => (
+    <div key={lbl} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 0", borderTop: first ? "none" : "1px solid #f4f1ed" }}>
+      <span style={{ fontSize: 12, color: "#8a847d" }}>{lbl}</span>
+      <span style={{ fontSize: 12, color: C.black, textAlign: "right" as const, maxWidth: "62%", overflowWrap: "anywhere" as const }}>{val || "—"}</span>
+    </div>
+  );
+
   return (
     <div style={{
       flex:      isMobile ? undefined : "0 0 56%",
@@ -93,49 +127,85 @@ export default function ClientDetail({
       overflowY: isMobile ? undefined : "auto",
       maxHeight: isMobile ? undefined : "calc(100vh - 80px)",
       paddingLeft: isMobile ? 0 : 4,
+      fontFamily: SANS, color: C.black,
     }}>
-
       {askDelete && (askDelete.blocked
         ? <ConfirmDialog title="Can't delete this client" text={askDelete.text} okLabel="OK" onOk={() => setAskDelete(null)} onCancel={() => setAskDelete(null)} />
         : <ConfirmDialog title={`Delete "${cl.name}"?`} text={askDelete.text} okLabel="Delete" danger onOk={confirmDelete} onCancel={() => setAskDelete(null)} />
       )}
 
+      <button onClick={() => { setSel(null); setEditMode(false); }}
+        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SANS, fontSize: 12, color: "#8a847d" }}>‹ Clients</button>
+
       {/* ── HEADER ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: isMobile ? 18 : 14, gap: 8, flexWrap: "wrap" as const }}>
-        <div style={{ minWidth: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginTop: 6 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
           {editMode
-            ? <I value={ed.name} onChange={(e: any) => setEd((p: any) => ({ ...p, name: e.target.value }))} s={{ fontFamily: SERIF, marginBottom: 4 }} />
-            : <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 6px" }}>{cl.name}</h2>
-          }
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const }}>
-            {cl.tags?.map((t: string) => <Tag key={t}>{t}</Tag>)}
-          </div>
+            ? <I value={ed.name} onChange={(e: any) => setEd((p: any) => ({ ...p, name: e.target.value }))} s={{ fontFamily: SERIF }} />
+            : <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>{cl.name}</h2>}
+          <div style={{ fontSize: 12, color: "#8a847d", marginTop: 4 }}>{[cl.agency || "Direct", `${t.projects} project${t.projects === 1 ? "" : "s"}`, cl.contact].filter(Boolean).join(" · ")}</div>
+          {!editMode && (cl.tags || []).length > 0 && <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const, marginTop: 6 }}>{cl.tags.map((x: string) => <Tag key={x}>{x}</Tag>)}</div>}
         </div>
-        <div style={{ display: "flex", gap: isMobile ? 8 : 6, flexShrink: 0, alignItems: "flex-start" }}>
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
           {editMode
-            ? <>
-                <B onClick={saveClient}>Save</B>
-                <B v="sec" onClick={() => setEditMode(false)}>Cancel</B>
-              </>
-            : <>
-                <B v="sec"    onClick={() => { setEd({ ...cl }); setEditMode(true); }} s={{ minWidth: 96 }}>Edit</B>
-                <B v="danger" onClick={() => deleteClient()}                            s={{ minWidth: 96 }}>Delete</B>
-              </>
-          }
-          <button
-            onClick={() => { setSel(null); setEditMode(false); }}
-            style={{ background: "none", border: "none", cursor: "pointer", color: C.light, fontSize: TYPE.amount.size, lineHeight: 1, padding: "2px 0 0 4px", minWidth: 32, minHeight: 32 }}
-          >✕</button>
+            ? <><PillBtn dark onClick={saveClient}>Save</PillBtn><PillBtn onClick={() => setEditMode(false)}>Cancel</PillBtn></>
+            : <><PillBtn onClick={() => { setEd({ ...cl }); setEditMode(true); }}>Edit</PillBtn><PillBtn dark onClick={() => onGoToCalc(cl.name)}>+ Quote</PillBtn></>}
         </div>
       </div>
 
-      {/* ── INFO GRID ── */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 10 }}>
+      {/* ── TOTALS ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 6, marginTop: 12 }}>
+        {([["Open", t.signed, PAL.progress], ["Owed", t.owed, PAL.waiting], [`Paid ${year}`, t.paidYear, PAL.done]] as [string, number, ToneSet][]).map(([lbl, v, tn]) => (
+          <div key={lbl} style={{ background: tn.wash, borderRadius: 12, padding: "9px 10px", minWidth: 0 }}>
+            <div style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: tn.ink }}>{lbl}</div>
+            <div style={{ fontFamily: SERIF, fontSize: 16, marginTop: 4, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{fmt(v)}</div>
+            {lbl === "Owed" && t.overdue > 0 && <div style={{ fontSize: 10, color: PAL.late.ink, marginTop: 2 }}>{t.overdue} overdue</div>}
+          </div>
+        ))}
+      </div>
 
-        {/* Brand info */}
-        <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "13px 14px" }}>
-          <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const, margin: "0 0 10px" }}>Brand Info</p>
-          {editMode ? <>
+      {/* ── PROJECTS ── */}
+      <SectionHead label={`Projects · ${prs.length}`} right={prs.length && onOpenProject ? "tap to open in Projects" : undefined} />
+      {prs.length > 0 ? (
+        <ListCard>
+          {prs.map((pr: any, i: number) => (
+            <Row key={pr.id} first={i === 0} highlight={!!highlightedQNo && pr.qd?.qNo === highlightedQNo}
+              onClick={onOpenProject ? () => { onClearHighlight(); onOpenProject(pr.id); } : undefined}
+              title={pr.name || "Untitled"} meta={projMeta(pr)}
+              right={<div style={{ fontSize: 14, color: pr.status === "lost" ? C.muted : C.black }}>{fmt(pr.amount)}</div>} />
+          ))}
+        </ListCard>
+      ) : <p style={{ fontSize: 13, color: C.muted, margin: "4px 4px 0" }}>No projects yet.</p>}
+      <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
+        {showAddP ? <>
+          <I value={newPN} onChange={(e: any) => setNewPN(e.target.value)} placeholder="Project name" onKeyDown={(e: any) => e.key === "Enter" && addProject()} />
+          <PillBtn dark onClick={addProject}>Add</PillBtn>
+          <PillBtn onClick={() => { setShowAddP(false); setNewPN(""); }}>Cancel</PillBtn>
+        </> : (
+          <button onClick={() => setShowAddP(true)} style={{ fontSize: 12, color: "#8a847d", background: "none", border: "none", cursor: "pointer", fontFamily: SANS, padding: "4px 4px" }}>+ Add a lead without a quote</button>
+        )}
+      </div>
+
+      {/* ── LICENSES ── */}
+      {lics.length > 0 && <>
+        <SectionHead label={`Licenses · ${lics.length}`} />
+        <ListCard>
+          {lics.map((l, i) => {
+            const tn = licTone(l);
+            return (
+              <Row key={`${l.projectId}-${l.key}`} first={i === 0}
+                icon={<IconCircle tone={tn}><Ico d={l.kind === "excl" ? IC.lock : l.kind === "organic" ? IC.leaf : IC.speaker} size={15} /></IconCircle>}
+                title={l.projectName} meta={`${l.label}${l.extended ? " · renewed" : ""}`}
+                right={<><div style={{ fontSize: 13 }}>{fmtD(l.end)}</div><TonedTag tone={tn} s={{ marginTop: 3 }}>{licTag(l)}</TonedTag></>} />
+            );
+          })}
+        </ListCard>
+      </>}
+
+      {/* ── CONTACT ── */}
+      <SectionHead label="Contact" />
+      <div style={{ ...card, padding: editMode ? "10px 12px 12px" : "4px 12px" }}>
+        {editMode ? <>
             <Lbl>Contact</Lbl>
             <I value={ed.contact || ""} onChange={(e: any) => setEd((p: any) => ({ ...p, contact: e.target.value }))} />
             <Lbl>Email</Lbl>
@@ -161,95 +231,29 @@ export default function ClientDetail({
             <div style={{ display: "flex", gap: 5 }}>
               <I value={tagI} onChange={(e: any) => setTagI(e.target.value)} placeholder="Add tag"
                 onKeyDown={(e: any) => { if (e.key === "Enter" && tagI.trim()) { setEd((p: any) => ({ ...p, tags: [...(p.tags || []), tagI.trim()] })); setTagI(""); } }} />
-              <B v="sec" onClick={() => { if (tagI.trim()) { setEd((p: any) => ({ ...p, tags: [...(p.tags || []), tagI.trim()] })); setTagI(""); } }} s={{ fontSize: TYPE.micro.size }}>+</B>
+              <PillBtn onClick={() => { if (tagI.trim()) { setEd((p: any) => ({ ...p, tags: [...(p.tags || []), tagI.trim()] })); setTagI(""); } }}>+</PillBtn>
             </div>
-          </> : <>
-            {[["Contact", cl.contact], ["Email", cl.email], ["Type", cl.agency],
-              ["Address", [cl.street, [cl.plz, cl.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")],
-              ["Country", cl.country], ["VAT ID", cl.vatId]].map(([lbl, val]) => (
-              <div key={lbl} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${C.rule}` }}>
-                <span style={{ fontSize: TYPE.subtext.size, color: C.muted }}>{lbl}</span>
-                <span style={{ fontSize: TYPE.subtext.size, color: C.black, fontWeight: "500", maxWidth: "60%", textAlign: "right" as const }}>{val || "—"}</span>
-              </div>
-            ))}
-          </>}
-        </div>
-
-        {/* Financial snapshot */}
-        <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "13px 14px" }}>
-          <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const, margin: "0 0 10px" }}>Financial Snapshot</p>
-          {[
-            ["Revenue (paid)",   fmt(f.revenue)],
-            ["Paid invoices",    `${f.paidCount}`],
-            ["Last invoice",     f.last ? `${fmt(f.last.amount)} · ${fmtD(f.last.date)}` : "—"],
-            ["Avg. deal",        f.avgDeal ? fmt(f.avgDeal) : "—"],
-            ["Outstanding",      f.outstanding ? `${fmt(f.outstanding)}${f.overdue ? ` · ${f.overdue} overdue` : ""}` : fmt(0)],
-          ].map(([lbl, val]) => (
-            <div key={lbl} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${C.rule}` }}>
-              <span style={{ fontSize: TYPE.subtext.size, color: C.muted }}>{lbl}</span>
-              <span style={{ fontSize: TYPE.subtext.size, color: C.black, fontWeight: "500", textAlign: "right" as const }}>{val}</span>
-            </div>
-          ))}
-        </div>
+        </> : <>
+          {infoRow("Contact", cl.contact, true)}
+          {infoRow("Email", cl.email)}
+          {infoRow("Type", cl.agency)}
+          {infoRow("Address", [cl.street, [cl.plz, cl.city].filter(Boolean).join(" ")].filter(Boolean).join(", "))}
+          {infoRow("Country", cl.country)}
+          {infoRow("VAT ID", cl.vatId)}
+        </>}
       </div>
 
       {/* ── NOTES ── */}
-      <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "13px 14px", marginBottom: 10 }}>
-        <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const, margin: "0 0 10px" }}>Relationship Notes</p>
+      <SectionHead label="Notes" />
+      <div style={{ ...card, padding: "10px 12px" }}>
         {editMode
-          ? <textarea
-              value={ed.notes || ""}
-              onChange={(e: any) => setEd((p: any) => ({ ...p, notes: e.target.value }))}
-              style={{ width: "100%", minHeight: isMobile ? 80 : 50, padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: TYPE.body.size, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const }}
-            />
-          : <p style={{ fontSize: TYPE.body.size, color: cl.notes ? C.black : C.light, margin: 0, lineHeight: 1.65 }}>{cl.notes || "No notes yet…"}</p>
-        }
+          ? <textarea value={ed.notes || ""} onChange={(e: any) => setEd((p: any) => ({ ...p, notes: e.target.value }))}
+              style={{ width: "100%", minHeight: 70, padding: "8px 10px", border: `1px solid ${C.rule}`, borderRadius: 8, background: C.bg, fontFamily: SANS, color: C.black, boxSizing: "border-box" as const, resize: "vertical" as const }} />
+          : <p style={{ fontSize: 13, color: cl.notes ? C.black : C.light, margin: 0, lineHeight: 1.6 }}>{cl.notes || "No notes yet"}</p>}
       </div>
 
-      {/* ── PROJECTS ── */}
-      {cl.projects.length > 0 && (
-        <div style={{ marginTop: 10 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const, margin: 0 }}>Projects</p>
-            <B v="sec" onClick={() => onGoToCalc(cl.name)} s={{ fontSize: TYPE.micro.size }}>+ Quote</B>
-          </div>
-          {cl.projects.map((pr: any) => (
-            <ProjectCard
-              key={pr.id}
-              pr={pr}
-              cl={cl}
-              clients={clients}
-              isMobile={isMobile}
-              settings={settings}
-              rc={rc}
-              clientsHook={clientsHook}
-              onRevise={onRevise}
-              onAmend={onAmend}
-              highlighted={pr.qd?.qNo === highlightedQNo}
-              onClearHighlight={onClearHighlight}
-              readOnly={true}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* ── ADD PROJECT ── */}
-      <div style={{ marginTop: 12 }}>
-        {showAddP ? (
-          <div style={{ display: "flex", gap: 7 }}>
-            <I value={newPN} onChange={(e: any) => setNewPN(e.target.value)} placeholder="Project name…"
-              onKeyDown={(e: any) => e.key === "Enter" && addProject()} />
-            <B onClick={addProject}>Add</B>
-            <B v="sec" onClick={() => { setShowAddP(false); setNewPN(""); }}>Cancel</B>
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowAddP(true)}
-            style={{ fontSize: TYPE.label.size, color: C.muted, background: "none", border: "none", cursor: "pointer", fontFamily: SANS, padding: 0, letterSpacing: "0.04em" }}
-          >
-            + Add project manually
-          </button>
-        )}
+      <div style={{ textAlign: "center" as const, margin: "18px 0 6px" }}>
+        <button onClick={() => deleteClient()} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: 12, color: C.red }}>Delete client</button>
       </div>
     </div>
   );

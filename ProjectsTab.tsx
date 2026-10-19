@@ -7,10 +7,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { C, SERIF, SANS, TYPE, expiryColor, expiryTint, PAL, STATUS_TONE, STATUS_NAME } from "./constants";
+import { signedOpen } from "./money";
 import { fmt, fmtD, fmtE, today, addM, dLeft } from "./formatters";
 import { projectLicenses, ACTION_LABEL } from "./licenses";
 import { pdfFlow, finalizeQuestion } from "./docFlow";
-import { I, B, TSel, TSelWrap, StatusBadge, ConfirmDialog } from "./atoms";
+import { I, B, TSel, TSelWrap, StatusBadge, ConfirmDialog, TonedTag } from "./atoms";
 import RenewalModal from "./RenewalModal";
 import ProductionSection from "./ProductionSection";
 import PDFModal from "./PDFModal";
@@ -71,8 +72,10 @@ const sinceDays = (pr: any): number | null => {
 
 // ── Single expandable project row ─────────────────────────────
 function ProjectRow({
-  pr, clients, isMobile, isExpanded, onToggle, clientsHook, onRevise, onAmend, onGoToCalc, settings, onModalClosed, rc,
+  pr, clients, isMobile, isExpanded, onToggle, clientsHook, onRevise, onAmend, onGoToCalc, settings, onModalClosed, rc, onOpenClient, onAskDelivery,
 }: {
+  onOpenClient?: (name: string) => void;
+  onAskDelivery?: (p: { cid: string; pid: string; name: string }) => void;
   pr: any; clients: any[]; isMobile: boolean; isExpanded: boolean;
   onToggle: () => void; clientsHook: any;
   onRevise: (pr: any, cl: any) => void;
@@ -102,6 +105,14 @@ function ProjectRow({
   const cid    = pr._cid;
   const pid    = pr.id;
   const upP    = (data: any) => h.updateProject(cid, pid, data);
+  // signed without a delivery date → ask once (can be skipped; invoices and licenses need it).
+  // The question lives in the Projects tab: after signing, this row moves to the Production group.
+  const askDelivery = () => { if (!pr.deliveryDate && onAskDelivery) onAskDelivery({ cid, pid, name: pr.name }); };
+  // undo "lost": back to the quote status it had before
+  const prevQuoteStatus = () => {
+    const h = [...(pr.statusHistory || [])].reverse().find((x: any) => x.status === "quoted" || x.status === "revised");
+    return h ? h.status : "quoted";
+  };
 
   const docs    = sortDocs((pr.documents || []) as DocRecord[]);
   const con     = currentContract(pr);
@@ -131,7 +142,7 @@ function ProjectRow({
       { key: "sent", label: "Mark sent", kind: "sec", run: () => h.markDocSent(cid, pid, d.id, settings) },
     ];
     if (d.kind === "contract") {
-      const sign: DocAction = { key: "signed", label: "Mark signed", kind: "pri", date: "Signed on", run: (dt?: string) => h.markContractSigned(cid, pid, d.id, dt || today(), settings) };
+      const sign: DocAction = { key: "signed", label: "Mark signed", kind: "pri", date: "Signed on", run: async (dt?: string) => { await h.markContractSigned(cid, pid, d.id, dt || today(), settings); askDelivery(); } };
       if (d.status === "draft") return [{ key: "sent", label: "Mark sent", kind: "sec", run: () => h.markDocSent(cid, pid, d.id, settings) }, sign];
       if (d.status === "sent")  return [sign];
       return [];
@@ -253,40 +264,42 @@ function ProjectRow({
         />
       )}
 
-      {/* ── COLLAPSED ROW ── */}
-      <div onClick={onToggle} style={{ padding: pad, cursor: "pointer" }}>
-        {isMobile ? (
-          <>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-              <span style={{ fontSize: TYPE.subtext.size, color: C.muted, fontWeight: "500" }}>{pr._cname}</span>
-              <span style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black, flexShrink: 0, marginLeft: 12 }}>{fmt(pr.amount)}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <span style={{ fontSize: TYPE.body.size, color: C.black, fontWeight: "500", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr.name}</span>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 3 }}>
-                  <StatusBadge status={pr.paid ? "paid" : pr.status} />
-                  {!pr.paid && sinceDays(pr) !== null && <span style={{ fontSize: TYPE.micro.size, color: C.light }}>{sinceDays(pr)} d</span>}
-                </span>
+      {/* ── COLLAPSED ROW: name · client (opens Clients) · delivery / age ……… amount ── */}
+      {(() => {
+        const since = sinceDays(pr);
+        const quote = !pr.paid && (pr.status === "quoted" || pr.status === "revised");
+        const stale = quote && (since ?? 0) > 30;
+        const meta = pr.paid ? <> · <span style={{ color: PAL.done.ink }}>paid</span></>
+          : pr.status === "lost" ? <> · lost</>
+          : pr.status === "contracted" || pr.status === "production"
+            ? <> · {pr.deliveryDate ? `delivery ${fmtD(pr.deliveryDate)}` : <span style={{ color: PAL.waiting.ink }}>No delivery date</span>}{since != null ? ` · ${since} d` : ""}</>
+          : pr.status === "invoiced" ? <> · <span style={{ color: PAL.waiting.ink }}>invoiced</span>{since != null ? ` · ${since} d` : ""}</>
+          : quote ? <> · {pr.status}{since != null ? ` ${since} ${since === 1 ? "day" : "days"} ago` : ""}</>
+          : <> · lead</>;
+        return (
+          <div onClick={onToggle} style={{ padding: "9px 0", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, fontFamily: SANS }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                <span style={{ fontSize: 14, color: C.black, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr.name || "Untitled"}</span>
+                {/^untitled project$/i.test(String(pr.name || "")) && <TonedTag tone={PAL.waiting}>Needs a name</TonedTag>}
               </div>
-              <span style={{ fontSize: TYPE.label.size, color: C.muted, flexShrink: 0, marginLeft: 12 }}>{pr.deliveryDate ? fmtD(pr.deliveryDate) : "—"}</span>
+              <div style={{ fontSize: 12, color: "#8a847d", marginTop: 2, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>
+                {onOpenClient
+                  ? <button onClick={(e) => { e.stopPropagation(); onOpenClient(pr._cname); }} aria-label={`Open client ${pr._cname}`}
+                      style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textDecoration: "underline", textDecorationColor: "#d9d3cc", textUnderlineOffset: 2 }}>{pr._cname}</button>
+                  : pr._cname}
+                {meta}
+              </div>
             </div>
-          </>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 110px 110px", alignItems: "center" }}>
-            <div style={{ minWidth: 0, paddingRight: 12 }}>
-              <div style={{ fontSize: TYPE.micro.size, color: C.muted, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr._cname}</div>
-              <div style={{ fontSize: TYPE.subtext.size, color: C.black, fontWeight: "500", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr.name}</div>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 3 }}>
-                <StatusBadge status={pr.paid ? "paid" : pr.status} />
-                {!pr.paid && sinceDays(pr) !== null && <span style={{ fontSize: TYPE.micro.size, color: C.light }}>{sinceDays(pr)} d</span>}
-              </span>
+            <div style={{ textAlign: "right" as const, flexShrink: 0 }}>
+              <div style={{ fontFamily: SERIF, fontSize: 15, color: pr.status === "lost" ? C.muted : C.black }}>{fmt(pr.amount)}</div>
+              {stale ? <TonedTag tone={PAL.waiting} s={{ marginTop: 3 }}>30+ days</TonedTag>
+                : (pr.paid || pr.status === "lost") ? <div style={{ marginTop: 3 }}><StatusBadge status={pr.paid ? "paid" : "lost"} /></div> : null}
             </div>
-            <div style={{ fontSize: TYPE.micro.size, color: C.muted, textAlign: "right" as const, paddingRight: 12 }}>{pr.deliveryDate ? fmtD(pr.deliveryDate) : "—"}</div>
-            <div style={{ fontFamily: SERIF, fontSize: TYPE.subtext.size, color: C.black, textAlign: "right" as const }}>{fmt(pr.amount)}</div>
+            <span style={{ color: "#cfc9c2", fontSize: 11, flexShrink: 0 }}>{isExpanded ? "▴" : "▾"}</span>
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       {/* ── EXPANDED DETAIL ── */}
       {isExpanded && (
@@ -393,14 +406,18 @@ function ProjectRow({
             {["quoted","revised"].includes(pr.status) && <>
               <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => onRevise(pr, cl)}>Revise quote</B>
               <B s={{ fontSize: TYPE.micro.size }} onClick={() => act(async () => openDoc(await h.createContract(cid, pid, settings)))}>Create contract</B>
+              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted }} onClick={() => setDialog({ title: "Mark lost", text: "The quote leaves the pipeline and moves to Lost. You can undo it.", okLabel: "Mark lost", run: () => upP({ status: "lost" }) })}>Mark lost</B>
             </>}
+            {pr.status === "lost" && (
+              <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => act(() => upP({ status: prevQuoteStatus() }))}>Undo lost</B>
+            )}
 
             {pr.status === "contracted" && <>
               <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => act(async () => openDoc(await h.reviseContract(cid, pid, settings)))}>
                 {con?.status === "draft" ? "Edit contract" : "Revise contract"}
               </B>
               {con && (
-                <B s={{ fontSize: TYPE.micro.size }} onClick={() => setDialog({ title: "Mark signed", dateLabel: "Signed on", okLabel: "Mark signed", run: (dt: string) => h.markContractSigned(cid, pid, con.id, dt, settings) })}>Mark signed</B>
+                <B s={{ fontSize: TYPE.micro.size }} onClick={() => setDialog({ title: "Mark signed", dateLabel: "Signed on", okLabel: "Mark signed", run: async (dt: string) => { await h.markContractSigned(cid, pid, con.id, dt, settings); askDelivery(); } })}>Mark signed</B>
               )}
             </>}
 
@@ -495,6 +512,7 @@ interface ProjectsTabProps {
   settings:         any;
   rc:               any;
   initialFilter?:   string | null;    // from a dashboard tile: "quoted" | "active" | status
+  onOpenClient?:    (name: string) => void;   // client name in a row → Clients
   clientsHook:      any;
   onRevise:         (pr: any, cl: any) => void;
   onAmend:          (pr: any, cl: any) => void;
@@ -505,13 +523,15 @@ interface ProjectsTabProps {
 
 export default function ProjectsTab({
   clients, isMobile, settings, rc, clientsHook,
-  onRevise, onAmend, onGoToCalc, pendingProjectQNo, onPendingClear, initialFilter,
+  onRevise, onAmend, onGoToCalc, pendingProjectQNo, onPendingClear, initialFilter, onOpenClient,
 }: ProjectsTabProps) {
 
   const [expanded,      setExpanded]      = useState<string | null>(null);
   const [statusFilter,  setStatusFilter]  = useState(initialFilter || "all");
   useEffect(() => { if (initialFilter) setStatusFilter(initialFilter); }, [initialFilter]);
   const [sortOrder,     setSortOrder]     = useState("newest");
+  const [showLost,      setShowLost]      = useState(false);
+  const [askDeliv,      setAskDeliv]      = useState<null | { cid: string; pid: string; name: string }>(null);
   const [scrollTrigger, setScrollTrigger] = useState(0);  // re-scroll to row after modal close (old-app)
 
   // Auto-expand pending project
@@ -535,7 +555,8 @@ export default function ProjectsTab({
     c.projects.map((pr: any) => ({ ...pr, _cid: c.id, _cname: c.name }))
   );
 
-  const active = all.filter((pr: any) => !pr.paid).sort((a: any, b: any) => {
+  const lost   = all.filter((pr: any) => !pr.paid && pr.status === "lost");
+  const active = all.filter((pr: any) => !pr.paid && pr.status !== "lost").sort((a: any, b: any) => {
     if (sortOrder === "amount")  return b.amount - a.amount;
     if (sortOrder === "oldest")  return String(a.date || "").localeCompare(String(b.date || ""));
     return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
@@ -563,10 +584,9 @@ export default function ProjectsTab({
       {(() => {
         const tone = PAL[statusFilter === "signed" || statusFilter === "active" ? "progress" : STATUS_TONE[statusFilter] || "neutral"];
         // "signed, not invoiced": what's already invoiced on a project is taken off (same as the dashboard)
-        const open = (pr: any) => statusFilter !== "signed" ? (Number(pr.amount) || 0)
-          : Math.max(0, (Number(pr.amount) || 0) - docsOf(pr).filter((d: any) => d.kind === "invoice" && (isPaidInvoice(d) || isOpenInvoice(d))).reduce((m: number, d: any) => m + (Number(d.net) || 0), 0));
+        const open = (pr: any) => (statusFilter !== "signed" ? (Number(pr.amount) || 0) : signedOpen(pr));   // money.ts
         const sum = filteredActive.reduce((s: number, pr: any) => s + open(pr), 0);
-        const what = statusFilter === "all" ? "active" : statusFilter === "signed" ? "signed, not invoiced" : (FILTERS.find(f => f[0] === statusFilter)?.[1] || "").toLowerCase();
+        const what = statusFilter === "all" ? "open" : statusFilter === "signed" ? "signed, not invoiced" : (FILTERS.find(f => f[0] === statusFilter)?.[1] || "").toLowerCase();
         return (
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8a847d", marginTop: 4, fontFamily: SANS }}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: tone.mid, flexShrink: 0 }} />
@@ -638,6 +658,7 @@ export default function ProjectsTab({
                     rc={rc}
                     settings={settings}
                     onModalClosed={() => setScrollTrigger(t => t + 1)}
+                    onOpenClient={onOpenClient} onAskDelivery={setAskDeliv}
                   />
                 ))}
                 </div>
@@ -649,6 +670,36 @@ export default function ProjectsTab({
           <p style={{ fontSize: TYPE.subtext.size, color: C.light, padding: "20px 0" }}>No projects match this filter.</p>
         )}
       </>}
+
+      {askDeliv && (
+        <ConfirmDialog title="Delivery date" text={`When will you deliver "${askDeliv.name}"? Invoices and licenses need it. You can also set it later.`}
+          dateLabel="Delivery date" okLabel="Set delivery date" cancelLabel="Later"
+          onCancel={() => setAskDeliv(null)}
+          onOk={(dt: string) => { const a = askDeliv; setAskDeliv(null); clientsHook.updateProject(a.cid, a.pid, { deliveryDate: dt }).catch(() => { /* the save toast reports it */ }); }} />
+      )}
+
+      {/* ── LOST (folded) — closed quotes, out of the pipeline ── */}
+      {lost.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <button onClick={() => setShowLost(o => !o)} aria-expanded={showLost}
+            style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 4px", background: "none", border: "none", cursor: "pointer", fontFamily: SANS }}>
+            <span style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "#8a847d" }}>Lost · {lost.length}</span>
+            <span style={{ fontSize: 11, color: "#8a847d" }}>{showLost ? "▴" : "▾"}</span>
+          </button>
+          {showLost && (
+            <div style={{ background: C.white, border: "1px solid #efebe6", borderRadius: 12, overflow: "hidden", padding: "0 12px", opacity: 0.85 }}>
+              <div style={{ marginBottom: -1 }}>
+                {lost.map((pr: any) => (
+                  <ProjectRow key={pr.id} pr={pr} clients={clients} isMobile={isMobile} isExpanded={expanded === pr.id}
+                    onToggle={() => setExpanded(expanded === pr.id ? null : pr.id)} clientsHook={clientsHook}
+                    onRevise={onRevise} onAmend={onAmend} onGoToCalc={onGoToCalc} rc={rc} settings={settings}
+                    onModalClosed={() => setScrollTrigger(t => t + 1)} onOpenClient={onOpenClient} onAskDelivery={setAskDeliv} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── DONE SECTION ── */}
       {done.length > 0 && (
@@ -672,6 +723,7 @@ export default function ProjectsTab({
               rc={rc}
               settings={settings}
               onModalClosed={() => setScrollTrigger(t => t + 1)}
+                    onOpenClient={onOpenClient} onAskDelivery={setAskDeliv}
             />
           ))}
         </div>

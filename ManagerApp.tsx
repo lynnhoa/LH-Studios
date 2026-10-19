@@ -289,6 +289,7 @@ export default function ManagerApp({
 
         {nav === NAV_CLIENTS && (
           <ClientList
+            onOpenProject={(pid: string) => goToProjects(pid)}
             clients={clientsHook.clients}
             isMobile={isMobile}
             settings={settings}
@@ -311,6 +312,7 @@ export default function ManagerApp({
 
         {nav === NAV_PROJECTS && (
           <ProjectsTab
+            onOpenClient={(name: string) => goToClients(name)}
             clients={clientsHook.clients}
             isMobile={isMobile}
             settings={settings}

@@ -962,7 +962,7 @@ export function useClients(userId: string | null): UseClientsReturn {
           const pno     = projectNoFrom(year, await nextNumber(`project:${year}`));
           const qNo     = quoteNo(pno);
           const content = { ...data, qNo, rev: 0 };
-          const name    = projectName?.trim() || project.name || brand || "Untitled Project";
+          const name    = projectName?.trim() || project.name || brand || "";
           await writeProject(client.id, project.id, {
             projectNo: pno, name, status: "quoted" as ProjectStatus, amount: amountOf(content), date: docDate, qd: content as any,
           });
@@ -975,6 +975,9 @@ export function useClients(userId: string | null): UseClientsReturn {
         }
 
         // ── New quote ───────────────────────────────────────
+        // a new quote needs a project name and a client (no placeholders)
+        if (!projectName?.trim()) return { error: "Add a project name first." };
+        if (!client && !(brand || "").trim()) return { error: "Add the client's name first." };
         if (!client) {
           const b = (brand || "").trim().toLowerCase();
           client = clientsRef.current.find(c => c.name.trim().toLowerCase() === b);
@@ -982,7 +985,7 @@ export function useClients(userId: string | null): UseClientsReturn {
         if (!client) {
           const clientId = uid();
           const newClient: Client = {
-            id: clientId, name: brand || "New Client", contact: contact || "", email: "", agency: "Direct",
+            id: clientId, name: (brand || "").trim(), contact: contact || "", email: "", agency: "Direct",
             street: "", plz: "", city: "", country: "Germany", vatId: "", tags: [], notes: "", projects: [],
           };
           const { error: ce } = await supabase.from("clients").insert({ id: clientId, user_id: userId, ...clientToRow(newClient) });
@@ -998,7 +1001,7 @@ export function useClients(userId: string | null): UseClientsReturn {
         const content = { ...data, qNo, rev: 0 };
         const projectId = uid();
         const now  = new Date().toISOString();
-        const name = projectName?.trim() || brand || "Untitled Project";
+        const name = projectName.trim();
         const amount = amountOf(content);
 
         const newProject: Project = {

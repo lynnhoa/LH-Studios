@@ -74,6 +74,7 @@ export const TINT = {
 // ─── PROJECT STATUS — one colour + one name everywhere ───────
 export const STATUS_COLOR: Record<string, string> = {
   lead:       C.light,
+  lost:       C.light,
   quoted:     C.light,
   revised:    "#9a9188",
   contracted: C.blue,
@@ -83,11 +84,11 @@ export const STATUS_COLOR: Record<string, string> = {
 };
 // the palette tone of each project status (pastel badges, cards)
 export const STATUS_TONE: Record<string, Tone> = {
-  lead: "neutral", quoted: "neutral", revised: "neutral",
+  lead: "neutral", lost: "neutral", quoted: "neutral", revised: "neutral",
   contracted: "progress", production: "progress", invoiced: "waiting", paid: "done",
 };
 export const STATUS_NAME: Record<string, string> = {
-  lead: "Lead", quoted: "Quoted", revised: "Revised", contracted: "Contracted",
+  lead: "Lead", quoted: "Quoted", revised: "Revised", contracted: "Contracted", lost: "Lost",
   production: "Production", invoiced: "Invoiced", paid: "Paid",
 };
 

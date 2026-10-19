@@ -11,6 +11,7 @@ import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE, PAL } from "./constants";
 import { fmt, fmtD, today } from "./formatters";
 import { Ico, IC } from "./PlannerWindows";
+import { Chip } from "./atoms";
 import PDFModal from "./PDFModal";
 import { downloadInvoiceReport } from "./InvoiceReport";
 import { invoiceRows, invoicesCsv, invoiceTypeLabel, invoicePeriods, isOpenInvoice, isPaidInvoice, isOverdue, paidDateOf, MONTH_DE } from "./docs";
@@ -108,17 +109,9 @@ export default function Invoices({ clients, settings, isMobile, filterTab, focus
     return [d.docNo, type !== "Project" ? type : null, when].filter(Boolean).join(" · ");
   };
   const shown = rows.reduce((s, r) => s + (Number(st === "paid" ? r.doc.net : r.doc.gross) || 0), 0);
-  const chip = (f: F, label: string) => {
-    const on = st === f, t = toneOfF(f);
-    return (
-      <button key={f} onClick={() => setSt(f)} aria-pressed={on}
-        style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 11px", borderRadius: 15, border: `1px solid ${on ? (f === "all" ? "#d9d3cc" : t.fill) : C.rule}`, background: on ? (f === "all" ? PAL.neutral.fill : t.wash) : C.white,
-          color: on ? (f === "all" ? C.black : t.ink) : "#4a4540", fontFamily: SANS, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" as const, flexShrink: 0 }}>
-        {f !== "all" && <span style={{ width: 7, height: 7, borderRadius: "50%", background: t.mid }} />}{label}
-        <span style={{ fontSize: 11, color: on ? (f === "all" ? "#6b655e" : t.ink) : C.muted }}>{count(f)}</span>
-      </button>
-    );
-  };
+  const chip = (f: F, label: string) => (
+    <Chip key={f} on={st === f} tone={toneOfF(f)} dot={f !== "all"} label={label} count={count(f)} onClick={() => setSt(f)} />
+  );
 
   if (preview) {
     return <PDFModal doc={preview.doc} settings={settings} client={preview.client} editable={false} onClose={() => setPreview(null)} />;

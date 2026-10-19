@@ -595,3 +595,97 @@ export const SectionHeading = ({ children }: { children: React.ReactNode }) => (
     {children}
   </h3>
 );
+
+
+// ═════════════════════════════════════════════════════════════
+// MASTER PARTS (Gelato look) — one place for every list screen:
+// summary line · filter chip · pill button · search field ·
+// section header · list card · row · tag · icon circle · time bar
+// Icons are passed in (atoms can't import PlannerWindows).
+// ═════════════════════════════════════════════════════════════
+export type ToneSet = { fill: string; wash: string; mid: string; ink: string };
+
+export const Dot = ({ c, s }: { c: string; s?: any }) => (
+  <span style={{ width: 7, height: 7, borderRadius: "50%", background: c, display: "inline-block", flexShrink: 0, ...s }} />
+);
+
+// "● 8 open · 5.716,00 €" under a title
+export const SummaryLine = ({ dot, children }: { dot: string; children: any }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8a847d", marginTop: 4, fontFamily: SANS, flexWrap: "wrap" as const }}>
+    <Dot c={dot} />{children}
+  </div>
+);
+export const Strong = ({ children, color }: { children: any; color?: string }) => <span style={{ color: color || C.black, fontWeight: 500 }}>{children}</span>;
+
+// filter chip: dot · label · count; on = tinted with its tone (neutral for "All")
+export const Chip = ({ on, tone, label, count, onClick, dot = true }: { on: boolean; tone: ToneSet; label: string; count?: number | string; onClick: () => void; dot?: boolean }) => (
+  <button onClick={onClick} aria-pressed={on}
+    style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 11px", borderRadius: 15, border: `1px solid ${on ? (dot ? tone.fill : "#d9d3cc") : C.rule}`,
+      background: on ? (dot ? tone.wash : PAL.neutral.fill) : C.white, color: on ? (dot ? tone.ink : C.black) : "#4a4540",
+      fontFamily: SANS, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" as const, flexShrink: 0 }}>
+    {dot && <Dot c={tone.mid} />}{label}
+    {count !== undefined && <span style={{ fontSize: 11, color: on ? (dot ? tone.ink : "#6b655e") : C.muted }}>{count}</span>}
+  </button>
+);
+export const ChipRow = ({ children, s }: { children: any; s?: any }) => (
+  <div style={{ display: "flex", gap: 6, overflowX: "auto" as const, paddingBottom: 2, ...s }}>{children}</div>
+);
+
+// pill button: dark = the main action
+export const PillBtn = ({ children, onClick, dark, dim, s, title }: { children: any; onClick?: () => void; dark?: boolean; dim?: boolean; s?: any; title?: string }) => (
+  <button onClick={onClick} title={title}
+    style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 13px", borderRadius: 15, border: `1px solid ${dark ? C.black : "#e2ddd6"}`,
+      background: dark ? C.black : C.white, color: dark ? C.white : C.black, fontFamily: SANS, fontSize: 12, cursor: "pointer",
+      opacity: dim ? 0.5 : 1, whiteSpace: "nowrap" as const, flexShrink: 0, ...s }}>{children}</button>
+);
+
+export const SearchField = ({ value, onChange, placeholder, s }: { value: string; onChange: (v: string) => void; placeholder: string; s?: any }) => (
+  <label style={{ display: "flex", alignItems: "center", gap: 8, height: 38, padding: "0 12px", background: C.white, border: "1px solid #ebe7e2", borderRadius: 12, boxSizing: "border-box" as const, ...s }}>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#b0aaa3" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M10 17a7 7 0 1 0 0-14a7 7 0 0 0 0 14zM21 21l-6-6" /></svg>
+    <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={placeholder}
+      style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontFamily: SANS, color: C.black, padding: 0, height: 34 }} />
+  </label>
+);
+
+// group header: ● LABEL · n ……… total
+export const SectionHead = ({ dot, label, right, s }: { dot?: string; label: string; right?: any; s?: any }) => (
+  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, margin: "14px 4px 6px", fontFamily: SANS, ...s }}>
+    <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "#8a847d" }}>{dot && <Dot c={dot} />}{label}</span>
+    {right !== undefined && right !== null && <span style={{ fontSize: 11, color: "#6b655e", whiteSpace: "nowrap" as const }}>{right}</span>}
+  </div>
+);
+
+export const ListCard = ({ children, s }: { children: any; s?: any }) => (
+  <div style={{ background: C.white, border: "1px solid #efebe6", borderRadius: 12, overflow: "hidden", ...s }}>{children}</div>
+);
+
+export const TonedTag = ({ tone, children, s }: { tone: ToneSet; children: any; s?: any }) => (
+  <span style={{ display: "inline-block", fontSize: 10, letterSpacing: "0.03em", padding: "2px 8px", borderRadius: 9, background: tone.fill, color: tone.ink, whiteSpace: "nowrap" as const, ...s }}>{children}</span>
+);
+
+export const IconCircle = ({ tone, children, size = 30, s }: { tone: ToneSet; children: any; size?: number; s?: any }) => (
+  <span style={{ width: size, height: size, borderRadius: "50%", background: tone.wash, color: tone.ink, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, ...s }}>{children}</span>
+);
+
+// one list row: [icon] title / details …… right  ›
+export const Row = ({ icon, title, meta, right, onClick, first, chevron = true, highlight, s }: {
+  icon?: any; title: any; meta?: any; right?: any; onClick?: () => void; first?: boolean; chevron?: boolean; highlight?: boolean; s?: any;
+}) => (
+  <div role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} onKeyDown={onClick ? (e: any) => { if (e.key === "Enter") onClick(); } : undefined}
+    style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 54, padding: "7px 10px 7px 12px", borderTop: first ? "none" : "1px solid #f4f1ed",
+      cursor: onClick ? "pointer" : "default", background: highlight ? PAL.progress.wash : undefined, fontFamily: SANS, ...s }}>
+    {icon}
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: 14, color: C.black, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
+      {meta && <div style={{ fontSize: 12, color: "#8a847d", marginTop: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{meta}</div>}
+    </div>
+    {right !== undefined && right !== null && <div style={{ textAlign: "right" as const, flexShrink: 0 }}>{right}</div>}
+    {onClick && chevron && <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#cfc9c2" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d="M9 6l6 6-6 6" /></svg>}
+  </div>
+);
+
+export const TimeBar = ({ pct, color, s }: { pct: number; color: string; s?: any }) => (
+  <div style={{ height: 3, background: "#f1eeea", borderRadius: 2, ...s }}>
+    <div style={{ width: `${Math.max(0, Math.min(100, pct))}%`, height: 3, background: color, borderRadius: 2 }} />
+  </div>
+);

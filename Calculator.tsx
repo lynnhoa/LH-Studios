@@ -293,6 +293,11 @@ export default function Calculator({
         note={isAmend ? "The amendment number is assigned when you save." : isRev ? undefined : "The quote number is assigned when you save."}
         onClose={() => setPdf(null)}
         onSave={async (doc: any) => {
+          // a new quote needs a client and a project name (no more "New Client / Untitled Project")
+          if (!isAmend && !isRev && !locked) {
+            if (!String(brandName || "").trim()) throw new Error("Add the client's name first.");
+            if (!String(projName || leadSel?.name || "").trim()) throw new Error("Add a project name first.");
+          }
           const res = await clientsHook.saveQuote({
             doc, brand: brandName, contact: doc.data?.contact || contact,
             mode: isAmend ? "amend" : isRev ? "revise" : "new",

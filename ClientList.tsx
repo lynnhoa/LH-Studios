@@ -1,12 +1,18 @@
 // ─────────────────────────────────────────────────────────────
-// ClientList — orchestrates left panel (list) + right panel (detail)
-// Mobile: shows one at a time. Desktop/iPad: split view.
+// ClientList — the relationship view: list + detail (split view on
+// iPad / desktop, one at a time on the phone).
+//   Each client: open value (signed, not invoiced + owed) or its
+//   quotes, number of projects, most urgent status, revenue this year
+//   (from invoices), license hints. Chips: All · In progress · Quoted ·
+//   Dormant (no open work, nothing for 90 days — money.ts).
+//   Work on a project happens in Projects: the detail links there.
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
-import { C, SANS, SERIF, TYPE } from "./constants";
-import { fmt, fmtD, addM, uid, today } from "./formatters";
-import { I, S, B, Lbl, Tag, UBadge, TSel, TSelWrap, StatusBadge } from "./atoms";
+import { C, SANS, SERIF, TYPE, PAL, STATUS_TONE, STATUS_NAME } from "./constants";
+import { fmt, addM, today } from "./formatters";
+import { I, S, Lbl, Tag, TSel, TSelWrap, SummaryLine, Strong, Chip, ChipRow, PillBtn, SearchField, ListCard, Row, TonedTag } from "./atoms";
+import { clientTotals } from "./money";
 import { projectLicenses } from "./licenses";
 import ClientDetail from "./ClientDetail";
 
@@ -25,7 +31,11 @@ interface ClientListProps {
   onAmend:          (pr: any, cl: any) => void;
   goTo:             (n: number) => void;
   clientsHook:      any;
+  onOpenProject?:   (projectId: string) => void;
 }
+
+// a client saved without a name (old quotes) — shown as "Needs a name"
+export const needsName = (c: any) => String(c?.name || "").trim().toLowerCase() === "new client";
 
 function usageEnd(pr: any): string | null {
   if (!pr.deliveryDate || !pr.qd) return null;
@@ -46,13 +56,13 @@ function usageEnd(pr: any): string | null {
 export default function ClientList({
   clients, isMobile, settings, rc, selReset, onSelChange,
   pendingClientName, pendingProjectQNo, onPendingClear,
-  onGoToCalc, onRevise, onAmend, goTo, clientsHook,
+  onGoToCalc, onRevise, onAmend, goTo, clientsHook, onOpenProject,
 }: ClientListProps) {
 
   const [sel,            setSel_]          = useState<string | null>(null);
   const [highlightedQNo, setHighlightedQNo]= useState<string | null>(null);
   const [search,         setSearch]        = useState("");
-  const [statusFilter,   setStatusFilter]  = useState("all");
+  const [chip,           setChip]          = useState<"all" | "progress" | "quoted" | "dormant">("all");
   const [typeFilter,     setTypeFilter]    = useState("all");
   const [sortOrder,      setSortOrder]     = useState("recent");
   const [showAdd,        setShowAdd]       = useState(false);
@@ -76,38 +86,34 @@ export default function ClientList({
 
   const cl = sel ? clients.find((c: any) => c.id === sel) : null;
 
-  // ── Filter + sort ─────────────────────────────────────────
-  const STATUS_PRI: Record<string,number> = { invoiced:0, production:1, contracted:2, revised:3, quoted:4, lead:5, paid:6 };
-  const bestPri   = (c: any) => c.projects.length ? Math.min(...c.projects.map((pr: any) => STATUS_PRI[pr.paid ? "paid" : pr.status] ?? 99)) : 99;
-  const latestDate= (c: any) => c.projects.reduce((d: string,pr: any) => pr.date > d ? pr.date : d, "");
-  const totalRev  = (c: any) => c.projects.filter((pr: any) => pr.paid).reduce((s: number,pr: any) => s + pr.amount, 0);
+  // ── one money rule (money.ts) ─────────────────────────────
+  const todayStr = today();
+  const year = parseInt(todayStr.slice(0, 4));
+  const tot = new Map<string, ReturnType<typeof clientTotals>>(clients.map((c: any) => [c.id, clientTotals(c, year, todayStr)]));
+  const T = (c: any) => tot.get(c.id)!;
+  const count = {
+    all:      clients.length,
+    progress: clients.filter((c: any) => T(c).inProgress).length,
+    quoted:   clients.filter((c: any) => T(c).onlyQuotes).length,
+    dormant:  clients.filter((c: any) => T(c).dormant).length,
+  };
 
   const filtered = (() => {
+    const q = search.trim().toLowerCase();
     const arr = clients.filter((c: any) => {
-      const q = search.toLowerCase();
-      if (q && !c.name.toLowerCase().includes(q) && !(c.tags||[]).some((t: string) => t.toLowerCase().includes(q))) return false;
-      if (typeFilter !== "all" && c.agency !== typeFilter) return false;
-      if (statusFilter !== "all") {
-        const match = statusFilter === "paid"
-          ? c.projects.some((pr: any) => pr.paid)
-          : c.projects.some((pr: any) => pr.status === statusFilter && !pr.paid);
-        if (!match) return false;
-      }
+      if (q && !c.name.toLowerCase().includes(q) && !String(c.contact || "").toLowerCase().includes(q) && !(c.tags || []).some((t: string) => t.toLowerCase().includes(q))) return false;
+      if (typeFilter !== "all" && (c.agency || "Direct") !== typeFilter) return false;
+      if (chip === "progress" && !T(c).inProgress) return false;
+      if (chip === "quoted" && !T(c).onlyQuotes) return false;
+      if (chip === "dormant" && !T(c).dormant) return false;
       return true;
     });
-    if (sortOrder === "status")     return [...arr].sort((a: any,b: any) => bestPri(a) - bestPri(b));
-    if (sortOrder === "name_az")    return [...arr].sort((a: any,b: any) => a.name.localeCompare(b.name));
-    if (sortOrder === "revenue_hi") return [...arr].sort((a: any,b: any) => totalRev(b) - totalRev(a));
-    if (sortOrder === "revenue_lo") return [...arr].sort((a: any,b: any) => totalRev(a) - totalRev(b));
-    return [...arr].sort((a: any,b: any) => latestDate(b).localeCompare(latestDate(a)));
+    const openOf = (c: any) => T(c).signed + T(c).owed + T(c).quotes;
+    if (sortOrder === "name_az") return [...arr].sort((a: any, b: any) => a.name.localeCompare(b.name));
+    if (sortOrder === "revenue") return [...arr].sort((a: any, b: any) => T(b).paidAll - T(a).paidAll);
+    if (sortOrder === "open")    return [...arr].sort((a: any, b: any) => openOf(b) - openOf(a));
+    return [...arr].sort((a: any, b: any) => T(b).lastActivity.localeCompare(T(a).lastActivity));
   })();
-
-  const flagged = clients.filter((c: any) => {
-    if (!c.projects.length) return false;
-    if (c.projects.some((pr: any) => pr.status === "invoiced" || pr.status === "paid")) return false;
-    const lat = c.projects.reduce((a: any,b: any) => a.date > b.date ? a : b);
-    return (new Date().getTime() - new Date(lat.date).getTime()) / 864e5 > 90;
-  });
 
   const addCl = async () => {
     if (!nb.name.trim()) return;
@@ -118,20 +124,30 @@ export default function ClientList({
     setShowAdd(false);
   };
 
+  // the most urgent license of a client (expired / ending soon)
+  const licHint = (c: any) => {
+    const ls = c.projects.flatMap((pr: any) => projectLicenses(pr, c)).filter((l: any) => l.alerts && !l.action && (l.state === "expired" || l.state === "expiring"));
+    if (!ls.length) return null;
+    if (ls.some((l: any) => l.state === "expired")) return { tone: PAL.late, text: "license expired" };
+    const d = Math.min(...ls.map((l: any) => l.daysLeft));
+    return { tone: PAL.waiting, text: `license ends in ${d} ${d === 1 ? "day" : "days"}` };
+  };
+
+  const detail = (mobile: boolean) => (
+    <ClientDetail
+      cl={cl} clients={clients} isMobile={mobile} settings={settings} rc={rc}
+      clientsHook={clientsHook} onGoToCalc={onGoToCalc}
+      onRevise={onRevise}
+      onAmend={onAmend}
+      setSel={setSel}
+      highlightedQNo={highlightedQNo}
+      onClearHighlight={() => setHighlightedQNo(null)}
+      onOpenProject={onOpenProject}
+    />
+  );
+
   // ── Mobile: show detail only ──────────────────────────────
-  if (cl && isMobile) {
-    return (
-      <ClientDetail
-        cl={cl} clients={clients} isMobile={isMobile} settings={settings} rc={rc}
-        clientsHook={clientsHook} onGoToCalc={onGoToCalc}
-        onRevise={onRevise}
-        onAmend={onAmend}
-        setSel={setSel}
-        highlightedQNo={highlightedQNo}
-        onClearHighlight={() => setHighlightedQNo(null)}
-      />
-    );
-  }
+  if (cl && isMobile) return detail(true);
 
   // ── List panel ────────────────────────────────────────────
   const ListPanel = (
@@ -140,54 +156,19 @@ export default function ClientList({
       minWidth:  0,
       overflowY: cl && !isMobile ? "auto" : undefined,
       maxHeight: cl && !isMobile ? "calc(100vh - 80px)" : undefined,
+      fontFamily: SANS, color: C.black,
     }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: 0 }}>Clients</h2>
-        <B onClick={() => setShowAdd(s => !s)}>+ New Client</B>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : TYPE.pageTitle.size, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Clients</h2>
+        <PillBtn dark onClick={() => setShowAdd(s => !s)}>+ New client</PillBtn>
       </div>
-
-      {/* Flagged banner */}
-      {flagged.length > 0 && (
-        <div style={{ background: "#fdf6ee", border: `1px solid ${C.amber}`, borderRadius: 2, padding: "9px 13px", marginBottom: 10 }}>
-          <p style={{ fontSize: TYPE.label.size, color: C.amber, margin: 0 }}>⚠ {flagged.length} client{flagged.length > 1 ? "s" : ""} — no activity 3+ months</p>
-        </div>
-      )}
-
-      {/* Search */}
-      <I placeholder="Search clients, tags…" value={search} onChange={(e: any) => setSearch(e.target.value)} s={{ marginBottom: 8 }} />
-
-      {/* Filter + sort — standard list toolbar: text selects, top right */}
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 11 }}>
-        <TSelWrap>
-          <TSel
-            value={typeFilter !== "all" ? typeFilter.toLowerCase() : statusFilter}
-            onChange={(e: any) => { const v = e.target.value; if (v === "direct" || v === "agency") { setTypeFilter(v === "direct" ? "Direct" : "Agency"); setStatusFilter("all"); } else { setStatusFilter(v); setTypeFilter("all"); } }}
-          >
-            <option value="all">Filter: All</option>
-            <optgroup label="Status">
-              {["lead","quoted","revised","contracted","production","invoiced","paid"].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
-            </optgroup>
-            <optgroup label="Type">
-              <option value="direct">Direct</option>
-              <option value="agency">Agency</option>
-            </optgroup>
-          </TSel>
-        </TSelWrap>
-        <TSelWrap>
-          <TSel value={sortOrder} onChange={(e: any) => setSortOrder(e.target.value)}>
-            <option value="recent">Sort: Recent</option>
-            <option value="status">Sort: Status</option>
-            <option value="name_az">Sort: Name A–Z</option>
-            <option value="revenue_hi">Sort: Revenue ↓</option>
-            <option value="revenue_lo">Sort: Revenue ↑</option>
-          </TSel>
-        </TSelWrap>
-      </div>
+      <SummaryLine dot={count.progress ? PAL.progress.mid : PAL.neutral.mid}>
+        {clients.length} client{clients.length === 1 ? "" : "s"} · <Strong>{count.progress} with work in progress</Strong>
+      </SummaryLine>
 
       {/* New client form */}
       {showAdd && (
-        <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: 14, marginBottom: 12, background: C.white }}>
+        <div style={{ border: "1px solid #efebe6", borderRadius: 12, padding: 14, marginTop: 12, background: C.white }}>
           <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const, margin: "0 0 10px" }}>New Client</p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
             <div><Lbl>Brand Name *</Lbl><I value={nb.name} onChange={(e: any) => setNb(p => ({ ...p, name: e.target.value }))} placeholder="Sephora" />
@@ -214,7 +195,7 @@ export default function ClientList({
               <div style={{ display: "flex", gap: 5 }}>
                 <I value={tagI} onChange={(e: any) => setTagI(e.target.value)} placeholder="Beauty, Fashion…"
                   onKeyDown={(e: any) => { if (e.key === "Enter" && tagI.trim()) { setNb(p => ({ ...p, tags: [...p.tags, tagI.trim()] })); setTagI(""); } }} />
-                <B v="sec" onClick={() => { if (tagI.trim()) { setNb(p => ({ ...p, tags: [...p.tags, tagI.trim()] })); setTagI(""); } }} s={{ fontSize: TYPE.micro.size }}>+</B>
+                <PillBtn onClick={() => { if (tagI.trim()) { setNb(p => ({ ...p, tags: [...p.tags, tagI.trim()] })); setTagI(""); } }}>+</PillBtn>
               </div>
             </div>
           </div>
@@ -223,78 +204,72 @@ export default function ClientList({
             <I value={nb.notes} onChange={(e: any) => setNb(p => ({ ...p, notes: e.target.value }))} placeholder="Fast payer, luxury aesthetic…" />
           </div>
           <div style={{ display: "flex", gap: 7, marginTop: 10 }}>
-            <B onClick={addCl}>Save Client</B>
-            <B v="sec" onClick={() => setShowAdd(false)}>Cancel</B>
+            <PillBtn dark onClick={addCl}>Save client</PillBtn>
+            <PillBtn onClick={() => setShowAdd(false)}>Cancel</PillBtn>
           </div>
         </div>
       )}
 
-      {filtered.length === 0 && !showAdd && <p style={{ fontSize: TYPE.label.size, color: C.muted }}>No clients yet.</p>}
+      <SearchField value={search} onChange={setSearch} placeholder="Search clients, contacts, tags" s={{ marginTop: 12 }} />
+      <ChipRow s={{ marginTop: 10 }}>
+        <Chip on={chip === "all"} tone={PAL.neutral} dot={false} label="All" count={count.all} onClick={() => setChip("all")} />
+        <Chip on={chip === "progress"} tone={PAL.progress} label="In progress" count={count.progress} onClick={() => setChip("progress")} />
+        <Chip on={chip === "quoted"} tone={PAL.neutral} label="Quoted" count={count.quoted} onClick={() => setChip("quoted")} />
+        <Chip on={chip === "dormant"} tone={PAL.neutral} label="Dormant" count={count.dormant} onClick={() => setChip("dormant")} />
+      </ChipRow>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, marginTop: 8 }}>
+        <TSelWrap>
+          <TSel value={typeFilter} onChange={(e: any) => setTypeFilter(e.target.value)}>
+            <option value="all">Type: All</option><option value="Direct">Type: Direct</option><option value="Agency">Type: Agency</option>
+          </TSel>
+        </TSelWrap>
+        <TSelWrap>
+          <TSel value={sortOrder} onChange={(e: any) => setSortOrder(e.target.value)}>
+            <option value="recent">Sort: Recent</option>
+            <option value="open">Sort: Open value</option>
+            <option value="revenue">Sort: Revenue</option>
+            <option value="name_az">Sort: Name A–Z</option>
+          </TSel>
+        </TSelWrap>
+      </div>
 
-      {/* Client rows */}
-      {filtered.map((c: any) => {
-        // the client's current project: most active stage first, then the newest
-        const active = [...c.projects].sort((a: any, b: any) =>
-          ((STATUS_PRI[a.paid ? "paid" : a.status] ?? 99) - (STATUS_PRI[b.paid ? "paid" : b.status] ?? 99)) ||
-          String(b.date || "").localeCompare(String(a.date || "")))[0];
-        const allRights = c.projects.flatMap((pr: any) =>
-          projectLicenses(pr, c).filter(l => l.alerts && !l.action)
-            .map(l => ({ prName: pr.name, end: l.end, label: l.kind === "excl" ? "Excl." : "Usage" })));
-        const multiProj = new Set(allRights.map((r: any) => r.prName)).size > 1;
-        return (
-          <div
-            key={c.id}
-            onClick={() => setSel(c.id)}
-            style={{ border: `1px solid ${sel === c.id ? C.light : C.rule}`, borderRadius: 2, padding: isMobile ? "14px 16px" : "11px 13px", marginBottom: isMobile ? 10 : 8, cursor: "pointer", background: sel === c.id ? "rgba(26,26,26,0.03)" : undefined }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <p style={{ fontSize: isMobile ? TYPE.sectionHeading.size : TYPE.body.size, color: C.black, margin: `0 0 ${isMobile ? 3 : 2}px`, fontWeight: "500" }}>{c.name}</p>
-                <p style={{ fontSize: isMobile ? TYPE.subtext.size : TYPE.label.size, color: C.muted, margin: 0 }}>{c.contact}{c.email && !isMobile ? ` · ${c.email}` : ""}</p>
-                {(c.tags || []).length > 0 && (
-                  <div style={{ display: "flex", gap: 4, marginTop: isMobile ? 6 : 4, flexWrap: "wrap" as const }}>
-                    {c.tags.map((t: string) => <Tag key={t}>{t}</Tag>)}
-                  </div>
-                )}
-                {active && <p style={{ fontSize: isMobile ? TYPE.subtext.size : TYPE.label.size, color: C.muted, margin: `${isMobile ? 5 : 4}px 0 0` }}>{active.name}</p>}
-              </div>
-              {active && (
-                <div style={{ textAlign: "right" as const, flexShrink: 0, marginLeft: 12 }}>
-                  <p style={{ fontFamily: SERIF, fontSize: isMobile ? TYPE.sectionHeading.size : TYPE.subtext.size, color: C.black, margin: `0 0 ${isMobile ? 5 : 3}px` }}>{fmt(active.amount)}</p>
-                  <StatusBadge status={active.paid ? "paid" : active.status} />
-                </div>
-              )}
-            </div>
-            {allRights.length > 0 && (
-              <div style={{ marginTop: isMobile ? 9 : 7, paddingTop: isMobile ? 9 : 7, borderTop: `1px solid ${C.rule}`, display: "flex", flexDirection: "column" as const, gap: isMobile ? 6 : 4 }}>
-                {allRights.map((r: any, i: number) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const }}>
-                    {multiProj && <span style={{ fontSize: TYPE.micro.size, color: C.light, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, maxWidth: 140 }}>{r.prName}</span>}
-                    <UBadge end={r.end} label={r.label} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {filtered.length === 0 && !showAdd && <p style={{ fontSize: 13, color: C.muted, margin: "14px 4px" }}>{clients.length ? "No clients in this view." : "No clients yet."}</p>}
+
+      {filtered.length > 0 && (
+        <ListCard s={{ marginTop: 10 }}>
+          {filtered.map((c: any, i: number) => {
+            const t = T(c);
+            const nn = needsName(c);
+            const hint = licHint(c);
+            const st = t.urgent ? t.urgent.status : null;
+            const tone = st ? PAL[STATUS_TONE[st] || "neutral"] : PAL.neutral;
+            const value = t.signed + t.owed > 0 ? t.signed + t.owed : t.quotes;
+            return (
+              <Row key={c.id} first={i === 0} highlight={sel === c.id} onClick={() => setSel(c.id)}
+                icon={<span style={{ width: 32, height: 32, borderRadius: "50%", background: nn ? PAL.waiting.wash : PAL.neutral.fill, color: nn ? PAL.waiting.ink : PAL.neutral.ink,
+                  display: "flex", alignItems: "center", justifyContent: "center", fontFamily: SERIF, fontSize: 15, flexShrink: 0 }}>{nn ? "?" : (c.name.trim()[0] || "?").toUpperCase()}</span>}
+                title={c.name}
+                meta={<>
+                  {nn && <span style={{ color: PAL.waiting.ink }}>Needs a name · </span>}
+                  {t.projects ? `${t.projects} project${t.projects === 1 ? "" : "s"}` : `${c.contact ? `${c.contact} · ` : ""}no projects yet`}
+                  {t.paidYear > 0 && ` · ${year}: ${fmt(t.paidYear)}`}
+                  {hint && <span style={{ color: hint.tone.ink }}> · {hint.text}</span>}
+                </>}
+                right={st && value > 0
+                  ? <><div style={{ fontSize: 14 }}>{fmt(value)}</div><TonedTag tone={tone} s={{ marginTop: 3 }}>{STATUS_NAME[st] || st}</TonedTag></>
+                  : t.dormant ? <TonedTag tone={PAL.neutral}>Dormant</TonedTag> : undefined}
+              />
+            );
+          })}
+        </ListCard>
+      )}
     </div>
   );
 
   return (
     <div style={{ display: cl && !isMobile ? "flex" : "block", gap: cl && !isMobile ? 28 : 0, alignItems: "flex-start" }}>
       {ListPanel}
-      {cl && !isMobile && (
-        <ClientDetail
-          cl={cl} clients={clients} isMobile={false} settings={settings} rc={rc}
-          clientsHook={clientsHook} onGoToCalc={onGoToCalc}
-          onRevise={onRevise}
-          onAmend={onAmend}
-          setSel={setSel}
-          highlightedQNo={highlightedQNo}
-          onClearHighlight={() => setHighlightedQNo(null)}
-        />
-      )}
+      {cl && !isMobile && detail(false)}
     </div>
   );
 }

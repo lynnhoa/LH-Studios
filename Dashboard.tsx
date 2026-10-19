@@ -17,6 +17,7 @@ import { C, SANS, SERIF, PAL, RADIUS, SHADOW, CATEGORY, catKeyOf } from "./const
 import { fmt, today } from "./formatters";
 import { docsOf, isOpenInvoice, isPaidInvoice, isOverdue, paidDateOf, lineAmt } from "./docs";
 import { allLicenses, needsAction } from "./licenses";
+import { signedOpen, isSigned } from "./money";
 import { Ico, IC } from "./PlannerWindows";
 
 const MO = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
@@ -48,11 +49,8 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
     const years = Array.from(new Set([thisYear, ...paid.map(x => parseInt(paidDateOf(x.d).slice(0, 4))).filter(Boolean)])).sort((a, b) => a - b);
     const quoted = projects.filter((p: any) => !p.paid && (p.status === "quoted" || p.status === "revised"));
     // signed, not invoiced yet: what was already invoiced on a project (retainer months …) is taken off
-    const signed = projects.filter((p: any) => !p.paid && (p.status === "contracted" || p.status === "production"));
-    const signedValue = signed.reduce((s: number, p: any) => {
-      const billed = invoicesOf(p).filter((d: any) => isPaidInvoice(d) || isOpenInvoice(d)).reduce((m: number, d: any) => m + (Number(d.net) || 0), 0);
-      return s + Math.max(0, (Number(p.amount) || 0) - billed);
-    }, 0);
+    const signed = projects.filter(isSigned);
+    const signedValue = signed.reduce((s: number, p: any) => s + signedOpen(p), 0);   // money.ts — same rule as Projects and Clients
     const lic = allLicenses(clients).filter(needsAction);
     return { paid, open, years, quoted, signed, signedValue, lic };
   }, [clients, thisYear]);
