@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { C, SANS, SERIF, CATEGORY, PDF } from "./constants";
-import { fmt, fmtD } from "./formatters";
+import { fmt, fmtD, r2 } from "./formatters";
 import { SETTINGS_DEFAULT } from "./rateCards";
 import {
   docNet, retainerMonthly, linesSum, lineAmt, lineQty, vatInfo, taxNote, docTitle,
@@ -131,10 +131,14 @@ export default function A4Document({
   const sum       = linesSum(lines);
   const isRet     = !!(d.retainer && d.retMo) && (kind === "quote" || kind === "contract");
   const monthly   = isRet ? retainerMonthly(d) : 0;
-  const net       = docNet(kind, d);
   const tax       = vatInfo(s, cl);
-  const vatAmt    = tax.mode === "domestic" ? Math.round(net * tax.rate) / 100 : 0;
-  const gross     = Math.round((net + vatAmt) * 100) / 100;
+  // A sent document prints the totals it was sent with (stored on the row); a draft is
+  // worked out fresh. So a later rounding fix never changes an invoice you already sent.
+  const sv: any   = doc as any;
+  const stored    = !!sv.status && sv.status !== "draft" && typeof sv.net === "number" && typeof sv.gross === "number";
+  const net       = stored ? Number(sv.net) : docNet(kind, d);
+  const vatAmt    = tax.mode !== "domestic" ? 0 : stored && typeof sv.vat === "number" ? Number(sv.vat) : r2(net * tax.rate / 100);
+  const gross     = stored ? Number(sv.gross) : r2(net + vatAmt);
   const note      = taxNote(tax.mode, lang, s);
 
   const docNoText = doc.docNo || (l ? "Entwurf" : "Draft");
@@ -205,9 +209,10 @@ export default function A4Document({
   };
 
   // ── VAT lines under a net amount ──
-  const VatRows = ({ base }: { base: number }) => {
+  // VAT of this document (the base passed in is always its net amount)
+  const VatRows = ({ base: _base }: { base: number }) => {
     if (tax.mode !== "domestic") return null;
-    const v = Math.round(base * tax.rate) / 100;
+    const v = vatAmt;
     return <>
       <SumRow lb={l ? `zzgl. ${tax.rate} % USt.` : `VAT ${tax.rate} %`} v={fmt(v)} />
     </>;

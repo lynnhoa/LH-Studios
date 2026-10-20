@@ -18,8 +18,14 @@ export const fmtPct = (n: number | null | undefined): string => {
   return `${Number.isInteger(v) ? String(v) : v.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
 };
 
-// Round to cents
-export const r2 = (n: number): number => Math.round((Number(n) || 0) * 100) / 100;
+// Round to cents — kaufmännisch: half a cent goes up (away from zero for negatives).
+// toFixed(6) first removes float slips (1273.725 * 100 = 127372.4999…), so the
+// half cent is seen as a half cent.
+export const r2 = (n: number): number => {
+  const x = Number(((Number(n) || 0) * 100).toFixed(6));
+  const v = (x < 0 ? -Math.round(-x) : Math.round(x)) / 100;
+  return v === 0 ? 0 : v;   // never -0
+};
 
 // ─── DATES (local calendar dates, never shifted by UTC) ──────
 const pad2 = (n: number) => String(n).padStart(2, "0");

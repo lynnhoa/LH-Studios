@@ -165,15 +165,17 @@ export const Pill = ({ on, onClick, children, size }: any) => (
 // ─── NUMBER FIELD (German typing: 212,50 · 1.200,75) ─────────
 // Keeps what you type while the field is active; shows German format
 // when you leave it. onChange gets a number (or null when empty).
-export function NumField({ value, onChange, minDec = 2, placeholder, s, ariaLabel }: {
+// mini = drawn at row size (13 px) inside panels — see MiniInput.
+export function NumField({ value, onChange, minDec = 2, placeholder, s, ariaLabel, mini }: {
   value: number | null | undefined; onChange: (n: number | null) => void; minDec?: number;
-  placeholder?: string; s?: any; ariaLabel?: string;
+  placeholder?: string; s?: any; ariaLabel?: string; mini?: boolean;
 }) {
   const [text, setText] = useState(() => fmtNumDE(value, minDec));
   const [focused, setFocused] = useState(false);
   useEffect(() => { if (!focused) setText(fmtNumDE(value, minDec)); }, [value, focused, minDec]);
+  const Field = mini ? MiniInput : I;
   return (
-    <I type="text" inputMode="decimal" value={text} placeholder={placeholder} s={s} aria-label={ariaLabel}
+    <Field type="text" inputMode="decimal" value={text} placeholder={placeholder} s={s} aria-label={ariaLabel}
       onFocus={() => setFocused(true)}
       onBlur={() => { setFocused(false); setText(fmtNumDE(parseDE(text), minDec)); }}
       onChange={(e: any) => { setText(e.target.value); onChange(parseDE(e.target.value)); }} />
@@ -687,14 +689,17 @@ export const Switch = ({ on, onChange, label }: { on: boolean; onChange: (v: boo
   </button>
 );
 
-// − n + (whole numbers, min 1)
-export const Stepper = ({ value, onChange, min = 1, label }: { value: number; onChange: (v: number) => void; min?: number; label: string }) => (
-  <div role="group" aria-label={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: SIZE.field, border: `1px solid ${C.field}`, borderRadius: RADIUS.field, background: C.white, fontFamily: SANS }}>
-    <button aria-label={`${label} minus`} onClick={() => onChange(Math.max(min, value - 1))} style={{ width: 44, height: "100%", background: "none", border: "none", fontSize: ICON.step, color: C.muted, cursor: "pointer" }}>−</button>
-    <span style={{ fontSize: TYPE.body.size }}>{value}</span>
-    <button aria-label={`${label} plus`} onClick={() => onChange(value + 1)} style={{ width: 44, height: "100%", background: "none", border: "none", fontSize: ICON.step, color: C.muted, cursor: "pointer" }}>+</button>
-  </div>
-);
+// − n + (whole numbers, min 1). h = height: 40 alone, 32 inside a row or panel (compact).
+export const Stepper = ({ value, onChange, min = 1, label, h }: { value: number; onChange: (v: number) => void; min?: number; label: string; h?: number }) => {
+  const H = h || SIZE.field, compact = H < SIZE.field, W = compact ? 36 : 44;
+  return (
+    <div role="group" aria-label={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: H, border: `1px solid ${C.field}`, borderRadius: RADIUS.field, background: C.white, fontFamily: SANS, boxSizing: "border-box" as const }}>
+      <button aria-label={`${label} minus`} onClick={() => onChange(Math.max(min, value - 1))} style={{ width: W, height: "100%", background: "none", border: "none", fontSize: compact ? 16 : ICON.step, color: C.muted, cursor: "pointer", padding: 0 }}>−</button>
+      <span style={{ fontSize: compact ? TYPE.row.size : TYPE.body.size }}>{value}</span>
+      <button aria-label={`${label} plus`} onClick={() => onChange(value + 1)} style={{ width: W, height: "100%", background: "none", border: "none", fontSize: compact ? 16 : ICON.step, color: C.muted, cursor: "pointer", padding: 0 }}>+</button>
+    </div>
+  );
+};
 
 // one quiet line of details with an edit pencil (date · validity · language …)
 export const DetailLine = ({ children, onEdit, s }: { children: any; onEdit?: () => void; s?: any }) => (
@@ -866,3 +871,30 @@ export function TextInline({ value, onSave, placeholder, ariaLabel, muted, strik
     </span>
   );
 }
+
+
+// ── Mini fields: drawn at row size (13 px) in rows and panels, but typed at 16 px so the
+//    iPhone doesn't zoom — the 16 px field is scaled down (same method as ValuePill).
+//    bare = no frame (a value inside a list row) · h = drawn height (32 by default)
+const MK = TYPE.row.size / TYPE.field.size;
+const miniBox = (h: number, s?: any): any => ({ position: "relative", display: "block", width: "100%", minWidth: 0, height: h, ...s });
+const miniCtl = (h: number, bare?: boolean): any => ({
+  position: "absolute", left: 0, top: 0, width: `${100 / MK}%`, height: h / MK, transform: `scale(${MK})`, transformOrigin: "left top",
+  fontSize: TYPE.field.size, fontFamily: SANS, color: C.black, margin: 0, outline: "none", boxSizing: "border-box" as const,
+  border: bare ? "none" : `${1 / MK}px solid ${C.field}`, borderRadius: bare ? 0 : RADIUS.field / MK,
+});
+export const MiniInput = ({ bare, h = SPACING.rowField, s, ...p }: any) => (
+  <span style={miniBox(h, s)}>
+    <input {...p} style={{ ...miniCtl(h, bare), padding: bare ? 0 : `0 ${10 / MK}px`, background: bare ? "transparent" : C.white,
+      ...(p.type === "date" ? {} : { WebkitAppearance: "none" as const }) }} />
+  </span>
+);
+export const MiniSelect = ({ bare, muted, h = SPACING.rowField, s, children, ...p }: any) => (
+  <span style={miniBox(h, s)}>
+    <select {...p} style={{ ...miniCtl(h, bare), color: muted ? C.light : C.black, cursor: "pointer",
+      padding: bare ? `0 ${22 / MK}px 0 0` : `0 ${26 / MK}px 0 ${10 / MK}px`,
+      backgroundColor: bare ? "transparent" : C.white, backgroundImage: SELECT_ARROW, backgroundRepeat: "no-repeat",
+      backgroundPosition: `right ${(bare ? 2 : 10) / MK}px center`, backgroundSize: `${10 / MK}px ${6 / MK}px`,
+      WebkitAppearance: "none" as const, appearance: "none" as const }}>{children}</select>
+  </span>
+);

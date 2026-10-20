@@ -9,7 +9,7 @@
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { C, SANS, TYPE, BREAKPOINT, TRACK, RADIUS, SHADOW, Z } from "./constants";
-import { currentQuote, contractNo } from "./docs";
+import { currentQuote, contractNo, docNet, retainerMonthly, retDiscOf } from "./docs";
 import AppLogo from "./AppLogo";
 import { PillBtn } from "./atoms";
 import { AvatarMenu, NavTab, appItems } from "./AppNav";
@@ -114,6 +114,10 @@ export default function ManagerApp({
     setNav(NAV_CALCULATOR);
   };
 
+  // a retainer quote's fee, for the "Original / Contract" list in the Calculator
+  const retainerOf = (q: any) => (q?.retainer && Number(q?.retMo)
+    ? { mo: Number(q.retMo), disc: retDiscOf(q), fee: retainerMonthly(q) } : null);
+
   // Revision — open Calculator pre-filled with existing quote lines
   const onRevise = (pr: any, cl: any) => {
     const q = pr.qd;
@@ -130,6 +134,9 @@ export default function ManagerApp({
       origLines: q.lines || [],
       retainer:  !!q.retainer,
       retMo:     q.retMo,
+      retDisc:   q.retDisc,                       // a revision keeps the agreed retainer %
+      origTotal: docNet("quote", q),              // the real value of the quote (retainer: fee × months)
+      origRet:   retainerOf(q),
       validDays: q.validUntil && q.date ? Math.max(1, Math.round((new Date(q.validUntil).getTime() - new Date(q.date).getTime()) / 864e5)) : 14,
       projectName: pr.name,
       pid:       pr.id,
@@ -151,6 +158,9 @@ export default function ManagerApp({
       amendN:    (pr.amendments || []).length + 1,
       origLines: q.lines || [],
       origTotal: pr.amount,
+      origRet:   retainerOf(q),
+      origAmends: (pr.amendments || []).filter((a: any) => a.signed)
+        .map((a: any) => ({ label: a.aNo || "Amendment", total: Number(a.amendTotal) || 0 })),
       contractNo: pr.projectNo ? contractNo(pr.projectNo) : "",
       pid:       pr.id,
       cid:       cl?.id,
@@ -317,9 +327,11 @@ export default function ManagerApp({
 
         {nav === NAV_CALCULATOR && (
           <Calculator
+            key={prefill?.isRev ? `rev:${prefill.pid}` : prefill?.isAmend ? `amend:${prefill.pid}` : "new"}
             isMobile={isMobile}
             settings={settings}
             rc={rateCardsHook.rc}
+            rcReady={!rateCardsHook.loading}
             prefill={prefill}
             clearPrefill={() => setPrefill(null)}
             onAfterSave={(projectId: string) => {
