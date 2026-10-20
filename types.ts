@@ -267,6 +267,9 @@ export type DocKind   = "quote" | "contract" | "amendment" | "invoice";
 export type DocStatus = "draft" | "sent" | "signed" | "paid" | "cancelled" | "superseded";
 // invoice subtypes: "project" | "monthly" | "renewal" | "storno"
 
+// The client's signed copy of a contract or an amendment, in the private file store
+export interface SignedFile { path: string; pages: number | null; size: number; at: string }
+
 export interface DocRecord {
   id:           string;
   projectId:    string;
@@ -281,6 +284,7 @@ export interface DocRecord {
   periodEnd:    string | null;
   sentAt:       string | null;
   signedAt:     string | null;
+  signedFile?:  SignedFile | null;   // the client's signed copy (contracts, amendments) — always a PDF
   paidAt:       string | null;
   net:          number;
   vatRate:      number;

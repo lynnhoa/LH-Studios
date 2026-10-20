@@ -38,7 +38,8 @@ export interface DocAction {
   slot?:    "main" | "side" | "more";
   confirm?: string;                       // ask before running
   date?:    string;                       // ask for a date (label) before running
-  run:      (date?: string) => Promise<void> | void;
+  file?:    boolean;                      // pick a PDF or photos first (the signed copy), then the date
+  run:      (date?: string, files?: File[]) => Promise<void> | void;
 }
 
 interface PDFModalProps {
@@ -113,7 +114,7 @@ export default function PDFModal({
   const [msg,        setMsg]        = useState<{ text: string; err?: boolean } | null>(null);
   const [showEdit,   setShowEdit]   = useState(false);
   const [askDiscard, setAskDiscard] = useState<"cancel" | "close" | null>(null);
-  const [dialog,     setDialog]     = useState<{ action: DocAction } | null>(null);
+  const [dialog,     setDialog]     = useState<{ action: DocAction; files?: File[] } | null>(null);
   const [pdfAsk,     setPdfAsk]     = useState<string | null>(null);
   const [blockMsg,   setBlockMsg]   = useState<string | null>(null);
   const [winW,       setWinW]       = useState(() => window.innerWidth);
@@ -358,21 +359,32 @@ export default function PDFModal({
   const shareDraft = () => shareNow(current, "draft", "The draft PDF is ready. Tap Share draft again.");
 
   // ── Caller actions (Mark signed, Mark paid, Revise …) ───────
-  const runAction = async (a: DocAction, date?: string) => {
+  const runAction = async (a: DocAction, date?: string, files?: File[]) => {
     setMsg(null);
     if (dirty || isNew) {                   // unsaved edits are saved first
       const ok = await save();
       if (!ok) return;
     }
     setBusy(a.key);
-    try { await a.run(date); }
+    try { await a.run(date, files); }
     catch (e: any) { fail(e); }
     finally { if (alive.current) setBusy(null); }
   };
+  // an action that needs a file opens the picker in this same tap (the iPhone allows nothing later)
+  const fileRef = useRef<HTMLInputElement>(null);
+  const fileAct = useRef<DocAction | null>(null);
   const clickAction = (a: DocAction) => {
     if (busy) return;
+    if (a.file) { fileAct.current = a; if (fileRef.current) { fileRef.current.value = ""; fileRef.current.click(); } return; }
     if (a.date || a.confirm) setDialog({ action: a });
     else runAction(a);
+  };
+  const filesPicked = (list: FileList | null) => {
+    const a = fileAct.current; fileAct.current = null;
+    const files = Array.from(list || []);
+    if (!a || !files.length) return;
+    if (a.date || a.confirm) setDialog({ action: a, files });
+    else runAction(a, undefined, files);
   };
 
   // ── Edit · Cancel · Close ───────────────────────────────────
@@ -597,6 +609,10 @@ export default function PDFModal({
 
         {showPreview && (
           <div ref={pagesRef} style={{ flex: 1, background: C.muted, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isMobile ? "16px 0" : "32px 28px", gap: isMobile ? 16 : 28 }}>
+            {/* the read view's note (e.g. "Signed 21.10.2026 · signed copy · 2 pages") above the pages */}
+            {!showPanel && note && (
+              <p style={{ margin: 0, padding: "6px 12px", borderRadius: RADIUS.pill, background: C.bg, color: C.black, fontSize: TYPE.label.size, maxWidth: "calc(100% - 24px)", boxSizing: "border-box" as const, textAlign: "center" as const }}>{note}</p>
+            )}
             <DocPages doc={current} settings={settings} client={client} lang={lang} scale={pageScale} />
             {more.length > 0 && (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, justifyContent: "center", padding: "0 16px 8px" }}>
@@ -641,6 +657,8 @@ export default function PDFModal({
           onCancel={() => setPdfAsk(null)}
         />
       )}
+      <input ref={fileRef} type="file" accept="application/pdf,image/*" multiple aria-hidden="true" tabIndex={-1}
+        style={{ display: "none" }} onChange={(e) => filesPicked(e.target.files)} />
       {dialog && (
         <ConfirmDialog
           title={dialog.action.label}
@@ -648,7 +666,7 @@ export default function PDFModal({
           dateLabel={dialog.action.date}
           okLabel={dialog.action.label}
           danger={dialog.action.kind === "danger"}
-          onOk={(date) => { const dg = dialog; setDialog(null); runAction(dg.action, dg.action.date ? date : undefined); }}
+          onOk={(date) => { const dg = dialog; setDialog(null); runAction(dg.action, dg.action.date ? date : undefined, dg.files); }}
           onCancel={() => setDialog(null)}
         />
       )}

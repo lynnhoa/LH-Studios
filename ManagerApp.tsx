@@ -23,6 +23,7 @@ import Calculator     from "./Calculator";
 import ServiceCatalog from "./ServiceCatalog";
 import Invoices       from "./Invoices";
 import Licenses       from "./LicensesPage";
+import SignedLibrary  from "./SignedLibrary";
 import CreatorProfile from "./CreatorProfile";
 import ChangePassword from "./ChangePassword";
 
@@ -36,6 +37,7 @@ const NAV_PASSWORD   = 5;
 const NAV_CATALOG    = 6;
 const NAV_INVOICES   = 8;
 const NAV_LICENSES   = 9;
+const NAV_SIGNED     = 10;   // Signed contracts (the library of signed copies)
 
 interface ManagerAppProps {
   settings:        any;
@@ -187,6 +189,7 @@ export default function ManagerApp({
     ["Service Catalog",  NAV_CATALOG],
     ["Invoices",         NAV_INVOICES],
     ["Licenses",         NAV_LICENSES],
+    ["Signed contracts", NAV_SIGNED],
   ];
   const avatar = (dropLeft: boolean) => (
     <AvatarMenu
@@ -343,6 +346,10 @@ export default function ManagerApp({
             onAfterRenew={(pid: string) => goToProjects(pid)}
             initialFilter={licenseFilter}
           />
+        )}
+
+        {nav === NAV_SIGNED && (
+          <SignedLibrary clients={clientsHook.clients} isMobile={isMobile} />
         )}
 
         {nav === NAV_PROFILE && (

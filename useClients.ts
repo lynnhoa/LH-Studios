@@ -9,6 +9,7 @@ import { supabase, selectAll } from "./useSupabase";
 import { uid, today, monthStart, monthEnd, r2 } from "./formatters";
 import { registerReloader } from "./saveStatus";
 import { backStepBlock } from "./money";
+import { SIGNED_BUCKET } from "./signedPdf";
 import {
   quoteNo, contractNo, amendNo, invoiceNo, projectNoFrom, pnoFromQNo, yearOf,
   docMoney, docNet, linesSum, senderSnapshot, clientSnapshot, profileGaps, dueFrom,
@@ -62,6 +63,8 @@ interface UseClientsReturn {
   createContract:     (clientId: string, projectId: string, settings: any) => Promise<DocRecord>;
   reviseContract:     (clientId: string, projectId: string, settings: any) => Promise<DocRecord>;
   markContractSigned: (clientId: string, projectId: string, docId: string, date: string, settings: any) => Promise<DocRecord>;
+  attachSignedCopy:       (clientId: string, projectId: string, docId: string, pdf: { blob: Blob; pages: number | null }, signedOn: string | null, settings: any) => Promise<any>;
+  removeSignedCopy:       (clientId: string, projectId: string, docId: string) => Promise<void>;
   undoContract:       (clientId: string, projectId: string) => Promise<void>;
   createProjectInvoice:(clientId: string, projectId: string, settings: any) => Promise<DocRecord>;
   createMonthlyInvoice:(clientId: string, projectId: string, settings: any) => Promise<DocRecord>;
@@ -136,6 +139,7 @@ function rowToDoc(row: any): DocRecord {
     periodEnd:   row.period_end ?? null,
     sentAt:      row.sent_at ?? null,
     signedAt:    row.signed_at ?? null,
+    signedFile:  row.signed_file ?? null,
     paidAt:      row.paid_at ?? null,
     net:         Number(row.net) || 0,
     vatRate:     Number(row.vat_rate) || 0,
@@ -156,7 +160,7 @@ function docToRow(d: Partial<DocRecord>): Record<string, any> {
   const map: Record<string, string> = {
     kind: "kind", subtype: "subtype", docNo: "doc_no", revision: "revision", status: "status",
     docDate: "doc_date", dueDate: "due_date", periodStart: "period_start", periodEnd: "period_end",
-    sentAt: "sent_at", signedAt: "signed_at", paidAt: "paid_at", net: "net", vatRate: "vat_rate",
+    sentAt: "sent_at", signedAt: "signed_at", signedFile: "signed_file", paidAt: "paid_at", net: "net", vatRate: "vat_rate",
     vat: "vat", gross: "gross", lang: "lang", data: "data", amendmentId: "amendment_id",
     renewalId: "renewal_id", monthNo: "month_no", cancelsId: "cancels_id",
   };
@@ -428,6 +432,7 @@ export function useClients(userId: string | null): UseClientsReturn {
       const pids = (clientsRef.current.find(c => c.id === id)?.projects || []).map(p => p.id);
       setClientsNow(prev => prev.filter(c => c.id !== id));
       try {
+        await removeFilesOf(clientsRef.current.find(c => c.id === id)?.projects || []);   // signed copies first
         for (const pid of pids) {
           for (const t of ["documents", "amendments", "renewals", "deliverables"]) {
             const { error: e1 } = await supabase.from(t).delete().eq("project_id", pid).eq("user_id", userId);
@@ -1010,7 +1015,10 @@ export function useClients(userId: string | null): UseClientsReturn {
     if (block) throw new Error(block);
     const con = currentContract(project);
     if (project.status === "production") {
-      if (con && con.status === "signed") await patchDoc(clientId, projectId, con.id, { status: "sent", signedAt: null });
+      if (con && con.status === "signed") {
+        await patchDoc(clientId, projectId, con.id, { status: "sent", signedAt: null, signedFile: null });
+        if (con.signedFile?.path) await supabase.storage.from(SIGNED_BUCKET).remove([con.signedFile.path]);   // the copy goes with the signature
+      }
       await writeProject(clientId, projectId, { status: "contracted" });
       return;
     }
@@ -1288,11 +1296,56 @@ export function useClients(userId: string | null): UseClientsReturn {
     return d;
   };
 
+  // ── Signed copies (contracts, amendments): one PDF per document, private file store ──
+  // the stored files of some projects (before their rows are deleted); a failure stops the delete
+  const removeFilesOf = async (projects: Project[]) => {
+    const paths = projects.flatMap(p => (p.documents || []).map(d => d.signedFile?.path).filter(Boolean)) as string[];
+    if (!paths.length) return;
+    const { error } = await supabase.storage.from(SIGNED_BUCKET).remove(paths);
+    if (error) throw new Error(`The signed copies couldn't be deleted (${error.message}). Nothing was deleted.`);
+  };
+  // Attach the client's signed copy. Upload first; a document that isn't signed yet is then signed
+  // with the given date (the usual signing). All or nothing: a failed upload changes nothing; if the
+  // signing fails, the file is noted off and deleted again. An older copy goes once the new one is in.
+  const attachSignedCopy = async (clientId: string, projectId: string, docId: string, pdf: { blob: Blob; pages: number | null }, signedOn: string | null, settings: any) => {
+    const { project } = findProject(clientId, projectId);
+    const d = (project.documents || []).find(x => x.id === docId);
+    if (!d || (d.kind !== "contract" && d.kind !== "amendment")) throw new Error("Only contracts and amendments have a signed copy.");
+    if (!["draft", "sent", "signed"].includes(d.status)) throw new Error("This document can't be signed any more.");
+    const old = d.signedFile || null;
+    const path = `${userId}/${projectId}/${docId}/${Date.now()}.pdf`;
+    const up = await supabase.storage.from(SIGNED_BUCKET).upload(path, pdf.blob, { contentType: "application/pdf", upsert: false });
+    if (up?.error) throw new Error(`The signed copy couldn't be uploaded (${up.error.message}). Nothing was changed.`);
+    const file = { path, pages: pdf.pages ?? null, size: pdf.blob.size, at: today() };
+    try {
+      await patchDoc(clientId, projectId, docId, { signedFile: file } as any);
+      if (d.status !== "signed") {
+        if (d.kind === "contract") await markContractSigned(clientId, projectId, docId, signedOn || today(), settings);
+        else await markAmendmentSigned(clientId, projectId, docId, signedOn || today(), settings);
+      }
+    } catch (e) {
+      try { await patchDoc(clientId, projectId, docId, { signedFile: old } as any); } catch { /* the reload shows what is stored */ }
+      await supabase.storage.from(SIGNED_BUCKET).remove([path]);
+      throw e;
+    }
+    if (old?.path) await supabase.storage.from(SIGNED_BUCKET).remove([old.path]);
+    return file;
+  };
+  // Remove the copy (the document stays signed): noted off first, then the file goes
+  const removeSignedCopy = async (clientId: string, projectId: string, docId: string) => {
+    const { project } = findProject(clientId, projectId);
+    const d = (project.documents || []).find(x => x.id === docId);
+    if (!d?.signedFile) return;
+    await patchDoc(clientId, projectId, docId, { signedFile: null } as any);
+    await supabase.storage.from(SIGNED_BUCKET).remove([d.signedFile.path]);
+  };
+
   // ── Delete a project (never one with issued invoices) ──────
   const removeProject = async (clientId: string, projectId: string) => {
     const { project } = findProject(clientId, projectId);
     const issued = (project.documents || []).filter(d => d.kind === "invoice" && d.status !== "draft").length;
     if (issued) throw new Error("This project has issued invoices. Invoices must be kept, so it can't be deleted.");
+    await removeFilesOf([project]);                  // signed copies first (private file store)
     for (const t of ["documents", "amendments", "renewals", "deliverables"]) {
       const { error } = await supabase.from(t).delete().eq("project_id", projectId).eq("user_id", userId);
       if (error) throw new Error(error.message);
@@ -1370,6 +1423,5 @@ export function useClients(userId: string | null): UseClientsReturn {
     createContract, reviseContract, markContractSigned, undoContract,
     createProjectInvoice, createMonthlyInvoice, finalizeInvoice,
     markInvoicePaid, markInvoiceUnpaid, cancelInvoice,
-    addRenewalWithInvoice, addAmendmentWithDoc, removeAmendment, removeRenewal,
-  };
+    addRenewalWithInvoice, addAmendmentWithDoc, removeAmendment, removeRenewal, attachSignedCopy, removeSignedCopy };
 }

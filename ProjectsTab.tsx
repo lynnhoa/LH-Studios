@@ -12,6 +12,7 @@ import { workOpen } from "./wsHelpers";
 import { fmt, fmtD, fmtE, today, addM, dLeft } from "./formatters";
 import { projectLicenses, ACTION_LABEL, licenseTone, licenseTag } from "./licenses";
 import { pdfFlow, finalizeQuestion, invoiceActions } from "./docFlow";
+import { toSignedPdf, openSignedCopy } from "./signedPdf";
 import { I, B, TSel, TSelWrap, StatusBadge, ConfirmDialog, TonedTag, SummaryLine, Strong, SectionHead, listSeg, ListCard } from "./atoms";
 import RenewalModal from "./RenewalModal";
 import ProductionSection from "./ProductionSection";
@@ -77,6 +78,8 @@ export function ProjectRow({
   const [busy,      setBusy]      = useState(false);
   const [rowErr,    setRowErr]    = useState<string | null>(null);
   const [dialog,    setDialog]    = useState<any>(null);
+  const signRef = useRef<HTMLInputElement>(null);    // the hidden picker for the signed copy
+  const signFor = useRef<any>(null);
   const rowRef = useRef<HTMLDivElement>(null);
 
   // An open document that was deleted (draft removed) → close the modal
@@ -135,19 +138,36 @@ export function ProjectRow({
       ];
       return [];
     }
-    if (d.kind === "contract") {
-      const sign: DocAction = { key: "signed", label: "Mark signed", slot: "main", date: "Signed on", run: async (dt?: string) => { await h.markContractSigned(cid, pid, d.id, dt || today(), settings); askDelivery(); } };
-      if (d.status === "draft") return [{ ...sign, slot: "more" }];      // signed without sending (in person)
-      if (d.status === "sent")  return [sign];
-      return [];
-    }
-    if (d.kind === "amendment") {
-      const sign: DocAction = { key: "signed", label: "Mark signed", slot: "main", date: "Signed on", run: (dt?: string) => h.markAmendmentSigned(cid, pid, d.id, dt || today(), settings) };
+    if (d.kind === "contract" || d.kind === "amendment") {
+      const isCon = d.kind === "contract";
+      const signNow = async (dt?: string) => {
+        if (isCon) { await h.markContractSigned(cid, pid, d.id, dt || today(), settings); askDelivery(); }
+        else await h.markAmendmentSigned(cid, pid, d.id, dt || today(), settings);
+      };
+      const sign: DocAction = { key: "signed", label: "Mark signed", slot: "main", date: "Signed on", run: signNow };
+      // the client's signed copy (always stored as one PDF): attaching it signs a document that isn't signed yet
+      const attach = (label: string, slot: DocAction["slot"], withDate: boolean): DocAction => ({
+        key: `attach-${label}`, label, slot, file: true, date: withDate ? "Signed on" : undefined,
+        run: async (dt?: string, files?: File[]) => {
+          const pdf = await toSignedPdf(files);
+          const wasSigned = d.status === "signed";
+          await h.attachSignedCopy(cid, pid, d.id, pdf, dt || null, settings);
+          if (!wasSigned && isCon) askDelivery();
+        },
+      });
       if (d.status === "draft") return [
-        { key: "remove", label: "Remove amendment", kind: "danger", slot: "more", confirm: "The amendment draft is removed. The project value doesn't change (it only counts once signed).", run: async () => { if (d.amendmentId) await h.removeAmendment(cid, pid, d.amendmentId); else await h.deleteDraftDocument(cid, pid, d.id); close(); } },
-        { ...sign, slot: "more" },
+        ...((isCon ? [] : [{ key: "remove", label: "Remove amendment", kind: "danger", slot: "more", confirm: "The amendment draft is removed. The project value doesn't change (it only counts once signed).", run: async () => { if (d.amendmentId) await h.removeAmendment(cid, pid, d.amendmentId); else await h.deleteDraftDocument(cid, pid, d.id); close(); } }]) as DocAction[]),
+        { ...sign, slot: "more" },                                  // signed without sending (in person)
+        attach("Attach signed copy", "more", true),
       ];
-      if (d.status === "sent") return [sign];
+      if (d.status === "sent") return [attach("Attach signed copy", "main", true), { ...sign, slot: "more" }];
+      if (d.status === "signed") return d.signedFile
+        ? [
+            { key: "openCopy", label: "Open signed copy", slot: "side", run: () => openSignedCopy(d, pr._cname || cl?.name || "") },
+            attach("Replace signed copy", "more", false),
+            { key: "removeCopy", label: "Remove signed copy", kind: "danger", slot: "more", confirm: `The signed copy is deleted. The ${isCon ? "contract" : "amendment"} stays signed.`, run: () => h.removeSignedCopy(cid, pid, d.id) },
+          ]
+        : [attach("Attach signed copy", "side", false)];
       return [];
     }
     // invoices: the one shared list (docFlow) — the same actions as on the Invoices and Licenses pages
@@ -156,6 +176,10 @@ export function ProjectRow({
   };
 
   const docNote = (d: DocRecord): string | undefined => {
+    if ((d.kind === "contract" || d.kind === "amendment") && d.status === "signed") {
+      const f = d.signedFile;
+      return f ? `Signed ${fmtD(d.signedAt)} · signed copy${f.pages ? ` · ${f.pages} ${f.pages === 1 ? "page" : "pages"}` : ""}` : `Signed ${fmtD(d.signedAt)} · no signed copy yet`;
+    }
     if (d.status !== "draft") return undefined;
     if (d.kind === "invoice")  return "Draft — Send to client gives it its number (you're asked first).";
     if (d.kind === "quote")    return "Draft — Send to client marks it as sent once you've shared it. Later changes become a new revision.";
@@ -236,6 +260,13 @@ export function ProjectRow({
 
   return (
     <div ref={rowRef} data-prid={pr.id} style={{ borderBottom: `1px solid ${C.hair}`, opacity: pr.paid && !isExpanded ? 0.55 : 1 }}>   {/* paid: only the folded line is faded, never its buttons */}
+      <input ref={signRef} type="file" accept="application/pdf,image/*" multiple aria-hidden="true" tabIndex={-1} style={{ display: "none" }}
+        onChange={(e) => {
+          const files = Array.from(e.target.files || []), doc = signFor.current; signFor.current = null;
+          if (!doc || !files.length) return;
+          setDialog({ title: "Attach signed copy", dateLabel: "Signed on", okLabel: "Attach signed copy",
+            run: async (dt: string) => { const pdf = await toSignedPdf(files); await h.attachSignedCopy(cid, pid, doc.id, pdf, dt, settings); askDelivery(); } });
+        }} />
 
       {dialog && (
         <ConfirmDialog
@@ -376,6 +407,9 @@ export function ProjectRow({
                       s={{ fontSize: TYPE.micro.size, padding: "5px 12px", background: t.fill, border: `1px solid ${t.fill}`, color: d.status === "superseded" ? C.light : t.ink, textDecoration: d.status === "superseded" || d.status === "cancelled" ? "line-through" : "none" }}
                       onClick={() => openDoc(d)}>
                       {docLabel(d, pr)}
+                      {(d.kind === "contract" || d.kind === "amendment") && d.status === "signed" && (d.signedFile
+                        ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label="signed copy" style={{ marginLeft: 5, verticalAlign: "-1px" }}><path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" /></svg>
+                        : <span style={{ marginLeft: 5, opacity: 0.75 }}>· no copy</span>)}
                     </B>
                   );
                 })}
@@ -418,9 +452,11 @@ export function ProjectRow({
               <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => act(async () => openDoc(await h.reviseContract(cid, pid, settings)))}>
                 {con?.status === "draft" ? "Edit contract" : "Revise contract"}
               </B>
-              {con && (
-                <B s={NEXT} onClick={() => setDialog({ title: "Mark signed", dateLabel: "Signed on", okLabel: "Mark signed", run: async (dt: string) => { await h.markContractSigned(cid, pid, con.id, dt, settings); askDelivery(); } })}>Mark signed</B>
-              )}
+              {con && <>
+                {/* the signed PDF is back: attaching it signs the contract (the picker opens in this tap) */}
+                <B s={NEXT} onClick={() => { signFor.current = con; if (signRef.current) { signRef.current.value = ""; signRef.current.click(); } }}>Attach signed copy</B>
+                <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted }} onClick={() => setDialog({ title: "Mark signed", dateLabel: "Signed on", okLabel: "Mark signed", run: async (dt: string) => { await h.markContractSigned(cid, pid, con.id, dt, settings); askDelivery(); } })}>Mark signed</B>
+              </>}
             </>}
 
             {pr.status === "production" && !isRet && (
@@ -464,7 +500,7 @@ export function ProjectRow({
             })}
 
             {["revised","contracted","production"].includes(pr.status) && (
-              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted }} onClick={() => { const block = backStepBlock(pr); if (block) { setRowErr(block); return; } setDialog({ title: "Back one step", text: pr.status === "production" ? "The contract goes back to not signed." : pr.status === "contracted" ? "The contract is withdrawn (a draft is deleted, a sent one is kept as replaced)." : "The project goes back to Quoted.", okLabel: "Back one step", run: () => h.undoContract(cid, pid) }); }}>← Back one step</B>
+              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted }} onClick={() => { const block = backStepBlock(pr); if (block) { setRowErr(block); return; } setDialog({ title: "Back one step", text: pr.status === "production" ? `The contract goes back to not signed.${currentContractOf(pr)?.signedFile ? " Its signed copy is deleted too." : ""}` : pr.status === "contracted" ? "The contract is withdrawn (a draft is deleted, a sent one is kept as replaced)." : "The project goes back to Quoted.", okLabel: "Back one step", run: () => h.undoContract(cid, pid) }); }}>← Back one step</B>
             )}
 
             {["production","invoiced","paid"].includes(pr.status) && pr.qd && (
