@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { C, SANS, SERIF, SERIF_LIGHT, TYPE, Z, TRACK, SHADOW, RADIUS, SPACING, PAL } from "./constants";
+import { C, SANS, SERIF, TYPE, Z, TRACK, SHADOW, RADIUS, SPACING, PAL } from "./constants";
 import { initials } from "./formatters";
 import type { Role } from "./types";
 
@@ -20,17 +20,41 @@ export const APPS: { key: Role; label: string }[] = [
 export const appItems = (current: Role, switchTo: (r: Role) => void): MenuItem[] =>
   APPS.map(a => ({ key: a.key, label: a.label, active: a.key === current, onClick: () => { if (a.key !== current) switchTo(a.key); } }));
 
-// The rows: Playfair Light (the logo's family), 14 px in 30 px rows — the same menu in every
-// app, in a square box. No bullets and no highlight bar: the app / entry you're on is black
-// (regular), the others grey (light).
-const MENU_W   = SPACING.menuWidth;
-const ROW_H    = SPACING.menuRow;
-const itemStyle = (active: boolean, color: string): any => ({
-  display: "flex", alignItems: "center", width: "100%", height: ROW_H, padding: "0 14px",
-  background: "none", border: "none", cursor: "pointer", fontWeight: active ? 400 : 300,
-  textAlign: "left" as const, fontFamily: SERIF_LIGHT, fontSize: SPACING.menuText, color: active ? C.black : color,
-  letterSpacing: "0.01em", boxSizing: "border-box" as const,
+// The profile menu — the same in every app, built from the app's own parts:
+// a white rounded card (soft shadow), your name in Playfair with the app you're in,
+// the four apps as tiles with their colour circles, then "This app" and Account as
+// 13 px rows. The app / entry you're on sits on a soft pill (✓ on rows).
+const MENU_W = SPACING.menuWidth;
+const ROW_H  = SPACING.menuRow;
+
+// each app's colour and icon (the same tones as the rest of the app)
+const APP_LOOK: Record<string, { tone: { wash: string; mid: string; ink: string }; d: string }> = {
+  planner:  { tone: PAL.createbylynn, d: "M5 6h14v13H5zM5 10h14M9 4v4M15 4v4" },
+  outreach: { tone: PAL.progress,     d: "M4 6h16v12H4zM4 7l8 6 8-6" },
+  manager:  { tone: PAL.done,         d: "M4 8h16v11H4zM9 8V5h6v3M4 13h16" },
+  creator:  { tone: PAL.lynnhoa,      d: "M4 8h3l2-2h6l2 2h3v11H4zM12 16.5a3 3 0 1 0 0-6a3 3 0 0 0 0 6z" },
+};
+const AppIcon = ({ k }: { k: string }) => {
+  const a = APP_LOOK[k] || { tone: PAL.neutral, d: "" };
+  return (
+    <span aria-hidden="true" style={{ width: 24, height: 24, borderRadius: "50%", background: a.tone.wash, color: a.tone.ink, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={a.d} /></svg>
+    </span>
+  );
+};
+const rowStyle = (active: boolean, color: string): any => ({
+  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, width: "calc(100% - 12px)", height: ROW_H, margin: "0 6px", padding: "0 8px",
+  background: active ? PAL.neutral.fill : "none", border: "none", borderRadius: RADIUS.field, cursor: "pointer",
+  fontWeight: active ? 500 : 400, textAlign: "left" as const, fontFamily: SANS, fontSize: SPACING.menuText, color: active ? C.black : color,
+  letterSpacing: TRACK.none, boxSizing: "border-box" as const,
 });
+const tileStyle = (active: boolean): any => ({
+  display: "flex", alignItems: "center", gap: 7, height: 40, padding: "0 8px", borderRadius: RADIUS.tile, cursor: "pointer",
+  border: `1px solid ${active ? C.pillOn : C.line}`, background: active ? PAL.neutral.wash : C.white,
+  fontFamily: SANS, fontSize: TYPE.subtext.size, fontWeight: active ? 500 : 400, color: active ? C.black : C.ink2,
+  textAlign: "left" as const, minWidth: 0, boxSizing: "border-box" as const,
+});
+const check = <span aria-hidden="true" style={{ fontSize: TYPE.subtext.size, color: C.black }}>✓</span>;
 
 export function AvatarMenu({ settings, roleLabel, items, apps, onSignOut, dropLeft = false }: {
   settings: any; roleLabel: string; items: MenuItem[];
@@ -52,35 +76,51 @@ export function AvatarMenu({ settings, roleLabel, items, apps, onSignOut, dropLe
         {ini}
       </button>
 
-      {open && (
-        <div role="menu" style={{ position: "absolute", ...(dropLeft ? { left: 0 } : { right: 0 }), top: "calc(100% + 8px)", width: MENU_W, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 0, overflow: "hidden", boxShadow: SHADOW.pop, zIndex: Z.menu, paddingBottom: 4 }}>
-          {/* who you are: name · role */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, padding: "11px 14px 9px", borderBottom: `1px solid ${C.hair}` }}>
-            <span style={{ fontSize: TYPE.figure.size, fontFamily: SERIF, color: C.black, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{settings?.name || settings?.company || "Lynn Hoa"}</span>
-            <span style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, flexShrink: 0 }}>{roleLabel}</span>
-          </div>
-          {(() => {
-            const isAccount = (it: MenuItem) => /password|profile/i.test(it.label);
-            const pages = items.filter(it => !isAccount(it)), account = items.filter(isAccount);
-            const label = (t: string, first = false) => (
-              <div style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted, padding: "8px 14px 2px", borderTop: first ? "none" : `1px solid ${C.hair}`, marginTop: first ? 0 : 3 }}>{t}</div>
-            );
-            // "This app": a choice (accounts) shows the current one black, the others grey;
-            // plain pages (Manager) stay black until one of them is open
-            const choice = pages.some(it => it.active);
-            return <>
-              {pages.length > 0 && <>{label("This app", true)}{pages.map(it => <button key={it.key} role="menuitem" onClick={() => run(it.onClick)} aria-current={it.active ? "page" : undefined} style={itemStyle(!!it.active, choice ? C.muted : C.black)}>{it.label}</button>)}</>}
-              {label("Apps", pages.length === 0)}
+      {open && (() => {
+        const isAccount = (it: MenuItem) => /password|profile/i.test(it.label);
+        const pages = items.filter(it => !isAccount(it)), account = items.filter(isAccount);
+        const current = apps.find(a => a.active);
+        const label = (t: string) => (
+          <div style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.light, padding: "10px 14px 4px" }}>{t}</div>
+        );
+        const sep = <div style={{ height: 1, background: C.hair, margin: "6px 0 0" }} />;
+        return (
+          <div role="menu" style={{ position: "absolute", ...(dropLeft ? { left: 0 } : { right: 0 }), top: "calc(100% + 8px)", width: MENU_W, background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, overflow: "hidden", boxShadow: SHADOW.pop, zIndex: Z.menu, paddingBottom: 6, fontFamily: SANS }}>
+            {/* who you are · the app you're in */}
+            <div style={{ padding: "12px 14px 11px", borderBottom: `1px solid ${C.hair}` }}>
+              <div style={{ fontFamily: SERIF, fontSize: 16, lineHeight: 1.1, color: C.black, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{settings?.name || settings?.company || "Lynn Hoa"}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: TYPE.label.size, color: C.muted, marginTop: 3 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: (APP_LOOK[current?.key || ""]?.tone || PAL.neutral).mid, flexShrink: 0 }} />{roleLabel}
+              </div>
+            </div>
+
+            {/* the four apps as tiles */}
+            {label("Apps")}
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 6, padding: "2px 10px 4px" }}>
               {apps.map(a => (
-                <button key={a.key} role="menuitem" onClick={() => run(a.onClick)} aria-current={a.active ? "page" : undefined} style={itemStyle(!!a.active, C.muted)}>{a.label}</button>
+                <button key={a.key} role="menuitem" onClick={() => run(a.onClick)} aria-current={a.active ? "page" : undefined} style={tileStyle(!!a.active)}>
+                  <AppIcon k={a.key} />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{a.label}</span>
+                </button>
               ))}
-              {label("Account")}
-              {account.map(it => <button key={it.key} role="menuitem" onClick={() => run(it.onClick)} style={itemStyle(false, C.muted)}>{it.label}</button>)}
-              <button role="menuitem" onClick={() => run(onSignOut)} style={itemStyle(false, C.red)}>Sign out</button>
-            </>;
-          })()}
-        </div>
-      )}
+            </div>
+
+            {/* this app: accounts (Planner, Outreach) or pages (Manager) */}
+            {pages.length > 0 && <>
+              {sep}{label("This app")}
+              {pages.map(it => (
+                <button key={it.key} role="menuitem" onClick={() => run(it.onClick)} aria-current={it.active ? "page" : undefined} style={rowStyle(!!it.active, C.ink2)}>
+                  <span>{it.label}</span>{it.active && check}
+                </button>
+              ))}
+            </>}
+
+            {sep}{label("Account")}
+            {account.map(it => <button key={it.key} role="menuitem" onClick={() => run(it.onClick)} style={rowStyle(false, C.ink2)}><span>{it.label}</span></button>)}
+            <button role="menuitem" onClick={() => run(onSignOut)} style={rowStyle(false, C.red)}><span>Sign out</span></button>
+          </div>
+        );
+      })()}
     </div>
   );
 }
