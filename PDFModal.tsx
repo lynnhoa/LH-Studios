@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 // ─────────────────────────────────────────────────────────────
 // PDFModal — the one document modal
 // Preview (all pages) + edit panel for drafts. Sent / signed /
@@ -278,7 +279,8 @@ export default function PDFModal({
   const showPanel   = canEdit && (!isMobile || showEdit);
   const showPreview = !isMobile || !showEdit || !canEdit;
 
-  return (
+  // a portal: the window always covers the whole screen, wherever it is opened from
+  return createPortal(
     <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
 
       {/* ── TOP BAR (one row: close on the left, actions on the right) ── */}
@@ -466,5 +468,5 @@ export default function PDFModal({
         />
       )}
     </div>
-  );
+  , document.body);
 }

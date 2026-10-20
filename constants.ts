@@ -13,6 +13,8 @@ export const TYPE = {
   sectionHeading:  { size: 16, font: SERIF },
   kpi:             { size: 28, font: SERIF },
   amount:          { size: 22, font: SERIF },
+  screen:          { size: 22, font: SERIF },   // screen titles on the phone
+  figure:          { size: 15, font: SERIF },   // amounts in list rows
   tile:            { size: 20, font: SERIF },   // amounts in tiles, window titles
   field:           { size: 16, font: SANS  },   // text inside fields (iPhone zooms below 16)
   body:            { size: 14, font: SANS  },
@@ -177,4 +179,19 @@ export const Z = { nav: 100, menu: 200, modal: 500, dialog: 600, toast: 700 } as
 export const WORDS = {
   toInvoice: "To invoice", unpaid: "Unpaid", pipeline: "Pipeline", paid: "Paid",
   overdue: "Overdue", followUp: "Follow up",
+} as const;
+
+// ─── CARD COLORS — the four rate cards (Service Catalog + Calculator chips) ─
+// Brand Collab pink · UGC blue · Editorial butter · Hotels pistachio · own cards warm grey.
+// Only on chips, dots and icons (no statuses appear on those screens).
+export const CARD_TONE: Record<string, Tone> = { influencer: "late", ugc: "progress", editorial: "waiting", hotels: "done" };
+export const cardTone = (key: string) => PAL[CARD_TONE[key] || "neutral"];
+
+// ─── DENSITY — compact, not cramped. The Manager dashboard is the master. ─
+//   section header 14 above · 7 below · dashboard tiles 10/11/9 · rows 54 (two lines) / 44 (one)
+//   icon circles 22 (dashboards, tags) / 30 (list rows) · chart bars ≤ 38 · thin bars 4
+//   ticks 22 inside a 44 tap area · fields 40 · chips 30 · item window header 48
+export const DENSITY = {
+  sectionTop: 14, sectionBottom: 7, row1: 44, row2: 54, iconSm: 22, iconMd: 30,
+  barMax: 38, thin: 4, tick: 22, tap: 44, field: 40, chip: 30, tile: 50, tileGap: 6, sheetHeader: 48,
 } as const;

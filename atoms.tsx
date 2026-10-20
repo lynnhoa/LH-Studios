@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, Z, SIZE, PAL, STATUS_TONE, TRACK, RADIUS, SHADOW, ICON, expiryTone } from "./constants";
+import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, Z, SIZE, PAL, STATUS_TONE, TRACK, RADIUS, SHADOW, ICON, expiryTone, DENSITY } from "./constants";
 import { fmtD, dLeft, today, parseDE, fmtNumDE } from "./formatters";
 import { saveStatus } from "./saveStatus";
 
@@ -567,18 +567,13 @@ export const PageHeader = ({
 );
 
 // ─── SECTION HEADING ─────────────────────────────────────────
-export const SectionHeading = ({ children }: { children: React.ReactNode }) => (
-  <h3
-    style={{
-      fontFamily: SERIF,
-      fontSize:   TYPE.sectionHeading.size,
-      fontWeight: "normal",
-      color:      C.black,
-      margin:     "0 0 12px",
-    }}
-  >
-    {children}
-  </h3>
+export const SectionHead = ({ dot, label, right, s }: { dot?: string; label: string; right?: any; s?: any }) => (
+  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, margin: `${DENSITY.sectionTop}px 2px ${DENSITY.sectionBottom}px`, fontFamily: SANS, ...s }}>
+    <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: PAL.neutral.ink }}>
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: dot || PAL.neutral.mid, flexShrink: 0 }} />{label}
+    </span>
+    {right !== undefined && right !== null && <span style={{ fontSize: TYPE.label.size, color: PAL.neutral.ink, whiteSpace: "nowrap" as const }}>{right}</span>}
+  </div>
 );
 
 
@@ -633,12 +628,7 @@ export const SearchField = ({ value, onChange, placeholder, s }: { value: string
 );
 
 // group header: ● LABEL · n ……… total
-export const SectionHead = ({ dot, label, right, s }: { dot?: string; label: string; right?: any; s?: any }) => (
-  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, margin: "14px 4px 6px", fontFamily: SANS, ...s }}>
-    <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted }}>{dot && <Dot c={dot} />}{label}</span>
-    {right !== undefined && right !== null && <span style={{ fontSize: TYPE.label.size, color: PAL.neutral.ink, whiteSpace: "nowrap" as const }}>{right}</span>}
-  </div>
-);
+
 
 export const ListCard = ({ children, s }: { children: any; s?: any }) => (
   <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden", ...s }}>{children}</div>
@@ -722,3 +712,106 @@ export const BottomBar = ({ children }: { children: any }) => (
     {children}
   </div>
 );
+
+
+// ═════════════════════════════════════════════════════════════
+// DASHBOARD PARTS — the Manager dashboard is the master for every app
+//   DashCard (white card) · DashCardHead · DashStrip (bottom strip)
+//   DashTile (pastel tile) · WideRow (like Pipeline) · LinkRow (like Licenses)
+//   BarList (like "Revenue by offer") · SwitchPill (year / month / account)
+//   DashIcon (22 px icon circle) · Chev
+// Icons are passed in (atoms can't import PlannerWindows).
+// ═════════════════════════════════════════════════════════════
+export const pressProps = (fn?: () => void): any => fn ? { role: "button", tabIndex: 0, onClick: fn, onKeyDown: (e: any) => { if (e.key === "Enter") fn(); } } : {};
+const CAPS: any = { fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" };
+export const Chev = ({ color }: { color?: string }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color || C.faint} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d="M9 6l6 6-6 6" /></svg>
+);
+export const DashIcon = ({ tone, bg, children }: { tone: ToneSet; bg?: string; children: any }) => (
+  <span style={{ width: DENSITY.iconSm, height: DENSITY.iconSm, borderRadius: "50%", background: bg || tone.wash, color: tone.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{children}</span>
+);
+export const DashCard = ({ onClick, children, s }: { onClick?: () => void; children: any; s?: any }) => (
+  <div {...pressProps(onClick)} style={{ marginTop: 10, background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden", cursor: onClick ? "pointer" : "default", ...s }}>{children}</div>
+);
+export const DashCardHead = ({ icon, label, arrow }: { icon: any; label: any; arrow?: boolean }) => (
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <span style={{ display: "flex", alignItems: "center", gap: 7 }}>{icon}<span style={{ ...CAPS, color: C.muted }}>{label}</span></span>
+    {arrow && <Chev />}
+  </div>
+);
+export const DashStrip = ({ tone, left, right, pct }: { tone: ToneSet; left: any; right?: any; pct: number }) => (
+  <div style={{ padding: "7px 13px 8px", borderTop: `1px solid ${C.hair}`, background: PAL.neutral.wash }}>
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: TYPE.label.size, color: tone === PAL.neutral ? PAL.neutral.ink : tone.ink }}><span>{left}</span>{right !== undefined && <span>{right}</span>}</div>
+    <div style={{ height: DENSITY.thin, background: C.line, borderRadius: RADIUS.bar, marginTop: 5 }}>
+      <div style={{ width: `${Math.max(0, Math.min(100, pct))}%`, height: DENSITY.thin, background: tone.mid, borderRadius: RADIUS.bar }} />
+    </div>
+  </div>
+);
+export const DashTile = ({ tone, icon, label, value, sub, onClick }: { tone: ToneSet; icon: any; label: any; value: any; sub?: any; onClick?: () => void }) => (
+  <div {...pressProps(onClick)} style={{ background: tone.wash, borderRadius: RADIUS.tile, padding: "10px 11px 9px", cursor: onClick ? "pointer" : "default", minWidth: 0 }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}><DashIcon tone={tone} bg={C.white}>{icon}</DashIcon><span style={{ ...CAPS, color: tone.ink, whiteSpace: "nowrap" as const }}>{label}</span></span>
+      {onClick && <Chev color={tone.mid} />}
+    </div>
+    <div style={{ fontFamily: SERIF, fontSize: TYPE.tile.size, marginTop: 7, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
+    {sub !== undefined && <div style={{ fontSize: TYPE.label.size, color: tone.ink, marginTop: 1 }}>{sub}</div>}
+  </div>
+);
+// full width, inside the tile grid (or alone): like Pipeline
+export const WideRow = ({ tone = PAL.neutral, icon, label, right, onClick }: { tone?: ToneSet; icon: any; label: any; right?: any; onClick?: () => void }) => (
+  <div {...pressProps(onClick)} style={{ gridColumn: "1 / -1", background: tone.wash, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, padding: "9px 11px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, cursor: onClick ? "pointer" : "default", minHeight: DENSITY.tap, boxSizing: "border-box" as const }}>
+    <span style={{ display: "flex", alignItems: "center", gap: 6 }}><DashIcon tone={tone} bg={C.white}>{icon}</DashIcon><span style={{ ...CAPS, color: tone.ink }}>{label}</span></span>
+    <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>{right}{onClick && <Chev color={tone.mid} />}</span>
+  </div>
+);
+// white row with a tag: like Licenses
+export const LinkRow = ({ icon, label, tag, tone, tagFilled = true, onClick, s }: { icon: any; label: any; tag?: any; tone: ToneSet; tagFilled?: boolean; onClick?: () => void; s?: any }) => (
+  <div {...pressProps(onClick)} style={{ minHeight: DENSITY.tap, boxSizing: "border-box" as const, marginTop: 8, padding: "0 12px", background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, cursor: onClick ? "pointer" : "default", ...s }}>
+    <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: TYPE.row.size }}>{icon}{label}</span>
+    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      {tag !== undefined && tag !== null && <span data-tag="" style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.tag, padding: "2px 8px", borderRadius: RADIUS.tag, background: tagFilled ? tone.fill : "transparent", color: tone.ink, whiteSpace: "nowrap" as const }}>{tag}</span>}
+      {onClick && <Chev />}
+    </span>
+  </div>
+);
+// list with thin bars: like "Revenue by offer"
+export const BarList = ({ rows, empty }: { rows: { key: string; label: any; value: any; pct: number; pctText?: string; color?: string }[]; empty?: string }) => (
+  <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, padding: "2px 12px" }}>
+    {rows.length === 0 && <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: 0, padding: "10px 0" }}>{empty || "Nothing yet."}</p>}
+    {rows.map((r, k) => (
+      <div key={r.key} style={{ padding: "8px 0", borderTop: k ? `1px solid ${C.hair}` : "none" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: TYPE.row.size }}>
+          <span>{r.label}</span>
+          <span style={{ whiteSpace: "nowrap" as const }}>{r.value}{r.pctText !== undefined && <span style={{ fontSize: TYPE.label.size, color: C.muted, marginLeft: 4 }}>{r.pctText}</span>}</span>
+        </div>
+        <div style={{ height: DENSITY.thin, background: C.hair, borderRadius: RADIUS.bar, marginTop: 6 }}>
+          <div style={{ width: `${Math.max(0, Math.min(100, r.pct))}%`, height: DENSITY.thin, background: r.color || PAL.neutral.mid, borderRadius: RADIUS.bar }} />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+// 28 px pill for year / month / account switches
+export const SwitchPill = ({ children, s }: { children: any; s?: any }) => (
+  <span style={{ display: "inline-flex", alignItems: "center", border: `1px solid ${C.rule}`, borderRadius: RADIUS.card, background: C.white, height: 28, fontSize: TYPE.subtext.size, ...s }}>{children}</span>
+);
+
+// item window: one level above the screen — 48 px header (✕ · title · action),
+// content, optional bottom bar (Cancel / Save). Read view first.
+export const Sheet = ({ title, onClose, right, children, footer }: { title: string; onClose: () => void; right?: any; children: any; footer?: any }) =>
+  createPortal(
+    <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", flexDirection: "column", justifyContent: "flex-end", fontFamily: SANS }}>
+      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(26,26,26,0.28)" }} />
+      <div role="dialog" aria-modal="true" aria-label={title}
+        style={{ position: "relative", background: C.white, borderRadius: `${RADIUS.button}px ${RADIUS.button}px 0 0`, boxShadow: SHADOW.pop, maxHeight: "88vh", display: "flex", flexDirection: "column", width: "100%", maxWidth: 560, margin: "0 auto", color: C.black }}>
+        <div style={{ height: DENSITY.sheetHeader, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px 0 4px", flexShrink: 0 }}>
+          <button onClick={onClose} aria-label="Close" style={{ width: DENSITY.tap, height: DENSITY.tap, background: "none", border: "none", fontSize: ICON.close, color: C.muted, cursor: "pointer" }}>✕</button>
+          <span style={{ ...CAPS, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, padding: "0 6px" }}>{title}</span>
+          <span style={{ minWidth: DENSITY.tap, display: "flex", justifyContent: "flex-end" }}>{right}</span>
+        </div>
+        <div style={{ overflowY: "auto", padding: "2px 16px 16px", WebkitOverflowScrolling: "touch" as any }}>{children}</div>
+        {footer && <div style={{ padding: "12px 16px calc(16px + env(safe-area-inset-bottom, 0px))", borderTop: `1px solid ${C.line}`, display: "flex", gap: 8, flexShrink: 0 }}>{footer}</div>}
+      </div>
+    </div>,
+    document.body
+  );

@@ -13,7 +13,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import PDFModal from "./PDFModal";
 import { editLock } from "./saveStatus";
-import { C, SANS, SERIF, PAL, catInfo, TYPE, TRACK, RADIUS } from "./constants";
+import { C, SANS, SERIF, PAL, catInfo, TYPE, TRACK, RADIUS, cardTone } from "./constants";
 import { fmt, fmtD, today, uid, addD, pctSpace } from "./formatters";
 import { I, S, NumField, ConfirmDialog, PillBtn, Chip, ChipRow, Switch, Stepper, DetailLine, BottomBar, BOTTOM_BAR_SPACE } from "./atoms";
 import {
@@ -533,7 +533,7 @@ export default function Calculator({
       {/* ── ② CATALOGUE ── */}
       <div style={CARD}>
         <ChipRow>
-          {cats.map(k => <Chip key={k} on={bCat === k} tone={PAL.neutral} dot={false} label={catTitle(rc, k)} onClick={() => setBCat(k)} />)}
+          {cats.map(k => <Chip key={k} on={bCat === k} tone={cardTone(k)} label={catTitle(rc, k)} onClick={() => setBCat(k)} />)}
         </ChipRow>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 6, marginTop: 10 }}>
           {tiles.map(ch => {

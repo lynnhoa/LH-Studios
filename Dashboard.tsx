@@ -11,6 +11,7 @@
 // Colours: one meaning each (constants › PAL).
 // ─────────────────────────────────────────────────────────────
 
+import { DashCard, DashCardHead, DashStrip, DashTile, DashIcon, WideRow, LinkRow, BarList, SwitchPill, SectionHead } from "./atoms";
 import { useState, useMemo } from "react";
 import type { ReactNode } from "react";
 import { C, SANS, SERIF, PAL, RADIUS, SHADOW, CATEGORY, catKeyOf, WORDS, TYPE, TRACK } from "./constants";
@@ -89,26 +90,10 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
   })();
 
   // ── pieces ──────────────────────────────────────────────────
-  const press = (fn?: () => void) => fn ? { role: "button", tabIndex: 0, onClick: fn, onKeyDown: (e: any) => { if (e.key === "Enter") fn(); } } : {};
-  const circle = (d: string, t: { wash: string; ink: string }, bg?: string) => (
-    <span style={{ width: 22, height: 22, borderRadius: "50%", background: bg || t.wash, color: t.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={d} size={12} /></span>
-  );
-  const chev = (c: string = C.faint) => <Ico d={IC.right} size={14} color={c} />;
-  const section = (title: string) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 7, margin: "14px 2px 7px" }}>
-      <span style={{ width: 7, height: 7, borderRadius: "50%", background: PAL.neutral.mid }} />
-      <span style={{ ...microLabel, color: PAL.neutral.ink }}>{title}</span>
-    </div>
-  );
+  // ── pieces: the master parts (atoms) — this dashboard is the master for every app ──
+  const circle = (d: string, t: ToneSet, bg?: string) => <DashIcon tone={t} bg={bg}><Ico d={d} size={12} /></DashIcon>;
   const tile = (t: ToneSet, icon: string, label: string, value: string, sub: ReactNode, onClick?: () => void) => (
-    <div {...press(onClick)} style={{ background: t.wash, borderRadius: RADIUS.tile, padding: "10px 11px 9px", cursor: onClick ? "pointer" : "default", minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>{circle(icon, t, C.white)}<span style={{ ...microLabel, color: t.ink, whiteSpace: "nowrap" as const }}>{label}</span></span>
-        {onClick && chev(t.mid)}
-      </div>
-      <div style={{ fontFamily: SERIF, fontSize: TYPE.tile.size, marginTop: 7, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
-      <div style={{ fontSize: TYPE.label.size, color: t.ink, marginTop: 1 }}>{sub}</div>
-    </div>
+    <DashTile tone={t} icon={<Ico d={icon} size={12} />} label={label} value={value} sub={sub} onClick={onClick} />
   );
   const yearBtn = (label: string, to: number | undefined, ch: string) => (
     <button onClick={() => to !== undefined && setYear(to)} disabled={to === undefined} aria-label={label}
@@ -120,23 +105,19 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
   return (
     <div style={{ fontFamily: SANS, color: C.black }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Dashboard</h2>
-        <span style={{ display: "inline-flex", alignItems: "center", border: `1px solid ${C.rule}`, borderRadius: RADIUS.card, background: C.white, height: 28, fontSize: TYPE.subtext.size }}>
+        <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? TYPE.screen.size : TYPE.pageTitle.size, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Dashboard</h2>
+        <SwitchPill>
           {yearBtn("Previous year", data.years[yi - 1], "‹")}<span style={{ minWidth: 40, textAlign: "center" as const }}>{year}</span>{yearBtn("Next year", data.years[yi + 1], "›")}
-        </span>
+        </SwitchPill>
       </div>
       <div style={{ ...microLabel, letterSpacing: TRACK.caps, color: C.muted, marginTop: 4 }}>Overview · read only</div>
 
       <div style={{ display: isMobile ? "block" : "grid", gridTemplateColumns: "minmax(0,1.15fr) minmax(0,1fr)", gap: 16, alignItems: "start" }}>
         <div>
           {/* ── revenue ── */}
-          <div {...press(onOpenInvoices ? () => onOpenInvoices("paid") : undefined)}
-            style={{ marginTop: 10, background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden", cursor: onOpenInvoices ? "pointer" : "default" }}>
+          <DashCard onClick={onOpenInvoices ? () => onOpenInvoices("paid") : undefined}>
             <div style={{ padding: "11px 13px 9px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 7 }}>{circle(IC.euro, PAL.done)}<span style={{ ...microLabel, color: C.muted }}>Revenue {year}</span></span>
-                {onOpenInvoices && chev()}
-              </div>
+              <DashCardHead icon={circle(IC.euro, PAL.done)} label={`Revenue ${year}`} arrow={!!onOpenInvoices} />
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 8, marginTop: 6 }}>
                 <div style={{ fontFamily: SERIF, fontSize: TYPE.kpi.size, lineHeight: 1.05, whiteSpace: "nowrap" as const }}>{fmt(revenue)}</div>
                 <div style={{ fontSize: TYPE.label.size, color: C.muted, textAlign: "right" as const, lineHeight: 1.35 }}>
@@ -158,22 +139,13 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
                 {MO.map((m, k) => <span key={m} style={{ color: k === curMonth ? C.black : undefined }}>{m}</span>)}
               </div>
             </div>
-            {ku && (
-              <div style={{ padding: "7px 13px 8px", borderTop: `1px solid ${C.hair}`, background: PAL.neutral.wash }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: TYPE.label.size, color: kuTone === PAL.neutral ? PAL.neutral.ink : kuTone.ink }}>
-                  <span>Kleinunternehmer · {int(revenue)} of {int(KU_LIMIT)} €</span><span>{pct2(kuPct)}</span>
-                </div>
-                <div style={{ height: 4, background: C.line, borderRadius: RADIUS.bar, marginTop: 5 }}>
-                  <div style={{ width: `${Math.min(100, kuPct)}%`, height: 4, background: kuTone.mid, borderRadius: RADIUS.bar }} />
-                </div>
-              </div>
-            )}
-          </div>
+            {ku && <DashStrip tone={kuTone} left={<>Kleinunternehmer · {int(revenue)} of {int(KU_LIMIT)} €</>} right={pct2(kuPct)} pct={kuPct} />}
+          </DashCard>
         </div>
 
         <div>
           {/* ── money flow ── */}
-          {section("Money flow")}
+          <SectionHead label="Money flow" />
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
             {tile(PAL.waiting, IC.hourglass, WORDS.unpaid, fmt(outstanding),
               <>{data.open.length} open{overdue ? <> · <span style={{ color: PAL.late.ink }}>{overdue} overdue</span></> : ""}</>,
@@ -181,43 +153,21 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
             {tile(PAL.progress, IC.sign, WORDS.toInvoice, fmt(data.signedValue),
               `${data.signed.length} project${data.signed.length === 1 ? "" : "s"} · not invoiced`,
               onOpenProjects ? () => onOpenProjects("signed") : undefined)}
-            <div {...press(onOpenProjects ? () => onOpenProjects("quoted") : undefined)}
-              style={{ gridColumn: "1 / -1", background: PAL.neutral.wash, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, padding: "9px 11px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, cursor: onOpenProjects ? "pointer" : "default" }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>{circle(IC.file, PAL.neutral, C.white)}<span style={{ ...microLabel, color: PAL.neutral.ink }}>Pipeline</span></span>
-              <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            <WideRow icon={<Ico d={IC.file} size={12} />} label="Pipeline" onClick={onOpenProjects ? () => onOpenProjects("quoted") : undefined}
+              right={<>
                 <span style={{ fontSize: TYPE.label.size, color: PAL.neutral.ink, whiteSpace: "nowrap" as const }}>{data.quoted.length} quote{data.quoted.length === 1 ? "" : "s"}</span>
                 <span style={{ fontFamily: SERIF, fontSize: TYPE.tile.size, whiteSpace: "nowrap" as const }}>{fmt(pipeline)}</span>
-                {onOpenProjects && chev(PAL.neutral.mid)}
-              </span>
-            </div>
+              </>} />
           </div>
 
           {/* ── licenses ── */}
-          <div {...press(onOpenLicenses ? () => onOpenLicenses(expired + expiring ? "action" : "active") : undefined)}
-            style={{ minHeight: 44, boxSizing: "border-box" as const, marginTop: 8, height: 42, padding: "0 12px", background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, cursor: onOpenLicenses ? "pointer" : "default" }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: TYPE.row.size }}>{circle(IC.shield, licTone)}Licenses</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.tag, padding: "2px 8px", borderRadius: RADIUS.tag, background: expired || expiring ? licTone.fill : "transparent", color: licTone.ink }}>{licText}</span>
-              {onOpenLicenses && chev()}
-            </span>
-          </div>
+          <LinkRow icon={circle(IC.shield, licTone)} label="Licenses" tag={licText} tone={licTone} tagFilled={!!(expired || expiring)}
+            onClick={onOpenLicenses ? () => onOpenLicenses(expired + expiring ? "action" : "active") : undefined} />
 
           {/* ── revenue by offer ── */}
-          {section(`Revenue by offer · ${year}`)}
-          <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, padding: "2px 12px" }}>
-            {offers.length === 0 && <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: 0, padding: "10px 0" }}>No paid invoices in {year} yet.</p>}
-            {offers.map((o, k) => (
-              <div key={o.k} style={{ padding: "8px 0", borderTop: k ? `1px solid ${C.hair}` : "none" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: TYPE.row.size }}>
-                  <span>{o.label}</span>
-                  <span style={{ whiteSpace: "nowrap" as const }}>{fmt(o.v)} <span style={{ fontSize: TYPE.label.size, color: C.muted, marginLeft: 4 }}>{pct2(revenue ? (o.v / revenue) * 100 : 0)}</span></span>
-                </div>
-                <div style={{ height: 4, background: C.hair, borderRadius: RADIUS.bar, marginTop: 6 }}>
-                  <div style={{ width: `${revenue ? Math.min(100, (o.v / revenue) * 100) : 0}%`, height: 4, background: PAL.neutral.mid, borderRadius: RADIUS.bar }} />
-                </div>
-              </div>
-            ))}
-          </div>
+          <SectionHead label={`Revenue by offer · ${year}`} />
+          <BarList empty={`No paid invoices in ${year} yet.`}
+            rows={offers.map(o => ({ key: o.k, label: o.label, value: fmt(o.v), pctText: pct2(revenue ? (o.v / revenue) * 100 : 0), pct: revenue ? Math.min(100, (o.v / revenue) * 100) : 0 }))} />
         </div>
       </div>
     </div>
