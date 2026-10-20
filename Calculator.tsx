@@ -13,12 +13,12 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import PDFModal from "./PDFModal";
 import { editLock } from "./saveStatus";
-import { C, SANS, SERIF, PAL, catInfo } from "./constants";
+import { C, SANS, SERIF, PAL, catInfo, cardTone } from "./constants";
 import { fmt, fmtD, today, uid, addD, pctSpace } from "./formatters";
 import { I, S, NumField, ConfirmDialog, PillBtn, Chip, ChipRow, Switch, Stepper, DetailLine, BottomBar, BOTTOM_BAR_SPACE } from "./atoms";
 import {
   normalizeCards, pricingCats, cardChoices, cardAddons, priceLine, optLabel, optName, addonPriceText,
-  BASE_CARD_KEYS, pctOn, volPct,
+  BASE_CARD_KEYS, pctOn, volPct, retainerPctOf,
 } from "./pricing";
 import { quoteDraft } from "./quoteDraft";
 import { sendQuestion } from "./docFlow";
@@ -38,11 +38,7 @@ const catTitle = (rc: any, key: string) =>
 const NEW_CLIENT = "__new";
 const PLATFORMS = ["Instagram", "TikTok", "YouTube", "Other"];
 const DE_COUNTRY = /^(germany|deutschland|austria|österreich|oesterreich|switzerland|schweiz)$/i;
-// the retainer discount of a rate card (Service Catalog), 20 % when not set
-export const retainerPctOf = (card: any): number => {
-  const v = Number(card?.retainerPct);
-  return card?.retainerPct !== undefined && card?.retainerPct !== null && card?.retainerPct !== "" && Number.isFinite(v) && v >= 0 && v < 100 ? v : 20;
-};
+
 // language: the client's last document, otherwise their country (no client yet: English)
 function clientLang(c: any): "en" | "de" {
   const docs = (c?.projects || []).flatMap((pr: any) => pr.documents || []).filter((d: any) => d.lang === "en" || d.lang === "de")
@@ -533,7 +529,7 @@ export default function Calculator({
       {/* ── ② CATALOGUE ── */}
       <div style={CARD}>
         <ChipRow>
-          {cats.map(k => <Chip key={k} on={bCat === k} tone={PAL.neutral} dot={false} label={catTitle(rc, k)} onClick={() => setBCat(k)} />)}
+          {cats.map(k => <Chip key={k} on={bCat === k} tone={cardTone(k)} label={catTitle(rc, k)} onClick={() => setBCat(k)} />)}
         </ChipRow>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 6, marginTop: 10 }}>
           {tiles.map(ch => {

@@ -152,3 +152,22 @@ export const WORDS = {
   toInvoice: "To invoice", unpaid: "Unpaid", pipeline: "Pipeline", paid: "Paid",
   overdue: "Overdue", followUp: "Follow up",
 } as const;
+
+// ─── CARD COLORS — the four rate cards (Service Catalog + Calculator chips) ─
+// Brand Collab pink · UGC blue · Editorial butter · Hotels pistachio · own cards warm grey.
+// Only on chips and icons (statuses never appear on those two screens).
+export const CARD_TONE: Record<string, Tone> = { influencer: "late", ugc: "progress", editorial: "waiting", hotels: "done" };
+export const cardTone = (key: string) => PAL[CARD_TONE[key] || "neutral"];
+
+// ─── DENSITY — compact, not cramped (the master parts use these) ─
+//   rows 44 px (one line) / 54 px (two) · 9 px top+bottom · 12 px left, 10 px right
+//   cards 12 px inside, 10 px apart · section headers 14 px above, 6 px below
+//   fields 40 · chips 30 · main buttons 40 · tiles 50 (2 per row, 6 apart)
+//   text: title 22 serif · rows 14 · details 12 · labels 10 caps · amounts 15 serif
+//   windows: 48 px header, read view first, Cancel / Save at the bottom
+//   rows for things with a description, tiles for short options; tap targets ≥ 44 px
+export const DENSITY = {
+  row1: 44, row2: 54, rowPadY: 9, rowPadL: 12, rowPadR: 10,
+  cardPad: 12, cardGap: 10, sectionTop: 14, sectionBottom: 6,
+  field: 40, chip: 30, mainBtn: 40, tile: 50, tileGap: 6, tap: 44, sheetHeader: 48, sheetPad: 16,
+} as const;

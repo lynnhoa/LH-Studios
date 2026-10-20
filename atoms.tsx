@@ -711,3 +711,24 @@ export const BottomBar = ({ children }: { children: any }) => (
     {children}
   </div>
 );
+
+
+// item window: one level above the screen — 48 px header (✕ · title · action),
+// content, and an optional bottom bar (Cancel / Save). Read view first.
+export const Sheet = ({ title, onClose, right, children, footer }: { title: string; onClose: () => void; right?: any; children: any; footer?: any }) =>
+  createPortal(
+    <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", flexDirection: "column", justifyContent: "flex-end", fontFamily: SANS }}>
+      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(26,26,26,0.28)" }} />
+      <div role="dialog" aria-modal="true" aria-label={title}
+        style={{ position: "relative", background: C.white, borderRadius: "18px 18px 0 0", boxShadow: "0 -10px 30px rgba(26,26,26,0.12)", maxHeight: "88vh", display: "flex", flexDirection: "column", width: "100%", maxWidth: 560, margin: "0 auto", color: C.black }}>
+        <div style={{ height: 48, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px 0 4px", flexShrink: 0 }}>
+          <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, background: "none", border: "none", fontSize: 18, color: "#8a847d", cursor: "pointer" }}>✕</button>
+          <span style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "#8a847d", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, padding: "0 6px" }}>{title}</span>
+          <span style={{ minWidth: 44, display: "flex", justifyContent: "flex-end" }}>{right}</span>
+        </div>
+        <div style={{ overflowY: "auto", padding: "2px 16px 16px", WebkitOverflowScrolling: "touch" as any }}>{children}</div>
+        {footer && <div style={{ padding: "12px 16px calc(16px + env(safe-area-inset-bottom, 0px))", borderTop: "1px solid #efebe6", display: "flex", gap: 8, flexShrink: 0 }}>{footer}</div>}
+      </div>
+    </div>,
+    document.body
+  );

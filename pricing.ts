@@ -213,3 +213,9 @@ export const renewalStart = (pr: any): string => {
   const end = licenseEnd(pr);
   return end ? addD(end, 1) : today();
 };
+
+// the retainer discount of a rate card (Service Catalog setting), 20 % when not set
+export const retainerPctOf = (card: any): number => {
+  const v = Number(card?.retainerPct);
+  return card?.retainerPct !== undefined && card?.retainerPct !== null && card?.retainerPct !== "" && Number.isFinite(v) && v >= 0 && v < 100 ? v : 20;
+};
