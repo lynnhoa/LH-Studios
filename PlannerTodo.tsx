@@ -12,7 +12,7 @@
 
 import { useState } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, PAL, TRACK } from "./constants";
-import { B, Tick, ConfirmDialog, SectionHead, SummaryLine, Strong, TonedTag, Sheet, PillBtn, I, S, DashCard } from "./atoms";
+import { B, Tick, ConfirmDialog, SectionHead, SummaryLine, Strong, TonedTag, Sheet, PillBtn, I, S, DashCard, TextInline } from "./atoms";
 import { fmtD } from "./formatters";
 import { OWNER_LOOK, accLook, rowKind, stageOf, gateOf, byOrder, STAGE_SHORT, thisMonday } from "./planner";
 import type { Task, AccountFilter, Owner, Phase, Account, Look, Stage } from "./planner";
@@ -89,8 +89,6 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
 
   // ── pieces ──────────────────────────────────────────────────
   // ── like the mockup: master parts only ───────────────────────
-  const [win, setWin] = useState<null | { id?: string }>(null);
-  const [askDel, setAskDel] = useState<Task | null>(null);
   const ownerLabel = (o: Owner) => OWNER_LOOK[o].label;
   const addTask = async (title: string, owner: Owner) => {
     if (!title.trim() || !st) return;
@@ -101,22 +99,35 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
     const isDone = done(t);
     const auto = rowKind(t) === "auto";            // first portfolio set counts itself
     const url = (t.title.match(URL_RE) || [])[1];
+    const l = OWNER_LOOK[t.owner];
     return (
-      <div key={t.id} role={auto ? undefined : "button"} tabIndex={auto ? undefined : 0}
-        onClick={auto ? undefined : () => setWin({ id: t.id })} onKeyDown={auto ? undefined : (e: any) => { if (e.key === "Enter") setWin({ id: t.id }); }}
-        style={{ minHeight: SPACING.row1, display: "flex", alignItems: "center", gap: 2, padding: `0 ${SPACING.rowSide}px 0 0`, borderTop: k ? `1px solid ${C.hair}` : "none", cursor: auto ? "default" : "pointer", boxSizing: "border-box" as const }}>
-        <span style={{ width: SPACING.tap, height: SPACING.tap, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+      <div key={t.id} style={{ minHeight: SPACING.row1, display: "flex", alignItems: "center", gap: 2, padding: "0 4px 0 0", borderTop: k ? `1px solid ${C.hair}` : "none", boxSizing: "border-box" as const }}>
+        <span style={{ width: SPACING.tap, height: SPACING.tap, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           {auto ? null : <Tick on={isDone} color={PAL.done.mid} size={20} onClick={() => quiet(planner.setTaskStatus(t, isDone ? "open" : "done"))} />}
         </span>
-        <span style={{ flex: 1, minWidth: 0, fontSize: SPACING.listText, color: isDone ? C.light : C.black, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis", textDecoration: isDone ? "line-through" : "none" }}>{t.title}</span>
-        {url && <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} aria-label="Open link" style={{ color: C.muted, display: "inline-flex", padding: 8 }}><Ico d={IC.link} size={13} /></a>}
+        {auto
+          ? <span style={{ flex: 1, minWidth: 0, fontSize: SPACING.listText, color: isDone ? C.light : C.black, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</span>
+          : <TextInline value={t.title} muted={isDone} strike={isDone} ariaLabel={t.title}
+              onSave={v => { if (!v.trim()) removeTask(t); else quiet(planner.updateTask(t.id, { title: v.trim() })); }} />}
+        {url && <a href={url} target="_blank" rel="noreferrer" aria-label="Open link" style={{ color: C.muted, display: "inline-flex", padding: 8 }}><Ico d={IC.link} size={13} /></a>}
         {auto && <span style={{ fontSize: SPACING.listMeta, color: isDone ? PAL.done.ink : C.muted, marginRight: 6 }}>{s.actual ?? 0} / {s.target ?? "–"}</span>}
-        <TonedTag tone={PAL.neutral}>{ownerLabel(t.owner)}</TonedTag>
+        {auto ? <TonedTag tone={PAL.neutral}>{l.label}</TonedTag>
+          : <button onClick={() => quiet(planner.updateTask(t.id, { owner: NEXT_OWNER[t.owner] }))} aria-label={`Who: ${l.label} — tap to switch`} title="Tap to switch who"
+              style={{ background: "none", border: "none", padding: "10px 2px", cursor: "pointer", flexShrink: 0 }}><TonedTag tone={PAL.neutral}>{l.label}</TonedTag></button>}
+        {auto ? <span style={{ width: 30, flexShrink: 0 }} /> : <XBtn label={`Delete ${t.title}`} onClick={() => removeTask(t)} />}
       </div>
     );
   };
-  const listCard = (list: Task[]) => (
-    <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, overflow: "hidden" }}>{list.map(row)}</div>
+  const [adding, setAdding] = useState(0);
+  const addRow = adding > 0 && (
+    <div key={`add-${adding}`} style={{ minHeight: SPACING.row1, display: "flex", alignItems: "center", gap: 2, padding: "0 12px 0 0", borderTop: `1px solid ${C.hair}` }}>
+      <span style={{ width: SPACING.tap, display: "flex", justifyContent: "center", color: C.light, flexShrink: 0 }}>+</span>
+      <TextInline value="" placeholder="New task" ariaLabel="New task" autoFocus
+        onSave={v => { if (v.trim()) { addTask(v, "both"); setAdding(n => n + 1); } else setAdding(0); }} />
+    </div>
+  );
+  const listCard = (list: Task[], withAdd = false) => (
+    <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, overflow: "hidden" }}>{list.map(row)}{withAdd && addRow}</div>
   );
 
   // stage card: the dashboard's white card with the 5-step bar
@@ -165,7 +176,6 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
     );
   });
 
-  const winTask = win?.id ? list.find(t => t.id === win.id) || tasks.find(t => t.id === win.id) : undefined;
   return (
     <div>
       {askNext && st && next && (
@@ -178,14 +188,6 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
           text={`Stage ${askReopen.num} is active again and the later stages go back to upcoming.`}
           okLabel={`Reopen Stage ${askReopen.num}`} onOk={reopen} onCancel={() => setAskReopen(null)} />
       )}
-      {askDel && (
-        <ConfirmDialog title={`Delete “${askDel.title}”?`} text="You can undo it right after." okLabel="Delete" danger
-          onOk={() => { const t = askDel; setAskDel(null); setWin(null); removeTask(t); }} onCancel={() => setAskDel(null)} />
-      )}
-      {win && <TodoWindow task={winTask} ownerLabel={ownerLabel}
-        onClose={() => setWin(null)}
-        onSave={async (title: string, owner: Owner) => { if (winTask) { await quiet(planner.updateTask(winTask.id, { title: title.trim() || winTask.title, owner })); } else { await addTask(title, owner); setWin(null); } }}
-        onDelete={winTask ? () => setAskDel(winTask) : undefined} />}
       <TabTitle title="To-do" acc={acc} onAccount={onAccount} isMobile={isMobile} />
       <SummaryLine dot={PAL.progress.mid}>{st ? <>Stage {st.num} of 5 · <Strong>{doneOnes.length} of {list.length} done</Strong></> : "Stages"}</SummaryLine>
       {loading ? (
@@ -197,8 +199,8 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
           {stageCard}
           {st && (
             <>
-              <SectionHead label={`To do · ${openCount}`} right={<button onClick={() => setWin({})} style={{ background: "none", border: "none", padding: "8px 0", margin: "-8px 0", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: PAL.neutral.ink }}>+ Add</button>} />
-              {openOnes.length ? listCard(openOnes) : <p style={{ fontSize: SPACING.listText, color: C.muted, margin: 0, padding: "4px 2px" }}>All done for this stage.</p>}
+              <SectionHead label={`To do · ${openCount}`} right={<button onClick={() => setAdding(n => n + 1)} style={{ background: "none", border: "none", padding: "8px 0", margin: "-8px 0", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: PAL.neutral.ink }}>+ Add</button>} />
+              {openOnes.length || adding ? listCard(openOnes, true) : <p style={{ fontSize: SPACING.listText, color: C.muted, margin: 0, padding: "4px 2px" }}>All done for this stage.</p>}
               {doneOnes.length > 0 && (
                 <>
                   <button onClick={() => setShowDone(o => !o)} aria-expanded={showDone} style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SANS }}>
@@ -216,39 +218,5 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
         </>
       )}
     </div>
-  );
-}
-
-// ── item window for one task: read view → Edit → Save back to the read view ──
-function TodoWindow({ task, ownerLabel, onClose, onSave, onDelete }: { task?: Task; ownerLabel: (o: Owner) => string; onClose: () => void; onSave: (title: string, owner: Owner) => Promise<void>; onDelete?: () => void }) {
-  const [mode, setMode] = useState<"read" | "edit">(task ? "read" : "edit");
-  const [title, setTitle] = useState(task?.title || "");
-  const [owner, setOwner] = useState<Owner>(task?.owner || "both");
-  const LBL: any = { fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase", color: C.muted, margin: "12px 0 5px" };
-  const save = async () => { await onSave(title, owner); if (task) setMode("read"); };
-  return (
-    <Sheet title={task ? "Task" : "New task"} onClose={mode === "edit" && task ? () => { setTitle(task.title); setOwner(task.owner); setMode("read"); } : onClose}
-      right={mode === "read" ? <PillBtn onClick={() => setMode("edit")}>Edit</PillBtn> : null}
-      footer={mode === "edit" ? <>
-        {task && onDelete && <PillBtn onClick={onDelete} s={{ height: 40, color: PAL.late.ink }}>Delete</PillBtn>}
-        <PillBtn onClick={() => (task ? (setTitle(task.title), setOwner(task.owner), setMode("read")) : onClose())} s={{ flex: 1, height: 40, justifyContent: "center" }}>Cancel</PillBtn>
-        <PillBtn dark onClick={save} s={{ flex: 1.4, height: 40, justifyContent: "center" }}>Save</PillBtn>
-      </> : undefined}>
-      {mode === "read" && task ? (
-        <>
-          <div style={{ fontFamily: SERIF, fontSize: TYPE.tile.size }}>{task.title}</div>
-          <div style={{ marginTop: 8 }}><TonedTag tone={PAL.neutral}>{ownerLabel(task.owner)}</TonedTag></div>
-        </>
-      ) : (
-        <>
-          <div style={{ ...LBL, marginTop: 0 }}>Task</div>
-          <I value={title} onChange={(e: any) => setTitle(e.target.value)} aria-label="Task" autoFocus={!task} />
-          <div style={LBL}>Who</div>
-          <S value={owner} onChange={(e: any) => setOwner(e.target.value)} aria-label="Who">
-            {(["manager", "creator", "both"] as Owner[]).map(o => <option key={o} value={o}>{ownerLabel(o)}</option>)}
-          </S>
-        </>
-      )}
-    </Sheet>
   );
 }

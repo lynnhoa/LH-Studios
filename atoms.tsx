@@ -842,3 +842,27 @@ export const WeekPill = ({ label, onPrev, onNext }: { label: string; onPrev: () 
   );
   return <SwitchPill>{arrow("Previous week", "‹", onPrev)}<span style={{ minWidth: 52, textAlign: "center" as const, whiteSpace: "nowrap" as const }}>{label}</span>{arrow("Next week", "›", onNext)}</SwitchPill>;
 };
+
+
+// ── TextInline: a line of text you edit in place (one tap, no window).
+//    Drawn at 13 px; the field types at 16 px (no iPhone zoom), scaled down.
+export function TextInline({ value, onSave, placeholder, ariaLabel, muted, strike, autoFocus, onEnter }: {
+  value: string; onSave: (v: string) => void; placeholder?: string; ariaLabel?: string; muted?: boolean; strike?: boolean; autoFocus?: boolean; onEnter?: () => void;
+}) {
+  const [t, setT] = useState(value);
+  const [focus, setFocus] = useState(false);
+  useEffect(() => { if (!focus) setT(value); }, [value, focus]);
+  const k = SPACING.listText / 16, H = 30;
+  return (
+    <span style={{ position: "relative", display: "block", flex: 1, minWidth: 0, height: H }}>
+      <input value={t} placeholder={placeholder} aria-label={ariaLabel} autoFocus={autoFocus}
+        onChange={(e) => setT(e.target.value)} onFocus={() => setFocus(true)}
+        onBlur={() => { setFocus(false); if (t !== value) onSave(t); }}
+        onKeyDown={(e) => { const el = e.target as HTMLInputElement; if (e.key === "Enter") { el.blur(); onEnter?.(); } if (e.key === "Escape") { setT(value); setTimeout(() => el.blur()); } }}
+        style={{ position: "absolute", left: -7, top: 0, width: `calc((100% + 14px) / ${k})`, height: H / k, transform: `scale(${k})`, transformOrigin: "left top",
+          fontSize: 16, fontFamily: SANS, color: muted ? C.light : C.black, textDecoration: strike ? "line-through" : "none", textOverflow: "ellipsis",
+          background: focus ? C.white : "transparent", border: `1px solid ${focus ? C.edge : "transparent"}`, borderRadius: 8 / k,
+          padding: `0 ${6 / k}px`, boxSizing: "border-box" as const, outline: "none", margin: 0 }} />
+    </span>
+  );
+}
