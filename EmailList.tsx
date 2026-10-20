@@ -21,6 +21,7 @@ import type { Pitch, PitchAccount } from "./outreach";
 import { loadWorkAccount } from "./planner";
 import type { OutreachContact, OutreachView, SortKey } from "./outreach";
 import { downloadExcel, downloadTemplate, downloadListPdf } from "./outreachExport";
+import { showUndo, showNote } from "./undo";
 
 // ── small line icons (no icon library needed) ─────────────────
 const Ico = ({ d, size = 14, color = "currentColor" }: { d: string; size?: number; color?: string }) => (
@@ -69,12 +70,11 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
   const [open, setOpen]       = useState<null | "filter" | "sort" | "download">(null);
   const [showCols, setShowCols] = useState(false);
   const [openId, setOpenId]   = useState<string | null>(null);
-  const [toast, setToast]     = useState<string | null>(null);
+  const setToast = (t: string | null) => { if (t) showNote(t); };   // the app-wide message (same look as the save message)
   const [busy, setBusy]       = useState(false);
   const [showLog, setShowLog] = useState(false);
 
   useEffect(() => { try { sessionStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch { /* ignore */ } }, [view]);
-  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 1800); return () => clearTimeout(t); }, [toast]);
 
   const shown  = useMemo(() => applyView(contacts, view), [contacts, view]);
   const cities = useMemo(() => Array.from(new Set(contacts.map((c: OutreachContact) => (c.city || "").trim()).filter(Boolean))).sort((a: any, b: any) => a.localeCompare(b, "de")) as string[], [contacts]);
@@ -102,7 +102,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
 
   const iconBtn = (key: "filter" | "sort" | "download", icon: string, label: string, active = false, badge = 0) => (
     <button key={key} onClick={() => setOpen(o => (o === key ? null : key))} aria-label={label} title={label}
-      style={{ height: 38, minWidth: 38, padding: isMobile ? 0 : "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, border: `1px solid ${active ? C.pillOn : C.field}`, background: active ? PAL.neutral.fill : C.white, color: C.black, borderRadius: RADIUS.tile, cursor: "pointer", position: "relative", flexShrink: 0, fontFamily: SANS, fontSize: TYPE.subtext.size, whiteSpace: "nowrap" as const, boxSizing: "border-box" as const }}>
+      style={{ height: 40, minWidth: 40, padding: isMobile ? 0 : "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, border: `1px solid ${active ? C.pillOn : C.field}`, background: active ? PAL.neutral.fill : C.white, color: C.black, borderRadius: RADIUS.tile, cursor: "pointer", position: "relative", flexShrink: 0, fontFamily: SANS, fontSize: TYPE.subtext.size, whiteSpace: "nowrap" as const, boxSizing: "border-box" as const }}>
       <Ico d={icon} size={15} />
       {!isMobile && <span>{label}</span>}
       {badge > 0 && <span style={{ position: "absolute", top: -6, right: -6, minWidth: 16, height: 16, borderRadius: 8, background: PAL.waiting.mid, color: PAL.waiting.ink, fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", letterSpacing: 0 }}>{badge}</span>}
@@ -156,7 +156,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
 
   const toolbar = (
     <div style={{ display: "flex", gap: 6, alignItems: "center", position: "relative" }}>
-      <div style={{ flex: isMobile ? 1 : "0 1 340px", minWidth: 0, height: 38, border: `1px solid ${C.field}`, borderRadius: RADIUS.tile, background: C.white, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", boxSizing: "border-box" as const, color: C.light }}>
+      <div style={{ flex: isMobile ? 1 : "0 1 340px", minWidth: 0, height: 40, border: `1px solid ${C.field}`, borderRadius: RADIUS.tile, background: C.white, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", boxSizing: "border-box" as const, color: C.light }}>
         <Ico d={IC.search} size={15} />
         <input value={view.q} onChange={(e) => set({ q: e.target.value })} placeholder="Search contacts" aria-label="Search"
           style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontFamily: SANS, fontSize: 16, color: C.black, height: 34, padding: 0 }} />
@@ -363,9 +363,6 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
         </Window>
       )}
 
-      {toast && createPortal(
-        <div style={{ position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", zIndex: Z.toast, background: C.black, color: C.white, fontFamily: SANS, fontSize: 12, padding: "9px 14px", borderRadius: RADIUS.field, maxWidth: "calc(100vw - 32px)", boxShadow: SHADOW.pop }}>{toast}</div>,
-        document.body)}
     </div>
   );
 }
@@ -481,7 +478,13 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy }: { c: Outreach
                       <div key={p.id} style={{ minHeight: 36, display: "flex", alignItems: "center", gap: 8, borderBottom: `1px solid ${C.rule}`, fontSize: 13 }}>
                         <span style={{ width: 86, flexShrink: 0 }}>{fmtD(p.sentOn)}</span>
                         <span style={{ flex: 1, minWidth: 0 }}>{p.kind === "follow_up" ? "Follow-up" : "Pitch"} · <span style={{ color: C.muted }}>{p.account === "lynnhoa" ? "@lynnhoa" : "@createbylynn"}</span></span>
-                        <button onClick={() => outreach.deletePitch(p).catch((x: any) => setErr(x?.message || "Couldn't delete."))} aria-label="Delete this entry" title="Delete this entry"
+                        <button onClick={() => {
+                            // one tap deletes, the Undo bar brings it back exactly as it was
+                            const c0 = (outreach.contacts || []).find((x: any) => x.id === p.contactId);
+                            const before = { lastContact: c0?.lastContact ?? null, status: c0?.status ?? null };
+                            outreach.deletePitch(p).then(() => showUndo(`${p.kind === "follow_up" ? "Follow-up" : "Pitch"} deleted`, () => outreach.restorePitch(p, before)))
+                              .catch((x: any) => setErr(x?.message || "Couldn't delete."));
+                          }} aria-label="Delete this entry" title="Delete this entry"
                           style={{ width: 32, height: 32, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 14 }}>✕</button>
                       </div>
                     ))}

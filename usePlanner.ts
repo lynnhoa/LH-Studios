@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, selectAll } from "./useSupabase";
 import { registerReloader } from "./saveStatus";
-import { today, monthStart, ymd } from "./formatters";
+import { monthEnd, today, monthStart, ymd } from "./formatters";
 import {
   addDays, entryKey, snapKey, mondayOf, periodOf, rowState, taskAccounts, NO_DAYS, planOf,
 } from "./planner";
@@ -593,7 +593,8 @@ export function usePlanner(userId: string | null, monday: string) {
   const autoOf = useCallback((t: Task, period: string): Auto | undefined => {
     const accs = taskAccounts(t);
     const mine = items.filter(i => accs.includes(i.account));
-    const inWeek = (d: string | null) => !!d && d >= period && d <= addDays(period, 6);
+    const last = t.rhythm === "monthly" ? monthEnd(period) : addDays(period, 6);       // a monthly row counts its whole month
+    const inWeek = (d: string | null) => !!d && d >= period && d <= last;
     switch (t.source) {
       case "outreach": return { actual: contacts.filter(c => c.week === period).length };
       // followers: the number typed for this account and week (kept in the snapshot row)

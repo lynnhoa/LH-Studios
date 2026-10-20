@@ -140,5 +140,17 @@ export function useOutreach(userId: string | null) {
     setContacts(prev => prev.map(x => (x.id === p.contactId ? { ...x, lastContact: last, status: backToNew ? "new" : x.status } : x)));
   }, [userId, pitches, contacts]);
 
-  return { contacts, pitches, pitchError, loading, loadError, loginEmail, reload: load, updateContact, deleteContact, setStatus, logPitches, deletePitch };
+  // Undo of a deleted pitch: the same entry back, and the contact's last contact / status as before
+  const restorePitch = useCallback(async (p: Pitch, before: { lastContact: string | null; status: any }) => {
+    const { data, error } = await supabase.from("outreach_pitches")
+      .insert({ id: p.id, contact_id: p.contactId, account: p.account, kind: p.kind, sent_on: p.sentOn }).select().single();
+    if (error) throw new Error(error.message);
+    const { error: e2 } = await supabase.from("outreach_contacts")
+      .update({ last_contact: before.lastContact, status: before.status && before.status !== "new" ? before.status : null }).eq("id", p.contactId).eq("user_id", userId);
+    if (e2) throw new Error(e2.message);
+    setPitches(prev => (prev.some(x => x.id === p.id) ? prev : [...prev, rowToPitch(data)]));
+    setContacts(prev => prev.map(x => (x.id === p.contactId ? { ...x, lastContact: before.lastContact, status: before.status || x.status } : x)));
+  }, [userId]);
+
+  return { contacts, pitches, pitchError, loading, loadError, loginEmail, reload: load, updateContact, deleteContact, setStatus, logPitches, deletePitch, restorePitch };
 }

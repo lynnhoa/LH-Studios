@@ -5,13 +5,12 @@
 // ─────────────────────────────────────────────────────────────
 import { useState, useMemo } from "react";
 import { C, SANS, SERIF, TYPE, PAL, TRACK, RADIUS } from "./constants";
-import { today } from "./formatters";
+import { today, MONTHS, MONTHS_SHORT } from "./formatters";
 import { SectionHead, DashCard, DashCardHead, DashStrip, DashTile, WideRow, LinkRow, BarList, SwitchPill, DashIcon } from "./atoms";
 import { getWsItems, allDoneItems, isOverdue, isThisWeek, fmtDeadline, WS_CATS, WS_CAT_LABEL, isInProduction } from "./wsHelpers";
 import { G, Glyph } from "./CreatorShared";
 
-const MO = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
-const MONTH = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MO = MONTHS_SHORT, MONTH = MONTHS;   // formatters — one month list for every screen
 const pct2 = (v: number) => `${(Math.round(v * 100) / 100).toFixed(2).replace(".", ",")} %`;
 
 export default function CreatorDashboard({ clients, isMobile, onOpen }: { clients: any[]; isMobile: boolean; onOpen: (tab: "workspace" | "projects") => void }) {

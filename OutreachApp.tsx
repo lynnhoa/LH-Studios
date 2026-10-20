@@ -10,7 +10,8 @@ import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { C, SANS, BREAKPOINT, WIDE } from "./constants";
 import AppLogo from "./AppLogo";
-import { AvatarMenu, NavTab, appItems } from "./AppNav";
+import { AvatarMenu, NavTab, appItems, AppHeader, APP_HEADER_H } from "./AppNav";
+import { UndoBar } from "./undo";
 import EmailList from "./EmailList";
 import { useOutreach } from "./useOutreach";
 import { ACCOUNTS, loadWorkAccount, saveWorkAccount } from "./planner";
@@ -38,9 +39,9 @@ export default function OutreachApp({ userId, settings, signOut, switchTo, banne
   }, []);
   const isMobile = winW < BREAKPOINT;
   const isWide   = winW >= WIDE;
-  const headerH  = isMobile ? 87 : 57;
+  const headerH  = isMobile ? APP_HEADER_H.phone : APP_HEADER_H.wide;   // the shared top bar (the search bar sticks right below it)
 
-  // phone: avatar on the right, the menu opens to the left · iPad / computer: avatar on the left, the menu opens to the right
+  // the avatar sits on the right of the top bar; its menu opens to the left
   const avatar = (dropLeft: boolean) => (
     <AvatarMenu settings={settings} roleLabel="Outreach" dropLeft={dropLeft}
       items={ACCOUNTS.map(a => ({ key: a.key, label: a.label, active: work === a.key, onClick: () => pickAccount(a.key) }))}
@@ -49,27 +50,12 @@ export default function OutreachApp({ userId, settings, signOut, switchTo, banne
 
   return (
     <div style={{ minHeight: "100dvh", background: C.bg, fontFamily: SANS, color: C.black }}>
-      <div style={{ position: "sticky", top: 0, zIndex: 100, background: C.bg, borderBottom: `1px solid ${C.rule}` }}>
-        {isMobile ? (
-          <>
-            <div style={{ textAlign: "center", padding: "8px 20px 6px" }}><AppLogo size="nav" /></div>
-            <div style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 44px 0 6px", borderTop: `1px solid ${C.rule}`, position: "relative" as const }}>
-              <NavTab label="Email list" active={true} onClick={() => {}} height={40} px={8} />
-              <div style={{ position: "absolute", right: 8 }}>{avatar(false)}</div>
-            </div>
-          </>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "0 28px", height: 56 }}>
-            <div style={{ display: "flex", alignItems: "center" }}>{avatar(true)}</div>
-            <AppLogo size="nav" />
-            <div style={{ display: "flex", justifyContent: "flex-end" }}><NavTab label="Email list" active={true} onClick={() => {}} height={56} px={10} /></div>
-          </div>
-        )}
-      </div>
+      <AppHeader isMobile={isMobile} avatar={avatar(false)} tabs={(h, px) => <NavTab label="Email list" active={true} onClick={() => {}} height={h} px={px} />} />
       <div style={{ maxWidth: isWide ? 1200 : 960, margin: "0 auto", padding: isMobile ? "14px 14px 28px" : "24px 20px 40px" }}>
         {banners}
         <EmailList outreach={outreach} settings={settings} isMobile={isMobile} isWide={isWide} stickyTop={headerH} />
       </div>
+      <UndoBar />
     </div>
   );
 }

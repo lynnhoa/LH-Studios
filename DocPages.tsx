@@ -61,7 +61,7 @@ export default function DocPages({ doc, settings, client, lang, scale = 1, shado
         if (posInPage > PAGE_H - GUARD) {
           const needed = (PAGE_H - posInPage) + HEADER_H + 6;
           setExtraSigMargin(prev => Math.abs(needed - prev) > 2 ? needed : prev);
-        } else if (pageNum > 0 && posInPage > 0 && posInPage < HEADER_H + 4) {
+        } else if (pageNum > 0 && posInPage < HEADER_H + 4) {        // also exactly at the page start (0) — never under the header
           const push = (HEADER_H + 6) - posInPage;
           setExtraSigMargin(prev => Math.abs(push) > 2 ? prev + push : prev);
         } else if (pageNum === 0 || posInPage > HEADER_H + 80) {

@@ -297,7 +297,9 @@ const dayMonth = (d: string) => fmtD(d).slice(0, 6);                            
 export const weekLabel = (monday: string) => `Week ${isoWeek(monday)}`;
 export const weekRange = (monday: string) => `${dayMonth(monday)}–${fmtD(addDays(monday, 6))}`;   // 12.10.–18.10.2026
 export const monthName = (d: string) => (parseYMD(d) || new Date()).toLocaleString("en-GB", { month: "long" });
-export const periodOf  = (t: Task, monday: string) => (t.rhythm === "monthly" ? monthStart(monday) : monday);
+// a week's month: the current week follows today (1 Nov already counts for November), other weeks their Monday
+export const monthOfWeek = (monday: string) => monthStart(monday === mondayOf(today()) ? today() : monday);
+export const periodOf  = (t: Task, monday: string) => (t.rhythm === "monthly" ? monthOfWeek(monday) : monday);
 export const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // 0–6 when today lies in this week, otherwise -1

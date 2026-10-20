@@ -486,7 +486,7 @@ export default function PDFModal({
   if (!editing && !isNew) callerMore.forEach(a => more.push({ key: a.key, label: busy === a.key ? "…" : a.label, danger: a.kind === "danger", run: () => clickAction(a) }));
   const barBtn = (b: Btn, dark: boolean) => (
     <PillBtn key={b.key} dark={dark} dim={b.dim} onClick={b.run}
-      s={{ height: 38, padding: "0 16px", fontSize: TYPE.row.size, justifyContent: "center", flex: isMobile ? 1 : "0 0 auto", minWidth: isMobile ? 0 : 150 }}>
+      s={{ height: 40, padding: "0 16px", fontSize: TYPE.row.size, justifyContent: "center", flex: isMobile ? 1 : "0 0 auto", minWidth: isMobile ? 0 : 150 }}>
       {b.label}
     </PillBtn>
   );
@@ -496,7 +496,7 @@ export default function PDFModal({
     <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
 
       {/* ── TOP BAR: close · language · status ── */}
-      <div style={{ height: 44, borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", padding: "0 8px 0 2px", gap: 6, flexShrink: 0 }}>
+      <div style={{ height: 48, borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", padding: "0 8px 0 2px", gap: 6, flexShrink: 0 }}>
         <button onClick={tryClose} aria-label="Close" title="Close"
           style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: ICON.close, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         <LangSwitch lang={lang} onChange={changeLang} />

@@ -18,7 +18,7 @@ import { today } from "./formatters";
 import RenewalModal from "./RenewalModal";
 import PDFModal from "./PDFModal";
 import { pdfFlow, invoiceActions } from "./docFlow";
-import { allLicenses, needsAction, ACTION_LABEL } from "./licenses";
+import { allLicenses, needsAction, ACTION_LABEL , licenseTone, licenseTag } from "./licenses";
 import type { License } from "./licenses";
 
 type Filter = "action" | "active" | "done" | "all";
@@ -92,10 +92,9 @@ export default function Licenses({ clients, clientsHook, settings, rc, isMobile,
   const expired  = all.filter(l => l.state === "expired").length;
   const expiring = all.filter(l => l.state === "expiring").length;
   const count = (f: Filter) => f === "action" ? expired + expiring : f === "active" ? all.filter(l => l.state === "active" || l.state === "info").length : f === "done" ? all.filter(l => l.state === "done").length : all.length;
-  const toneOf = (l: License): ToneSet => l.action || l.state === "done" || l.state === "info" ? PAL.neutral : l.state === "expired" ? PAL.late : l.state === "expiring" ? PAL.waiting : PAL.done;
+  const toneOf = (l: License): ToneSet => licenseTone(l);          // licenses.ts — the same tag in Projects
   const iconOf = (l: License) => (l.kind === "excl" ? IC.lock : l.kind === "organic" ? IC.leaf : IC.speaker);
-  const tagOf = (l: License) => l.action ? `${ACTION_LABEL[l.action.action] || l.action.action} · ${fmtD(l.action.at).slice(0, 6)}`
-    : !l.alerts ? "no alerts" : l.daysLeft < 0 ? `${Math.abs(l.daysLeft)} ${Math.abs(l.daysLeft) === 1 ? "day" : "days"} expired` : `${l.daysLeft} ${l.daysLeft === 1 ? "day" : "days"}`;
+  const tagOf = (l: License) => licenseTag(l);
   // how much of the license period has passed (delivery date → end)
   const todayMs = Date.parse(today());
   const elapsed = (l: License): number | null => {

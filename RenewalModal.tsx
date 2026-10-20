@@ -12,7 +12,9 @@ import { createPortal } from "react-dom";
 import { editLock } from "./saveStatus";
 import { C, SANS, SERIF, TYPE, Z, TRACK, RADIUS, ICON } from "./constants";
 import { fmt, fmtD, addM, addD, today, r2 } from "./formatters";
-import { I, S, B, Lbl, Pill, CatPill, LangSwitch, BAR_BTN, NumField } from "./atoms";
+import { I, S, B, Lbl, Pill, CatPill, LangSwitch, BAR_BTN, NumField, ConfirmDialog } from "./atoms";
+import { currentContractOf } from "./money";
+import { retainerMonths } from "./wsHelpers";
 import DocPages from "./DocPages";
 import { dueFrom } from "./docs";
 import type { DocView } from "./docs";
@@ -101,7 +103,8 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
       : { kind: "invoice", subtype: "renewal", docNo: "", revision: 0, status: "draft", docDate: d0, dueDate: dueFrom(d0), periodStart: startD, periodEnd: endD || startD, lang: "en", data: common };
   }, [selected.map((x: any) => `${x.l._key}:${x.qty}`).join(","), uMode, eMode, uIdx, eIdx, uN, eN, uUnit, eUnit, uFee, eFee, startD, endD]);
 
-  const [lang, setLang]     = useState("en");
+  const [lang, setLang]     = useState<string>(() => (currentContractOf(p)?.lang === "de" ? "de" : "en"));   // the contract's language
+  const [askClose, setAskClose] = useState(false);
   const [winW, setWinW]     = useState(() => window.innerWidth);
   const [view, setView]     = useState<"edit" | "preview">("edit");
   const [saving, setSaving] = useState(false);
@@ -181,7 +184,8 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
       {section("01", "Which deliverables", <>
         <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 8px" }}>The % is taken from each item's base price (without earlier usage, exclusivity or add-ons).</p>
         {allLines.map((l: any) => {
-          const max = Math.max(1, parseInt(l.qty) || 1);
+          // a retainer delivers its quantity every month: the maximum covers all its months
+          const max = Math.max(1, parseInt(l.qty) || 1) * (p?.qd?.retainer ? Math.max(1, retainerMonths(p).length) : 1);
           const qty = selQty[l._key] || 0;
           return (
             <div key={l._key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.rule}` }}>
@@ -234,6 +238,9 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
     </>
   );
 
+  // ✕ asks first once something is chosen
+  const tryClose = () => { if (totalFee > 0 || Object.values(selQty || {}).some((n: any) => Number(n) > 0)) setAskClose(true); else onClose(); };
+
   const footer = (
     <>
       {err && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
@@ -252,8 +259,8 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
   return createPortal(
     <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
       <div style={{ borderBottom: `1px solid ${C.rule}`, flexShrink: 0 }}>
-        <div style={{ height: 44, display: "flex", alignItems: "center", padding: "0 8px 0 2px", gap: 6 }}>
-          <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: ICON.close }}>✕</button>
+        <div style={{ height: 48, display: "flex", alignItems: "center", padding: "0 8px 0 2px", gap: 6 }}>
+          <button onClick={tryClose} aria-label="Close" style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: ICON.close }}>✕</button>
           <span style={{ fontFamily: SERIF, fontSize: TYPE.body.size, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{isAmendMode ? "Amendment — Rights Extension" : "Add Renewal"}</span>
           <div style={{ flex: 1 }} />
           <LangSwitch lang={lang} onChange={setLang as any} />
@@ -269,7 +276,7 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
         {(!isM || view === "edit") && (
           <div style={{ width: isM ? "100%" : 400, flexShrink: 0, display: "flex", flexDirection: "column", borderRight: isM ? "none" : `1px solid ${C.rule}` }}>
             <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px 14px" }}>{panel}</div>
-            <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>{footer}</div>
+            {!isM && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>{footer}</div>}
           </div>
         )}
         {(!isM || view === "preview") && (
@@ -278,6 +285,10 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
           </div>
         )}
       </div>
+      {/* phone: the total and Save stay at the bottom in Edit and in Preview */}
+      {isM && <div style={{ padding: "10px 14px calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${C.rule}`, flexShrink: 0, background: C.bg }}>{footer}</div>}
+      {askClose && <ConfirmDialog title={isAmendMode ? "Discard this amendment?" : "Discard this renewal?"} text="What you chose here isn't saved." okLabel="Discard" danger
+        onOk={() => { setAskClose(false); onClose(); }} onCancel={() => setAskClose(false)} />}
     </div>,
     document.body
   );

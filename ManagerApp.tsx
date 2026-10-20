@@ -12,7 +12,7 @@ import { C, SANS, TYPE, BREAKPOINT, TRACK, RADIUS, SHADOW, Z } from "./constants
 import { currentQuote, contractNo, docNet, retainerMonthly, retDiscOf } from "./docs";
 import AppLogo from "./AppLogo";
 import { PillBtn } from "./atoms";
-import { AvatarMenu, NavTab, appItems } from "./AppNav";
+import { AvatarMenu, NavTab, appItems, AppHeader } from "./AppNav";
 import type { Role } from "./types";
 
 // ── Page imports (placeholders until built) ───────────────────
@@ -74,7 +74,6 @@ export default function ManagerApp({
   const [clientSel,       setClientSel]       = useState<string | null>(null);   // the open client, kept while you're in other tabs
   const [clientBack,      setClientBack]      = useState<{ clientId: string; projectId: string } | null>(null);   // came from Projects
   const [clientSelReset,  setClientSelReset]  = useState(0);
-  const [fromDrill,       setFromDrill]       = useState<string | null>(null);
   const [dashDrill,       setDashDrill]       = useState<any>(null);
   const [invoiceFilter,   setInvoiceFilter]   = useState<any>(null);   // from a dashboard tile
   const [invoiceMonth,    setInvoiceMonth]    = useState<string | null>(null);   // a month bar ("2026-10")
@@ -99,10 +98,9 @@ export default function ManagerApp({
   };
 
   // Navigation by the user (tabs, menu) also ends a dashboard drill context
-  const navTo = (n: number) => { setFromDrill(null); setClientBack(null); setInvoiceFilter(null); setInvoiceMonth(null); setLicenseFilter(null); setProjectFilter(null); goTo(n); };
+  const navTo = (n: number) => { setClientBack(null); setInvoiceFilter(null); setInvoiceMonth(null); setLicenseFilter(null); setProjectFilter(null); goTo(n); };
 
   const goToDash = () => {
-    setFromDrill(null);
     setPrefill(null);
     setNav(NAV_DASHBOARD);
     setDashReset(p => p + 1);
@@ -216,57 +214,9 @@ export default function ManagerApp({
   return (
     <div style={{ background: C.bg, minHeight: "100dvh", fontFamily: SANS, color: C.black }}>
 
-      {/* ── NAVBAR ── */}
-      <div
-        style={{
-          borderBottom: `1px solid ${C.rule}`,
-          position:     "sticky",
-          top:          0,
-          background:   C.bg,
-          zIndex:       100,
-        }}
-      >
-        {isMobile ? (
-          // ── MOBILE NAV ──────────────────────────────────
-          <>
-            <div style={{ textAlign: "center", padding: "8px 20px 6px" }}>
-              <AppLogo size="nav" onClick={goToDash} />
-            </div>
-            <div
-              style={{
-                display:        "flex",
-                alignItems:     "center",
-                justifyContent: "center",
-                padding:        "0 44px 0 6px",      // room for the avatar on the right
-                borderTop:      `1px solid ${C.rule}`,
-                position:       "relative",
-              }}
-            >
-              <div style={{ display: "flex" }}>
-                {PRIMARY_TABS.map(t => (
-                  <NavTab key={t.idx} label={t.label} active={nav === t.idx} onClick={() => navTo(t.idx)} height={40} px={8} />
-                ))}
-              </div>
-              <div style={{ position: "absolute", right: 8 }}>
-                {avatar(false)}
-              </div>
-            </div>
-          </>
-        ) : (
-          // ── DESKTOP / IPAD NAV — same bar as Planner and Outreach ──
-          <div style={{ height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
-              <AppLogo size="nav" onClick={goToDash} />
-              <div style={{ display: "flex" }}>
-                {PRIMARY_TABS.map(t => (
-                  <NavTab key={t.idx} label={t.label} active={nav === t.idx} onClick={() => navTo(t.idx)} height={56} px={10} />
-                ))}
-              </div>
-            </div>
-            {avatar(false)}
-          </div>
-        )}
-      </div>
+      {/* ── NAVBAR — the one top bar of every app ── */}
+      <AppHeader isMobile={isMobile} onLogo={goToDash} avatar={avatar(false)}
+        tabs={(h, px) => PRIMARY_TABS.map(t => <NavTab key={t.idx} label={t.label} active={nav === t.idx} onClick={() => navTo(t.idx)} height={h} px={px} />)} />
 
       {/* ── CONTENT ── */}
       <div
@@ -408,13 +358,6 @@ export default function ManagerApp({
         )}
       </div>
 
-      {/* ── BACK TO ACTIVE PROJECTS PILL (drill context) ── */}
-      {nav === NAV_CLIENTS && fromDrill && (
-        <PillBtn onClick={() => { setFromDrill(null); setNav(NAV_DASHBOARD); }}
-          s={{ position: "fixed", bottom: 24, right: 24, zIndex: Z.toast - 1, boxShadow: SHADOW.pop }}>
-          ← Active projects
-        </PillBtn>
-      )}
     </div>
   );
 }

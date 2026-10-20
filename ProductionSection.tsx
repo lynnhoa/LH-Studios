@@ -25,9 +25,10 @@ interface ProductionSectionProps {
 }
 
 export default function ProductionSection({ pr, cl, upP, isMobile, clientsHook }: ProductionSectionProps) {
+  const removed = projectItems(pr, cl, true).filter((it: any) => it.status === "Removed");
   const cats    = getCatProgress(pr);
   const catKeys = Object.keys(cats).filter(k => cats[k].total > 0);
-  if (catKeys.length === 0) return null;
+  if (catKeys.length === 0 && removed.length === 0) return null;     // (removed items stay restorable)
   const ms    = pr.managerStatus || {};
   const items = projectItems(pr, cl);
 
@@ -142,6 +143,19 @@ export default function ProductionSection({ pr, cl, upP, isMobile, clientsHook }
           </div>
         );
       })}
+      {/* items removed in the Creator's Workspace: listed here, one tap brings each back */}
+      {removed.length > 0 && (
+        <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.rule}` }}>
+          <div style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, marginBottom: 4 }}>Removed · {removed.length}</div>
+          {removed.map((it: any) => (
+            <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 36, fontSize: TYPE.label.size, color: C.muted }}>
+              <span style={{ flex: 1, minWidth: 0, textDecoration: "line-through", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{it.name}</span>
+              <button onClick={() => clientsHook?.revertWsStatus?.(cl.id, pr.id, [it.id], "Removed")}
+                style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: TYPE.label.size, color: C.black, textDecoration: "underline", minHeight: 36, padding: "0 4px" }}>Restore</button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

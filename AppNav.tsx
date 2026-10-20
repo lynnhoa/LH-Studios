@@ -7,6 +7,7 @@ import { useState } from "react";
 import { C, SANS, SERIF, TYPE, Z, TRACK, SHADOW, RADIUS, SPACING, PAL } from "./constants";
 import { initials } from "./formatters";
 import type { Role } from "./types";
+import AppLogo from "./AppLogo";
 
 export interface MenuItem { key: string; label: string; active?: boolean; onClick: () => void; }
 
@@ -135,3 +136,35 @@ export const NavTab = ({ label, active, onClick, height, px }: {
     {label}
   </button>
 );
+
+// the top bar's height (border included): what sticky parts below it start from
+export const APP_HEADER_H = { phone: 96, wide: 57 };
+
+// ── The one top bar of every app (the Manager bar) ────────────
+// phone: the logo, then the tabs with the avatar on the right ·
+// iPad / computer: logo and tabs on the left, the avatar on the right (its menu opens to the left)
+export function AppHeader({ isMobile, onLogo, tabs, avatar }: {
+  isMobile: boolean; onLogo?: () => void; tabs: (height: number, px: number) => any; avatar: any;
+}) {
+  return (
+    <div style={{ position: "sticky", top: 0, zIndex: 100, background: C.bg, borderBottom: `1px solid ${C.rule}` }}>
+      {isMobile ? (
+        <>
+          <div style={{ textAlign: "center", padding: "8px 20px 6px" }}><AppLogo size="nav" onClick={onLogo} /></div>
+          <div style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 44px 0 6px", borderTop: `1px solid ${C.rule}`, position: "relative" as const }}>
+            <div style={{ display: "flex", minWidth: 0, overflowX: "auto" as const }}>{tabs(40, 8)}</div>
+            <div style={{ position: "absolute", right: 8 }}>{avatar}</div>
+          </div>
+        </>
+      ) : (
+        <div style={{ height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 28, minWidth: 0 }}>
+            <AppLogo size="nav" onClick={onLogo} />
+            <div style={{ display: "flex", minWidth: 0, overflowX: "auto" as const }}>{tabs(56, 10)}</div>
+          </div>
+          {avatar}
+        </div>
+      )}
+    </div>
+  );
+}

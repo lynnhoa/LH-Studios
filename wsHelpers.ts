@@ -121,13 +121,15 @@ export function doneDateOf(pr: any, id: string, cat: string): string | null {
 }
 
 // ── Every work item of one project (any project status) ───────
-export function projectItems(pr: any, c?: any): any[] {
+// removed items (status "Removed") are left out unless asked for (Projects › Production lists them to restore)
+export function projectItems(pr: any, c?: any, withRemoved = false): any[] {
   const items: any[] = [];
   wsLines(pr).forEach(w => {
     wsItemIds(w).forEach((id, q) => {
       const defaultName = w.name + (w.qty > 1 ? ` ${q + 1}` : "") + (w.month ? ` · M${pad2(w.month)}` : "");
       const category = (pr.workspaceCats || {})[id] || getWsCategory(w.line);
       const status = (pr.workspaceStatus || {})[id] || "Not started";
+      if (status === "Removed" && !withRemoved) return;
       items.push({
         id, lineKey: w.key, lineName: w.name, month: w.month || null,
         name:        (pr.workspaceNames || {})[id] || defaultName,

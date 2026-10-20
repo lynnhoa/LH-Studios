@@ -163,3 +163,7 @@ export const fmtNumDE = (n: number | null | undefined, minDec = 2): string =>
 
 // "20% off" → "20 % off" (German spacing, for texts people typed)
 export const pctSpace = (t: any): string => String(t ?? "").replace(/(\d)\s?%/g, "$1 %");
+
+// Month names on every screen: English, like the rest of the app (the bookkeeping PDF and CSV keep German)
+export const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+export const MONTHS_SHORT = MONTHS.map(m => m.slice(0, 3));

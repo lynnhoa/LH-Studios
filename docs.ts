@@ -4,7 +4,7 @@
 // No UI. Used by the data layer, the PDF renderer and the lists.
 // ─────────────────────────────────────────────────────────────
 
-import { r2, today, addD, fmtD } from "./formatters";
+import { r2, today, addD, fmtD, MONTHS } from "./formatters";
 import type { DocRecord, DocKind, DocStatus } from "./types";
 import type { Tone } from "./constants";
 import { normCountry, GERMANY_NAMES, EU_NAMES, NON_EU_NAMES } from "./countries";
@@ -453,7 +453,7 @@ export const MONTH_DE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "
 export const sortForReport = (rows: InvoiceRow[]) =>
   [...rows].sort((a, b) => a.dateStr.localeCompare(b.dateStr) || String(a.doc.docNo).localeCompare(String(b.doc.docNo)));
 
-export interface InvoicePeriod { key: string; label: string; kind: "year" | "month"; rows: InvoiceRow[]; }
+export interface InvoicePeriod { key: string; label: string; uiLabel?: string; kind: "year" | "month"; rows: InvoiceRow[]; }   // label: German (PDF title, file name) · uiLabel: the screen
 
 // Every year and month that has invoices, newest first (year row, then its months)
 export function invoicePeriods(rows: InvoiceRow[]): InvoicePeriod[] {
@@ -463,7 +463,7 @@ export function invoicePeriods(rows: InvoiceRow[]): InvoicePeriod[] {
     const yRows = rows.filter(r => r.year === y);
     out.push({ key: String(y), label: String(y), kind: "year", rows: yRows });
     Array.from(new Set(yRows.map(r => r.month))).sort((a, b) => b - a).forEach(m => {
-      out.push({ key: `${y}-${pad(m + 1, 2)}`, label: `${MONTH_DE[m]} ${y}`, kind: "month", rows: yRows.filter(r => r.month === m) });
+      out.push({ key: `${y}-${pad(m + 1, 2)}`, label: `${MONTH_DE[m]} ${y}`, uiLabel: `${MONTHS[m]} ${y}`, kind: "month", rows: yRows.filter(r => r.month === m) });
     });
   });
   return out;

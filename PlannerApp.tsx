@@ -12,7 +12,7 @@ import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { C, SANS, SERIF, TYPE, BREAKPOINT, WIDE } from "./constants";
 import AppLogo from "./AppLogo";
-import { AvatarMenu, NavTab, appItems } from "./AppNav";
+import { AvatarMenu, NavTab, appItems, AppHeader } from "./AppNav";
 import { usePlanner } from "./usePlanner";
 import { thisMonday, ACCOUNTS, loadWorkAccount, saveWorkAccount } from "./planner";
 import type { Account } from "./planner";
@@ -89,23 +89,7 @@ export default function PlannerApp({ userId, settings, signOut, switchTo, banner
 
   return (
     <div style={{ minHeight: "100dvh", background: C.bg, fontFamily: SANS, color: C.black }}>
-      <div style={{ position: "sticky", top: 0, zIndex: 100, background: C.bg, borderBottom: `1px solid ${C.rule}` }}>
-        {isMobile ? (
-          <>
-            <div style={{ textAlign: "center", padding: "8px 20px 6px" }}><AppLogo size="nav" /></div>
-            <div style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 44px 0 6px", borderTop: `1px solid ${C.rule}`, position: "relative" as const }}>
-              <div style={{ display: "flex", minWidth: 0, overflowX: "auto" as const }}>{tabs(40, 8)}</div>
-              <div style={{ position: "absolute", right: 8 }}>{avatar(false)}</div>
-            </div>
-          </>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "0 28px", height: 56 }}>
-            <div style={{ display: "flex", alignItems: "center" }}>{avatar(true)}</div>
-            <AppLogo size="nav" />
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>{tabs(56, 10)}</div>
-          </div>
-        )}
-      </div>
+      <AppHeader isMobile={isMobile} avatar={avatar(false)} tabs={tabs} />
       <div style={{ maxWidth: isWide ? 1200 : 960, margin: "0 auto", padding: isMobile ? "14px 14px 28px" : "24px 20px 40px" }}>
         {banners}
         {tab.key === "overview" ? (

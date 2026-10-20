@@ -4,7 +4,7 @@
 // connections. Cache is updated in the background on each visit.
 // ─────────────────────────────────────────────────────────────
 
-const CACHE_NAME = "lh-studio-v2";   // bump to drop old cached app files
+const CACHE_NAME = "lh-studio-v3";   // bump to drop old cached app files (v3: drops the stored version-check copies)
 
 // App shell — cached on install so the PWA opens offline
 const APP_SHELL = [
@@ -47,7 +47,8 @@ self.addEventListener("fetch", (event) => {
     event.request.method !== "GET" ||
     url.hostname.includes("supabase") ||
     url.pathname.startsWith("/auth") ||
-    url.pathname.startsWith("/rest")
+    url.pathname.startsWith("/rest") ||
+    url.search                                   // e.g. the version check /index.html?v=… — a new address every time
   ) {
     return;
   }

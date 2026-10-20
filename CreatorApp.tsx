@@ -8,7 +8,7 @@ import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { C, SANS, BREAKPOINT } from "./constants";
 import AppLogo from "./AppLogo";
-import { AvatarMenu, NavTab, appItems } from "./AppNav";
+import { AvatarMenu, NavTab, appItems, AppHeader } from "./AppNav";
 import { UndoBar } from "./undo";
 import type { Role } from "./types";
 
@@ -71,77 +71,21 @@ export default function CreatorApp({
 
   // ── Content max-width ────────────────────────────────────
   const contentMaxW =
-    nav === NAV_CLIENTS && creatorClientSel && !isMobile ? 1200 : 860;
+    nav === NAV_CLIENTS && creatorClientSel && !isMobile ? 1200 : 960;   // same as Manager / Planner / Outreach
 
   return (
     <div style={{ background: C.bg, minHeight: "100dvh", fontFamily: SANS, color: C.black }}>
 
-      {/* ── NAVBAR ── */}
-      <div
-        style={{
-          borderBottom: `1px solid ${C.rule}`,
-          position:     "sticky",
-          top:          0,
-          background:   C.bg,
-          zIndex:       100,
-        }}
-      >
-        {isMobile ? (
-          <>
-            <div style={{ textAlign: "center", padding: "8px 20px 6px" }}>
-              <AppLogo size="nav" onClick={goToDash} />
-            </div>
-            <div
-              style={{
-                display:        "flex",
-                alignItems:     "center",
-                justifyContent: "center",
-                padding:        "0 44px 0 6px",      // room for the avatar on the right
-                borderTop:      `1px solid ${C.rule}`,
-                position:       "relative",
-              }}
-            >
-              <div style={{ display: "flex" }}>
-                {PRIMARY_TABS.map(t => (
-                  <NavTab key={t.idx} label={t.label} active={nav === t.idx} onClick={() => setNav(t.idx)} height={40} px={8} />
-                ))}
-              </div>
-              <div style={{ position: "absolute", right: 8 }}>
-                {avatar(false)}
-              </div>
-            </div>
-          </>
-        ) : (
-          <div
-            style={{
-              display:             "grid",
-              gridTemplateColumns: "1fr auto 1fr",
-              alignItems:          "center",
-              padding:             "0 28px",
-              height:              56,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center" }}>
-              {avatar(true)}
-            </div>
-
-            <AppLogo size="web" onClick={goToDash} />
-
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              {PRIMARY_TABS.map(t => (
-                <NavTab key={t.idx} label={t.label} active={nav === t.idx} onClick={() => setNav(t.idx)} height={56} px={14} />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      {/* ── NAVBAR — the one top bar of every app ── */}
+      <AppHeader isMobile={isMobile} onLogo={goToDash} avatar={avatar(false)}
+        tabs={(h, px) => PRIMARY_TABS.map(t => <NavTab key={t.idx} label={t.label} active={nav === t.idx} onClick={() => setNav(t.idx)} height={h} px={px} />)} />
 
       {/* ── CONTENT ── */}
       <div
         style={{
           maxWidth:  contentMaxW,
           margin:    "0 auto",
-          padding:   isMobile ? "14px 14px" : "24px 20px",
+          padding:   isMobile ? "14px 14px 28px" : "24px 20px 40px",
           transition: "max-width 0.2s ease",
         }}
       >

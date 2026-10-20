@@ -54,6 +54,16 @@ function ItemWindow({ item, project, clientsHook, onClose }: any) {
           <Row title="Status" meta={steps || "no steps yet"} right={<TonedTag tone={statusTone(item.status, item.done)}>{shownStatus(item.status)}</TonedTag>} />
           {item.notes && <Row title="Note" meta={item.notes} />}
         </ListCard>
+        {/* not needed any more: gone from the Workspace and the counts; Undo here, Restore in Projects › Production */}
+        <button onClick={async () => {
+            try {
+              await clientsHook.setWsStatus(item.clientId, item.projectId, [{ id: item.id, status: "Removed" }]);
+              showUndo("Item removed", () => clientsHook.revertWsStatus(item.clientId, item.projectId, [item.id], "Removed"));
+              onClose();
+            } catch (e: any) { setErr(e?.message || "Couldn't remove."); }
+          }}
+          style={{ marginTop: 14, background: "none", border: "none", padding: "0 2px", minHeight: 36, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.red }}>Remove item</button>
+        {err && <div style={{ fontSize: TYPE.subtext.size, color: PAL.late.ink, marginTop: 4 }}>{err}</div>}
       </> : <>
         <div style={{ ...LBL, marginTop: 0 }}>Name</div><I value={d.name} onChange={(e: any) => setD(x => ({ ...x, name: e.target.value }))} aria-label="Name" />
         <div style={LBL}>Note</div><I value={d.note} onChange={(e: any) => setD(x => ({ ...x, note: e.target.value }))} aria-label="Note" />

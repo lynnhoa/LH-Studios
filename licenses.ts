@@ -9,8 +9,8 @@
 // new end date is tracked again.
 // ─────────────────────────────────────────────────────────────
 
-import { addM, dLeft } from "./formatters";
-import { EXPIRY_WARN_DAYS } from "./constants";
+import { addM, dLeft, fmtD } from "./formatters";
+import { EXPIRY_WARN_DAYS, PAL } from "./constants";
 
 export type LicenseKind = "paid" | "organic" | "excl";
 export const LICENSE_LABEL: Record<LicenseKind, string> = { paid: "Paid usage", organic: "Organic usage", excl: "Exclusivity" };
@@ -110,3 +110,8 @@ export function allLicenses(clients: any[]): License[] {
 }
 
 export const needsAction = (l: License) => l.state === "expiring" || l.state === "expired";
+
+// The tag of a license — the same on the Licenses page and in Projects: text + tone
+export const licenseTone = (l: License) => (l.action || l.state === "done" || l.state === "info" ? PAL.neutral : l.state === "expired" ? PAL.late : l.state === "expiring" ? PAL.waiting : PAL.done);
+export const licenseTag = (l: License) => (l.action ? `${ACTION_LABEL[l.action.action] || l.action.action} · ${fmtD(l.action.at).slice(0, 6)}`
+  : !l.alerts ? "no alerts" : l.daysLeft < 0 ? `${Math.abs(l.daysLeft)} ${Math.abs(l.daysLeft) === 1 ? "day" : "days"} expired` : `${l.daysLeft} ${l.daysLeft === 1 ? "day" : "days"}`);

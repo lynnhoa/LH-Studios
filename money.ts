@@ -46,6 +46,9 @@ export function toInvoice(pr: any): number {
   return 0;
 }
 
+// what a project really earned: its paid invoices (net)
+export const paidNet = (pr: any): number => r2(docsOf(pr).filter((d: any) => d.kind === "invoice" && d.status === "paid").reduce((s: number, d: any) => s + (Number(d.net) || 0), 0));
+
 // "← Back one step" from Production: not while the project has invoices or amendments
 // (the contract has to stay signed for them)
 export function backStepBlock(pr: any): string | null {

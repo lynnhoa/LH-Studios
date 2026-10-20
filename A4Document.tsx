@@ -114,11 +114,14 @@ export function fillTokens(text: string, ctx: Record<string, string>): string {
   return out.trim();
 }
 
-// Edited text back to tokens (only the fee and the creator name are live values)
+// Edited text back to tokens: the live values (deliverables, platforms, tax note, fee, creator)
+// turn back into their placeholders — longest first — so later changes still reach the clause
 export function tokenizeClause(text: string, ctx: Record<string, string>): string {
   let out = String(text || "");
-  if (ctx.fee)     out = out.split(ctx.fee).join("{fee}");
-  if (ctx.creator) out = out.split(ctx.creator).join("{creator}");
+  ["deliverables", "platforms", "tax", "fee", "creator"]
+    .filter(k => String(ctx[k] || "").trim().length >= 3)
+    .sort((a, b) => String(ctx[b]).length - String(ctx[a]).length)
+    .forEach(k => { out = out.split(String(ctx[k])).join(`{${k}}`); });
   return out;
 }
 
@@ -460,7 +463,8 @@ export default function A4Document({
 
       {/* ── TOTALS + CLOSING (all other documents) ── */}
       {kind !== "contract" && (
-        <div data-sig-anchor="true" style={{ marginTop: 22 + extraSigMargin }}>
+        // an amendment's guard sits on its signature block below (one guard, one push)
+        <div {...(kind === "amendment" ? {} : { "data-sig-anchor": "true" })} style={{ marginTop: 22 + (kind === "amendment" ? 0 : extraSigMargin) }}>
           <DiscRow /><TotalBlock />
 
           {kind === "quote" && (

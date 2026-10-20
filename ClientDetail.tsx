@@ -7,9 +7,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import { ProjectRow, DeliveryAsk } from "./ProjectsTab";
-import { C, SANS, SERIF, PAL, STATUS_TONE, STATUS_NAME, WORDS, TYPE, TRACK, RADIUS } from "./constants";
+import { C, SANS, SERIF, PAL, STATUS_TONE, STATUS_NAME, WORDS, TYPE, TRACK, RADIUS, SHADOW } from "./constants";
 import { fmt, fmtD, today } from "./formatters";
-import { I, S, Lbl, Tag, ConfirmDialog, PillBtn, SectionHead, ListCard, Row, TonedTag, IconCircle, listSeg } from "./atoms";
+import { I, S, Lbl, Tag, ConfirmDialog, PillBtn, SectionHead, ListCard, Row, TonedTag, IconCircle, listSeg, DashTile } from "./atoms";
 import type { ToneSet } from "./atoms";
 import { projectLicenses, ACTION_LABEL } from "./licenses";
 import type { License } from "./licenses";
@@ -92,7 +92,8 @@ export default function ClientDetail({
   };
   const confirmDelete = async () => {
     setAskDelete(null);
-    await clientsHook.deleteClient(cl.id);
+    const err = await clientsHook.deleteClient(cl.id);
+    if (err) { setAskDelete({ blocked: true, text: `The client couldn't be deleted (${err}). Nothing was lost — try again.` }); return; }
     setSel(null);
   };
 
@@ -128,7 +129,7 @@ export default function ClientDetail({
   const licTag = (l: License) => l.action ? `${ACTION_LABEL[l.action.action] || l.action.action}` : !l.alerts ? "info only"
     : l.daysLeft < 0 ? `${Math.abs(l.daysLeft)} days expired` : `${l.daysLeft} ${l.daysLeft === 1 ? "day" : "days"}`;
 
-  const card: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, padding: "4px 12px" };
+  const card: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, padding: "4px 12px" };   // the list card look
   const infoRow = (lbl: string, val: any, first = false) => (
     <div key={lbl} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 0", borderTop: first ? "none" : `1px solid ${C.hair}` }}>
       <span style={{ fontSize: TYPE.subtext.size, color: C.muted }}>{lbl}</span>
@@ -172,12 +173,11 @@ export default function ClientDetail({
 
       {/* ── TOTALS ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 6, marginTop: 12 }}>
-        {([[WORDS.toInvoice, t.signed, PAL.progress], [WORDS.unpaid, t.owed, PAL.waiting], [`${WORDS.paid} ${year}`, t.paidYear, PAL.done]] as [string, number, ToneSet][]).map(([lbl, v, tn]) => (
-          <div key={lbl} style={{ background: tn.wash, borderRadius: RADIUS.tile, padding: "9px 10px", minWidth: 0 }}>
-            <div style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: tn.ink }}>{lbl}</div>
-            <div style={{ fontFamily: SERIF, fontSize: TYPE.field.size, marginTop: 4, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{fmt(v)}</div>
-            {lbl === WORDS.unpaid && t.overdue > 0 && <div style={{ fontSize: TYPE.micro.size, color: PAL.late.ink, marginTop: 2 }}>{t.overdue} overdue</div>}
-          </div>
+        {/* the dashboard tiles */}
+        {([[WORDS.toInvoice, t.signed, PAL.progress, "M17.2 7a6 7 0 1 0 0 10M13 10H5M5 14h8"], [WORDS.unpaid, t.owed, PAL.waiting, "M12 7v5l3 2M12 21a9 9 0 1 0 0-18a9 9 0 0 0 0 18z"], [`${WORDS.paid} ${year}`, t.paidYear, PAL.done, "M5 12l4 4 10-10"]] as [string, number, ToneSet, string][]).map(([lbl, v, tn, ic]) => (
+          <DashTile key={lbl} tone={tn} label={lbl} value={fmt(v)}
+            icon={<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ic} /></svg>}
+            sub={lbl === WORDS.unpaid && t.overdue > 0 ? <span style={{ color: PAL.late.ink }}>{t.overdue} overdue</span> : undefined} />
         ))}
       </div>
 

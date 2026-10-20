@@ -15,13 +15,13 @@ import { DashCard, DashCardHead, DashStrip, DashTile, DashIcon, WideRow, LinkRow
 import { useState, useMemo } from "react";
 import type { ReactNode } from "react";
 import { C, SANS, SERIF, PAL, RADIUS, SHADOW, CATEGORY, catKeyOf, WORDS, TYPE, TRACK } from "./constants";
-import { fmt, today } from "./formatters";
-import { docsOf, isOpenInvoice, isPaidInvoice, isOverdue, paidDateOf, lineAmt } from "./docs";
+import { fmt, today, MONTHS_SHORT } from "./formatters";
+import { docsOf, isOpenInvoice, isPaidInvoice, isOverdue, paidDateOf, lineAmt, docTax, countryZone } from "./docs";
 import { allLicenses, needsAction } from "./licenses";
 import { toInvoice } from "./money";
 import { Ico, IC } from "./PlannerWindows";
 
-const MO = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+const MO = MONTHS_SHORT;              // formatters — one month list for every screen
 const KU_LIMIT = 25000;   // § 19 UStG: more revenue than this in a year ends Kleinunternehmer for the next year
 const pct2 = (n: number) => `${n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
 const int  = (n: number) => Math.round(n).toLocaleString("de-DE");
@@ -60,6 +60,16 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
   const yi = data.years.indexOf(year);
   const paidInYear = data.paid.filter(x => paidDateOf(x.d).startsWith(String(year)));
   const revenue    = paidInYear.reduce((s, x) => s + (Number(x.d.net) || 0), 0);
+  // § 19 UStG counts turnover taxable in Germany: reverse charge (EU businesses with a VAT ID)
+  // and clients outside the EU are left out — from each invoice's tax rule and the client's country
+  const clientOfP  = new Map<string, any>();
+  (clients || []).forEach((c: any) => (c.projects || []).forEach((p: any) => clientOfP.set(p.id, c)));
+  const kuCounts   = (x: any) => {
+    const cl = clientOfP.get(x.pr?.id);
+    const t = docTax(x.d, settings, cl);
+    return t.mode !== "reverse" && t.mode !== "export" && countryZone(cl?.country) !== "non-eu";
+  };
+  const kuRevenue  = paidInYear.filter(kuCounts).reduce((s, x) => s + (Number(x.d.net) || 0), 0);
   const byMonth    = Array.from({ length: 12 }, (_, m) => paidInYear
     .filter(x => parseInt(paidDateOf(x.d).slice(5, 7)) - 1 === m)
     .reduce((s, x) => s + (Number(x.d.net) || 0), 0));
@@ -71,7 +81,7 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
   const expired     = data.lic.filter(l => l.state === "expired").length;
   const expiring    = data.lic.filter(l => l.state === "expiring").length;
   const ku          = settings?.kleinunternehmer !== false && settings?.kleinunternehmer !== "false";
-  const kuPct       = (revenue / KU_LIMIT) * 100;
+  const kuPct       = (kuRevenue / KU_LIMIT) * 100;
   const kuTone: ToneSet = kuPct >= 100 ? PAL.late : kuPct >= 80 ? PAL.waiting : PAL.neutral;
 
   // revenue by offer: each paid invoice split by its lines' category (shares of its net)
@@ -139,7 +149,7 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
                 {MO.map((m, k) => <span key={m} style={{ color: k === curMonth ? C.black : undefined }}>{m}</span>)}
               </div>
             </div>
-            {ku && <DashStrip tone={kuTone} left={<>Kleinunternehmer · {int(revenue)} of {int(KU_LIMIT)} €</>} right={pct2(kuPct)} pct={kuPct} />}
+            {ku && <DashStrip tone={kuTone} left={<>Kleinunternehmer · {int(kuRevenue)} of {int(KU_LIMIT)} €</>} right={pct2(kuPct)} pct={kuPct} />}
           </DashCard>
         </div>
 

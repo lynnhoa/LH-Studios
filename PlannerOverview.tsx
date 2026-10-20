@@ -16,6 +16,7 @@ import {
   fmtInt, fmtPct2, monthGoalOf, thisMonday, todayIndex, MANAGER_GOAL, CREATOR_GOAL, managerOrder, creatorOrder, rowKind, snapKey, shortName, isTotal,
   itemStageOf, ITEM_STAGE_LABEL,
 } from "./planner";
+import { monthOfWeek } from "./planner";
 import type { Account, Task, ItemStage } from "./planner";
 import { monthStart, monthEnd, today } from "./formatters";
 import type { PlannerHook } from "./usePlanner";
@@ -229,7 +230,7 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
   // the Creator lists: Ideas → To shoot → To post (filmed) → Posted
   const flow = (["idea", "planned", "shot", "posted"] as ItemStage[]).map(st => ({ l: st === "idea" ? "Ideas" : ITEM_STAGE_LABEL[st], st, n: mine.filter(i => itemStageOf(i) === st).length }));
   const flowTone: Record<string, string | undefined> = { planned: PAL.progress.mid, shot: PAL.waiting.mid, posted: PAL.done.mid };
-  const ms = monthStart(monday), me = monthEnd(monday);
+  const ms = monthOfWeek(monday), me = monthEnd(ms);
   const fsT = tasks.find(t => t.source === "portfolio_total" && t.account === acc && t.active);
   const fs = fsT ? planner.stateOf(fsT, monday) : null;
   const mt = visible.find(t => t.rhythm === "monthly" && t.area === "portfolio" && t.account === acc) || visible.find(t => t.rhythm === "monthly" && t.area === "portfolio");
@@ -239,7 +240,7 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
   const flowCard = (
     <>
       <div style={{ marginTop: 10 }}><BarList rows={flow.map(f => ({ key: f.l, label: f.l, value: String(f.n), pct: (f.n / maxFlow) * 100, color: f.n ? flowTone[f.st] : undefined }))} /></div>
-      <LinkRow icon={<DashIcon tone={goal != null && doneMonth >= goal ? PAL.done : PAL.neutral}>{gl("M4 5h16v14H4zM4 15l5-5 4 4 3-3 4 4")}</DashIcon>} label={`Portfolio · ${monthName(monday).slice(0, 3)}`}
+      <LinkRow icon={<DashIcon tone={goal != null && doneMonth >= goal ? PAL.done : PAL.neutral}>{gl("M4 5h16v14H4zM4 15l5-5 4 4 3-3 4 4")}</DashIcon>} label={`Portfolio · ${monthName(ms).slice(0, 3)}`}
         tag={`${doneMonth} / ${goal ?? "–"}`} tone={goal != null && doneMonth >= goal ? PAL.done : PAL.waiting} tagFilled={goal != null} />
       {fs && fsT && <LinkRow icon={<DashIcon tone={fs.done ? PAL.done : PAL.neutral}>{gl("M5 12l4 4 10-10")}</DashIcon>} label="First set" tag={`${fs.actual ?? 0} / ${fsT.target ?? "–"}${fs.done ? " ✓" : ""}`} tone={fs.done ? PAL.done : PAL.waiting} />}
     </>

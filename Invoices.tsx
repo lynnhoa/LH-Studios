@@ -9,7 +9,7 @@
 
 import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE, PAL, TRACK, RADIUS, SHADOW } from "./constants";
-import { fmt, fmtD, today } from "./formatters";
+import { fmt, fmtD, today, MONTHS } from "./formatters";
 import { Ico, IC } from "./PlannerWindows";
 import { Chip } from "./atoms";
 import PDFModal from "./PDFModal";
@@ -19,7 +19,7 @@ import { invoiceActions } from "./docFlow";
 import { invoiceRows, invoicesCsv, invoiceTypeLabel, invoicePeriods, isOpenInvoice, isPaidInvoice, isOverdue, paidDateOf, MONTH_DE } from "./docs";
 import type { InvoiceRow, InvoicePeriod } from "./docs";
 
-const MO_LONG = MONTH_DE;
+const MO_LONG = MONTHS;               // the screen in English; the bookkeeping PDF / CSV stay German
 
 function downloadCsv(rows: InvoiceRow[], filename: string) {
   const blob = new Blob(["\uFEFF" + invoicesCsv(rows)], { type: "text/csv;charset=utf-8;" });
@@ -86,7 +86,7 @@ export default function Invoices({ clients, settings, isMobile, filterTab, focus
     const ds = dateOf(r), key = ds.slice(0, 7);
     let g = groups.find(x => x.key === key);
     if (!g) { g = { key, year: parseInt(ds.slice(0, 4)) || 0, month: (parseInt(ds.slice(5, 7)) || 1) - 1, rows: [], total: 0 }; groups.push(g); }
-    g.rows.push(r); g.total += Number(r.doc.gross) || 0;
+    g.rows.push(r); g.total += Number(st === "paid" ? r.doc.net : r.doc.gross) || 0;   // the same measure as the header
   });
   groups.forEach(g => g.rows.sort((a, b) => rank(a) - rank(b) || dateOf(b).localeCompare(dateOf(a))));
 
@@ -154,7 +154,7 @@ export default function Invoices({ clients, settings, isMobile, filterTab, focus
             <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: C.white, border: `1px solid ${C.rule}`, borderRadius: RADIUS.tile, boxShadow: SHADOW.pop, minWidth: 250, zIndex: 200, maxHeight: 320, overflowY: "auto", padding: "4px 0" }}>
               {periods.map((p, i) => (
                 <div key={p.key} style={{ display: "flex", alignItems: "center", gap: 6, padding: p.kind === "year" ? "8px 12px" : "5px 12px 5px 22px", borderTop: i > 0 && p.kind === "year" ? `1px solid ${C.hair}` : "none" }}>
-                  <span style={{ flex: 1, fontSize: TYPE.subtext.size, color: p.kind === "year" ? C.black : C.muted, fontWeight: p.kind === "year" ? 500 : 400 }}>{p.label}</span>
+                  <span style={{ flex: 1, fontSize: TYPE.subtext.size, color: p.kind === "year" ? C.black : C.muted, fontWeight: p.kind === "year" ? 500 : 400 }}>{p.uiLabel || p.label}</span>
                   <button onClick={() => downloadPdf(p)} style={btnStyle}>PDF</button>
                   <button onClick={() => downloadCsvFor(p)} style={btnStyle}>CSV</button>
                 </div>
@@ -180,7 +180,7 @@ export default function Invoices({ clients, settings, isMobile, filterTab, focus
             <span style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted }}>{MO_LONG[g.month]} {g.year}</span>
             <span>{fmt(g.total)}</span>
           </div>
-          <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, overflow: "hidden" }}>
+          <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden" }}>
             {g.rows.map((r, i) => {
               const d = r.doc, t = rowTone(d);
               return (

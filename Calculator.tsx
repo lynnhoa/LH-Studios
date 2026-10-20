@@ -575,7 +575,7 @@ export default function Calculator({
     rights.platforms.length ? rights.platforms.join(", ") : null,
     rights.excl && !rights.excl.sentinel ? shortOpt(rights.excl.l) : "no exclusivity",
   ].filter(Boolean).join(" · ");
-  const title = isAmend ? `Amendment ${amendN}` : isRev ? `Revision ${revN}` : "New quote";
+  const title = isAmend ? "New amendment" : isRev ? `Revision ${revN}` : "New quote";   // the amendment's number comes when it's saved
   const diff = totalAll - origTotal;
   const vatClient = selClient || dupe || (locked ? (clientsHook.clients || []).find((c: any) => c.id === prefill?.cid) : null) || { country: "Germany" };
   const netWord = vatInfo(settings, vatClient).mode === "domestic" ? " net" : "";

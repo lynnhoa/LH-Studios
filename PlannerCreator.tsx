@@ -13,7 +13,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { C, SANS, SERIF, TYPE, SPACING, RADIUS, PAL, TRACK } from "./constants";
+import { C, SANS, SERIF, TYPE, SPACING, RADIUS, PAL, TRACK, SHADOW } from "./constants";
 import { B, Tick, BAR_BTN, SectionHead, SummaryLine, Strong, TonedTag, Chip, ChipRow, SwitchPill, ValuePill, TextInline } from "./atoms";
 import { parseYMD, monthStart, monthEnd, today } from "./formatters";
 import {
@@ -21,6 +21,7 @@ import {
   CREATOR_GOAL, creatorOrder, shortName, parseIntDe,
   isPostedStatus, linkInfo, isUrlLike, EMPTY_PLAN, itemStageOf, typeOf, TYPES, typePatch, CONTENT,
 } from "./planner";
+import { monthOfWeek } from "./planner";
 import type { Account, Item, ItemList, ItemStage, Task } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
@@ -104,7 +105,7 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
   const [editGoals, setEditGoals] = useState(false);
   const fsT = visible.find(t => t.source === "portfolio_total" && t.account === acc);
   const fs = fsT ? planner.stateOf(fsT, now) : null;
-  const ms = monthStart(now), me = monthEnd(now);
+  const ms = monthOfWeek(now), me = monthEnd(ms);              // the month of today (1 Nov = November)
   const monthEntry = monthTask ? planner.entries[entryKey(monthTask.id, ms)] : undefined;
   const goal = monthTask ? (monthTask.account === "both" ? monthGoalOf(monthTask, monthEntry, acc) : planner.targetOf(monthTask.id, ms)) : null;
   const doneMonth = items.filter(i => i.account === acc && i.portfolio && (i.status === "posted" || i.status === "in_kit") && !!i.postedOn && i.postedOn >= ms && i.postedOn <= me).length;
@@ -138,14 +139,14 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
   const goalTiles = [
     ...weekGoals.map(t => { const s0 = planner.stateOf(t, now); return tile(t.id, shortName(t), s0.actual ?? 0, s0.target, v => quiet(planner.saveEntry(t.id, now, { target: v }))); }),
     // short labels so every name fits next to the number / the field: "Oct", "1st set"
-    ...(monthTask ? [tile("month", monthName(now).slice(0, 3), doneMonth, monthTarget, v => quiet(planner.saveEntry(monthTask.id, ms, monthTask.account === "both" ? monthGoalPatch(monthTask, monthEntry, acc, v) : { target: v })))] : []),
+    ...(monthTask ? [tile("month", monthName(ms).slice(0, 3), doneMonth, monthTarget, v => quiet(planner.saveEntry(monthTask.id, ms, monthTask.account === "both" ? monthGoalPatch(monthTask, monthEntry, acc, v) : { target: v })))] : []),
     ...(fsT && fs ? [tile("firstset", "1st set", fs.actual ?? 0, fsT.target ?? null, v => quiet(planner.updateTask(fsT.id, { target: v })))] : []),
   ];
   const head = (label: string, right?: any, dot?: string) => <SectionHead dot={dot} label={label} right={right} />;
   const linkBtn = (label: string, fn: () => void) => (
     <button onClick={fn} style={{ background: "none", border: "none", padding: "8px 0", margin: "-8px 0", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: PAL.neutral.ink }}>{label}</button>
   );
-  const card = (children: any) => <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, overflow: "hidden" }}>{children}</div>;
+  const card = (children: any) => <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden" }}>{children}</div>;
   const rowS = (k: number): any => ({ minHeight: SPACING.row1, display: "flex", alignItems: "center", gap: 2, padding: `0 4px 0 ${SPACING.rowSide}px`, borderTop: k ? `1px solid ${C.hair}` : "none", boxSizing: "border-box" as const });
   const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
   // the small line under the title: type · the day · clips · links

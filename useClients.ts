@@ -42,21 +42,15 @@ interface UseClientsReturn {
   addProject:    (clientId: string, p: Omit<Project, "id" | "createdAt">) => Promise<string | null>;
   updateProject: (clientId: string, projectId: string, updates: Partial<Project>) => Promise<string | null>;
   deleteProject: (clientId: string, projectId: string) => Promise<string | null>;
-  setProjectStatus: (clientId: string, projectId: string, status: ProjectStatus) => Promise<string | null>;
 
   // Amendment ops
-  addAmendment:    (clientId: string, projectId: string, a: Omit<Amendment, "id" | "createdAt">) => Promise<string | null>;
-  updateAmendment: (clientId: string, projectId: string, amendId: string, updates: Partial<Amendment>) => Promise<string | null>;
   deleteAmendment: (clientId: string, projectId: string, amendId: string) => Promise<string | null>;
 
   // Renewal ops
-  addRenewal:    (clientId: string, projectId: string, r: Omit<Renewal, "id" | "createdAt">) => Promise<string | null>;
   updateRenewal: (clientId: string, projectId: string, renewalId: string, updates: Partial<Renewal>) => Promise<string | null>;
   deleteRenewal: (clientId: string, projectId: string, renewalId: string) => Promise<string | null>;
 
   // Deliverable ops
-  updateDeliverable: (projectId: string, deliverableId: string, updates: Partial<Deliverable>) => Promise<string | null>;
-  upsertDeliverables: (projectId: string, deliverables: Omit<Deliverable, "createdAt">[]) => Promise<string | null>;
 
   // Calculator save (new quote / revision / amendment) → creates the document
   saveQuote: (args: SaveQuoteArgs) => Promise<SaveResult>;
@@ -428,13 +422,29 @@ export function useClients(userId: string | null): UseClientsReturn {
   const deleteClient = useCallback(
     async (id: string): Promise<string | null> => {
       if (!userId) return "Not authenticated";
+      // children first (as deleting a project does), so nothing is left behind even without
+      // automatic deletes in the database. A failed step stops; the list then reloads, so the
+      // client is back on screen with whatever is still stored.
+      const pids = (clientsRef.current.find(c => c.id === id)?.projects || []).map(p => p.id);
       setClientsNow(prev => prev.filter(c => c.id !== id));
-
-      const { error } = await supabase
-        .from("clients").delete().eq("id", id).eq("user_id", userId);
-
-      if (error) { setError(error.message); return error.message; }
-      return null;
+      try {
+        for (const pid of pids) {
+          for (const t of ["documents", "amendments", "renewals", "deliverables"]) {
+            const { error: e1 } = await supabase.from(t).delete().eq("project_id", pid).eq("user_id", userId);
+            if (e1) throw e1;
+          }
+          const { error: e2 } = await supabase.from("projects").delete().eq("id", pid).eq("user_id", userId);
+          if (e2) throw e2;
+        }
+        const { error } = await supabase.from("clients").delete().eq("id", id).eq("user_id", userId);
+        if (error) throw error;
+        return null;
+      } catch (e: any) {
+        const msg = e?.message || "Couldn't delete the client.";
+        setError(msg);
+        fetchAll();                                   // back on screen as stored
+        return msg;
+      }
     },
     [userId]
   );
@@ -541,76 +551,8 @@ export function useClients(userId: string | null): UseClientsReturn {
     [userId]
   );
 
-  const setProjectStatus = useCallback(
-    async (clientId: string, projectId: string, status: ProjectStatus): Promise<string | null> =>
-      updateProject(clientId, projectId, { status, paid: status === "paid" }),
-    [updateProject]
-  );
 
-  // ─── AMENDMENT OPS ───────────────────────────────────────
-  const addAmendment = useCallback(
-    async (
-      clientId: string,
-      projectId: string,
-      a: Omit<Amendment, "id" | "createdAt">
-    ): Promise<string | null> => {
-      if (!userId) return "Not authenticated";
-      const id = uid();
-      const newA: Amendment = { ...a, id };
 
-      // Compute the new project total so we can persist it to projects.amount
-      const projNow = clientsRef.current.find(c => c.id === clientId)?.projects.find(p => p.id === projectId);
-      const newAmount = (projNow?.amount ?? 0) + a.amendTotal;
-
-      updateProjectLocal(clientId, projectId, p => ({
-        ...p,
-        amendments: [...p.amendments, newA],
-        amount: p.amount + a.amendTotal,
-      }));
-
-      const { error } = await supabase.from("amendments").insert({
-        id, user_id: userId, project_id: projectId,
-        a_no: a.aNo, lines: a.lines, amend_total: a.amendTotal,
-        orig_total: a.origTotal, signed: a.signed, doc: a.doc,
-      });
-      if (error) { setError(error.message); return error.message; }
-
-      // Persist the bumped project total (old app kept amount in sync)
-      const { error: amtErr } = await supabase.from("projects")
-        .update({ amount: newAmount, updated_at: new Date().toISOString() })
-        .eq("id", projectId).eq("user_id", userId);
-      if (amtErr) { setError(amtErr.message); return amtErr.message; }
-      return null;
-    },
-    [userId]
-  );
-
-  const updateAmendment = useCallback(
-    async (
-      clientId: string,
-      projectId: string,
-      amendId: string,
-      updates: Partial<Amendment>
-    ): Promise<string | null> => {
-      if (!userId) return "Not authenticated";
-
-      updateProjectLocal(clientId, projectId, p => ({
-        ...p,
-        amendments: p.amendments.map(a => a.id === amendId ? { ...a, ...updates } : a),
-      }));
-
-      const dbUpdates: Record<string, any> = {};
-      if (updates.signed !== undefined) dbUpdates.signed = updates.signed;
-      if (updates.doc    !== undefined) dbUpdates.doc    = updates.doc;
-
-      const { error } = await supabase
-        .from("amendments").update(dbUpdates).eq("id", amendId).eq("user_id", userId);
-
-      if (error) { setError(error.message); return error.message; }
-      return null;
-    },
-    [userId]
-  );
 
   // Undo an amendment — remove the record and roll its amendTotal back off the project total.
   const deleteAmendment = useCallback(
@@ -641,39 +583,6 @@ export function useClients(userId: string | null): UseClientsReturn {
     [userId]
   );
 
-  // ─── RENEWAL OPS ─────────────────────────────────────────
-  const addRenewal = useCallback(
-    async (
-      clientId: string,
-      projectId: string,
-      r: Omit<Renewal, "id" | "createdAt">
-    ): Promise<string | null> => {
-      if (!userId) return "Not authenticated";
-      const id = uid();
-      const newR: Renewal = { ...r, id };
-
-      updateProjectLocal(clientId, projectId, p => ({
-        ...p,
-        renewals: [...p.renewals, newR],
-      }));
-
-      const { error } = await supabase.from("renewals").insert({
-        id, user_id: userId, project_id: projectId,
-        r_no:       r.rNo,
-        opt_label:  r.optLabel,
-        start_date: r.startDate || null,
-        end_date:   r.endDate   || null,
-        fee:        r.fee,
-        signed:     r.signed,
-        paid:       r.paid,
-        doc:        r.doc,
-      });
-
-      if (error) { setError(error.message); return error.message; }
-      return null;
-    },
-    [userId]
-  );
 
   const updateRenewal = useCallback(
     async (
@@ -723,60 +632,7 @@ export function useClients(userId: string | null): UseClientsReturn {
     [userId]
   );
 
-  // ─── DELIVERABLE OPS ─────────────────────────────────────
-  const updateDeliverable = useCallback(
-    async (
-      projectId: string,
-      deliverableId: string,
-      updates: Partial<Deliverable>
-    ): Promise<string | null> => {
-      if (!userId) return "Not authenticated";
 
-      const dbUpdates: Record<string, any> = {};
-      if (updates.status        !== undefined) dbUpdates.status         = updates.status;
-      if (updates.statusDate    !== undefined) dbUpdates.status_date    = updates.statusDate;
-      if (updates.deliveredDate !== undefined) dbUpdates.delivered_date = updates.deliveredDate;
-
-      const { error } = await supabase
-        .from("deliverables").update(dbUpdates)
-        .eq("id", deliverableId).eq("user_id", userId);
-
-      if (error) { setError(error.message); return error.message; }
-      return null;
-    },
-    [userId]
-  );
-
-  const upsertDeliverables = useCallback(
-    async (
-      projectId: string,
-      deliverables: Omit<Deliverable, "createdAt">[]
-    ): Promise<string | null> => {
-      if (!userId) return "Not authenticated";
-
-      const rows = deliverables.map(d => ({
-        id:             d.id,
-        user_id:        userId,
-        project_id:     projectId,
-        line_ref:       d.lineRef,
-        name:           d.name,
-        category:       d.category,
-        quantity:       d.quantity,
-        quantity_index: d.quantityIndex,
-        status:         d.status,
-        status_date:    d.statusDate,
-        delivered_date: d.deliveredDate,
-      }));
-
-      const { error } = await supabase
-        .from("deliverables")
-        .upsert(rows, { onConflict: "id" });
-
-      if (error) { setError(error.message); return error.message; }
-      return null;
-    },
-    [userId]
-  );
 
   // ─────────────────────────────────────────────────────────
   // DOCUMENTS — every quote, contract, amendment and invoice is
@@ -1507,10 +1363,8 @@ export function useClients(userId: string | null): UseClientsReturn {
     patchWs, setWsStatus, revertWsStatus,
     markAmendmentSigned, createAmendmentInvoice, removeProject, setLicenseAction,
     addClient, updateClient, deleteClient,
-    addProject, updateProject, deleteProject, setProjectStatus,
-    addAmendment, updateAmendment, deleteAmendment,
-    addRenewal, updateRenewal, deleteRenewal,
-    updateDeliverable, upsertDeliverables,
+    addProject, updateProject, deleteProject, deleteAmendment,
+    updateRenewal, deleteRenewal,
     saveQuote,
     updateDocument, deleteDraftDocument, markDocSent,
     createContract, reviseContract, markContractSigned, undoContract,

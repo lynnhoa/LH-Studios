@@ -11,7 +11,6 @@ import AuthScreen       from "./AuthScreen";
 import ManagerApp       from "./ManagerApp";
 import CreatorApp       from "./CreatorApp";
 import { Loading, SaveToast, LoadErrorBanner } from "./atoms";
-import PlaceholderApp from "./PlaceholderApp";
 import OutreachApp from "./OutreachApp";
 import PlannerApp from "./PlannerApp";
 import { editLock, reloadAll } from "./saveStatus";
@@ -230,7 +229,7 @@ function AppInner() {
 
   return (
     <>
-      {role === "manager" ? (
+      {role === "manager" || !["creator", "outreach", "planner"].includes(String(role)) ? (   // unknown → Manager
         <ManagerApp
           settings={settings}
           updateSettings={updateSettings}
@@ -252,9 +251,7 @@ function AppInner() {
         <OutreachApp userId={userId} settings={settings} signOut={signOut} switchTo={switchTo} banners={banners} />
       ) : role === "planner" ? (
         <PlannerApp userId={userId} settings={settings} signOut={signOut} switchTo={switchTo} banners={banners} />
-      ) : (
-        <PlaceholderApp app={role || "planner"} settings={settings} signOut={signOut} switchTo={switchTo} banners={banners} />
-      )}
+      ) : null}
       <SaveToast />
     </>
   );

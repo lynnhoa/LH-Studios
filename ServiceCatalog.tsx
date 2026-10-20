@@ -477,7 +477,7 @@ function RateCardWindow({ card, cardKey, cardName, settings, clientNames, onClos
     : { key: "share", label: busy ? "Preparing…" : "Share PDF", run: sharePdf, dim: busy };
   const barBtn = (b: Btn, dark: boolean) => (
     <PillBtn key={b.key} dark={dark} dim={b.dim} onClick={b.run}
-      s={{ height: 38, padding: "0 16px", fontSize: TYPE.row.size, justifyContent: "center", flex: isMobile ? 1 : "0 0 auto", minWidth: isMobile ? 0 : 150 }}>
+      s={{ height: 40, padding: "0 16px", fontSize: TYPE.row.size, justifyContent: "center", flex: isMobile ? 1 : "0 0 auto", minWidth: isMobile ? 0 : 150 }}>
       {b.label}
     </PillBtn>
   );
@@ -772,6 +772,9 @@ function ItemWindow({ kind, item, card, cardKey, cardName, isNew, onSave, onDele
   useEffect(() => { if (mode === "read") setD(clone(item)); }, [item, mode]);
   const delivs = delivsOf(card);
   const pv = kind === "packages" ? packValue(d, delivs) : null;
+  // the packages that contain this deliverable (named when it's deleted)
+  const usedIn = kind === "deliverables" ? (card.sections || []).filter((s: any) => sectionKind(s) === "packages").flatMap((s: any) => s.items || [])
+    .filter((p: any) => (p.includes || []).some((x: any) => norm(x.n) === norm(item?.n))) : [];
   const pct = retainerPctOf(card);
   const cancel = () => { setErr(null); if (isNew) onDelete(true); else { setD(clone(item)); setMode("read"); } };
   const save = () => {
@@ -788,7 +791,7 @@ function ItemWindow({ kind, item, card, cardKey, cardName, isNew, onSave, onDele
         <PillBtn onClick={cancel} s={{ flex: 1, height: 40, justifyContent: "center" }}>Cancel</PillBtn>
         <PillBtn dark onClick={save} s={{ flex: 1.4, height: 40, justifyContent: "center" }}>Save</PillBtn>
       </> : undefined}>
-      {askDel && <ConfirmDialog title={`Delete "${item.n}"?`} text="It's removed from this rate card. Quotes already made keep their prices." okLabel="Delete" danger onOk={() => { setAskDel(false); onDelete(false); }} onCancel={() => setAskDel(false)} />}
+      {askDel && <ConfirmDialog title={`Delete "${item.n}"?`} text={`It's removed from this rate card${usedIn.length ? ` and from ${usedIn.length === 1 ? "the package" : `${usedIn.length} packages:`} ${usedIn.map((p: any) => `“${p.n}”`).join(", ")}` : ""}. Quotes already made keep their prices.`} okLabel="Delete" danger onOk={() => { setAskDel(false); onDelete(false); }} onCancel={() => setAskDel(false)} />}
       {mode === "read" ? <>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
           <span style={{ fontFamily: SERIF, fontSize: TYPE.tile.size }}>{pctSpace(item.n)}</span>
@@ -999,7 +1002,8 @@ interface ServiceCatalogProps {
   ready?:     boolean;         // your cards are loaded (until then nothing is shown or saved)
 }
 
-type Win = { type: "item"; si: number; id: string; isNew?: boolean } | { type: "opt"; kind: "usage" | "exclusivity"; i: number; isNew?: boolean } | { type: "card" };
+// a new item / option lives only in its window (draft) until Save — nothing empty is ever stored
+type Win = { type: "item"; si: number; id: string; isNew?: boolean; draft?: any } | { type: "opt"; kind: "usage" | "exclusivity"; i: number; isNew?: boolean; draft?: any } | { type: "card" };
 
 export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, clientNames, ready = true }: ServiceCatalogProps) {
   const [tab,         setTab]         = useState("influencer");
@@ -1055,13 +1059,11 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, c
       : kind === "info" ? { id, n: "", note: "", p: null, m: "" }
       : kind === "packages" ? { id, n: "", note: "", p: 0, includes: [] }
       : { id, n: "", note: "", p: 0 };
-    upSec(si, s => ({ ...s, items: [...(s.items || []), blank] }));
-    setWin({ type: "item", si, id, isNew: true });
+    setWin({ type: "item", si, id, isNew: true, draft: blank });
   };
   const addOpt = (kind: "usage" | "exclusivity") => {
     const list = card[optKey(kind)] || [];
-    setCard(c => ({ ...c, [optKey(kind)]: [...(c[optKey(kind)] || []), { l: "", pct: 0, mo: 1 }] }));
-    setWin({ type: "opt", kind, i: list.length, isNew: true });
+    setWin({ type: "opt", kind, i: list.length, isNew: true, draft: { l: "", pct: 0, mo: 1 } });
   };
 
   // ── header numbers ──
@@ -1075,21 +1077,49 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, c
   let windowEl: any = null;
   if (win?.type === "item") {
     const sec = card.sections[win.si]; const kind = sec ? sectionKind(sec) : "deliverables";
-    const item = (sec?.items || []).find((x: any) => x.id === win.id);
+    const stored = (sec?.items || []).find((x: any) => x.id === win.id);
+    const item = stored || (win.isNew ? win.draft : undefined);
+    // packages name their contents: a renamed or deleted deliverable is changed in them too
+    const inPackages = (sections: any[], fn: (inc: any[]) => any[]) => sections.map((s: any) =>
+      sectionKind(s) !== "packages" ? s : { ...s, items: (s.items || []).map((it: any) => (it.includes?.length ? { ...it, includes: fn(it.includes) } : it)) });
     if (item) windowEl = (
       <ItemWindow key={win.id} kind={kind} item={item} card={card} cardKey={tab} cardName={cardName} isNew={!!win.isNew}
-        onSave={(next: any) => { upSec(win.si, s => ({ ...s, items: s.items.map((x: any) => (x.id === win.id ? next : x)) })); setWin({ ...win, isNew: false }); }}
-        onDelete={() => { upSec(win.si, s => ({ ...s, items: s.items.filter((x: any) => x.id !== win.id) })); setWin(null); }}
+        onSave={(next: any) => {
+          setCard(c => {
+            let sections = c.sections.map((s: any, i: number) => (i !== win.si ? s : {
+              ...s, items: (s.items || []).some((x: any) => x.id === win.id) ? s.items.map((x: any) => (x.id === win.id ? next : x)) : [...(s.items || []), next],
+            }));
+            if (kind === "deliverables" && stored?.n && next.n !== stored.n)
+              sections = inPackages(sections, inc => inc.map((x: any) => (norm(x.n) === norm(stored.n) ? { ...x, n: next.n } : x)));
+            return { ...c, sections };
+          });
+          setWin({ ...win, isNew: false, draft: undefined });
+        }}
+        onDelete={() => {
+          if (!stored) { setWin(null); return; }             // a new item that was never saved
+          setCard(c => {
+            let sections = c.sections.map((s: any, i: number) => (i !== win.si ? s : { ...s, items: s.items.filter((x: any) => x.id !== win.id) }));
+            if (kind === "deliverables" && stored.n) sections = inPackages(sections, inc => inc.filter((x: any) => norm(x.n) !== norm(stored.n)));
+            return { ...c, sections };
+          });
+          setWin(null);
+        }}
         onMove={(dir: number) => upSec(win.si, s => ({ ...s, items: moveIn(s.items, s.items.findIndex((x: any) => x.id === win.id), dir) }))}
         onClose={() => setWin(null)} />
     );
   } else if (win?.type === "opt") {
     const list = card[optKey(win.kind)] || [];
-    const opt = list[win.i];
+    const opt = list[win.i] ?? (win.isNew ? win.draft : undefined);
     if (opt) windowEl = (
       <OptWindow key={`${win.kind}-${win.i}`} kind={win.kind} opt={opt} cardName={cardName} isNew={!!win.isNew}
-        onSave={(next: any) => { setCard(c => ({ ...c, [optKey(win.kind)]: c[optKey(win.kind)].map((o: any, j: number) => (j === win.i ? { ...o, ...next } : o)) })); setWin({ ...win, isNew: false }); }}
-        onDelete={() => { setCard(c => ({ ...c, [optKey(win.kind)]: c[optKey(win.kind)].filter((_: any, j: number) => j !== win.i) })); setWin(null); }}
+        onSave={(next: any) => {
+          setCard(c => { const cur = c[optKey(win.kind)] || []; return { ...c, [optKey(win.kind)]: win.i < cur.length ? cur.map((o: any, j: number) => (j === win.i ? { ...o, ...next } : o)) : [...cur, { ...(win.draft || {}), ...next }] }; });
+          setWin({ ...win, isNew: false, draft: undefined });
+        }}
+        onDelete={() => {
+          if (win.i >= list.length) { setWin(null); return; } // a new option that was never saved
+          setCard(c => ({ ...c, [optKey(win.kind)]: c[optKey(win.kind)].filter((_: any, j: number) => j !== win.i) })); setWin(null);
+        }}
         onMove={(dir: number) => {
           const real = list.map((o: any, j: number) => ({ o, j })).filter((x: any) => !x.o.sentinel);
           const pos = real.findIndex((x: any) => x.j === win.i); const to = real[pos + dir];

@@ -3,7 +3,7 @@
 // "By client" replaces the old Clients tab. Tap a project → its items.
 // ─────────────────────────────────────────────────────────────
 import { useState, useMemo } from "react";
-import { C, SANS, SERIF, TYPE, PAL, RADIUS, SPACING } from "./constants";
+import { C, SANS, SERIF, TYPE, PAL, RADIUS, SPACING, SHADOW } from "./constants";
 import { fmtD } from "./formatters";
 import { SummaryLine, Strong, Chip, ChipRow, SectionHead, TonedTag } from "./atoms";
 import { projectItems, isInProduction, shownStatus } from "./wsHelpers";
@@ -57,7 +57,7 @@ export default function CreatorProjects({ clients, isMobile }: { clients: any[];
     );
   };
   const card = (list: any[]) => (
-    <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, overflow: "hidden", padding: "0 12px" }}>{list.map(row)}</div>
+    <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden", padding: "0 12px" }}>{list.map(row)}</div>
   );
   const clientsWith = [...new Set([...prod, ...after].map((r: any) => r.c.id))].map(id => (clients || []).find((c: any) => c.id === id)).filter(Boolean)
     .sort((a: any, b: any) => a.name.localeCompare(b.name));

@@ -7,10 +7,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { C, SERIF, SANS, TYPE, expiryColor, expiryTint, PAL, STATUS_TONE, STATUS_NAME, WORDS, TRACK, RADIUS, ICON } from "./constants";
-import { signedOpen, followUp, validUntil, currentContractOf, daysSince, toInvoice, openAmendments, backStepBlock } from "./money";
+import { signedOpen, followUp, validUntil, currentContractOf, daysSince, toInvoice, openAmendments, backStepBlock, paidNet } from "./money";
 import { workOpen } from "./wsHelpers";
 import { fmt, fmtD, fmtE, today, addM, dLeft } from "./formatters";
-import { projectLicenses, ACTION_LABEL } from "./licenses";
+import { projectLicenses, ACTION_LABEL, licenseTone, licenseTag } from "./licenses";
 import { pdfFlow, finalizeQuestion, invoiceActions } from "./docFlow";
 import { I, B, TSel, TSelWrap, StatusBadge, ConfirmDialog, TonedTag, SummaryLine, Strong, SectionHead, listSeg, ListCard } from "./atoms";
 import RenewalModal from "./RenewalModal";
@@ -21,39 +21,21 @@ import { sortDocs, docLabel, currentContract, currentQuote, projectInvoice, mont
 import type { DocRecord } from "./types";
 
 // Document chip dot colour by status
-// ── License tracker (inline mini) ────────────────────────────
-function LicenseLine({ label, end }: { label: string; end: string }) {
-  const d   = dLeft(end) ?? 0;
-  const col = expiryColor(d);
-  const bg  = expiryTint(d);
-  const bd  = col;
-  const txt = d < 0 ? `${Math.abs(d)}d expired` : `${d}d left`;
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 8px", background: bg, border: `1px solid ${bd}`, borderRadius: RADIUS.field, marginBottom: 3 }}>
-      <span style={{ fontSize: TYPE.micro.size, color: col, fontWeight: "500" }}>{label}</span>
-      <span style={{ fontSize: TYPE.micro.size, color: col, fontWeight: "600" }}>{fmtD(end)} · {txt}</span>
-    </div>
-  );
-}
-
+// ── License tracker: one row per license with the Licenses page's tag ──
 function ProjectLicenseTracker({ pr }: { pr: any }) {
   const lic = projectLicenses(pr);
   if (!lic.length) return null;
   return (
     <div style={{ marginBottom: 8, marginTop: 4 }}>
-      <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: "0 0 4px" }}>Licenses</p>
-      {lic.map(l => l.action
-        ? <div key={l.key} style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", marginBottom: 3, border: `1px solid ${C.rule}`, borderRadius: RADIUS.field }}>
-            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{l.label}</span>
-            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{fmtD(l.end)} · {ACTION_LABEL[l.action.action] || l.action.action}</span>
-          </div>
-        : !l.alerts
-        ? <div key={l.key} style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", marginBottom: 3, border: `1px solid ${C.rule}`, borderRadius: RADIUS.field }}>
-            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{l.label}</span>
-            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{fmtD(l.end)}</span>
-          </div>
-        : <LicenseLine key={l.key} label={l.label + (l.extended ? " (renewed)" : "")} end={l.end} />
-      )}
+      <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: "0 0 2px" }}>Licenses</p>
+      {lic.map((l, k) => (
+        <div key={l.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minHeight: 34, borderTop: k ? `1px solid ${C.hair}` : "none" }}>
+          <span style={{ fontSize: TYPE.label.size, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+            {l.label}{l.extended ? " (renewed)" : ""} <span style={{ color: C.muted }}>· {fmtD(l.end)}</span>
+          </span>
+          <TonedTag tone={licenseTone(l)}>{licenseTag(l)}</TonedTag>
+        </div>
+      ))}
     </div>
   );
 }
@@ -70,6 +52,9 @@ const sinceDays = (pr: any): number | null => {
 // ── Single expandable project row ─────────────────────────────
 // One project card — Projects and the client page use this same card (one source).
 // showStatus: on the client page the grey line starts with the status word, not the client.
+// an amendment by its own number ("AMD 02" from AMD-2026-019-02); the list place only before it has one
+const amendShort = (a: any, i: number) => (a?.aNo ? `AMD ${String(a.aNo).split("-").pop()}` : `amendment ${i + 1}`);
+
 export function ProjectRow({
   pr, clients, isMobile, isExpanded, onToggle, clientsHook, onRevise, onAmend, onGoToCalc, settings, onModalClosed, rc, onOpenClient, onAskDelivery, showStatus,
 }: {
@@ -250,7 +235,7 @@ export function ProjectRow({
   const amendDocsDraft = (a: any) => { const d = amendmentDoc(pr, a.id); return !d || d.status === "draft"; };
 
   return (
-    <div ref={rowRef} data-prid={pr.id} style={{ borderBottom: `1px solid ${C.hair}`, opacity: pr.paid ? 0.55 : 1 }}>
+    <div ref={rowRef} data-prid={pr.id} style={{ borderBottom: `1px solid ${C.hair}`, opacity: pr.paid && !isExpanded ? 0.55 : 1 }}>   {/* paid: only the folded line is faded, never its buttons */}
 
       {dialog && (
         <ConfirmDialog
@@ -331,8 +316,10 @@ export function ProjectRow({
                     <span style={{ color: C.muted }}>Delivery</span>
                     <I
                       type="date"
-                      value={pr.deliveryDate || ""}
-                      onChange={(e: any) => { const nv = e.target.value; if (nv) upP({ deliveryDate: nv }); }}
+                      key={`dd-${pr.deliveryDate || ""}`}
+                      defaultValue={pr.deliveryDate || ""}
+                      // saved when you leave the field (typing a year doesn't save in-between dates); empty = no date
+                      onBlur={(e: any) => { const nv = e.target.value || null; if (nv !== (pr.deliveryDate || null)) upP({ deliveryDate: nv }); }}
                       s={{ width: isMobile ? 140 : 150, padding: "5px 8px" }}
                     />
                   </div>
@@ -458,7 +445,7 @@ export function ProjectRow({
               <B s={NEXT} onClick={() => setDialog({ title: "Mark paid", dateLabel: "Paid on", okLabel: "Mark paid", run: (dt: string) => h.markInvoicePaid(cid, pid, pInv.id, dt) })}>Mark paid</B>
             )}
 
-            {pr.paid && !isRet && <>
+            {pr.paid && <>
               <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => setRenewT(pr)}>Add renewal</B>
               {pInv && pInv.status === "paid" && (
                 <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted }} onClick={() => setDialog({ title: "Undo paid", text: "The invoice goes back to unpaid.", okLabel: "Undo paid", run: () => h.markInvoiceUnpaid(cid, pid, pInv.id) })}>Undo paid</B>
@@ -485,9 +472,9 @@ export function ProjectRow({
             )}
 
             {(pr.amendments || []).map((a: any, ai: number) => amendDocsDraft(a) && (
-              <B key={a.id || ai} v="sec" s={{ fontSize: TYPE.micro.size, color: C.amber }}
-                onClick={() => setDialog({ title: `Undo amendment ${ai + 1}`, text: "The amendment draft is removed. The project value doesn't change (it only counts once signed).", okLabel: "Undo amendment", danger: true, run: () => h.removeAmendment(cid, pid, a.id) })}>
-                Undo amend {ai + 1}
+              <B key={a.id || ai} v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted }}
+                onClick={() => setDialog({ title: `Undo ${amendShort(a, ai)}`, text: "The amendment draft is removed. The project value doesn't change (it only counts once signed).", okLabel: "Undo amendment", danger: true, run: () => h.removeAmendment(cid, pid, a.id) })}>
+                Undo {amendShort(a, ai)}
               </B>
             ))}
 
@@ -602,7 +589,7 @@ export default function ProjectsTab({
     : active.filter((pr: any) => pr.status === statusFilter || (statusFilter === "quoted" && pr.status === "revised"));
 
   const activeTotal  = active.reduce((s: number, pr: any) => s + pr.amount, 0);
-  const doneTotal    = doneShown.reduce((s: number, pr: any) => s + pr.amount, 0);
+  const doneTotal    = doneShown.reduce((s: number, pr: any) => s + paidNet(pr), 0);   // paid invoices (net), not project amounts
   const byStatus     = (st: string) => active.filter((pr: any) => pr.status === st).length;
   const invoicedAmt  = active.filter((pr: any) => pr.status === "invoiced").reduce((s: number, pr: any) => s + pr.amount, 0);
 
