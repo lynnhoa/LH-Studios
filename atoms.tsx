@@ -461,6 +461,7 @@ export const ConfirmDialog = ({ title, text, dateLabel, okLabel, cancelLabel = "
 };
 
 // ─── SAVE TOAST (Saving… / Saved ✓ / Couldn't save) ─────────
+// --toast-lift: set by the document window so the toast sits above its bottom bar
 export const SaveToast = () => {
   const [st, setSt] = useState(saveStatus.get());
   const [showSaved, setShowSaved] = useState(false);
@@ -471,7 +472,7 @@ export const SaveToast = () => {
     const t = setTimeout(() => setShowSaved(false), 1500);
     return () => clearTimeout(t);
   }, [st.savedAt, st.pending]);
-  const base: any = { position: "fixed", left: "50%", bottom: 20, transform: "translateX(-50%)", zIndex: Z.toast, borderRadius: RADIUS.tile, padding: "8px 14px", fontFamily: SANS, fontSize: TYPE.label.size, letterSpacing: TRACK.tag, boxShadow: SHADOW.pop, display: "flex", alignItems: "center", gap: 12, maxWidth: "calc(100vw - 32px)" };
+  const base: any = { position: "fixed", left: "50%", bottom: "calc(20px + var(--toast-lift, 0px))", transform: "translateX(-50%)", zIndex: Z.toast, borderRadius: RADIUS.tile, padding: "8px 14px", fontFamily: SANS, fontSize: TYPE.label.size, letterSpacing: TRACK.tag, boxShadow: SHADOW.pop, display: "flex", alignItems: "center", gap: 12, maxWidth: "calc(100vw - 32px)" };
   if (st.error) return (
     <div style={{ ...base, background: TINT_RED, border: `1px solid ${PAL.late.fill}`, color: C.red }}>
       <span>Couldn't save — {st.error}. Your last change was undone.</span>

@@ -16,7 +16,7 @@ import RenewalModal from "./RenewalModal";
 import ProductionSection from "./ProductionSection";
 import PDFModal from "./PDFModal";
 import type { DocAction } from "./PDFModal";
-import { sortDocs, docLabel, currentContract, projectInvoice, monthlyInvoices, nextRetainerMonth, renewalInvoice, amendmentDoc, docsOf, isPaidInvoice, isOpenInvoice } from "./docs";
+import { sortDocs, docLabel, currentContract, currentQuote, projectInvoice, monthlyInvoices, nextRetainerMonth, renewalInvoice, amendmentDoc, docsOf, isPaidInvoice, isOpenInvoice } from "./docs";
 import type { DocRecord } from "./types";
 
 // Document chip dot colour by status
@@ -138,39 +138,45 @@ function ProjectRow({
   // ── Status actions for one document (shown in the document modal) ──
   const flow = pdfFlow(h, cid, pid, settings);
 
+  // In the document window: the main button (right) is the next step, "side" sits on the
+  // left, "more" under the page. Sending itself is the window's own "Send to client".
   const docActions = (d: DocRecord): DocAction[] => {
     const close = () => { setOpenDocId(null); onModalClosed(); };
-    if (d.kind === "quote" && d.status === "draft") return [
-      { key: "sent", label: "Mark sent", kind: "sec", run: () => h.markDocSent(cid, pid, d.id, settings) },
-    ];
+    if (d.kind === "quote") {
+      // the current sent quote can be revised (as long as no contract exists)
+      const cur = currentQuote(pr);
+      if (d.status === "sent" && cur && cur.id === d.id && ["quoted", "revised"].includes(pr.status)) return [
+        { key: "revise", label: "Revise", slot: "side", run: () => { close(); onRevise(pr, cl); } },
+      ];
+      return [];
+    }
     if (d.kind === "contract") {
-      const sign: DocAction = { key: "signed", label: "Mark signed", kind: "pri", date: "Signed on", run: async (dt?: string) => { await h.markContractSigned(cid, pid, d.id, dt || today(), settings); askDelivery(); } };
-      if (d.status === "draft") return [{ key: "sent", label: "Mark sent", kind: "sec", run: () => h.markDocSent(cid, pid, d.id, settings) }, sign];
+      const sign: DocAction = { key: "signed", label: "Mark signed", slot: "main", date: "Signed on", run: async (dt?: string) => { await h.markContractSigned(cid, pid, d.id, dt || today(), settings); askDelivery(); } };
+      if (d.status === "draft") return [{ ...sign, slot: "more" }];      // signed without sending (in person)
       if (d.status === "sent")  return [sign];
       return [];
     }
     if (d.kind === "amendment") {
-      const sign: DocAction = { key: "signed", label: "Mark signed", kind: "pri", date: "Signed on", run: (dt?: string) => h.markAmendmentSigned(cid, pid, d.id, dt || today(), settings) };
+      const sign: DocAction = { key: "signed", label: "Mark signed", slot: "main", date: "Signed on", run: (dt?: string) => h.markAmendmentSigned(cid, pid, d.id, dt || today(), settings) };
       if (d.status === "draft") return [
-        { key: "sent", label: "Mark sent", kind: "sec", run: () => h.markDocSent(cid, pid, d.id, settings) },
-        { key: "remove", label: "Remove amendment", kind: "danger", confirm: "The amendment draft is removed. The project value doesn't change (it only counts once signed).", run: async () => { if (d.amendmentId) await h.removeAmendment(cid, pid, d.amendmentId); else await h.deleteDraftDocument(cid, pid, d.id); close(); } },
-        sign,
+        { key: "remove", label: "Remove amendment", kind: "danger", slot: "more", confirm: "The amendment draft is removed. The project value doesn't change (it only counts once signed).", run: async () => { if (d.amendmentId) await h.removeAmendment(cid, pid, d.amendmentId); else await h.deleteDraftDocument(cid, pid, d.id); close(); } },
+        { ...sign, slot: "more" },
       ];
       if (d.status === "sent") return [sign];
       return [];
     }
     if (d.kind === "invoice" && d.subtype !== "storno") {
+      const cancel: DocAction = { key: "cancel", label: "Cancel invoice", kind: "danger", slot: "more", confirm: "Creates a cancellation invoice (Storno) with its own number. The original stays on file.", run: async () => { const st = await h.cancelInvoice(cid, pid, d.id, settings); if (st) setOpenDocId(st.id); } };
       if (d.status === "draft") return [
-        { key: "delete", label: "Delete draft", kind: "danger", confirm: "The draft is deleted. No invoice number has been used yet.", run: async () => { await h.cancelInvoice(cid, pid, d.id, settings); close(); } },
-        { key: "final", label: "Finalize", kind: "pri", confirm: finalizeQuestion(settings), run: () => h.finalizeInvoice(cid, pid, d.id, settings) },
+        { key: "delete", label: "Delete draft", kind: "danger", slot: "more", confirm: "The draft is deleted. No invoice number has been used yet.", run: async () => { await h.cancelInvoice(cid, pid, d.id, settings); close(); } },
       ];
       if (d.status === "sent") return [
-        { key: "cancel", label: "Cancel invoice", kind: "danger", confirm: "Creates a cancellation invoice (Storno) with its own number. The original stays on file.", run: async () => { const st = await h.cancelInvoice(cid, pid, d.id, settings); if (st) setOpenDocId(st.id); } },
-        { key: "paid", label: "Mark paid", kind: "pri", date: "Paid on", run: (dt?: string) => h.markInvoicePaid(cid, pid, d.id, dt || today()) },
+        { key: "paid", label: "Mark paid", slot: "main", date: "Paid on", run: (dt?: string) => h.markInvoicePaid(cid, pid, d.id, dt || today()) },
+        cancel,
       ];
       if (d.status === "paid") return [
-        { key: "cancel", label: "Cancel invoice", kind: "danger", confirm: "Creates a cancellation invoice (Storno) with its own number. The original stays on file.", run: async () => { const st = await h.cancelInvoice(cid, pid, d.id, settings); if (st) setOpenDocId(st.id); } },
-        { key: "unpaid", label: "Mark unpaid", kind: "sec", run: () => h.markInvoiceUnpaid(cid, pid, d.id) },
+        cancel,
+        { key: "unpaid", label: "Mark unpaid", slot: "more", run: () => h.markInvoiceUnpaid(cid, pid, d.id) },
       ];
     }
     return [];
@@ -178,10 +184,9 @@ function ProjectRow({
 
   const docNote = (d: DocRecord): string | undefined => {
     if (d.status !== "draft") return undefined;
-    if (d.kind === "invoice")  return "Draft — Save PDF (or Finalize) gives it its number.";
-    if (d.kind === "quote")    return "Draft — Save PDF marks it as sent. Later changes become a new revision.";
-    if (d.kind === "contract") return "Draft — Save PDF marks it as sent.";
-    return "Draft — Save PDF marks it as sent.";
+    if (d.kind === "invoice")  return "Draft — Send to client gives it its number (you're asked first).";
+    if (d.kind === "quote")    return "Draft — Send to client marks it as sent once you've shared it. Later changes become a new revision.";
+    return "Draft — Send to client marks it as sent once you've shared it.";
   };
 
   // ── Modals ──

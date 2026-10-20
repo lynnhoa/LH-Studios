@@ -26,7 +26,6 @@ import {
 } from "./pricing";
 import { retDiscOf, vatInfo } from "./docs";
 import { quoteDraft } from "./quoteDraft";
-import { sendQuestion } from "./docFlow";
 
 interface CalcProps {
   isMobile:    boolean;
@@ -37,6 +36,7 @@ interface CalcProps {
   clearPrefill:() => void;
   clientsHook: any;
   onAfterSave: (projectId: string) => void;
+  onRevise?:   (projectId: string, clientId: string) => void;   // "Revise" on a sent quote
 }
 
 const catTitle = (rc: any, key: string) =>
@@ -88,7 +88,7 @@ const sign = (plus: boolean, on: boolean) => (
 );
 
 export default function Calculator({
-  isMobile, settings, rc: rawRc, rcReady = true, prefill, clearPrefill, clientsHook, onAfterSave,
+  isMobile, settings, rc: rawRc, rcReady = true, prefill, clearPrefill, clientsHook, onAfterSave, onRevise,
 }: CalcProps) {
   const rc      = useMemo(() => normalizeCards(rawRc), [rawRc]);
   const isRev   = !!prefill?.isRev;
@@ -485,7 +485,7 @@ export default function Calculator({
   // ── Preview / saved document ──────────────────────────────
   const [saved, setSaved] = useState<{ clientId: string; projectId: string; docId: string } | null>(null);
   const savedRef = useRef<{ clientId: string; projectId: string; docId: string } | null>(null);
-  // Send…: a draft quote / amendment is marked sent first (no "DRAFT" on the PDF)
+  // Send to client: once the PDF is shared, the saved draft is marked sent
   const pdfPrep = async (d: any) => {
     const s = savedRef.current;
     if (!s || d.status !== "draft") return d;
@@ -500,59 +500,52 @@ export default function Calculator({
     const sClient  = saved ? (clientsHook.clients || []).find((c: any) => c.id === saved.clientId) : null;
     const sProject = sClient ? sClient.projects.find((p: any) => p.id === saved.projectId) : null;
     const sDoc     = sProject ? (sProject.documents || []).find((d: any) => d.id === saved!.docId) : null;
-    if (sDoc) {
-      return (
-        <PDFModal
-          key={sDoc.id}
-          doc={sDoc}
-          settings={settings}
-          client={sClient}
-          editable={sDoc.status === "draft"}
-          justSaved={true}
-          note={sDoc.status === "draft" ? "Saved. You can still change it — Send… marks it as sent." : undefined}
-          onSave={async (next: any) => clientsHook.updateDocument(saved!.clientId, saved!.projectId, sDoc.id, next, settings)}
-          onPdf={pdfPrep}
-          pdfConfirm={sendQuestion}
-          onClose={() => { const pid = saved!.projectId; setPdf(null); setSaved(null); savedRef.current = null; if (onAfterSave) onAfterSave(pid); }}
-        />
-      );
-    }
+    // One window from the preview to the sent quote: saving hands it the stored document
+    // (same key), so a Send that has just saved goes on in the same window.
+    const saveNew = async (doc: any) => {
+      if (!isAmend && !isRev && !locked) {
+        if (!String(brandName || "").trim()) throw new Error("Add the client's name first.");
+        if (!String(projName || leadSel?.name || "").trim()) throw new Error("Add a project name first.");
+      }
+      const res = await clientsHook.saveQuote({
+        doc, brand: brandName, contact: doc.data?.contact || contact,
+        mode: isAmend ? "amend" : isRev ? "revise" : "new",
+        projectName: projName || leadSel?.name || "",
+        projectId: locked ? prefill?.pid : (leadSel ? leadSel.id : undefined),
+        clientId:  locked ? prefill?.cid : (selClient?.id || dupe?.id),
+        settings,
+      });
+      if (res.error) throw new Error(res.error);
+      if (res.document) {
+        savedRef.current = { clientId: res.clientId, projectId: res.projectId, docId: res.document.id };
+        setSaved(savedRef.current);
+      }
+      // the saved quote must not come back as the next new quote; the prefill is
+      // cleared by the app when the saved document closes (→ Projects)
+      skipDraft.current = true;
+      quoteDraft.clear(draftKey);
+      setLines([]); setRetOn(false); setRights(NO_RIGHTS); setShowDisc(false);
+      return res.document;
+    };
+    const closeSaved = () => { const pid = saved!.projectId; setPdf(null); setSaved(null); savedRef.current = null; if (onAfterSave) onAfterSave(pid); };
+    // a sent quote: "Revise" opens it again here as the next revision
+    const revise = sDoc && onRevise && sDoc.kind === "quote" && sDoc.status === "sent"
+      ? [{ key: "revise", label: "Revise", slot: "side" as const, run: () => { const s = saved!; setPdf(null); setSaved(null); savedRef.current = null; onRevise(s.projectId, s.clientId); } }]
+      : [];
     return (
       <PDFModal
-        doc={pdf}
+        key="calc-doc"
+        doc={sDoc || pdf}
         settings={settings}
-        client={selClient || dupe || undefined}
-        editable={true}
-        isNew={true}
-        note={isAmend ? "The amendment number is assigned when you save." : isRev ? undefined : "The quote number is assigned when you save."}
-        onClose={() => setPdf(null)}
-        onSave={async (doc: any) => {
-          if (!isAmend && !isRev && !locked) {
-            if (!String(brandName || "").trim()) throw new Error("Add the client's name first.");
-            if (!String(projName || leadSel?.name || "").trim()) throw new Error("Add a project name first.");
-          }
-          const res = await clientsHook.saveQuote({
-            doc, brand: brandName, contact: doc.data?.contact || contact,
-            mode: isAmend ? "amend" : isRev ? "revise" : "new",
-            projectName: projName || leadSel?.name || "",
-            projectId: locked ? prefill?.pid : (leadSel ? leadSel.id : undefined),
-            clientId:  locked ? prefill?.cid : (selClient?.id || dupe?.id),
-            settings,
-          });
-          if (res.error) throw new Error(res.error);
-          if (res.document) {
-            savedRef.current = { clientId: res.clientId, projectId: res.projectId, docId: res.document.id };
-            setSaved(savedRef.current);
-          }
-          // the saved quote must not come back as the next new quote; the prefill is
-          // cleared by the app when the saved document closes (→ Projects)
-          skipDraft.current = true;
-          quoteDraft.clear(draftKey);
-          setLines([]); setRetOn(false); setRights(NO_RIGHTS); setShowDisc(false);
-          return res.document;
-        }}
+        client={sDoc ? sClient : (selClient || dupe || undefined)}
+        editable={sDoc ? sDoc.status === "draft" : true}
+        isNew={!sDoc}
+        justSaved={!!sDoc}
+        note={sDoc && sDoc.status === "draft" ? "Saved. Send to client marks it as sent once you've shared it." : undefined}
+        onSave={sDoc ? (async (next: any) => clientsHook.updateDocument(saved!.clientId, saved!.projectId, sDoc.id, next, settings)) : saveNew}
         onPdf={pdfPrep}
-        pdfConfirm={sendQuestion}
+        actions={revise}
+        onClose={sDoc ? closeSaved : () => setPdf(null)}
       />
     );
   }

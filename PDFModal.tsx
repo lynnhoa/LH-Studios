@@ -1,30 +1,41 @@
 import { createPortal } from "react-dom";
 // ─────────────────────────────────────────────────────────────
-// PDFModal — the one document modal
-// Preview (all pages) + edit panel for drafts. Sent / signed /
-// paid documents are read-only. Status actions (Mark sent,
-// Finalize, Mark paid …) come from the caller and sit in one bar.
-// After Save the modal stays open and returns to the read view.
+// PDFModal — the one document window
+// Top bar: ✕ · EN/DE · status. Bottom bar (where "Preview quote" sits in the
+// Calculator): the main button on the right = the next step, at most one more on
+// the left. Rare actions sit under the page.
+//   not saved   Save draft · Send to client
+//   draft       Edit · Send to client          under the page: Share draft …
+//   editing     Cancel · Save                  Save returns to the read view
+//   sent …      Share PDF · the next step (Mark signed / Mark paid)
+//               or the caller's side action (Revise) · Share PDF
+// Send to client opens the phone's share sheet in the same tap — the PDF is made
+// in the background while the window is open. Once it's shared, the draft is
+// marked sent; closing the share sheet changes nothing. An invoice is asked once
+// first, because it gets its number before the PDF. On a computer: download.
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { C, SANS, SERIF, TYPE, Z, PAL, TRACK, ICON, RADIUS } from "./constants";
+import { C, SANS, SERIF, TYPE, Z, PAL, TRACK, ICON, RADIUS, SHADOW } from "./constants";
 import type { Tone } from "./constants";
-import { I, B, Lbl, Pill, ConfirmDialog, LangSwitch, BAR_BTN, NumField } from "./atoms";
+import { I, B, Lbl, ConfirmDialog, LangSwitch, NumField, PillBtn } from "./atoms";
 import { isMobileDevice } from "./PDFExport";
 import { editLock } from "./saveStatus";
 import { fmt, r2 } from "./formatters";
-import { openPdfWindow } from "./PDFExport";
 import DocPages, { buildDocPdf } from "./DocPages";
 import { clauseContext, clauseTemplates, fillTokens, tokenizeClause } from "./A4Document";
 import { STATUS_LABEL, docFileName, lineAmt, lineQty } from "./docs";
 import { requantify, lineBase } from "./pricing";
+import { sentVersion } from "./docFlow";
 import type { DocView } from "./docs";
 
 export interface DocAction {
   key:      string;
   label:    string;
   kind?:    "pri" | "sec" | "danger";
+  // main = right (the next step) · side = left · more = under the page
+  // (default: pri → main, sec → side, danger → more)
+  slot?:    "main" | "side" | "more";
   confirm?: string;                       // ask before running
   date?:    string;                       // ask for a date (label) before running
   run:      (date?: string) => Promise<void> | void;
@@ -39,19 +50,45 @@ interface PDFModalProps {
   justSaved?: boolean;
   note?:      string;
   onSave?:    (next: DocView) => Promise<DocView | void>;   // returns the stored document
-  onPdf?:     (d: DocView) => Promise<DocView>;            // before the PDF: mark sent / finalize
-  pdfConfirm?:(d: DocView) => string | null;               // one question before "Send…"
-  sendBlock?: (d: DocView) => string | null;               // stops "Send…" (invoice checklist)
+  onPdf?:     (d: DocView) => Promise<DocView>;            // once sent: mark sent / an invoice gets its number
+  pdfConfirm?:(d: DocView) => string | null;               // one question before sending (invoice number)
+  sendBlock?: (d: DocView) => string | null;               // stops sending (invoice checklist)
   actions?:   DocAction[];
   onClose:    () => void;
 }
 
 const clone = (x: any) => JSON.parse(JSON.stringify(x));
+const slotOf = (a: DocAction) => a.slot || (a.kind === "pri" ? "main" : a.kind === "danger" ? "more" : "side");
+const SENDABLE = ["quote", "contract", "amendment", "invoice"];
 
 // palette meaning: draft = maybe · sent = waiting · signed = in progress · paid = done · cancelled = late
 const DOC_TONE: Record<string, Tone> = {
   draft: "neutral", sent: "waiting", signed: "progress", paid: "done", cancelled: "late", superseded: "neutral",
 };
+
+// A PDF made for the share sheet (or the download on a computer)
+interface Built { key: string; name: string; file: File; url: string }
+type Outcome = "shared" | "closed" | "blocked" | "saved";
+const keyOf = (d: DocView) => JSON.stringify(d);
+
+// Opens the phone's share sheet — straight from the tap, nothing slow before it, or the
+// phone refuses ("blocked"). Closed sheet → "closed". Computer: the PDF is downloaded.
+function deliver(b: Built): Promise<Outcome> {
+  const nav: any = navigator;
+  let can = false;
+  try { can = !!(nav.canShare && nav.share && nav.canShare({ files: [b.file] })); } catch { can = false; }
+  if (can) {
+    return nav.share({ files: [b.file], title: b.name }).then(
+      () => "shared" as Outcome,
+      (e: any) => e?.name === "AbortError" ? "closed" as Outcome : e?.name === "NotAllowedError" ? "blocked" as Outcome : Promise.reject(e),
+    );
+  }
+  if (isMobileDevice()) { window.open(b.url, "_blank"); return Promise.resolve("saved" as Outcome); }
+  const a = document.createElement("a");
+  a.href = b.url; a.download = `${b.name}.pdf`;
+  document.body.appendChild(a); a.click(); a.remove();
+  return Promise.resolve("saved" as Outcome);
+}
 
 // Quantity of a line in the edit panel: type freely; the line is priced again once you
 // leave the field (or press Enter), so in-between numbers never touch the price.
@@ -70,24 +107,30 @@ function QtyInput({ value, onCommit }: { value: number; onCommit: (q: number) =>
 }
 
 export default function PDFModal({
-  doc, settings, client, editable, isNew, justSaved, note, onSave, onPdf, pdfConfirm, sendBlock, actions = [], onClose,
+  doc, settings, client, editable, isNew, note, onSave, onPdf, pdfConfirm, sendBlock, actions = [], onClose,
 }: PDFModalProps) {
-  const [hs,           setHs]           = useState({ hist: [clone(doc)], idx: 0 });
-  const [lang,         setLang]         = useState<"en" | "de">(doc.lang || "en");
-  const [panelW,       setPanelW]       = useState(380);
-  const [flash,        setFlash]        = useState<string | null>(justSaved ? "saved" : null);
-  const [saving,       setSaving]       = useState(false);
-  const [busy,         setBusy]         = useState<string | null>(null);
-  const [err,          setErr]          = useState<string | null>(null);
-  const [downloading,  setDownloading]  = useState(false);
-  const [showEdit,     setShowEdit]     = useState(false);
-  const [confirmClose, setConfirmClose] = useState(false);
-  const [dialog,       setDialog]       = useState<{ action: DocAction } | null>(null);
-  const [pdfAsk,       setPdfAsk]       = useState<string | null>(null);
-  const [winW,         setWinW]         = useState(() => window.innerWidth);
+  const [hs,         setHs]         = useState({ hist: [clone(doc)], idx: 0 });
+  const [lang,       setLang]       = useState<"en" | "de">(doc.lang || "en");
+  const [panelW,     setPanelW]     = useState(380);
+  const [saving,     setSaving]     = useState(false);
+  const [busy,       setBusy]       = useState<string | null>(null);
+  const [msg,        setMsg]        = useState<{ text: string; err?: boolean } | null>(null);
+  const [showEdit,   setShowEdit]   = useState(false);
+  const [askDiscard, setAskDiscard] = useState<"cancel" | "close" | null>(null);
+  const [dialog,     setDialog]     = useState<{ action: DocAction } | null>(null);
+  const [pdfAsk,     setPdfAsk]     = useState<string | null>(null);
+  const [blockMsg,   setBlockMsg]   = useState<string | null>(null);
+  const [winW,       setWinW]       = useState(() => window.innerWidth);
 
   const baseRef  = useRef<string>(JSON.stringify({ ...clone(doc), lang: doc.lang || "en" }));
   const pagesRef = useRef<HTMLDivElement>(null);
+  // the latest props, for work that continues after a save (the window may get the saved document)
+  const propsRef = useRef({ settings, client, onPdf });
+  propsRef.current = { settings, client, onPdf };
+  // PDFs made in the background: one promise per content, and the finished ones for an instant share
+  const cache = useRef(new Map<string, Promise<Built>>());
+  const done  = useRef(new Map<string, Built>());
+  const alive = useRef(true);
 
   const staged   = hs.hist[hs.idx] as DocView;
   const current  = useMemo(() => ({ ...staged, lang } as DocView), [staged, lang]);
@@ -95,6 +138,19 @@ export default function PDFModal({
   const isMobile = winW < 768;
   const pageScale = isMobile ? Math.min(1, (winW - 32) / 595) : 1;
   const canEdit  = editable && !!onSave;
+  const editing  = canEdit && showEdit && !isNew;
+  const isDraft  = current.status === "draft";
+  const canSend  = isDraft && SENDABLE.includes(current.kind) && !!onPdf && (!isNew || !!onSave);
+  const settingsReady = !(settings && settings.__ready === false);
+
+  // What "Send to client" / "Share PDF" hands over: a saved draft as it will be once sent
+  // (no DRAFT mark, sender and client frozen in), a locked document as it is.
+  const target = useMemo<DocView | null>(() => {
+    if (isNew || dirty) return null;
+    if (!isDraft) return current;
+    return canSend ? sentVersion(current, settings, client) : null;
+  }, [current, isNew, dirty, isDraft, canSend, settings, client]);
+  const targetKey = target ? keyOf(target) : null;
 
   useEffect(() => {
     const fn = () => setWinW(window.innerWidth);
@@ -105,7 +161,21 @@ export default function PDFModal({
   // no background reloads while a document is open
   useEffect(() => editLock.acquire(), []);
 
-  // A fresh document from the parent (after Finalize, Mark paid …):
+  // the app's "Saving… / Saved ✓" toast sits above the bottom bar while the window is open
+  useEffect(() => {
+    alive.current = true;
+    const root = document.documentElement.style;
+    root.setProperty("--toast-lift", "calc(64px + env(safe-area-inset-bottom, 0px))");
+    return () => {
+      root.removeProperty("--toast-lift");
+      alive.current = false;
+      done.current.forEach(b => URL.revokeObjectURL(b.url));
+      done.current.clear();
+      cache.current.clear();
+    };
+  }, []);
+
+  // A fresh document from the parent (after Save, Send, Mark paid …):
   // take it over unless the user is in the middle of editing.
   useEffect(() => {
     const incoming = JSON.stringify({ ...clone(doc), lang: doc.lang || "en" });
@@ -117,11 +187,14 @@ export default function PDFModal({
     }
   }, [doc]);   // eslint-disable-line react-hooks/exhaustive-deps
 
+  // a hint fades after a while; an error stays until the next tap
   useEffect(() => {
-    if (!flash) return;
-    const t = setTimeout(() => setFlash(null), 2500);
+    if (!msg || msg.err) return;
+    const t = setTimeout(() => setMsg(null), 6000);
     return () => clearTimeout(t);
-  }, [flash]);
+  }, [msg]);
+  const say  = (text: string, err = false) => { if (alive.current) setMsg({ text, err }); };
+  const fail = (e: any) => say(e?.message || "Something went wrong", true);
 
   // ── History ─────────────────────────────────────────────────
   const setStaged = (fn: (p: DocView) => DocView) =>
@@ -135,66 +208,83 @@ export default function PDFModal({
   const undo = () => canUndo && setHs(p => ({ ...p, idx: p.idx - 1 }));
   const redo = () => canRedo && setHs(p => ({ ...p, idx: p.idx + 1 }));
 
+  // ── The PDF, made in the background ─────────────────────────
+  const buildFor = (d: DocView): Promise<Built> => {
+    const key = keyOf(d);
+    const hit = cache.current.get(key);
+    if (hit) return hit;
+    const { settings: st, client: cl } = propsRef.current;
+    if (st && st.__ready === false && !d.data?.sender) return Promise.reject(new Error("Your profile is still loading — try again in a moment."));
+    const p = buildDocPdf(d, st, cl).then((pdf: any) => {
+      const blob: Blob = pdf.output("blob");
+      const name = docFileName(d);
+      const b: Built = { key, name, file: new File([blob], `${name}.pdf`, { type: "application/pdf" }), url: URL.createObjectURL(blob) };
+      done.current.set(key, b);
+      return b;
+    });
+    p.catch(() => { cache.current.delete(key); });
+    cache.current.set(key, p);
+    // keep only the last few versions
+    while (cache.current.size > 4) {
+      const old = cache.current.keys().next().value as string;
+      cache.current.delete(old);
+      const ob = done.current.get(old);
+      if (ob) { URL.revokeObjectURL(ob.url); done.current.delete(old); }
+    }
+    return p;
+  };
+  // ready as soon as the window shows the document (and again after every change)
+  useEffect(() => {
+    if (!target || editing || !settingsReady) return;
+    const t = setTimeout(() => { buildFor(target).catch(() => {}); }, 300);
+    return () => clearTimeout(t);
+  }, [targetKey, editing, settingsReady]);   // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Save ────────────────────────────────────────────────────
   const save = async (): Promise<boolean> => {
     if (!onSave || saving) return false;
-    setSaving(true); setErr(null);
+    setSaving(true); setMsg(null);
     try {
       await onSave(current);
       baseRef.current = JSON.stringify(current);
-      setFlash("saved");
-      if (isMobile) setShowEdit(false);      // back to the read view
+      setShowEdit(false);                     // back to the read view
       return true;
     } catch (e: any) {
-      setErr(e?.message || "Save failed");
+      say(e?.message || "Save failed", true);
       return false;
     } finally {
-      setSaving(false);
+      if (alive.current) setSaving(false);
     }
   };
 
-  // ── Actions (Mark sent, Finalize …) ─────────────────────────
-  const runAction = async (a: DocAction, date?: string) => {
-    setErr(null);
-    if (dirty || isNew) {                   // unsaved edits are saved first
-      const ok = await save();
-      if (!ok) return;
+  // EN / DE on a saved draft is kept right away (it's not an edit)
+  const changeLang = (l: "en" | "de") => {
+    if (l === lang) return;
+    setLang(l);
+    if (canEdit && !isNew && !editing && onSave) {
+      const next = { ...staged, lang: l } as DocView;
+      baseRef.current = JSON.stringify(next);
+      onSave(next).catch(fail);
     }
-    setBusy(a.key);
-    try { await a.run(date); }
-    catch (e: any) { setErr(e?.message || "Something went wrong"); }
-    finally { setBusy(null); }
-  };
-  const clickAction = (a: DocAction) => {
-    if (a.date || a.confirm) setDialog({ action: a });
-    else runAction(a);
   };
 
-  // ── Close ───────────────────────────────────────────────────
-  const tryClose = () => {
-    if (canEdit && (isNew || dirty)) { setConfirmClose(true); return; }
-    onClose();
+  // ── Send to client ──────────────────────────────────────────
+  const markSent = async (d: DocView) => {
+    const fn = propsRef.current.onPdf;
+    if (!fn || d.status !== "draft") return;
+    setBusy("send");
+    try { await fn(d); }
+    catch (e: any) { say(`It was shared, but couldn't be marked as sent (${e?.message || "error"}). Tap Send to client again.`, true); }
+    finally { if (alive.current) setBusy(null); }
   };
-
-  // ── PDF: Draft PDF (nothing changes) · Send… (sent / numbered) · Share ──
-  // The PDF is drawn first; then Share opens the phone's share sheet (Mail, WhatsApp,
-  // Files) in its own tap — sharing has to start from a tap. Desktop: saved directly.
-  const [ready,    setReady]    = useState<null | { file: File; url: string; name: string; canShare: boolean }>(null);
-  const [blockMsg, setBlockMsg] = useState<string | null>(null);
-  const offerPdf = (pdf: any, name: string) => {
-    const blob: Blob = pdf.output("blob");
-    const file = new File([blob], `${name}.pdf`, { type: "application/pdf" });
-    const nav: any = navigator;
-    const canShare = !!(nav.canShare && nav.canShare({ files: [file] }));
-    if (canShare || isMobileDevice()) setReady({ file, url: URL.createObjectURL(blob), name, canShare });
-    else pdf.save(`${name}.pdf`);
+  const afterSend = async (o: Outcome, d: DocView, numbered: boolean) => {
+    if (o === "shared" || o === "saved") { if (!numbered) await markSent(d); return; }
+    if (numbered) { say(d.kind === "invoice" ? `${d.docNo} is final. Tap Share PDF to send it.` : "It's marked as sent. Tap Share PDF to send it."); return; }
+    if (o === "blocked") say("The PDF is ready. Tap Send to client again.");
   };
-  const startPdf = async (mode: "draft" | "send" | "asis") => {
-    setErr(null); setReady(null);
-    if (settings && settings.__ready === false && !current.data?.sender) {
-      setErr("Your profile is still loading — try again in a moment."); return;
-    }
-    setDownloading(true);
+  // slow way: save first / an invoice gets its number, then the PDF, then the share sheet
+  const sendSlow = async () => {
+    setBusy("send"); setMsg(null);
     try {
       let d: DocView = current;
       if (canEdit && (isNew || dirty)) {
@@ -203,30 +293,102 @@ export default function PDFModal({
         setSaving(false);
         if (res) d = res as DocView;
         baseRef.current = JSON.stringify(current);
-        setFlash("saved");
+        await new Promise(r => setTimeout(r, 60));   // the window takes the saved document
       }
-      if (mode === "send" && onPdf && d.status === "draft") d = await onPdf(d);
-      const name = docFileName(d);
-      offerPdf(await buildDocPdf({ ...d, lang } as DocView, settings, client), name);
+      d = { ...d, lang } as DocView;
+      let numbered = false;
+      let send: DocView | null;
+      if (d.kind === "invoice" && d.status === "draft") {
+        const fn = propsRef.current.onPdf;
+        if (!fn) throw new Error("This invoice can't be sent from here.");
+        d = { ...(await fn(d)), lang } as DocView;
+        numbered = true;
+        send = d;
+      } else {
+        send = sentVersion(d, propsRef.current.settings, propsRef.current.client);
+        if (!send) {                             // an older draft without a number: marked sent first, as before
+          const fn = propsRef.current.onPdf;
+          if (!fn) throw new Error("The PDF couldn't be prepared.");
+          d = { ...(await fn(d)), lang } as DocView;
+          numbered = true;
+          send = d;
+        }
+      }
+      const b = await buildFor(send);
+      const o = await deliver(b);
+      if (alive.current) setBusy(null);
+      await afterSend(o, d, numbered);
     } catch (e: any) {
-      setErr(e?.message || "The PDF couldn't be created.");
+      if (alive.current) setSaving(false);
+      fail(e);
     } finally {
-      setSaving(false);
-      setDownloading(false);
+      if (alive.current) setBusy(null);
     }
   };
-  const clickSend = () => {
-    if (downloading) return;
+  const sendToClient = () => {
+    if (busy || saving) return;
+    setMsg(null);
     const block = sendBlock ? sendBlock(current) : null;
     if (block) { setBlockMsg(block); return; }
     const ask = pdfConfirm ? pdfConfirm(current) : null;
     if (ask) { setPdfAsk(ask); return; }
-    startPdf("send");
+    const b = targetKey ? done.current.get(targetKey) : undefined;
+    if (b) {                                   // ready: the share sheet opens in this tap
+      const d = current;
+      deliver(b).then(o => afterSend(o, d, false)).catch(fail);
+      return;
+    }
+    sendSlow();
   };
-  const share = async () => {
-    if (!ready) return;
-    try { await (navigator as any).share({ files: [ready.file], title: ready.name }); }
-    catch (e: any) { if (e?.name !== "AbortError") setErr("Sharing didn't work — use Open instead."); }
+
+  // ── Share PDF (sent documents) · Share draft ────────────────
+  const shareNow = (d: DocView, busyKey: string, again: string) => {
+    if (busy || saving) return;
+    setMsg(null);
+    const b = done.current.get(keyOf(d));
+    if (b) { deliver(b).then(o => { if (o === "blocked") say(again); }).catch(fail); return; }
+    (async () => {
+      setBusy(busyKey);
+      try {
+        const bb = await buildFor(d);
+        if (alive.current) setBusy(null);
+        const o = await deliver(bb);
+        if (o === "blocked") say(again);
+      } catch (e: any) { fail(e); }
+      finally { if (alive.current) setBusy(null); }
+    })();
+  };
+  const sharePdf   = () => shareNow(current, "share", "The PDF is ready. Tap Share PDF again.");
+  const shareDraft = () => shareNow(current, "draft", "The draft PDF is ready. Tap Share draft again.");
+
+  // ── Caller actions (Mark signed, Mark paid, Revise …) ───────
+  const runAction = async (a: DocAction, date?: string) => {
+    setMsg(null);
+    if (dirty || isNew) {                   // unsaved edits are saved first
+      const ok = await save();
+      if (!ok) return;
+    }
+    setBusy(a.key);
+    try { await a.run(date); }
+    catch (e: any) { fail(e); }
+    finally { if (alive.current) setBusy(null); }
+  };
+  const clickAction = (a: DocAction) => {
+    if (busy) return;
+    if (a.date || a.confirm) setDialog({ action: a });
+    else runAction(a);
+  };
+
+  // ── Edit · Cancel · Close ───────────────────────────────────
+  const revert = () => {
+    const base = JSON.parse(baseRef.current);
+    setLang(base.lang || "en");
+    setHs({ hist: [base], idx: 0 });
+  };
+  const cancelEdit = () => { if (dirty) setAskDiscard("cancel"); else setShowEdit(false); };
+  const tryClose = () => {
+    if (editing && dirty) { setAskDiscard("close"); return; }
+    onClose();
   };
 
   // ── Line editing ────────────────────────────────────────────
@@ -288,65 +450,62 @@ export default function PDFModal({
     const t = PAL[isNew ? "neutral" : DOC_TONE[current.status] || "neutral"];
     return (
       <span style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: t.ink, background: t.fill, height: 22, padding: "0 8px", display: "inline-flex", alignItems: "center", borderRadius: RADIUS.tag, whiteSpace: "nowrap" as const, flexShrink: 0 }}>
-        {isNew ? "New" : STATUS_LABEL[current.status] || current.status}
+        {isNew ? "Not saved" : STATUS_LABEL[current.status] || current.status}
       </span>
     );
   })();
 
   const taStyle: any = { width: "100%", padding: "8px 10px", border: `1px solid ${C.field}`, background: C.white, fontFamily: SANS, fontSize: TYPE.field.size, color: C.black, borderRadius: RADIUS.field, outline: "none", resize: "vertical", boxSizing: "border-box", minHeight: 72 };
 
-  const showPanel   = canEdit && (!isMobile || showEdit);
-  const showPreview = !isMobile || !showEdit || !canEdit;
+  const showPanel   = editing;
+  const showPreview = !isMobile || !editing;
+
+  // ── The two buttons at the bottom + rare actions under the page ──
+  type Btn = { key: string; label: string; run: () => void; dim?: boolean };
+  const callerMain = actions.find(a => slotOf(a) === "main");
+  const callerSide = actions.find(a => slotOf(a) === "side");
+  const callerMore = actions.filter(a => slotOf(a) === "more");
+  const actBtn = (a: DocAction): Btn => ({ key: a.key, label: busy === a.key ? "…" : a.label, run: () => clickAction(a), dim: !!busy && busy !== a.key });
+  const sendBtn: Btn  = { key: "send", label: busy === "send" ? (saving ? "Saving…" : "Preparing…") : "Send to client", run: sendToClient, dim: !!busy && busy !== "send" };
+  const shareBtn: Btn = { key: "share", label: busy === "share" ? "Preparing…" : "Share PDF", run: sharePdf, dim: !!busy && busy !== "share" };
+  const draftLabel = busy === "draft" ? "Preparing…" : "Share draft";
+  let side: Btn | null = null;
+  let main: Btn | null = null;
+  const more: { key: string; label: string; danger?: boolean; run: () => void }[] = [];
+  if (editing) {
+    side = { key: "cancel", label: "Cancel", run: cancelEdit };
+    main = { key: "save", label: saving ? "Saving…" : "Save", run: () => { if (!saving) save(); }, dim: saving };
+  } else if (isNew) {
+    if (canEdit) side = { key: "savedraft", label: saving && busy !== "send" ? "Saving…" : "Save draft", run: () => { if (!saving && !busy) save(); }, dim: !!busy };
+    if (canSend) main = sendBtn;
+  } else if (isDraft) {
+    side = canEdit ? { key: "edit", label: "Edit", run: () => { setMsg(null); setShowEdit(true); } } : callerSide ? actBtn(callerSide) : null;
+    if (canSend) { main = sendBtn; more.push({ key: "sharedraft", label: draftLabel, run: shareDraft }); }
+    else main = { key: "sharedraft", label: draftLabel, run: shareDraft };
+  } else if (callerMain) {
+    main = actBtn(callerMain); side = shareBtn;
+  } else {
+    main = shareBtn; side = callerSide ? actBtn(callerSide) : null;
+  }
+  if (!editing && !isNew) callerMore.forEach(a => more.push({ key: a.key, label: busy === a.key ? "…" : a.label, danger: a.kind === "danger", run: () => clickAction(a) }));
+  const barBtn = (b: Btn, dark: boolean) => (
+    <PillBtn key={b.key} dark={dark} dim={b.dim} onClick={b.run}
+      s={{ height: 38, padding: "0 16px", fontSize: TYPE.row.size, justifyContent: "center", flex: isMobile ? 1 : "0 0 auto", minWidth: isMobile ? 0 : 150 }}>
+      {b.label}
+    </PillBtn>
+  );
 
   // a portal: the window always covers the whole screen, wherever it is opened from
   return createPortal(
     <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
 
-      {/* ── TOP BAR (one row: close on the left, actions on the right) ── */}
+      {/* ── TOP BAR: close · language · status ── */}
       <div style={{ height: 44, borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", padding: "0 8px 0 2px", gap: 6, flexShrink: 0 }}>
         <button onClick={tryClose} aria-label="Close" title="Close"
           style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: ICON.close, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
-        <LangSwitch lang={lang} onChange={setLang} />
-        {!(isMobile && current.status === "draft") && statusBadge}   {/* the page itself says DRAFT */}
-        <div style={{ flex: 1 }} />
-        {isMobile && canEdit && (
-          <B v="sec" onClick={() => setShowEdit(e => !e)} s={BAR_BTN}>{showEdit ? "View" : "Edit"}</B>
-        )}
-        {canEdit && (isNew || dirty) && (
-          <B v="sec" onClick={() => { save(); }} s={{ ...BAR_BTN, opacity: saving ? 0.5 : 1 }}>{saving ? "Saving…" : "Save"}</B>
-        )}
-        {current.status === "draft" ? <>
-          <B v="sec" onClick={() => !downloading && startPdf("draft")} s={{ ...BAR_BTN, opacity: downloading ? 0.5 : 1 }}>{isMobile ? "Draft" : "Draft PDF"}</B>
-          <B onClick={clickSend} s={{ ...BAR_BTN, opacity: downloading ? 0.5 : 1 }}>{downloading ? "Preparing…" : "Send…"}</B>
-        </> : (
-          <B onClick={() => !downloading && startPdf("asis")} s={{ ...BAR_BTN, opacity: downloading ? 0.5 : 1 }}>{downloading ? "Preparing…" : "Share PDF"}</B>
-        )}
+        <LangSwitch lang={lang} onChange={changeLang} />
+        {statusBadge}
       </div>
-
-      {/* ── ACTION BAR (status actions) ── */}
-      {blockMsg && <ConfirmDialog title="Before this invoice gets its number" text={blockMsg} okLabel="OK" onOk={() => setBlockMsg(null)} onCancel={() => setBlockMsg(null)} />}
-      {ready && (
-        <div style={{ borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", flexShrink: 0, background: PAL.done.wash }}>
-          <span style={{ flex: 1, fontSize: TYPE.row.size, color: PAL.done.ink }}>PDF ready</span>
-          {ready.canShare && <B onClick={share} s={{ minHeight: 36 }}>Share</B>}
-          <B v="sec" onClick={() => window.open(ready.url, "_blank")} s={{ minHeight: 36 }}>Open</B>
-        </div>
-      )}
-      {(actions.length > 0 || err || flash) && (
-        <div style={{ borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", flexWrap: "wrap" as const, flexShrink: 0 }}>
-          <div style={{ flex: 1, minWidth: 120 }}>
-            {err && <span style={{ fontSize: TYPE.label.size, color: C.red }}>{err}</span>}
-            {!err && flash === "saved" && <span style={{ fontSize: TYPE.label.size, color: C.green }}>Saved ✓</span>}
-          </div>
-          {actions.map(a => (
-            <B key={a.key} v={a.kind === "danger" ? "danger" : a.kind === "sec" ? "sec" : "pri"}
-              onClick={() => !busy && clickAction(a)}
-              s={{ minHeight: 36, padding: "0 14px", opacity: busy && busy !== a.key ? 0.4 : 1 }}>
-              {busy === a.key ? "…" : a.label}
-            </B>
-          ))}
-        </div>
-      )}
 
       {/* ── BODY ── */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden", flexDirection: isMobile ? "column" : "row" }}>
@@ -422,9 +581,6 @@ export default function PDFModal({
               <textarea value={staged.data?.footer || ""} onChange={(e: any) => setData(d => ({ ...d, footer: e.target.value }))} style={taStyle} />
             </div>
 
-            <div style={{ padding: "12px 18px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>
-              <B onClick={save} s={{ width: "100%", opacity: saving ? 0.5 : 1 }}>{saving ? "Saving…" : "Save"}</B>
-            </div>
           </div>
         )}
 
@@ -446,35 +602,49 @@ export default function PDFModal({
         {showPreview && (
           <div ref={pagesRef} style={{ flex: 1, background: C.muted, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isMobile ? "16px 0" : "32px 28px", gap: isMobile ? 16 : 28 }}>
             <DocPages doc={current} settings={settings} client={client} lang={lang} scale={pageScale} />
+            {more.length > 0 && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, justifyContent: "center", padding: "0 16px 8px" }}>
+                {more.map(m => (
+                  <B key={m.key} v={m.danger ? "danger" : "sec"} onClick={m.run}
+                    s={{ minHeight: 30, height: 30, padding: "0 12px", fontSize: TYPE.subtext.size }}>{m.label}</B>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* ── CONFIRM CLOSE ── */}
-      {confirmClose && (
+      {/* ── BOTTOM BAR: one main button (right) · at most one more (left) ── */}
+      <div style={{ flexShrink: 0, background: C.white, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar, padding: "11px 14px calc(14px + env(safe-area-inset-bottom, 0px))", fontFamily: SANS }}>
+        {msg && <div role="status" style={{ fontSize: TYPE.subtext.size, color: msg.err ? C.red : C.muted, lineHeight: 1.4, margin: "0 2px 9px" }}>{msg.text}</div>}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          {side && barBtn(side, false)}
+          {main && barBtn(main, true)}
+        </div>
+      </div>
+
+      {/* ── DIALOGS ── */}
+      {askDiscard && (
         <ConfirmDialog
-          title={isNew ? "Save this document?" : "Save before closing?"}
-          text={isNew ? "It will be added to the client's project." : "Changes will be lost if you don't save."}
-          error={err}
-          okLabel={saving ? "Saving…" : "Yes, save"}
-          cancelLabel="No, discard"
-          onOk={async () => { const ok = await save(); if (ok) { setConfirmClose(false); onClose(); } }}
-          onCancel={() => { setConfirmClose(false); setErr(null); onClose(); }}
+          title="Discard changes?"
+          text="Your changes to this document aren't saved."
+          okLabel="Discard"
+          cancelLabel="Keep editing"
+          danger
+          onOk={() => { const how = askDiscard; setAskDiscard(null); revert(); setShowEdit(false); if (how === "close") onClose(); }}
+          onCancel={() => setAskDiscard(null)}
         />
       )}
-
-      {/* ── QUESTION BEFORE THE PDF (draft invoice → finalize) ── */}
+      {blockMsg && <ConfirmDialog title="Before this invoice gets its number" text={blockMsg} okLabel="OK" onOk={() => setBlockMsg(null)} onCancel={() => setBlockMsg(null)} />}
       {pdfAsk && (
         <ConfirmDialog
-          title={current.kind === "invoice" ? "Number and send this invoice?" : `Send this ${current.kind === "contract" ? "contract" : current.kind === "amendment" ? "amendment" : "quote"}?`}
+          title={isInv ? "Number and send this invoice?" : "Send this document?"}
           text={pdfAsk}
           okLabel="Send"
-          onOk={() => { setPdfAsk(null); startPdf("send"); }}
+          onOk={() => { setPdfAsk(null); sendSlow(); }}
           onCancel={() => setPdfAsk(null)}
         />
       )}
-
-      {/* ── ACTION DIALOG (date / confirm) ── */}
       {dialog && (
         <ConfirmDialog
           title={dialog.action.label}

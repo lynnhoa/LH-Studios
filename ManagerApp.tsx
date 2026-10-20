@@ -339,6 +339,12 @@ export default function ManagerApp({
               setPrefill(null);
               goToProjects(projectId);
             }}
+            onRevise={(projectId: string, clientId: string) => {
+              // "Revise" on the quote just sent → the Calculator opens it as the next revision
+              const cl = (clientsHook.clients || []).find((c: any) => c.id === clientId);
+              const pr = cl ? (cl.projects || []).find((x: any) => x.id === projectId) : null;
+              if (pr && cl) onRevise(pr, cl);
+            }}
             clientsHook={clientsHook}
           />
         )}
