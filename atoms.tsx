@@ -815,3 +815,30 @@ export const Sheet = ({ title, onClose, right, children, footer }: { title: stri
     </div>,
     document.body
   );
+
+
+// ── ValuePill: a number shown as a small value (14 px in a 28 px pill); tap = edit in place.
+//    The field types at 16 px (no iPhone zoom) and is drawn at 14 px (scale .875).
+//    Enter or tapping away saves, Escape keeps the old value.
+export function ValuePill({ text, label, onCommit, width = 72 }: { text: string; label: string; onCommit: (t: string) => void; width?: number }) {
+  const [focus, setFocus] = useState(false);
+  const k = 0.875;
+  return (
+    <span style={{ position: "relative", display: "inline-block", width, height: 28, flexShrink: 0 }}>
+      <input key={text} defaultValue={text} aria-label={label} inputMode="numeric" placeholder="–"
+        onFocus={(e) => { setFocus(true); e.target.select(); }}
+        onBlur={(e) => { setFocus(false); if (e.target.value !== text) onCommit(e.target.value); }}
+        onKeyDown={(e) => { const el = e.target as HTMLInputElement; if (e.key === "Enter") el.blur(); if (e.key === "Escape") { el.value = text; el.blur(); } }}
+        style={{ position: "absolute", top: 0, right: 0, width: width / k, height: 28 / k, transform: `scale(${k})`, transformOrigin: "top right",
+          fontSize: 16, fontFamily: SANS, textAlign: "right" as const, padding: "0 11px", boxSizing: "border-box" as const, borderRadius: 8 / k,
+          border: `1px solid ${focus ? C.edge : "transparent"}`, background: focus ? C.white : PAL.neutral.wash, color: C.black, outline: "none", margin: 0 }} />
+    </span>
+  );
+}
+// ── WeekPill: ‹ Week 43 › in the 28 px switcher pill (same as the dashboard's year)
+export const WeekPill = ({ label, onPrev, onNext }: { label: string; onPrev: () => void; onNext: () => void }) => {
+  const arrow = (aria: string, ch: string, fn: () => void) => (
+    <button aria-label={aria} onClick={fn} style={{ background: "none", border: "none", padding: "0 9px", height: 28, cursor: "pointer", color: C.muted, fontFamily: SANS, fontSize: TYPE.subtext.size }}>{ch}</button>
+  );
+  return <SwitchPill>{arrow("Previous week", "‹", onPrev)}<span style={{ minWidth: 52, textAlign: "center" as const, whiteSpace: "nowrap" as const }}>{label}</span>{arrow("Next week", "›", onNext)}</SwitchPill>;
+};
