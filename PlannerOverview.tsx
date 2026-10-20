@@ -190,7 +190,7 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
     if (t.source === "pitches" && leadsN != null) sub = <>{sub}<span style={{ color: C.muted }}> · {leadsN} {leadsN === 1 ? "lead" : "leads"}</span></>;
     const ratio = t.source === "pitches" && spCovers ? (s.target ? Math.min(1, (s.actual ?? 0) / s.target) : 0) : ratioOf(t, monday);
     // an odd last tile spans both columns, so the grid stays even
-    return tile(t.id, mLook.border, shortName(t), value, sub, { ratio, done: s.done, empty: isTotal(t) && s.actual == null }, mCounted.length % 2 === 1 && k === mCounted.length - 1);
+    return tile(t.id, mLook.border, shortName(t), value, sub, { ratio, done: s.done, empty: (isTotal(t) && s.actual == null) || s.target == null }, mCounted.length % 2 === 1 && k === mCounted.length - 1);
   });
 
   // ── sales sprint (from Stage 2) ─────────────────────────────
@@ -222,7 +222,7 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
   const cLook = OWNER_LOOK.creator;
   const cTiles = cGoals.map(t => {
     const s = planner.stateOf(t, monday);
-    return tile(t.id, cLook.border, shortName(t), <>{s.actual ?? 0} {small(`/ ${s.target ?? "–"}`)}</>, goalSub(t), { ratio: 0, done: s.done });
+    return tile(t.id, cLook.border, shortName(t), <>{s.actual ?? 0} {small(`/ ${s.target ?? "–"}`)}</>, goalSub(t), { ratio: 0, done: s.done, empty: s.target == null });
   });
   const mine = items.filter(i => i.account === acc);
   const flow = [
@@ -240,7 +240,7 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
   const maxFlow = Math.max(1, ...flow.map(f => f.n));
   const flowCard = (
     <>
-      <BarList rows={flow.map(f => ({ key: f.l, label: f.l, value: String(f.n), pct: (f.n / maxFlow) * 100, color: f.l === "Posted" && f.n ? PAL.done.mid : undefined }))} />
+      <div style={{ marginTop: 10 }}><BarList rows={flow.map(f => ({ key: f.l, label: f.l, value: String(f.n), pct: (f.n / maxFlow) * 100, color: f.l === "Posted" && f.n ? PAL.done.mid : undefined }))} /></div>
       <LinkRow icon={<DashIcon tone={goal != null && doneMonth >= goal ? PAL.done : PAL.neutral}>{gl("M4 5h16v14H4zM4 15l5-5 4 4 3-3 4 4")}</DashIcon>} label={`Portfolio · ${monthName(monday).slice(0, 3)}`}
         tag={`${doneMonth} / ${goal ?? "–"}`} tone={goal != null && doneMonth >= goal ? PAL.done : PAL.waiting} tagFilled={goal != null} />
       {fs && fsT && <LinkRow icon={<DashIcon tone={fs.done ? PAL.done : PAL.neutral}>{gl("M5 12l4 4 10-10")}</DashIcon>} label="First set" tag={`${fs.actual ?? 0} / ${fsT.target ?? "–"}${fs.done ? " ✓" : ""}`} tone={fs.done ? PAL.done : PAL.waiting} />}
