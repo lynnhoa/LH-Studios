@@ -5,13 +5,14 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase } from "./useSupabase";
+import { supabase, selectAll } from "./useSupabase";
 import { uid, today, monthStart, monthEnd, r2 } from "./formatters";
 import { registerReloader } from "./saveStatus";
 import {
   quoteNo, contractNo, amendNo, invoiceNo, projectNoFrom, pnoFromQNo, yearOf,
   docMoney, docNet, linesSum, senderSnapshot, clientSnapshot, profileGaps, dueFrom,
-  currentQuote, currentContract, projectInvoice, monthlyInvoices, nextRetainerMonth, retDiscOf, retainerInvoiceLines } from "./docs";
+  currentQuote, currentContract, projectInvoice, monthlyInvoices, nextRetainerMonth, retDiscOf, retainerInvoiceLines,
+  issueDates, reverseChargeGap, taxRule } from "./docs";
 import type {
   Client, Project, Amendment, Renewal, MonthlyInvoice,
   Deliverable, QuoteDoc, ProjectStatus, DocRecord,
@@ -300,13 +301,16 @@ export function useClients(userId: string | null): UseClientsReturn {
 
     setLoading(true);
 
+    // every row, page by page (Supabase sends at most 1,000 rows per answer);
+    // ordered by time, then id — rows with the same time can't be skipped or doubled
+    const mine = (q: any) => q.eq("user_id", userId).order("created_at").order("id");
     const results = await Promise.all([
-      supabase.from("clients")     .select("*").eq("user_id", userId).order("created_at"),
-      supabase.from("projects")    .select("*").eq("user_id", userId).order("created_at"),
-      supabase.from("amendments")  .select("*").eq("user_id", userId).order("created_at"),
-      supabase.from("renewals")    .select("*").eq("user_id", userId).order("created_at"),
+      selectAll("clients",    "*", mine),
+      selectAll("projects",   "*", mine),
+      selectAll("amendments", "*", mine),
+      selectAll("renewals",   "*", mine),
       Promise.resolve({ data: [], error: null }),   // old deliverables table: no longer used
-      supabase.from("documents")   .select("*").eq("user_id", userId).order("created_at"),
+      selectAll("documents",  "*", mine),
     ]);
 
     const cRows = results[0]?.data;
@@ -1078,7 +1082,8 @@ export function useClients(userId: string | null): UseClientsReturn {
     const { client, project } = findProject(clientId, projectId);
     const cur = findDoc(project, docId);
     if (cur.status !== "draft") return cur;
-    const content = { ...cur.data, sender: senderSnapshot(settings), client: clientSnapshot(client) };
+    // sender, client and the tax rule are frozen in: the document never changes after this
+    const content = { ...cur.data, sender: senderSnapshot(settings), client: clientSnapshot(client), tax: taxRule(settings, client) };
     return patchDoc(clientId, projectId, docId, {
       status: "sent", sentAt: today(), data: content, ...money(cur.kind, content, settings, client),
     });
@@ -1094,7 +1099,7 @@ export function useClients(userId: string | null): UseClientsReturn {
     if (q && q.status === "draft") await markDocSent(clientId, projectId, q.id, settings);   // accepted = sent
     const revs = (project.documents || []).filter(d => d.kind === "contract").map(d => d.revision);
     const rev  = revs.length ? Math.max(...revs) + 1 : 0;
-    const { sender: _s, client: _c, ...qd } = project.qd || ({} as any);
+    const { sender: _s, client: _c, tax: _t, ...qd } = project.qd || ({} as any);
     const content = { ...qd, qNo: quoteNo(pno), quoteNo: quoteNo(pno), contractNo: contractNo(pno), footer: "", clauseSet: 3 };   // set 2: § 4 with the start date · set 3: retainer fee per month
     const d = await insertDoc(clientId, projectId, {
       kind: "contract", docNo: contractNo(pno), revision: rev, status: "draft",
@@ -1112,7 +1117,7 @@ export function useClients(userId: string | null): UseClientsReturn {
     if (cur.status === "signed") throw new Error("A signed contract can't be revised — use Amend instead.");
     await patchDoc(clientId, projectId, cur.id, { status: "superseded" });
     const rev = cur.revision + 1;
-    const { sender: _s, client: _c, ...rest } = cur.data || {};
+    const { sender: _s, client: _c, tax: _t, ...rest } = cur.data || {};   // the new draft follows today's rules
     const content = { ...rest, clauseSet: 3 };   // not signed yet → the newest clause wording
     const d = await insertDoc(clientId, projectId, {
       kind: "contract", docNo: cur.docNo, revision: rev, status: "draft",
@@ -1125,10 +1130,15 @@ export function useClients(userId: string | null): UseClientsReturn {
   const markContractSigned = async (clientId: string, projectId: string, docId: string, date: string, settings: any) => {
     const { client, project } = findProject(clientId, projectId);
     const cur = findDoc(project, docId);
-    const content = cur.data?.sender ? cur.data : { ...cur.data, sender: senderSnapshot(settings), client: clientSnapshot(client) };
+    // signed without sending (a draft): frozen now, like Send does. A sent contract keeps
+    // exactly what was sent — its totals and tax rule don't change by signing.
+    const fresh = cur.status === "draft";
+    const content = fresh
+      ? { ...cur.data, sender: senderSnapshot(settings), client: clientSnapshot(client), tax: taxRule(settings, client) }
+      : cur.data?.sender ? cur.data : { ...cur.data, sender: senderSnapshot(settings), client: clientSnapshot(client) };
     const d = await patchDoc(clientId, projectId, docId, {
       status: "signed", signedAt: date || today(), sentAt: cur.sentAt || date || today(),
-      data: content, ...money(cur.kind, content, settings, client),
+      data: content, ...(fresh ? money(cur.kind, content, settings, client) : {}),
     });
     if (cur.kind === "contract" && project.status === "contracted") {
       await writeProject(clientId, projectId, { status: "production" });
@@ -1208,12 +1218,19 @@ export function useClients(userId: string | null): UseClientsReturn {
     const { client, project } = findProject(clientId, projectId);
     const cur = findDoc(project, docId);
     if (cur.status !== "draft") return cur;
-    // nothing in the profile is required — missing details are simply left off the invoice
-    const year = yearOf(cur.docDate);
+    // reverse charge needs your USt-IdNr on the invoice — checked before a number is used
+    const rc = reverseChargeGap(settings, client);
+    if (rc) throw new Error(rc);
+    // nothing else in the profile is required — missing details are simply left off the invoice.
+    // The invoice is dated the day it gets its number (a draft date in the past becomes today);
+    // the payment term stays, and the number's year follows the final date.
+    const dates = issueDates(cur.docDate, cur.dueDate);
+    const year = yearOf(dates.docDate);
     const no   = invoiceNo(year, await nextNumber(`invoice:${year}`));
-    const content = { ...cur.data, sender: senderSnapshot(settings), client: clientSnapshot(client) };
+    const content = { ...cur.data, sender: senderSnapshot(settings), client: clientSnapshot(client), tax: taxRule(settings, client) };
     const d = await patchDoc(clientId, projectId, docId, {
-      docNo: no, status: "sent", sentAt: today(), data: content, ...money("invoice", content, settings, client),
+      docNo: no, status: "sent", sentAt: today(), docDate: dates.docDate, dueDate: dates.dueDate,
+      data: content, ...money("invoice", content, settings, client),
     });
     if (cur.subtype === "project") await writeProject(clientId, projectId, { status: "invoiced", paid: false });
     if (cur.subtype === "renewal" && cur.renewalId) {

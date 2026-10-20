@@ -91,16 +91,19 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
   const syncWeek = sp && pitchT && sprintThisWeek ? { actual: sumWeek(sp, monday), target: weekShare } : null;
   useEffect(() => {
     if (!syncWeek || !pitchT || !sp) return;
-    // after the sprint, your own weekly pitch goal comes back (the sprint's share doesn't carry over)
+    // only once this week and the goal history are loaded (an empty screen must not decide what's saved)
+    if (!planner.weekReady || !planner.targetsReady) return;
+    // after the sprint, your own weekly pitch goal comes back (the sprint's share doesn't carry over) —
+    // unless the week after the sprint already has a goal of its own
     if (syncWeek.target != null) {
       const after = mondayOf(addDays(sp.endOn, 1));
       const own = planner.targetOf(pitchT.id, mondayOf(sp.startOn));        // read before the sprint week is overwritten
-      if (planner.entries[`${pitchT.id}|${after}`]?.target == null && own != null && own !== syncWeek.target) quiet(planner.saveEntry(pitchT.id, after, { target: own }));
+      if (!planner.hasTarget(pitchT.id, after) && own != null && own !== syncWeek.target) quiet(planner.saveEntry(pitchT.id, after, { target: own }));
     }
     const e = planner.entries[`${pitchT.id}|${monday}`];
     if ((e?.actual ?? null) !== syncWeek.actual || (syncWeek.target != null && (e?.target ?? null) !== syncWeek.target))
       quiet(planner.saveEntry(pitchT.id, monday, { actual: syncWeek.actual, ...(syncWeek.target != null ? { target: syncWeek.target } : {}) }));
-  }, [syncWeek?.actual, syncWeek?.target, pitchT?.id, monday]);
+  }, [syncWeek?.actual, syncWeek?.target, pitchT?.id, monday, planner.weekReady, planner.targetsReady]);
 
   // a day's numbers → the sprint, and the week's pitches follow (no typing twice)
   const saveDay = (s: Sprint, day: string, key: "p" | "f", v: number | null) => {

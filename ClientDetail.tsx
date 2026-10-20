@@ -15,6 +15,7 @@ import { projectLicenses, ACTION_LABEL } from "./licenses";
 import type { License } from "./licenses";
 import { clientTotals, STATUS_ORDER, followUp, validUntil, currentContractOf, daysSince } from "./money";
 import { editLock } from "./saveStatus";
+import { countryKnown } from "./docs";
 import { Ico, IC } from "./PlannerWindows";
 
 interface ClientDetailProps {
@@ -267,7 +268,9 @@ export default function ClientDetail({
           {infoRow("Email", cl.email)}
           {infoRow("Type", cl.agency)}
           {infoRow("Address", [cl.street, [cl.plz, cl.city].filter(Boolean).join(" ")].filter(Boolean).join(", "))}
-          {infoRow("Country", cl.country)}
+          {infoRow("Country", cl.country && !countryKnown(cl.country)
+            ? <>{cl.country}<span style={{ color: PAL.waiting.ink }}> · not recognised for VAT</span></>
+            : cl.country)}
           {infoRow("VAT ID", cl.vatId)}
         </>}
       </div>

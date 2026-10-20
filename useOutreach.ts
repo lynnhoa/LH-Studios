@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "./useSupabase";
+import { supabase, selectAll } from "./useSupabase";
 import { registerReloader } from "./saveStatus";
 import { today } from "./formatters";
 import type { OutreachContact, OutreachCategory, OutreachTier, OutreachStatus, Pitch, PitchAccount } from "./outreach";
@@ -44,7 +44,8 @@ export function useOutreach(userId: string | null) {
 
   const load = useCallback(async () => {
     if (!userId) { setContacts([]); setLoading(false); return; }
-    const res: any = await supabase.from("outreach_contacts").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+    // every contact, page by page (more than 1,000 is fine); newest first, then id
+    const res: any = await selectAll("outreach_contacts", "*", q => q.eq("user_id", userId).order("created_at", { ascending: false }).order("id"));
     if (res?.error) {
       // table not created yet → say so plainly
       const missing = /outreach_contacts/.test(res.error.message || "") && /exist|schema cache|relation/i.test(res.error.message || "");
@@ -54,7 +55,7 @@ export function useOutreach(userId: string | null) {
       setContacts((res?.data || []).map(rowToContact));
     }
     // the pitch log (Stage 2); if its table isn't there yet, the list still works
-    const pr: any = await supabase.from("outreach_pitches").select("*").eq("user_id", userId).order("sent_on");
+    const pr: any = await selectAll("outreach_pitches", "*", q => q.eq("user_id", userId).order("sent_on").order("id"));
     if (pr?.error) setPitchError(/outreach_pitches/.test(pr.error.message || "") ? "The pitch log table doesn't exist yet — run the Phase 6 SQL in Supabase once." : pr.error.message);
     else { setPitchError(null); setPitches((pr?.data || []).map(rowToPitch)); }
     setLoading(false);

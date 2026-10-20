@@ -77,8 +77,9 @@ export default function PlannerApp({ userId, settings, signOut, switchTo, banner
   // the Manager app opens straight on Service Catalog (rate cards inside)
   const openCatalog = () => { try { sessionStorage.setItem("lh_manager_open", "catalog"); } catch { /* ignore */ } switchTo("manager"); };
 
-  const avatar = (
-    <AvatarMenu settings={settings} roleLabel="Planner"
+  // phone: avatar on the right, the menu opens to the left · iPad / computer: avatar on the left, the menu opens to the right
+  const avatar = (dropLeft: boolean) => (
+    <AvatarMenu settings={settings} roleLabel="Planner" dropLeft={dropLeft}
       items={ACCOUNTS.map(a => ({ key: a.key, label: a.label, active: view.acc === a.key, onClick: () => setAccount(a.key) }))}
       apps={appItems("planner", switchTo)} onSignOut={() => { signOut(); }} />
   );
@@ -94,12 +95,12 @@ export default function PlannerApp({ userId, settings, signOut, switchTo, banner
             <div style={{ textAlign: "center", padding: "8px 20px 6px" }}><AppLogo size="nav" /></div>
             <div style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 44px 0 6px", borderTop: `1px solid ${C.rule}`, position: "relative" as const }}>
               <div style={{ display: "flex", minWidth: 0, overflowX: "auto" as const }}>{tabs(40, 8)}</div>
-              <div style={{ position: "absolute", right: 8 }}>{avatar}</div>
+              <div style={{ position: "absolute", right: 8 }}>{avatar(false)}</div>
             </div>
           </>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "0 28px", height: 56 }}>
-            <div style={{ display: "flex", alignItems: "center" }}>{avatar}</div>
+            <div style={{ display: "flex", alignItems: "center" }}>{avatar(true)}</div>
             <AppLogo size="nav" />
             <div style={{ display: "flex", justifyContent: "flex-end" }}>{tabs(56, 10)}</div>
           </div>

@@ -10,7 +10,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase } from "./useSupabase";
+import { supabase, selectAll } from "./useSupabase";
 import { registerReloader } from "./saveStatus";
 import { today, monthStart, ymd } from "./formatters";
 import {
@@ -174,6 +174,13 @@ const fail = (error: any) => { if (error) throw new Error(error.message || "Coul
 
 export type EntryPatch = Partial<Pick<Entry, "target" | "actual" | "days" | "done" | "note" | "data">>;
 
+// The periods whose entries are on screen (from … to). Day ticks and saved extras (data) are
+// built from what's on screen, so they are only saved for a period that is really loaded —
+// a week that's still loading shows empty and must not overwrite what's stored.
+export type Loaded = { from: string; to: string } | null;
+export const periodLoaded = (l: Loaded, period: string): boolean => !!l && period >= l.from && period <= l.to;
+export const rebuildsFromScreen = (patch: EntryPatch): boolean => "days" in patch || "data" in patch;
+
 export function usePlanner(userId: string | null, monday: string) {
   const [stages,    setStages]    = useState<Stage[]>([]);
   const [tasks,     setTasks]     = useState<Task[]>([]);
@@ -195,6 +202,11 @@ export function usePlanner(userId: string | null, monday: string) {
   const tasksRef   = useRef(tasks);   tasksRef.current   = tasks;
   const stagesRef  = useRef(stages);  stagesRef.current  = stages;
   const entriesRef = useRef(entries); entriesRef.current = entries;
+  // only the newest week load counts (switching weeks quickly: an older answer can arrive last)
+  const entriesReq = useRef(0);
+  const loadedRef  = useRef<Loaded>(null);                       // the periods whose entries are on screen
+  const [loadedWeek, setLoadedWeek]     = useState<string | null>(null);
+  const [targetsReady, setTargetsReady] = useState(false);       // the goal history is loaded
 
   // entries of this week, the 3 weeks before (history) and this month
   const back = addDays(monday, -21);
@@ -218,12 +230,14 @@ export function usePlanner(userId: string | null, monday: string) {
   }, [userId]);
 
   const loadEntries = useCallback(async () => {
-    if (!userId) { setEntries({}); setSnaps({}); return; }
+    if (!userId) { entriesReq.current++; loadedRef.current = null; setLoadedWeek(null); setEntries({}); setSnaps({}); return; }
+    const my = ++entriesReq.current;
     const [res, sn]: any[] = await Promise.all([
       supabase.from("planner_entries").select("*").eq("user_id", userId).gte("period_start", from).lte("period_start", monday),
       // snapshots: 6 weeks back + 1 (the Overview's trend and "vs last week")
       supabase.from("planner_snapshots").select("*").eq("user_id", userId).gte("week_start", addDays(monday, -42) < addDays(from, -7) ? addDays(monday, -42) : addDays(from, -7)).lte("week_start", monday),
     ]);
+    if (my !== entriesReq.current) return;      // a newer load (another week) is on its way: this answer is old
     const err = res?.error || sn?.error;
     if (err) { setLoadError(isMissing(err.message) ? MISSING : err.message); return; }
     const m: Record<string, Entry> = {};
@@ -232,17 +246,22 @@ export function usePlanner(userId: string | null, monday: string) {
     const k: Record<string, Snapshot> = {};
     (sn?.data || []).forEach((r: any) => { const x = rowToSnap(r); k[snapKey(x.account, x.weekStart)] = x; });
     setSnaps(k);
+    loadedRef.current = { from, to: monday };
+    setLoadedWeek(monday);
   }, [userId, from, monday]);
 
   // targets carry over: load all of them once (small)
   const loadTargets = useCallback(async () => {
-    if (!userId) { setTargetLog({}); return; }
-    const res: any = await supabase.from("planner_entries").select("task_id, period_start, target").eq("user_id", userId);
+    if (!userId) { setTargetLog({}); setTargetsReady(false); return; }
+    // every goal ever set (page by page — this list grows every week)
+    const res: any = await selectAll("planner_entries", "task_id, period_start, target",
+      q => q.eq("user_id", userId).not("target", "is", null).order("period_start").order("id"));
     if (res?.error) return;
     const m: Record<string, { p: string; v: number }[]> = {};
     (res?.data || []).forEach((r: any) => { if (r.target == null) return; (m[r.task_id] ||= []).push({ p: String(r.period_start).slice(0, 10), v: Number(r.target) }); });
     Object.values(m).forEach(l => l.sort((x, y) => x.p.localeCompare(y.p)));
     setTargetLog(m);
+    setTargetsReady(true);
   }, [userId]);
   useEffect(() => { loadTargets(); }, [loadTargets]);
   useEffect(() => {
@@ -255,10 +274,11 @@ export function usePlanner(userId: string | null, monday: string) {
   const loadOutside = useCallback(async () => {
     if (!userId) { setContacts([]); setItems([]); setNotes([]); setPitches([]); setSprints([]); return; }
     const [oc, it, nt, pl, sp]: any[] = await Promise.all([
-      supabase.from("outreach_contacts").select("id, company, category, tier, status, last_contact, created_at").eq("user_id", userId),
-      supabase.from("planner_items").select("*").eq("user_id", userId).order("created_at"),
-      supabase.from("planner_notes").select("*").eq("user_id", userId),
-      supabase.from("outreach_pitches").select("id, contact_id, account, kind, sent_on").eq("user_id", userId),
+      // lists that grow: every row, page by page (more than 1,000 is fine)
+      selectAll("outreach_contacts", "id, company, category, tier, status, last_contact, created_at", q => q.eq("user_id", userId).order("id")),
+      selectAll("planner_items", "*", q => q.eq("user_id", userId).order("created_at").order("id")),
+      selectAll("planner_notes", "*", q => q.eq("user_id", userId).order("id")),
+      selectAll("outreach_pitches", "id, contact_id, account, kind, sent_on", q => q.eq("user_id", userId).order("id")),
       supabase.from("planner_sprints").select("*").eq("user_id", userId).order("start_on"),
     ]);
     if (oc?.error) setOutreachError(oc.error.message);
@@ -323,6 +343,8 @@ export function usePlanner(userId: string | null, monday: string) {
 
   // ── week entries (ticks, days, numbers) ─────────────────────
   const saveEntry = useCallback(async (taskId: string, period: string, patch: EntryPatch) => {
+    // day ticks and saved extras are built from what's on screen: not while that period is still loading
+    if (rebuildsFromScreen(patch) && !periodLoaded(loadedRef.current, period)) return;
     const key  = entryKey(taskId, period);
     const prev = entriesRef.current[key];
     const next: Entry = {
@@ -356,6 +378,17 @@ export function usePlanner(userId: string | null, monday: string) {
     const rows = list.map(x => ({ task_id: x.taskId, period_start: x.period, target: x.target }));
     const { data, error } = await supabase.from("planner_entries").upsert(rows, { onConflict: "task_id,period_start" }).select();
     fail(error);
+    // the goal history knows these goals too (they carry over, and a planned week counts as set)
+    setTargetLog(m => {
+      const n = { ...m };
+      list.forEach(x => {
+        const l = (n[x.taskId] || []).filter(y => y.p !== x.period);
+        if (x.target != null) l.push({ p: x.period, v: x.target });
+        l.sort((a, b) => a.p.localeCompare(b.p));
+        n[x.taskId] = l;
+      });
+      return n;
+    });
     setEntries(m => {
       const n = { ...m };
       (data || []).forEach((r: any) => { const e = rowToEntry(r); n[entryKey(e.taskId, e.periodStart)] = e; });
@@ -593,6 +626,9 @@ export function usePlanner(userId: string | null, monday: string) {
     for (let i = l.length - 1; i >= 0; i--) if (l[i].p <= period) return l[i].v;
     return null;
   }, [entries, targetLog]);
+  // a goal saved for exactly this period (carried-over goals don't count)
+  const hasTarget = useCallback((taskId: string, period: string): boolean =>
+    entries[entryKey(taskId, period)]?.target != null || (targetLog[taskId] || []).some(x => x.p === period), [entries, targetLog]);
   const stateOf = useCallback((t: Task, monday_: string) => {
     const period = periodOf(t, monday_);
     const e = entries[entryKey(t.id, period)];
@@ -607,6 +643,7 @@ export function usePlanner(userId: string | null, monday: string) {
 
   return {
     stages, tasks, entries, snaps, items, notes, waiting, loading, loadError, outreachError, reload,
+    weekReady: loadedWeek === monday, targetsReady, hasTarget,
     setTaskStatus, updateTask, createTask, deleteTask,
     saveEntry, planTargets, updateStage, startNextStage,
     saveSnapshot, newContacts, autoOf, stateOf, doneOf, targetOf, loginEmail, reopenStage,

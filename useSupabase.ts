@@ -80,3 +80,26 @@ export const supabase: any = {
 
 // Export a flag so App.tsx can show a setup screen
 export const supabaseConfigured = !!(SUPABASE_URL && SUPABASE_ANON);
+
+// ── Every row of a list, page by page ─────────────────────────
+// Supabase sends at most 1,000 rows per answer (Project settings → API → Max rows).
+// Lists that grow (email contacts, pitch log, documents …) are loaded in pages until
+// every row is there. The first answer says how many rows there are (count), so a lower
+// limit works too. `apply` adds the filters and the order — always end the order with a
+// unique column ("id"), so rows with the same time (one import) can't be skipped or
+// doubled between pages. A failed page → the error (the app shows Retry), never half a list.
+export async function selectAll(table: string, columns: string, apply: (q: any) => any, pageSize = 1000): Promise<{ data: any[] | null; error: any }> {
+  const rows: any[] = [];
+  let total: number | null = null;
+  for (let guard = 0; guard < 10000; guard++) {
+    const from = rows.length;
+    const res: any = await apply(supabase.from(table).select(columns, { count: "exact" })).range(from, from + pageSize - 1);
+    if (res?.error) return { data: null, error: res.error };
+    const got: any[] = Array.isArray(res?.data) ? res.data : [];
+    if (total === null && typeof res?.count === "number") total = res.count;
+    for (const r of got) rows.push(r);
+    if (!got.length) break;
+    if (total !== null ? rows.length >= total : got.length < pageSize) break;
+  }
+  return { data: rows, error: null };
+}

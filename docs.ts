@@ -7,6 +7,7 @@
 import { r2, today, addD, fmtD } from "./formatters";
 import type { DocRecord, DocKind, DocStatus } from "./types";
 import type { Tone } from "./constants";
+import { normCountry, GERMANY_NAMES, EU_NAMES, NON_EU_NAMES } from "./countries";
 
 // ─── NUMBERS ─────────────────────────────────────────────────
 const pad = (n: number, w: number) => String(n).padStart(w, "0");
@@ -83,11 +84,14 @@ export function retainerInvoiceLines(qd: any): any[] {
 //       "export"   → client outside the EU: not taxable in Germany, no VAT
 export type VatMode = "ku" | "domestic" | "reverse" | "export";
 
-const norm = (s: string) =>
+// ── V1: the country lists as they were until Oct 2026 — FROZEN, never edit ──
+// Documents sent before then don't store their tax rule, so they are always drawn
+// with these lists (docTax) and look exactly as they did when they were sent.
+const normV1 = (s: string) =>
   (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, "");
 
-const GERMANY = ["de", "d", "deu", "germany", "deutschland", "bundesrepublikdeutschland"];
-const EU = [
+const GERMANY_V1 = ["de", "d", "deu", "germany", "deutschland", "bundesrepublikdeutschland"];
+const EU_V1 = [
   "at","austria","osterreich","be","belgium","belgien","bg","bulgaria","bulgarien","cy","cyprus","zypern",
   "cz","czechia","czechrepublic","tschechien","dk","denmark","danemark","ee","estonia","estland",
   "es","spain","spanien","fi","finland","finnland","fr","france","frankreich","gr","el","greece","griechenland",
@@ -96,7 +100,7 @@ const EU = [
   "nl","netherlands","thenetherlands","niederlande","holland","pl","poland","polen","pt","portugal",
   "ro","romania","rumanien","se","sweden","schweden","si","slovenia","slowenien","sk","slovakia","slowakei",
 ];
-const NON_EU = [
+const NON_EU_V1 = [
   "us","usa","unitedstates","unitedstatesofamerica","vereinigtestaaten","uk","gb","unitedkingdom",
   "greatbritain","england","grossbritannien","vereinigteskonigreich","ch","switzerland","schweiz",
   "no","norway","norwegen","ca","canada","kanada","au","australia","australien","ae","uae",
@@ -106,22 +110,76 @@ const NON_EU = [
   "mx","mexico","mexiko","za","southafrica","sudafrika","nz","newzealand","neuseeland","il","israel",
 ];
 
-export function countryZone(country?: string | null): "de" | "eu" | "non-eu" {
-  const c = norm(country || "");
-  if (!c || GERMANY.includes(c)) return "de";
-  if (EU.includes(c)) return "eu";
-  if (NON_EU.includes(c)) return "non-eu";
-  return "de";   // unknown spelling → treat like Germany (safe: VAT is never skipped by mistake)
+export function countryZoneV1(country?: string | null): "de" | "eu" | "non-eu" {
+  const c = normV1(country || "");
+  if (!c || GERMANY_V1.includes(c)) return "de";
+  if (EU_V1.includes(c)) return "eu";
+  if (NON_EU_V1.includes(c)) return "non-eu";
+  return "de";
 }
 
-export function vatInfo(settings: any, client: any): { mode: VatMode; rate: number } {
+// ── Today's lists (countries.ts): every country in English and German, the EU countries
+// also in their own language (Italia, España, Polska …). Not recognised (a typo, another
+// script) → like Germany, as before — countryKnown says so, so the invoice question and
+// the client page can warn.
+export function countryZone(country?: string | null): "de" | "eu" | "non-eu" {
+  const raw = String(country || "").trim();
+  const c = normCountry(raw);
+  if (!raw || GERMANY_NAMES.has(c)) return "de";
+  if (EU_NAMES.has(c)) return "eu";
+  if (NON_EU_NAMES.has(c)) return "non-eu";
+  return "de";
+}
+export function countryKnown(country?: string | null): boolean {
+  const raw = String(country || "").trim();
+  if (!raw) return true;                                   // no country = Germany (the default)
+  const c = normCountry(raw);
+  return GERMANY_NAMES.has(c) || EU_NAMES.has(c) || NON_EU_NAMES.has(c);
+}
+
+// One VAT rule — today and V1 only differ in the country lists
+function vatFrom(zone: "de" | "eu" | "non-eu", settings: any, client: any): { mode: VatMode; rate: number } {
   const ku = settings?.kleinunternehmer === true || settings?.kleinunternehmer === "true";
-  const zone = countryZone(client?.country);
   const hasVatId = !!String(client?.vatId || "").trim();
   if (zone === "eu" && hasVatId) return { mode: "reverse", rate: 0 };
   if (ku) return { mode: "ku", rate: 0 };
   if (zone === "non-eu") return { mode: "export", rate: 0 };
   return { mode: "domestic", rate: Number(settings?.vatRate) || 19 };
+}
+export function vatInfo(settings: any, client: any): { mode: VatMode; rate: number } {
+  return vatFrom(countryZone(client?.country), settings, client);
+}
+export function vatInfoV1(settings: any, client: any): { mode: VatMode; rate: number } {
+  return vatFrom(countryZoneV1(client?.country), settings, client);
+}
+
+// The tax rule a document keeps once it's sent (stored as data.tax)
+export function taxRule(settings: any, client: any): { mode: VatMode; rate: number } {
+  const v = vatInfo(settings, client);
+  return { mode: v.mode, rate: v.mode === "domestic" ? v.rate : 0 };
+}
+const VAT_MODES: VatMode[] = ["ku", "domestic", "reverse", "export"];
+
+// The tax rule a document is drawn with: a draft follows today's rules; a sent document
+// keeps the rule it was sent with (data.tax, stored since Oct 2026) — older sent ones the
+// rules of their time (V1). So sharing a sent document again never changes it.
+export function docTax(doc: { status?: string; data?: any } | null | undefined, sender: any, client: any): { mode: VatMode; rate: number } {
+  if (doc?.status && doc.status !== "draft") {
+    const t = doc?.data?.tax;
+    if (t && VAT_MODES.includes(t.mode)) {
+      if (t.mode !== "domestic") return { mode: t.mode, rate: 0 };
+      return { mode: "domestic", rate: Number(t.rate) || Number(sender?.vatRate) || 19 };
+    }
+    return vatInfoV1(sender, client);
+  }
+  return vatInfo(sender, client);
+}
+
+// Reverse charge (EU business client with a VAT ID): your USt-IdNr has to be on the invoice (§ 14a UStG)
+export function reverseChargeGap(settings: any, client: any): string | null {
+  return vatInfo(settings, client).mode === "reverse" && !String(settings?.ustIdNr || "").trim()
+    ? "This client is in the EU and has a VAT ID, so the invoice is reverse charge — your USt-IdNr has to be on it. Add it under Business profile, then send the invoice."
+    : null;
 }
 
 export function docMoney(kind: DocKind | string, data: any, settings: any, client: any) {
@@ -289,6 +347,22 @@ export function sortDocs(docs: DocRecord[]): DocRecord[] {
 
 // Default due date for invoices: 14 days after the invoice date
 export const dueFrom = (docDate: string) => addD(docDate, 14) || docDate;
+
+// The dates an invoice gets with its number: a draft date in the past becomes today (an
+// invoice is dated the day it's issued); a date of today or later stays. The due date keeps
+// the draft's payment term (14 days when none or a negative one is stored).
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}/;
+const dayNo = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 864e5;
+export function issueDates(docDate: string | null | undefined, dueDate: string | null | undefined, todayStr: string = today()): { docDate: string; dueDate: string } {
+  const cur  = ISO_DAY.test(String(docDate || "")) ? String(docDate).slice(0, 10) : todayStr;
+  const date = cur < todayStr ? todayStr : cur;
+  let term = 14;
+  if (ISO_DAY.test(String(dueDate || "")) && ISO_DAY.test(String(docDate || ""))) {
+    const t = Math.round(dayNo(String(dueDate).slice(0, 10)) - dayNo(String(docDate).slice(0, 10)));
+    if (Number.isFinite(t) && t >= 0) term = t;
+  }
+  return { docDate: date, dueDate: term === 0 ? date : (addD(date, term) || date) };
+}
 
 // A document as the renderer expects it (works for saved rows and new drafts)
 export interface DocView {

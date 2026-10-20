@@ -10,7 +10,7 @@ import { fmt, fmtD, fmtPct, r2 } from "./formatters";
 import { addonLabel } from "./pricing";
 import { SETTINGS_DEFAULT } from "./rateCards";
 import {
-  docNet, retainerMonthly, linesSum, lineAmt, lineQty, vatInfo, taxNote, docTitle,
+  docNet, retainerMonthly, linesSum, lineAmt, lineQty, docTax, taxNote, docTitle,
   contractNo as mkContractNo, retDiscOf } from "./docs";
 import type { DocView } from "./docs";
 
@@ -89,7 +89,7 @@ export function clauseContext(doc: DocView, lang: string, settings: any, client:
   const d = doc.data || {};
   const sv: any = doc as any;
   const net = sv.status && sv.status !== "draft" && typeof sv.net === "number" ? Number(sv.net) : docNet(doc.kind, d);   // sent: as sent
-  const tax = vatInfo(s, cl);
+  const tax = docTax(doc, s, cl);   // a sent document keeps the tax rule it was sent with
   const lines = d.lines || [];
   const plat = [...new Set(lines.flatMap((ln: any) => ln.platforms || []))] as string[];
   // retainer contracts (clause set 3 on): the fee also says what is invoiced each month
@@ -138,7 +138,7 @@ export default function A4Document({
   const sum       = linesSum(lines);
   const isRet     = !!(d.retainer && d.retMo) && (kind === "quote" || kind === "contract");
   const monthly   = isRet ? retainerMonthly(d) : 0;
-  const tax       = vatInfo(s, cl);
+  const tax       = docTax(doc, s, cl);   // a sent document keeps the tax rule it was sent with
   // A sent document prints the totals it was sent with (stored on the row); a draft is
   // worked out fresh. So a later rounding fix never changes an invoice you already sent.
   const sv: any   = doc as any;
