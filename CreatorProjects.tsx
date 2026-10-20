@@ -1,157 +1,90 @@
 // ─────────────────────────────────────────────────────────────
-// CreatorProjects — read-only project list, expandable cards
-// Shows production projects with deliverable dot progress
+// CreatorProjects — projects in production (Manager Projects rows);
+// "By client" replaces the old Clients tab. Tap a project → its items.
 // ─────────────────────────────────────────────────────────────
+import { useState, useMemo } from "react";
+import { C, SANS, SERIF, TYPE, PAL, RADIUS } from "./constants";
+import { fmtD } from "./formatters";
+import { SummaryLine, Strong, Chip, ChipRow, SectionHead, TonedTag } from "./atoms";
+import { projectItems, isInProduction, shownStatus } from "./wsHelpers";
+import { statusTone, catTone } from "./CreatorShared";
 
-import { useState } from "react";
-import { C, SANS, SERIF, TYPE } from "./constants";
-import { StatusBadge } from "./atoms";
-import { fmt, fmtD, dLeft } from "./formatters";
-import { getLineGroups, ccCatLabel, ccCatStyle, statusRank, shownStatus } from "./wsHelpers";
+export default function CreatorProjects({ clients, isMobile }: { clients: any[]; isMobile: boolean }) {
+  const [by, setBy] = useState<"project" | "client">("project");
+  const [exp, setExp] = useState<string | null>(null);
+  const [showDone, setShowDone] = useState(false);
+  const rows = useMemo(() => (clients || []).flatMap((c: any) => (c.projects || [])
+    .filter((pr: any) => pr.status === "production" || pr.status === "invoiced" || pr.paid)
+    .map((pr: any) => { const its = projectItems(pr, c); const doneN = its.filter((i: any) => i.done).length; return { c, pr, its, doneN, total: its.length, complete: its.length > 0 && doneN === its.length }; }))
+    .filter((r: any) => r.total > 0), [clients]);
+  const prod = rows.filter((r: any) => isInProduction(r.pr));
+  const after = rows.filter((r: any) => !isInProduction(r.pr) && !r.complete);
+  const done = rows.filter((r: any) => !isInProduction(r.pr) && r.complete);
+  const itemsN = prod.reduce((s: number, r: any) => s + r.total, 0);
 
-interface CreatorProjectsProps {
-  clients:  any[];
-  isMobile: boolean;
-}
-
-const DOT_CAP = 12;
-
-const dotColor  = (it: any) => it.done ? C.green : statusRank(it.status) >= 1 ? C.black : C.rule;
-const stColor   = (it: any) => it.done ? C.green : statusRank(it.status) >= 1 ? C.black : C.light;
-
-function renderDots(items: any[]) {
-  const capped   = items.slice(0, DOT_CAP);
-  const overflow = items.length - DOT_CAP;
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}>
-      {capped.map(it => (
-        <span key={it.id} style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor(it), display: "inline-block", flexShrink: 0 }} />
-      ))}
-      {overflow > 0 && (
-        <span style={{ fontSize: TYPE.micro.size, color: C.muted, border: `1px solid ${C.rule}`, borderRadius: 8, padding: "0 4px", lineHeight: "14px", flexShrink: 0 }}>+{overflow}</span>
-      )}
-    </div>
-  );
-}
-
-export default function CreatorProjects({ clients, isMobile }: CreatorProjectsProps) {
-  const [collapsed, setCollapsed] = useState<Record<string,boolean>>(() => {
-    const init: Record<string,boolean> = {};
-    clients.forEach(c => (c.projects || []).forEach((pr: any) => {
-      if (pr.status === "invoiced" || pr.status === "paid") init[pr.id] = true;
-    }));
-    return init;
-  });
-
-  const allProjects: any[] = [];
-  clients.forEach(c => (c.projects || []).forEach((pr: any) => allProjects.push({ ...pr, clientName: c.name, clientId: c.id })));
-
-  const active = allProjects.filter(pr => pr.status === "production" || pr.status === "contracted").sort((a,b) => String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
-  const done   = allProjects.filter(pr => pr.status === "invoiced" || pr.status === "paid").sort((a,b) => String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
-  const allIds = [...active, ...done].map(pr => pr.id);
-  const allCollapsed = allIds.length > 0 && allIds.every(id => collapsed[id] === true);
-
-  const toggleAll = () => {
-    if (allCollapsed) {
-      setCollapsed(p => { const n = { ...p }; allIds.forEach(id => delete n[id]); return n; });
-    } else {
-      setCollapsed(p => { const n = { ...p }; allIds.forEach(id => { n[id] = true; }); return n; });
-    }
-  };
-
-  const renderCard = (pr: any, isDone = false) => {
-    const c = clients.find(cl => cl.id === pr.clientId) || {};
-    const groups     = getLineGroups(c, pr);
-    const allItems   = groups.flatMap(g => g.items);
-    const totalDone  = allItems.filter((it: any) => it.done).length;
-    const totalAll   = allItems.length;
-    const dl         = dLeft(pr.deliveryDate);
-    const isOD       = !isDone && pr.deliveryDate && dl !== null && dl < 0;
-    const isOpen     = collapsed[pr.id] !== true;
-    const scopeSummary = groups.map(g => `${g.items.length}× ${g.lineName.replace(/,.*$/,"").trim()}`).join(" · ");
-
+  const row = (r: any, i: number) => {
+    const key = `${r.c.id}-${r.pr.id}`, open = exp === key, pct = r.total ? (r.doneN / r.total) * 100 : 0;
     return (
-      <div key={pr.id} style={{ border: `1px solid ${C.rule}`, borderRadius: 2, marginBottom: 8, overflow: "hidden", opacity: isDone ? 0.75 : 1 }}>
-
-        {/* Header */}
-        <div onClick={() => setCollapsed(p => ({ ...p, [pr.id]: !p[pr.id] }))}
-          style={{ padding: isMobile ? "11px 12px" : "10px 13px", background: "#f7f6f4", cursor: "pointer" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-            <span style={{ fontSize: TYPE.body.size, color: C.black, fontWeight: "500", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr.name}</span>
-            <span style={{ fontSize: TYPE.label.size, color: C.muted, flexShrink: 0, whiteSpace: "nowrap" as const }}>{pr.clientName}</span>
-            <StatusBadge status={pr.paid ? "paid" : pr.status} />
-            <span style={{ fontSize: TYPE.label.size, color: C.light, flexShrink: 0 }}>{isOpen ? "▾" : "▸"}</span>
-          </div>
-          {scopeSummary && (
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 5 }}>
-              <span style={{ fontSize: TYPE.label.size, color: C.muted, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{scopeSummary}</span>
-              {pr.amount > 0 && <span style={{ fontSize: TYPE.subtext.size, color: C.black, fontWeight: "500", flexShrink: 0 }}>{fmt(pr.amount)}</span>}
+      <div key={key} style={{ borderTop: i ? `1px solid ${C.hair}` : "none" }}>
+        <div role="button" tabIndex={0} aria-expanded={open} onClick={() => setExp(open ? null : key)} onKeyDown={(e: any) => { if (e.key === "Enter") setExp(open ? null : key); }}
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", minHeight: 54, boxSizing: "border-box" as const, cursor: "pointer" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: TYPE.body.size, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{r.pr.name}</div>
+            <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>
+              <button onClick={(e) => { e.stopPropagation(); setBy("client"); }} style={{ background: "none", border: "none", padding: "9px 2px", margin: "-9px -2px", font: "inherit", color: "inherit", cursor: "pointer", textDecoration: "underline", textDecorationColor: C.edge, textUnderlineOffset: 2 }}>{r.c.name}</button>
+              {" · "}{r.pr.deliveryDate ? `delivery ${fmtD(r.pr.deliveryDate)}` : <span style={{ color: PAL.waiting.ink }}>No delivery date</span>}
             </div>
-          )}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {totalAll > 0 && renderDots(allItems)}
-            {totalAll > 0 && <span style={{ fontSize: TYPE.label.size, color: totalDone === totalAll ? C.green : C.muted, fontWeight: totalDone === totalAll ? "500" : "400", flexShrink: 0 }}>{totalDone}/{totalAll}</span>}
-            <span style={{ flex: 1 }} />
-            {pr.deliveryDate && <span style={{ fontSize: TYPE.label.size, color: isOD ? C.red : C.amber, fontWeight: isOD ? "500" : "400", flexShrink: 0 }}>{fmtD(pr.deliveryDate)}</span>}
-            {pr.deliveryDate && dl !== null && !isDone && !isOD && <span style={{ fontSize: TYPE.label.size, color: C.muted, flexShrink: 0 }}>· {dl}d left</span>}
-            {isOD && <span style={{ fontSize: TYPE.label.size, color: C.red, fontWeight: "500", flexShrink: 0 }}>· Overdue {Math.abs(dl!)}d</span>}
+            <div style={{ height: 3, background: C.line, borderRadius: RADIUS.bar, marginTop: 6 }}>
+              <div style={{ width: `${pct}%`, height: 3, background: r.complete ? PAL.done.mid : PAL.progress.mid, borderRadius: RADIUS.bar }} />
+            </div>
           </div>
+          <span style={{ fontFamily: SERIF, fontSize: TYPE.figure.size, color: r.complete ? PAL.done.ink : C.black, whiteSpace: "nowrap" as const }}>{r.doneN}/{r.total}</span>
+          <span style={{ color: C.faint, fontSize: TYPE.label.size }}>{open ? "▴" : "▾"}</span>
         </div>
-
-        {/* Expanded body */}
-        {isOpen && groups.map(g => {
-          const done_   = g.items.filter((it: any) => it.done).length;
-          const total_  = g.items.length;
-          const complete = done_ === total_;
-          const cs       = ccCatStyle(g.category);
-          const subKey   = `${pr.id}_${g.lineKey}`;
-          const subOpen  = collapsed[subKey] !== false;
-          return (
-            <div key={g.lineKey} style={{ borderTop: `1px solid ${C.rule}` }}>
-              <div onClick={e => { e.stopPropagation(); setCollapsed(p => ({ ...p, [subKey]: !subOpen })); }}
-                style={{ display: "flex", alignItems: "center", gap: 8, padding: isMobile ? "9px 12px" : "9px 13px", cursor: "pointer", background: subOpen ? "#f7f6f4" : C.white }}>
-                <span style={{ fontSize: TYPE.micro.size, padding: "2px 7px", borderRadius: 10, border: `1px solid ${cs.border}`, background: cs.bg, color: cs.color, flexShrink: 0 }}>{ccCatLabel(g.category)}</span>
-                <span style={{ fontSize: TYPE.subtext.size, color: C.black, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{total_}× {g.lineName}</span>
-                {renderDots(g.items)}
-                <span style={{ fontSize: TYPE.label.size, color: complete ? C.green : C.muted, fontWeight: complete ? "500" : "400", flexShrink: 0, minWidth: 28, textAlign: "right" as const }}>{done_}/{total_}</span>
-                <span style={{ fontSize: TYPE.micro.size, color: C.light, flexShrink: 0 }}>{subOpen ? "▾" : "▸"}</span>
+        {open && (
+          <div style={{ background: C.bg, borderRadius: RADIUS.field, margin: "0 0 10px", padding: "2px 8px 4px" }}>
+            {r.its.map((it: any, k: number) => (
+              <div key={it.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minHeight: 44, borderTop: k ? `1px solid ${C.hair}` : "none", padding: "0 2px 0 6px", fontSize: TYPE.row.size }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: catTone(it.category).mid, flexShrink: 0 }} />{it.name}
+                </span>
+                <TonedTag tone={statusTone(it.status, it.done)}>{it.done ? "Done" : shownStatus(it.status)}</TonedTag>
               </div>
-              {subOpen && g.items.map((it: any) => (
-                <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: isMobile ? "8px 12px 8px 28px" : "7px 13px 7px 32px", borderTop: `1px solid ${C.rule}`, background: C.white }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor(it), display: "inline-block", flexShrink: 0 }} />
-                  <span style={{ fontSize: isMobile ? TYPE.body.size : TYPE.subtext.size, color: C.black, flex: 1 }}>{it.name}</span>
-                  <span style={{ fontSize: TYPE.label.size, color: stColor(it), flexShrink: 0 }}>{shownStatus(it.status)}</span>
-                </div>
-              ))}
-            </div>
-          );
-        })}
+            ))}
+          </div>
+        )}
       </div>
     );
   };
+  const card = (list: any[]) => (
+    <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, overflow: "hidden", padding: "0 12px" }}>{list.map(row)}</div>
+  );
+  const clientsWith = [...new Set([...prod, ...after].map((r: any) => r.c.id))].map(id => (clients || []).find((c: any) => c.id === id)).filter(Boolean)
+    .sort((a: any, b: any) => a.name.localeCompare(b.name));
 
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
-        <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: 0 }}>Projects</h2>
-        {allIds.length > 0 && (
-          <button onClick={toggleAll} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.06em", padding: 0 }}>
-            {allCollapsed ? "Expand all" : "Collapse all"}
-          </button>
-        )}
-      </div>
-      {active.length === 0 && done.length === 0 && (
-        <p style={{ fontSize: TYPE.label.size, color: C.muted }}>No projects yet. Projects appear here once a contract is in production.</p>
-      )}
-      {active.length > 0 && <>
-        <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 8px" }}>Active — {active.length}</p>
-        {active.map(pr => renderCard(pr, false))}
-      </>}
+    <div style={{ fontFamily: SANS, color: C.black }}>
+      <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? TYPE.screen.size : TYPE.pageTitle.size, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Projects</h2>
+      <SummaryLine dot={PAL.progress.mid}>{prod.length} in production · <Strong>{itemsN} items</Strong></SummaryLine>
+      <ChipRow s={{ marginTop: 12 }}>
+        <Chip on={by === "project"} tone={PAL.neutral} dot={false} label="By project" onClick={() => setBy("project")} />
+        <Chip on={by === "client"} tone={PAL.neutral} dot={false} label="By client" onClick={() => setBy("client")} />
+      </ChipRow>
+      {rows.length === 0 && <p style={{ fontSize: TYPE.row.size, color: C.muted, margin: "16px 4px" }}>No projects in production yet.</p>}
+      {by === "project" ? <>
+        {prod.length > 0 && <><SectionHead dot={PAL.progress.mid} label={`In production · ${prod.length}`} right={`${itemsN} items`} />{card(prod)}</>}
+        {after.length > 0 && <><SectionHead dot={PAL.waiting.mid} label={`Invoiced, items still open · ${after.length}`} />{card(after)}</>}
+      </> : clientsWith.map((c: any) => {
+        const list = [...prod, ...after].filter((r: any) => r.c.id === c.id);
+        return <div key={c.id}><SectionHead label={`${c.name} · ${list.length}`} />{card(list)}</div>;
+      })}
       {done.length > 0 && (
-        <div style={{ marginTop: active.length > 0 ? 24 : 0 }}>
-          <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 8px" }}>Done — {done.length}</p>
-          {done.map(pr => renderCard(pr, true))}
-        </div>
+        <>
+          <button onClick={() => setShowDone(o => !o)} aria-expanded={showDone} style={{ width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: SANS }}>
+            <SectionHead dot={PAL.done.mid} label={`Done · ${done.length}`} right={showDone ? "▴" : "▾"} />
+          </button>
+          {showDone && card(done)}
+        </>
       )}
     </div>
   );

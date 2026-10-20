@@ -1,295 +1,170 @@
 // ─────────────────────────────────────────────────────────────
-// CreatorWorkspace — delivery log, per-deliverable status circles
-// Group by: Urgency / Client / Category / Status
+// CreatorWorkspace — where the work happens (Manager list parts)
+//   chips group by urgency · client · card · status; search;
+//   each row: card dot + name, client · project · due, two square ticks
+//   (created = blue, done = pistachio). Tap a row → item window:
+//   read view → Edit (name, note, card, own date) → Save back to the read view.
+//   No tap-to-change on tags or names any more.
 // ─────────────────────────────────────────────────────────────
+import { useState, useMemo, useEffect } from "react";
+import { C, SANS, SERIF, TYPE, PAL, RADIUS, SHADOW, Z, TRACK } from "./constants";
+import { fmtD } from "./formatters";
+import { SummaryLine, Strong, Chip, ChipRow, SearchField, SectionHead, ListCard, TonedTag, Sheet, PillBtn, I, S, Row } from "./atoms";
+import { getWsItems, isOverdue, isThisWeek, fmtDeadline, finalStatus, statusRank, shownStatus, WS_CATS, WS_CAT_LABEL } from "./wsHelpers";
+import { catTone, statusTone, Tick2 } from "./CreatorShared";
 
-import { useState, useRef } from "react";
-import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE, catInfo } from "./constants";
-import { Segmented, Tick, CatPill } from "./atoms";
-import { fmtD, today } from "./formatters";
-import {
-  WS_STATUSES, getWsItems, statusRank, shownStatus, finalStatus, doneWord,
-  isOverdue, isThisWeek, fmtDeadline, plannerDayLabel,
-} from "./wsHelpers";
+type By = "urgency" | "client" | "card" | "status";
 
-interface CreatorWorkspaceProps {
-  clients:    any[];
-  isMobile:   boolean;
-  clientsHook: any;
+function ItemWindow({ item, project, clientsHook, onClose }: any) {
+  const [mode, setMode] = useState<"read" | "edit">("read");
+  const [d, setD] = useState({ name: item.name, note: item.notes || "", cat: item.category, own: item.ownDate || "" });
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { if (mode === "read") setD({ name: item.name, note: item.notes || "", cat: item.category, own: item.ownDate || "" }); }, [item, mode]);
+  const save = async () => {
+    setErr(null);
+    try {
+      const h = clientsHook, cid = item.clientId, pid = item.projectId, id = item.id;
+      if (d.name.trim() !== item.name) await h.patchWs(cid, pid, "workspaceNames", { [id]: d.name.trim() && d.name.trim() !== item.defaultName ? d.name.trim() : null });
+      if (d.note !== (item.notes || "")) await h.patchWs(cid, pid, "workspaceNotes", { [id]: d.note || null });
+      if (d.cat !== item.category) await h.patchWs(cid, pid, "workspaceCats", { [id]: d.cat });
+      if ((d.own || "") !== (item.ownDate || "")) {
+        const map = { ...(project?.workspacePlanner || {}) };
+        if (d.own) map[id] = d.own; else delete map[id];
+        await h.updateProject(cid, pid, { workspacePlanner: map });
+      }
+      setMode("read");
+    } catch (e: any) { setErr(e?.message || "Couldn't save."); }
+  };
+  const steps = (item.history || []).map((x: any) => `${shownStatus(x.status)} ${fmtDeadline(x.date)}`).join(" · ");
+  const LBL: any = { fontSize: TYPE.micro.size, textTransform: "uppercase", letterSpacing: TRACK.caps, color: C.muted, margin: "12px 0 5px" };
+  return (
+    <Sheet title={`Item · ${WS_CAT_LABEL[item.category] || item.category}`} onClose={mode === "edit" ? () => setMode("read") : onClose}
+      right={mode === "read" ? <PillBtn onClick={() => setMode("edit")}>Edit</PillBtn> : null}
+      footer={mode === "edit" ? <>
+        <PillBtn onClick={() => setMode("read")} s={{ flex: 1, height: 40, justifyContent: "center" }}>Cancel</PillBtn>
+        <PillBtn dark onClick={save} s={{ flex: 1.4, height: 40, justifyContent: "center" }}>Save</PillBtn>
+      </> : undefined}>
+      {mode === "read" ? <>
+        <div style={{ fontFamily: SERIF, fontSize: TYPE.tile.size }}>{item.name}</div>
+        <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 3 }}>{item.clientName} · {item.projectName}</div>
+        <ListCard s={{ marginTop: 12 }}>
+          <Row first title="Card" right={<TonedTag tone={catTone(item.category)}>{WS_CAT_LABEL[item.category] || item.category}</TonedTag>} s={{ minHeight: 44 }} />
+          <Row title="Deadline" meta={item.ownDate ? "your own date" : item.deadline ? "the delivery date" : "none yet"} right={<span style={{ fontSize: TYPE.row.size }}>{item.deadline ? fmtD(item.deadline) : "—"}</span>} />
+          <Row title="Status" meta={steps || "no steps yet"} right={<TonedTag tone={statusTone(item.status, item.done)}>{shownStatus(item.status)}</TonedTag>} />
+          {item.notes && <Row title="Note" meta={item.notes} />}
+        </ListCard>
+      </> : <>
+        <div style={{ ...LBL, marginTop: 0 }}>Name</div><I value={d.name} onChange={(e: any) => setD(x => ({ ...x, name: e.target.value }))} aria-label="Name" />
+        <div style={LBL}>Note</div><I value={d.note} onChange={(e: any) => setD(x => ({ ...x, note: e.target.value }))} aria-label="Note" />
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
+          <div><div style={LBL}>Card</div><S value={d.cat} aria-label="Card" onChange={(e: any) => setD(x => ({ ...x, cat: e.target.value }))}>{WS_CATS.map(c => <option key={c} value={c}>{WS_CAT_LABEL[c]}</option>)}</S></div>
+          <div><div style={LBL}>Own date</div><I type="date" value={d.own} onChange={(e: any) => setD(x => ({ ...x, own: e.target.value }))} aria-label="Own date" /></div>
+        </div>
+        <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 6 }}>Empty = the project's delivery date.</div>
+        {err && <div style={{ fontSize: TYPE.subtext.size, color: PAL.late.ink, marginTop: 8 }}>{err}</div>}
+      </>}
+    </Sheet>
+  );
 }
 
-export default function CreatorWorkspace({ clients, isMobile, clientsHook }: CreatorWorkspaceProps) {
-  const [group,        setGroup]        = useState<"Urgency"|"Client"|"Category"|"Status">("Urgency");
-  const [search,       setSearch]       = useState("");
-  const [collapsed,    setCollapsed]    = useState<Record<string,boolean>>({});
-  const [editingId,    setEditingId]    = useState<string | null>(null);
-  const [editingVal,   setEditingVal]   = useState("");
-  const [noteId,       setNoteId]       = useState<string | null>(null);
-  const [noteVal,      setNoteVal]      = useState("");
-  const [snackbar,     setSnackbar]     = useState<{ msg: string; undo: () => void } | null>(null);
-  const snackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+export default function CreatorWorkspace({ clients, isMobile, clientsHook }: { clients: any[]; isMobile: boolean; clientsHook: any }) {
+  const [by, setBy] = useState<By>("urgency");
+  const [q, setQ] = useState("");
+  const [unfold, setUnfold] = useState<Record<string, boolean>>({});
+  const [win, setWin] = useState<null | { pid: string; id: string }>(null);
+  const [undo, setUndo] = useState<null | { label: string; cid: string; pid: string; id: string; prev: string }>(null);
+  useEffect(() => { if (!undo) return; const t = setTimeout(() => setUndo(null), 5000); return () => clearTimeout(t); }, [undo]);
 
-  const allItems = getWsItems(clients);
-  const filtered = search
-    ? allItems.filter(it => it.name.toLowerCase().includes(search.toLowerCase()) || it.clientName.toLowerCase().includes(search.toLowerCase()))
-    : allItems;
+  const all = useMemo(() => getWsItems(clients), [clients]);
+  const ql = q.trim().toLowerCase();
+  const items = all.filter((it: any) => !ql || `${it.name} ${it.clientName} ${it.projectName}`.toLowerCase().includes(ql));
+  const open = all.filter((it: any) => !it.done);
+  const overdueN = open.filter((it: any) => isOverdue(it.deadline)).length;
+  const weekN = open.filter((it: any) => !isOverdue(it.deadline) && isThisWeek(it.deadline)).length;
 
-  const activeItems = filtered;
-
-  // ── Mutators ──────────────────────────────────────────────
-  const showSnack = (msg: string, undo: () => void) => {
-    if (snackTimer.current) clearTimeout(snackTimer.current);
-    setSnackbar({ msg, undo });
-    snackTimer.current = setTimeout(() => setSnackbar(null), 5000);
+  const setStatus = async (it: any, status: string, label: string) => {
+    setUndo({ label, cid: it.clientId, pid: it.projectId, id: it.id, prev: it.status });
+    try { await clientsHook.setWsStatus(it.clientId, it.projectId, [{ id: it.id, status }]); } catch { /* the save message reports it */ }
   };
+  const toggleCreated = (it: any) => setStatus(it, statusRank(it.status) >= 1 ? "Not started" : "Created", statusRank(it.status) >= 1 ? "Back to not started" : "Marked created");
+  const toggleDone = (it: any) => setStatus(it, it.done ? "Created" : finalStatus(it.category), it.done ? "Back to created" : `Marked ${finalStatus(it.category).toLowerCase()}`);
 
-  // Helper: get current project from clients array
-  const getPr = (clientId: string, projectId: string) => {
-    const cl = clients.find(c => c.id === clientId);
-    return cl?.projects.find((p: any) => p.id === projectId);
-  };
-
-  // Every change saves ONE item (server-side merge), never the whole project map
-  const fail = (e: any) => showSnack(`Couldn't save: ${e?.message || "error"}`, () => setSnackbar(null));
-
-  const setItemStatus = (item: any, next: string) => {
-    clientsHook.setWsStatus(item.clientId, item.projectId, [{ id: item.id, status: next }]).catch(fail);
-    showSnack(`${item.name} → ${next}`, () => {
-      clientsHook.revertWsStatus(item.clientId, item.projectId, [item.id]).catch(fail);   // undo also removes the history entry
-      setSnackbar(null);
-    });
-  };
-
-  // Tap the category pill to cycle Brand Collab → UGC → Editorial.
-  // Stored per workspace item only — the quote and its PDFs stay as they are.
-  const CAT_CYCLE = ["Influencer", "UGC", "Editorial"];
-  const setItemCat = (item: any) => {
-    const next = CAT_CYCLE[(CAT_CYCLE.indexOf(item.category) + 1) % CAT_CYCLE.length];
-    clientsHook.patchWs(item.clientId, item.projectId, "workspaceCats", { [item.id]: next }).catch(fail);
-  };
-
-  const saveName = (item: any, val: string) => {
-    const trimmed = val.trim();
-    clientsHook.patchWs(item.clientId, item.projectId, "workspaceNames", { [item.id]: trimmed && trimmed !== item.defaultName ? trimmed : null }).catch(fail);
-    setEditingId(null);
-  };
-
-  const saveNote = (item: any, val: string) => {
-    clientsHook.patchWs(item.clientId, item.projectId, "workspaceNotes", { [item.id]: val.trim() || null }).catch(fail);
-    setNoteId(null);
-  };
-
-  // ── Grouping ──────────────────────────────────────────────
-  type GroupDef = { key: string; label: string; items: any[] };
-  let groups: GroupDef[] = [];
-
-  if (group === "Urgency") {
-    const od   = activeItems.filter(it => !it.done && isOverdue(it.deadline));
-    const wk   = activeItems.filter(it => !it.done && !isOverdue(it.deadline) && isThisWeek(it.deadline));
-    const lat  = activeItems.filter(it => !it.done && !isOverdue(it.deadline) && !isThisWeek(it.deadline));
-    const done = activeItems.filter(it => it.done);
-    groups = [
-      { key:"overdue", label:"OVERDUE",       items: od   },
-      { key:"week",    label:"DUE THIS WEEK", items: wk   },
-      { key:"later",   label:"LATER",         items: lat  },
-      { key:"done",    label:"DONE",          items: done },
+  const openItems = items.filter((it: any) => !it.done), doneItems = items.filter((it: any) => it.done);
+  const groups: { key: string; label: string; dot: string; list: any[]; folded?: boolean }[] =
+    by === "urgency" ? [
+      { key: "over", label: "Overdue", dot: PAL.late.mid, list: openItems.filter((it: any) => isOverdue(it.deadline)) },
+      { key: "week", label: "Due this week", dot: PAL.waiting.mid, list: openItems.filter((it: any) => !isOverdue(it.deadline) && isThisWeek(it.deadline)) },
+      { key: "none", label: "No deadline", dot: PAL.waiting.mid, list: openItems.filter((it: any) => !it.deadline) },
+      { key: "later", label: "Later", dot: PAL.neutral.mid, list: openItems.filter((it: any) => it.deadline && !isOverdue(it.deadline) && !isThisWeek(it.deadline)) },
+      { key: "done", label: "Done", dot: PAL.done.mid, list: doneItems, folded: true },
+    ] : by === "client" ? [
+      ...[...new Set(openItems.map((it: any) => it.clientName))].sort().map((n: any) => ({ key: `c-${n}`, label: n || "—", dot: PAL.neutral.mid, list: openItems.filter((it: any) => it.clientName === n) })),
+      { key: "done", label: "Done", dot: PAL.done.mid, list: doneItems, folded: true },
+    ] : by === "card" ? [
+      ...WS_CATS.map(c => ({ key: `k-${c}`, label: WS_CAT_LABEL[c], dot: catTone(c).mid, list: openItems.filter((it: any) => it.category === c) })),
+      { key: "done", label: "Done", dot: PAL.done.mid, list: doneItems, folded: true },
+    ] : [
+      { key: "s0", label: "Not started", dot: PAL.neutral.mid, list: items.filter((it: any) => statusRank(it.status) === 0) },
+      { key: "s1", label: "Created", dot: PAL.progress.mid, list: items.filter((it: any) => !it.done && statusRank(it.status) === 1) },
+      { key: "s2", label: "Delivered", dot: PAL.waiting.mid, list: items.filter((it: any) => !it.done && statusRank(it.status) === 2) },
+      { key: "s3", label: "Done", dot: PAL.done.mid, list: doneItems, folded: true },
     ];
-  } else if (group === "Client") {
-    const byClient: Record<string,any[]> = {};
-    activeItems.forEach(it => {
-      const k = `${it.clientName}|${it.projectId}|${it.projectName}`;
-      if (!byClient[k]) byClient[k] = [];
-      byClient[k].push(it);
-    });
-    groups = Object.entries(byClient).map(([k, items]) => {
-      const [cn,,pn] = k.split("|");
-      return { key: k, label: `${cn.toUpperCase()} — ${pn}`, items };
-    });
-  } else if (group === "Category") {
-    ["Influencer","UGC","Editorial"].forEach(cat => {
-      groups.push({ key: cat, label: catInfo(cat).label.toUpperCase(), items: activeItems.filter(it => it.category === cat) });
-    });
-  } else {
-    WS_STATUSES.forEach(st => {
-      groups.push({ key: st, label: st.toUpperCase(), items: activeItems.filter(it => shownStatus(it.status) === st) });
-    });
-  }
 
-  const deadlineColor = (item: any) => isOverdue(item.deadline) ? C.red : isThisWeek(item.deadline) ? C.amber : C.muted;
+  const winItem = win ? all.find((it: any) => it.projectId === win.pid && it.id === win.id) : null;
+  const winProject = winItem ? (clients || []).flatMap((c: any) => c.projects || []).find((p: any) => p.id === winItem.projectId) : null;
+  const due = (it: any) => !it.deadline ? null
+    : <span style={{ color: isOverdue(it.deadline) && !it.done ? PAL.late.ink : isThisWeek(it.deadline) && !it.done ? PAL.waiting.ink : undefined }}> · due {fmtDeadline(it.deadline)}</span>;
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{ marginBottom: 16 }}>
-        <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 14px" }}>Workspace</h2>
-        <div style={{ marginBottom: 12 }}>
-          <Segmented
-            options={[["Urgency","Urgency"],["Client","Client"],["Category","Category"],["Status","Status"]]}
-            value={group}
-            onChange={(g) => setGroup(g as any)}
-          />
-        </div>
-        <input placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)}
-          style={{ width: "100%", padding: "7px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.black, borderRadius: 2, outline: "none", boxSizing: "border-box" as const }} />
-      </div>
-
-      {/* Empty */}
-      {allItems.length === 0 && (
-        <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "40px 20px", textAlign: "center" as const, marginTop: 20 }}>
-          <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: "0 0 6px" }}>No active deliverables.</p>
-          <p style={{ fontSize: TYPE.label.size, color: C.light, margin: 0 }}>Projects appear here once a contract is signed.</p>
-        </div>
-      )}
-
-      {/* Groups */}
-      {groups.filter(g => g.items.length > 0 || (g.key === "overdue" && group === "Urgency")).map(g => {
-        const isOpen = !collapsed[g.key];
-        const isODG  = g.key === "overdue";
+    <div style={{ fontFamily: SANS, color: C.black }}>
+      {winItem && <ItemWindow item={winItem} project={winProject} clientsHook={clientsHook} onClose={() => setWin(null)} />}
+      <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? TYPE.screen.size : TYPE.pageTitle.size, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Workspace</h2>
+      <SummaryLine dot={overdueN ? PAL.late.mid : weekN ? PAL.waiting.mid : PAL.done.mid}>
+        {open.length} open{overdueN ? <> · <Strong color={PAL.late.ink}>{overdueN} overdue</Strong></> : ""} · {weekN} this week
+      </SummaryLine>
+      <ChipRow s={{ marginTop: 12 }}>
+        {(["urgency", "client", "card", "status"] as By[]).map(k => <Chip key={k} on={by === k} tone={PAL.neutral} dot={false} label={k[0].toUpperCase() + k.slice(1)} onClick={() => setBy(k)} />)}
+      </ChipRow>
+      <SearchField value={q} onChange={setQ} placeholder="Search items, clients" s={{ marginTop: 10 }} />
+      {all.length === 0 && <p style={{ fontSize: TYPE.row.size, color: C.muted, margin: "16px 4px" }}>Nothing in production right now.</p>}
+      {groups.filter(g => g.list.length).map((g, gi) => {
+        const folded = g.folded && !unfold[g.key];
         return (
-          <div key={g.key} style={{ marginBottom: 52 }}>
-            <div onClick={() => setCollapsed(p => ({ ...p, [g.key]: !p[g.key] }))}
-              style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: "pointer", userSelect: "none" as const }}>
-              <span style={{ fontSize: TYPE.label.size, letterSpacing: "0.12em", color: isODG && g.items.length > 0 ? C.red : C.black, fontWeight: "600" }}>{g.label}</span>
-              <span style={{ fontSize: TYPE.label.size, color: isODG && g.items.length > 0 ? C.red : C.muted }}>{g.items.length}</span>
-              <span style={{ fontSize: TYPE.label.size, color: C.light, marginLeft: "auto" }}>{isOpen ? "▾" : "▸"}</span>
-            </div>
-            <div style={{ borderTop: `1px solid ${C.rule}`, marginBottom: 4 }} />
-
-            {isOpen && g.items.map(item => {
-              const isEditing = editingId === item.id;
-              const isNoting  = noteId === item.id;
-              const dlColor   = deadlineColor(item);
-              const dayTag    = plannerDayLabel(item.plannerDate);
-              const isDone    = item.done;
-              const isCreated = statusRank(item.status) >= 1;
-              // Second tick = the category's last step: Brand Collab → posted;
-              // UGC / Editorial → delivered (a later "Posted" still counts as done).
-              const doneLabel = doneWord(item.category);
-              const doneSt    = finalStatus(item.category);
-              const cbDone    = item.done;
-
-              // Manager ticks for this item's category (reviewed / delivered)
-              const mgrStatus = (() => {
-                const cl  = clients.find(c => c.id === item.clientId);
-                const pr  = cl?.projects.find((p: any) => p.id === item.projectId);
-                const msc = (pr?.managerStatus || {})[String(item.category).toLowerCase()] || {};
-                if (msc.delivered) return { label: "delivered", date: msc.deliveredDate, color: C.green };
-                if (msc.reviewed)  return { label: "reviewed",  date: msc.reviewedDate,  color: C.amber };
-                return null;
-              })();
-
-              const cbSz = isMobile ? 26 : 22;
-
-              return (
-                <div key={item.id} style={{ borderBottom: `1px solid ${C.rule}`, opacity: isDone ? 0.6 : 1 }}>
-                  {isMobile ? (
-                    <div style={{ padding: "11px 0" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0, flex: 1 }}>
-                          <span style={{ fontSize: TYPE.micro.size, fontWeight: "500", color: C.black, letterSpacing: "0.07em", textTransform: "uppercase" as const, flexShrink: 0 }}>{item.clientName}</span>
-                          <CatPill cat={item.category} onClick={() => setItemCat(item)} title="Tap to change category" />
-                        </div>
-                        <span style={{ fontSize: TYPE.label.size, color: dlColor, fontWeight: dlColor === C.red ? "600" : "400", flexShrink: 0, marginLeft: 8 }}>{fmtDeadline(item.deadline)}</span>
+          <div key={g.key}>
+            {folded ? (
+              <button onClick={() => setUnfold(u => ({ ...u, [g.key]: true }))} aria-expanded={false}
+                style={{ width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: SANS }}>
+                <SectionHead dot={g.dot} label={`${g.label} · ${g.list.length}`} right="▾" />
+              </button>
+            ) : <SectionHead dot={g.dot} label={`${g.label} · ${g.list.length}`} right={gi === 0 ? "created · done" : g.folded ? "" : undefined} />}
+            {!folded && (
+              <ListCard>
+                {g.list.map((it: any, i: number) => (
+                  <div key={`${it.projectId}-${it.id}`} role="button" tabIndex={0} onClick={() => setWin({ pid: it.projectId, id: it.id })}
+                    onKeyDown={(e: any) => { if (e.key === "Enter") setWin({ pid: it.projectId, id: it.id }); }}
+                    style={{ display: "flex", alignItems: "center", gap: 4, minHeight: 54, padding: "9px 0 9px 12px", borderTop: i ? `1px solid ${C.hair}` : "none", cursor: "pointer", boxSizing: "border-box" as const }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: TYPE.body.size, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: catTone(it.category).mid, flexShrink: 0 }} />{it.name}
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-                          {isEditing ? (
-                            <input autoFocus value={editingVal} onChange={e => setEditingVal(e.target.value)}
-                              onBlur={() => saveName(item, editingVal)}
-                              onKeyDown={e => { if (e.key === "Enter") saveName(item, editingVal); if (e.key === "Escape") setEditingId(null); }}
-                              style={{ fontFamily: SANS, fontSize: TYPE.body.size, color: C.black, border: "none", borderBottom: `1px solid ${C.black}`, background: "transparent", outline: "none", padding: "0 0 1px", width: "100%" }} />
-                          ) : (
-                            <span onClick={() => { if (!isDone) { setEditingId(item.id); setEditingVal(item.name); } }}
-                              style={{ fontSize: TYPE.body.size, color: C.black, cursor: isDone ? "default" : "text", textDecoration: isDone ? "line-through" : "none", display: "block", marginBottom: 2 }}>{item.name}</span>
-                          )}
-                          {item.lineNote && <span style={{ fontSize: TYPE.label.size, color: C.muted, display: "block", marginBottom: 2 }}>{item.lineNote}</span>}
-                          {item.notes && !isNoting && <span onClick={() => { setNoteId(item.id); setNoteVal(item.notes); }} style={{ fontSize: TYPE.label.size, color: C.amber, display: "block", marginBottom: 2, cursor: "pointer" }}>{item.notes}</span>}
-                          {!item.notes && !isNoting && !isDone && <button onClick={() => { setNoteId(item.id); setNoteVal(""); }} style={{ fontSize: TYPE.label.size, color: C.light, background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: SANS }}>+ note</button>}
-                          {isCreated && mgrStatus && <span style={{ fontSize: TYPE.label.size, color: mgrStatus.color, display: "block", marginTop: 1 }}>{mgrStatus.label} · {fmtD(mgrStatus.date)}</span>}
-                        </div>
-                        <div style={{ display: "flex", gap: 12, flexShrink: 0 }}>
-                          <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 3 }}>
-                            <span style={{ fontSize: TYPE.label.size, color: C.light }}>created</span>
-                            <Tick on={isCreated} size={cbSz} onClick={() => setItemStatus(item, isCreated ? "Not started" : "Created")} />
-                          </div>
-                          <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 3 }}>
-                            <span style={{ fontSize: TYPE.label.size, color: C.light }}>{doneLabel}</span>
-                            <Tick on={cbDone} size={cbSz} color={C.green} disabled={!isCreated} onClick={() => setItemStatus(item, cbDone ? "Created" : doneSt)} />
-                          </div>
-                        </div>
-                      </div>
+                      <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{it.clientName} · {it.projectName}{due(it)}</div>
                     </div>
-                  ) : (
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 0" }}>
-                      <span style={{ fontSize: TYPE.label.size, fontWeight: "500", color: C.black, letterSpacing: "0.04em", width: 64, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, marginTop: 2 }}>
-                        {item.clientName.toUpperCase()}
-                      </span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          {isEditing ? (
-                            <input autoFocus value={editingVal} onChange={e => setEditingVal(e.target.value)}
-                              onBlur={() => saveName(item, editingVal)}
-                              onKeyDown={e => { if (e.key === "Enter") saveName(item, editingVal); if (e.key === "Escape") setEditingId(null); }}
-                              style={{ fontFamily: SANS, fontSize: TYPE.body.size, color: C.black, border: "none", borderBottom: `1px solid ${C.black}`, background: "transparent", outline: "none", padding: "0 0 1px", flex: 1, minWidth: 0 }} />
-                          ) : (
-                            <span onClick={() => { if (!isDone) { setEditingId(item.id); setEditingVal(item.name); } }}
-                              style={{ fontSize: TYPE.body.size, color: C.black, cursor: isDone ? "default" : "text", textDecoration: isDone ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                              {item.name}
-                            </span>
-                          )}
-                          <CatPill cat={item.category} onClick={() => setItemCat(item)} title="Tap to change category" />
-                        </div>
-                        {item.lineNote && <span style={{ fontSize: TYPE.label.size, color: C.muted, display: "block", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{item.lineNote}</span>}
-                        {item.notes && !isNoting && <span onClick={() => { setNoteId(item.id); setNoteVal(item.notes); }} style={{ fontSize: TYPE.label.size, color: C.amber, display: "block", marginTop: 1, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{item.notes}</span>}
-                        {!item.notes && !isNoting && !isDone && <button onClick={() => { setNoteId(item.id); setNoteVal(""); }} style={{ fontSize: TYPE.micro.size, color: C.light, background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: SANS, marginTop: 2 }}>+ note</button>}
-                        {isCreated && mgrStatus && <span style={{ fontSize: TYPE.micro.size, color: mgrStatus.color, display: "block", marginTop: 2 }}>{mgrStatus.label} · {fmtD(mgrStatus.date)}</span>}
-                      </div>
-                      {dayTag && <span style={{ fontSize: TYPE.label.size, padding: "1px 5px", border: `1px solid ${C.rule}`, borderRadius: 2, color: C.muted, background: C.white, flexShrink: 0, alignSelf: "flex-start" as const, marginTop: 2 }}>{dayTag}</span>}
-                      <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-                        <span style={{ fontSize: TYPE.label.size, color: dlColor, fontWeight: dlColor === C.red ? "600" : "400" }}>{fmtDeadline(item.deadline)}</span>
-                        <div style={{ display: "flex", gap: 12 }}>
-                          <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 3 }}>
-                            <span style={{ fontSize: TYPE.micro.size, color: C.light }}>created</span>
-                            <Tick on={isCreated} size={cbSz} onClick={() => setItemStatus(item, isCreated ? "Not started" : "Created")} />
-                          </div>
-                          <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 3 }}>
-                            <span style={{ fontSize: TYPE.micro.size, color: C.light }}>{doneLabel}</span>
-                            <Tick on={cbDone} size={cbSz} color={C.green} disabled={!isCreated} onClick={() => setItemStatus(item, cbDone ? "Created" : doneSt)} />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Inline note input */}
-                  {isNoting && (
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0 8px", borderBottom: `1px solid ${C.rule}` }}>
-                      <input autoFocus placeholder="Add a note…" value={noteVal} onChange={e => setNoteVal(e.target.value)}
-                        onBlur={() => saveNote(item, noteVal)}
-                        onKeyDown={e => { if (e.key === "Enter") saveNote(item, noteVal); if (e.key === "Escape") setNoteId(null); }}
-                        maxLength={120}
-                        style={{ flex: 1, fontFamily: SANS, fontSize: TYPE.label.size, color: C.black, border: "none", borderBottom: `1px solid ${C.rule}`, background: "transparent", outline: "none", padding: "0 0 1px" }} />
-                      <button onClick={() => saveNote(item, noteVal)} style={{ fontSize: TYPE.micro.size, color: C.muted, background: "none", border: "none", cursor: "pointer" }}>Save</button>
-                      <button onClick={() => setNoteId(null)} style={{ fontSize: TYPE.micro.size, color: C.light, background: "none", border: "none", cursor: "pointer" }}>✕</button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                    <Tick2 on={statusRank(it.status) >= 1} tone={PAL.progress} label={`Created: ${it.name}`} onClick={() => toggleCreated(it)} />
+                    <Tick2 on={it.done} tone={PAL.done} label={`Done: ${it.name}`} onClick={() => toggleDone(it)} />
+                  </div>
+                ))}
+              </ListCard>
+            )}
           </div>
         );
       })}
-
-      {/* Snackbar undo */}
-      {snackbar && (
-        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 3000, display: "flex", alignItems: "center", gap: 16, background: C.black, color: C.white, borderRadius: 2, padding: "10px 18px", fontSize: TYPE.subtext.size, boxShadow: "0 4px 20px rgba(0,0,0,0.18)", whiteSpace: "nowrap" as const }}>
-          <span>{snackbar.msg}</span>
-          <button onClick={snackbar.undo} style={{ background: "none", border: "none", cursor: "pointer", color: C.amber, fontFamily: SANS, fontSize: TYPE.subtext.size, fontWeight: "500", padding: 0 }}>Undo</button>
+      {undo && (
+        <div role="status" style={{ position: "fixed", left: "50%", bottom: 20, transform: "translateX(-50%)", zIndex: Z.toast, background: C.black, color: C.white, borderRadius: RADIUS.tile, padding: "8px 8px 8px 14px", display: "flex", alignItems: "center", gap: 10, fontSize: TYPE.row.size, boxShadow: SHADOW.pop }}>
+          {undo.label}
+          <button onClick={async () => { const u = undo; setUndo(null); try { await clientsHook.setWsStatus(u.cid, u.pid, [{ id: u.id, status: u.prev }]); } catch { /* reported */ } }}
+            style={{ background: "none", border: "none", color: C.white, textDecoration: "underline", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.row.size, minHeight: 36 }}>Undo</button>
         </div>
       )}
-
-      {/* Confirm delete dialog */}
     </div>
   );
 }

@@ -13,7 +13,6 @@ import type { Role } from "./types";
 
 // ── Page imports ──────────────────────────────────────────────
 import CreatorDashboard  from "./CreatorDashboard";
-import CreatorClients    from "./CreatorClients";
 import CreatorProjects   from "./CreatorProjects";
 import CreatorWorkspace  from "./CreatorWorkspace";
 
@@ -54,9 +53,8 @@ export default function CreatorApp({
   // ── Primary tabs ─────────────────────────────────────────
   const PRIMARY_TABS = [
     { label: "Dashboard", idx: NAV_DASHBOARD },
-    { label: "Clients",   idx: NAV_CLIENTS   },
-    { label: "Projects",  idx: NAV_PROJECTS  },
-    { label: "Workspace", idx: NAV_WORKSPACE },
+  { label: "Workspace", idx: NAV_WORKSPACE },
+  { label: "Projects",  idx: NAV_PROJECTS  },
   ];
 
   const avatar = (dropLeft: boolean) => (
@@ -155,13 +153,7 @@ export default function CreatorApp({
           />
         )}
 
-        {nav === NAV_CLIENTS && (
-          <CreatorClients
-            clients={clientsHook.clients}
-            isMobile={isMobile}
-            onSelChange={setCreatorClientSel}
-          />
-        )}
+
 
         {nav === NAV_PROJECTS && (
           <CreatorProjects

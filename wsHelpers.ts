@@ -16,9 +16,9 @@ export const WS_STATUSES = ["Not started", "Created", "Delivered", "Posted"] as 
 const RANK: Record<string, number> = { "Not started": 0, "Created": 1, "Reviewed": 1, "Finished": 2, "Delivered": 2, "Posted": 3 };
 export const statusRank  = (st: string) => RANK[st] ?? 0;
 export const shownStatus = (st: string) => (st === "Reviewed" ? "Created" : st === "Finished" ? "Delivered" : st || "Not started");
-export const finalStatus = (cat: string) => (cat === "Influencer" ? "Posted" : "Delivered");
+export const finalStatus = (cat: string) => (cat === "Influencer" || cat === "Hotels" ? "Posted" : "Delivered");
 export const isDoneStatus = (st: string, cat: string) => statusRank(st) >= statusRank(finalStatus(cat));
-export const doneWord     = (cat: string) => (cat === "Influencer" ? "posted" : "delivered");
+export const doneWord     = (cat: string) => (cat === "Influencer" || cat === "Hotels" ? "posted" : "delivered");
 
 // ── Category helpers ──────────────────────────────────────────
 // Accepts the full line object (preferred) or a bare name string (legacy).
@@ -29,7 +29,8 @@ export function getWsCategory(ln: any): string {
   const c = (typeof ln === "object" && ln ? ln.cat || "" : "").toLowerCase();
   if (c === "ugc")       return "UGC";
   if (c === "editorial") return "Editorial";
-  if (c === "influencer" || c === "hotels") return "Influencer";
+  if (c === "hotels")     return "Hotels";
+  if (c === "influencer") return "Influencer";
   const n = ((typeof ln === "string" ? ln : ln?.name) || "").toLowerCase();
   if (n.includes("hero") || n.includes("editorial") || n.includes("photo story") || n.includes("mini set") || n.includes("hero image")) return "Editorial";
   if (n.includes("ugc") || n.includes("campaign video")) return "UGC";
@@ -127,7 +128,9 @@ export function projectItems(pr: any, c?: any): any[] {
         clientName:  c?.name || "",
         projectId:   pr.id,
         projectName: pr.name,
-        deadline:    w.deadline || pr.deliveryDate || null,
+        deadline:    (pr.workspacePlanner || {})[id] || w.deadline || pr.deliveryDate || null,
+        ownDate:     (pr.workspacePlanner || {})[id] || null,
+        history:     (pr.workspaceStatusHistory || {})[id] || [],
         category,
         status,
         done:        isDoneStatus(status, category),
@@ -154,8 +157,9 @@ export function getLineGroups(c: any, pr: any): any[] {
 // ── Workspace items (projects in production) ──────────────────
 export function getWsItems(clients: any[]): any[] {
   return (clients || []).flatMap((c: any) => (c.projects || [])
-    .filter((pr: any) => pr.status === "production")
-    .flatMap((pr: any) => projectItems(pr, c)));
+    .filter((pr: any) => pr.status === "production" || (pr.status === "invoiced" && !pr.paid))
+    // after invoicing, open items stay until they're done
+    .flatMap((pr: any) => projectItems(pr, c).filter((it: any) => pr.status === "production" || !it.done)));
 }
 
 // ── Done items across all projects (dashboard output) ─────────
@@ -209,3 +213,10 @@ export function getCatProgress(pr: any, _clients?: any[]): Record<string, CatPro
   Object.values(cats).forEach(c => { c.allCreated = c.total > 0 && c.created === c.total; c.allDone = c.total > 0 && c.done === c.total; if (!c.allDone) c.doneDate = null; });
   return cats;
 }
+
+// ── card of a workspace category (colors come from the rate cards) ─
+export const WS_CATS = ["Influencer", "UGC", "Editorial", "Hotels"] as const;
+export const WS_CAT_LABEL: Record<string, string> = { Influencer: "Brand Collab", UGC: "UGC", Editorial: "Editorial", Hotels: "Hotels" };
+export const cardKeyOfCat = (cat: string) => (cat === "UGC" ? "ugc" : cat === "Editorial" ? "editorial" : cat === "Hotels" ? "hotels" : "influencer");
+// one rule everywhere: "in production" = signed work
+export const isInProduction = (pr: any) => pr.status === "production";
