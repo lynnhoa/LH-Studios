@@ -148,7 +148,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     return (
       <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, minHeight: SPACING.row1, padding: `0 ${SPACING.rowSide}px`, borderTop: `1px solid ${C.hair}` }}>
         <span style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6, whiteSpace: "nowrap" as const, overflow: "hidden" }}>
-          <span style={{ fontSize: SPACING.listText, color: s.done ? C.muted : C.black }}>{NAME(t)}</span>
+          <span style={{ fontSize: SPACING.plannerText, color: s.done ? C.muted : C.black }}>{NAME(t)}</span>
           {s.done ? <span aria-label="Reached" style={{ fontSize: SPACING.listMeta, color: PAL.done.ink }}>✓ reached</span>
             : fromSprint ? <span style={{ fontSize: SPACING.listMeta, color: C.muted }}>from sprint</span>
             : text && !(state === "none" && !notEntered) ? <span style={{ fontSize: SPACING.listMeta, color: tone }}>{text.charAt(0).toLowerCase() + text.slice(1)}</span>
@@ -191,7 +191,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
   const followersRow = (
     <div key="followers" style={{ display: "flex", alignItems: "center", gap: 8, minHeight: SPACING.row1, padding: `0 ${SPACING.rowSide}px`, borderTop: `1px solid ${C.hair}` }}>
       <span style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6, whiteSpace: "nowrap" as const }}>
-        <span style={{ fontSize: SPACING.listText }}>Followers</span>
+        <span style={{ fontSize: SPACING.plannerText }}>Followers</span>
         {fDiff != null && <span style={{ fontSize: SPACING.listMeta, color: fDiff >= 0 ? PAL.done.ink : PAL.late.ink }}>{fDiff >= 0 ? "+" : "−"}{fmtInt(Math.abs(fDiff))}</span>}
       </span>
       {numField(`followers|${acc}`, sn?.followers ?? null, "Followers this week", v => quiet(planner.saveSnapshot(acc, monday, { followers: v })))}
@@ -224,7 +224,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
           style={{ background: "none", border: "none", padding: "8px 0", margin: "-8px 0", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: editGoals ? PAL.progress.ink : PAL.neutral.ink }}>{editGoals ? "Done" : "Edit goals"}</button>
       </span>} />
       <div id="card-goals" style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, overflow: "hidden" }}>
-        {goals.length === 0 && <p style={{ fontSize: SPACING.listText, color: C.muted, margin: 0, padding: "12px" }}>No goals for this account yet.</p>}
+        {goals.length === 0 && <p style={{ fontSize: SPACING.plannerText, color: C.muted, margin: 0, padding: "12px" }}>No goals for this account yet.</p>}
         {goalRows}
       </div>
       {checkNote}
@@ -250,7 +250,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     const mark = (val: number | null | undefined, target: number | null) =>
       target == null ? <span /> : (Number(val) || 0) >= target ? <ResultMark state="reached" /> : <ResultMark state="togo" text={`${target - (Number(val) || 0)} to go`} />;
     const row = (label: string, key: "p" | "f", target: number | null) => (
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 56px 44px 72px", alignItems: "center", columnGap: 8, padding: "0 12px", minHeight: SPACING.row1, borderTop: `1px solid ${C.hair}`, fontSize: 13 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 56px 44px 72px", alignItems: "center", columnGap: 8, padding: "0 12px", minHeight: SPACING.row1, borderTop: `1px solid ${C.hair}`, fontSize: SPACING.plannerText }}>
         <span>{label} {isToday ? "today" : <span style={{ color: C.muted }}>· {dayLabel(day)}</span>}</span>
         {numField(`${sp.id}|${day}|${key}`, v[key] ?? null, `${label} ${isToday ? "today" : dayLabel(day)}`, val => saveDay(sp, day, key, val))}
         <span style={{ fontSize: 13 }}>/ {target ?? "–"}</span>
@@ -308,7 +308,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
             const ps = planner.sprintStats(p);
             return (
               <button key={p.id} onClick={() => setSprintWin({ id: p.id })}
-                style={{ width: "100%", minHeight: 38, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", border: "none", borderTop: `1px solid ${C.hair}`, background: C.white, cursor: "pointer", fontFamily: SANS, fontSize: 13, textAlign: "left" as const }}>
+                style={{ width: "100%", minHeight: 38, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", border: "none", borderTop: `1px solid ${C.hair}`, background: C.white, cursor: "pointer", fontFamily: SANS, fontSize: SPACING.plannerText, textAlign: "left" as const }}>
                 <span>Sprint {p.num} <span style={{ color: C.muted, fontSize: 12 }}>· {focusText(p)}</span></span>
                 <span style={{ fontSize: 12, color: C.muted, whiteSpace: "nowrap" as const }}>{ps.pitches} pitches · {ps.rate == null ? "–" : fmtPct2(ps.rate)} · {ps.deals} {ps.deals === 1 ? "deal" : "deals"}</span>
               </button>

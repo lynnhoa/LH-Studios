@@ -853,13 +853,14 @@ export const WeekPill = ({ label, onPrev, onNext }: { label: string; onPrev: () 
 
 // ── TextInline: a line of text you edit in place (one tap, no window).
 //    Drawn at 13 px; the field types at 16 px (no iPhone zoom), scaled down.
-export function TextInline({ value, onSave, placeholder, ariaLabel, muted, strike, autoFocus, onEnter }: {
-  value: string; onSave: (v: string) => void; placeholder?: string; ariaLabel?: string; muted?: boolean; strike?: boolean; autoFocus?: boolean; onEnter?: () => void;
+// size: the drawn text size (13 px lists by default; the Planner's lists use 14 px)
+export function TextInline({ value, onSave, placeholder, ariaLabel, muted, strike, autoFocus, onEnter, size }: {
+  value: string; onSave: (v: string) => void; placeholder?: string; ariaLabel?: string; muted?: boolean; strike?: boolean; autoFocus?: boolean; onEnter?: () => void; size?: number;
 }) {
   const [t, setT] = useState(value);
   const [focus, setFocus] = useState(false);
   useEffect(() => { if (!focus) setT(value); }, [value, focus]);
-  const k = SPACING.listText / 16, H = 30;
+  const k = (size || SPACING.listText) / 16, H = 30;
   return (
     <span style={{ position: "relative", display: "block", flex: 1, minWidth: 0, height: H }}>
       <input value={t} placeholder={placeholder} aria-label={ariaLabel} autoFocus={autoFocus}

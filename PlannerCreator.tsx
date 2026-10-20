@@ -192,7 +192,7 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
       {opts.tick && <TickBox on={opts.tick.on} tone={opts.tick.tone} ariaLabel={opts.tick.label} onClick={opts.tick.run} />}
       <button onClick={() => setOpen(it.id)} aria-label={`Open ${it.title}`}
         style={{ flex: 1, minWidth: 0, alignSelf: "stretch", display: "flex", flexDirection: "column" as const, justifyContent: "center", padding: "6px 6px 6px 0", background: "none", border: "none", cursor: "pointer", fontFamily: SANS, textAlign: "left" as const }}>
-        <span style={{ display: "block", width: "100%", fontSize: SPACING.listText, color: C.black, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{it.title}</span>
+        <span style={{ display: "block", width: "100%", fontSize: SPACING.plannerText, color: C.black, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{it.title}</span>
         <span style={{ display: "block", width: "100%", fontSize: SPACING.listMeta, color: C.muted, marginTop: 2, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{metaOf(it, opts.day)}</span>
       </button>
       {opts.right}
@@ -203,11 +203,11 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
   );
   const addRow = adding > 0 && (
     <div key={`add-${adding}`} style={{ ...rowS(ideas.length ? 1 : 0), paddingRight: SPACING.rowSide }}>
-      <TextInline value="" placeholder={show === "editorial" ? "New portfolio idea or a pasted link" : "New idea or a pasted link"} ariaLabel={show === "editorial" ? "New portfolio idea" : "New idea"} autoFocus
+      <TextInline size={SPACING.plannerText} value="" placeholder={show === "editorial" ? "New portfolio idea or a pasted link" : "New idea or a pasted link"} ariaLabel={show === "editorial" ? "New portfolio idea" : "New idea"} autoFocus
         onSave={v => { if (v.trim()) { addItem(v.trim()); setAdding(n => n + 1); } else setAdding(0); }} />
     </div>
   );
-  const emptyNote = (t: string) => <p style={{ fontSize: SPACING.listText, color: C.muted, margin: 0, padding: "2px 2px" }}>{t}</p>;
+  const emptyNote = (t: string) => <p style={{ fontSize: SPACING.plannerText, color: C.muted, margin: 0, padding: "2px 2px" }}>{t}</p>;
 
   return (
     <div>
@@ -222,14 +222,14 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
         "Tap an idea to write its storyline, clips and links. Tap a list's title to fold it.",
       ]} />}
       {loading ? (
-        <p style={{ fontSize: SPACING.listText, color: C.muted, marginTop: 16 }}>Loading…</p>
+        <p style={{ fontSize: SPACING.plannerText, color: C.muted, marginTop: 16 }}>Loading…</p>
       ) : loadError ? (
-        <p style={{ fontSize: SPACING.listText, color: C.red, marginTop: 16 }}>{loadError}</p>
+        <p style={{ fontSize: SPACING.plannerText, color: C.red, marginTop: 16 }}>{loadError}</p>
       ) : (
         <>
           {head("This week's goals", <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}><span>{reached} of {weekGoals.length} reached</span>{linkBtn(editGoals ? "Done" : "Edit goals", () => setEditGoals(e => !e))}</span>)}
           {goalTiles.length ? <div id="card-goals-creator" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: SPACING.gridGap }}>{goalTiles}</div>
-            : <p id="card-goals-creator" style={{ fontSize: SPACING.listText, color: C.muted, margin: 0, padding: "2px 2px" }}>No goals for this account yet.</p>}
+            : <p id="card-goals-creator" style={{ fontSize: SPACING.plannerText, color: C.muted, margin: 0, padding: "2px 2px" }}>No goals for this account yet.</p>}
           <ChipRow s={{ marginTop: SPACING.cardGap }}>
             {([["all", "All"], ["idea", "Content"], ["editorial", "Portfolio"]] as [Show, string][]).map(([k, l]) => <Chip key={k} on={show === k} tone={PAL.neutral} dot={false} label={l} onClick={() => setShow(k)} />)}
           </ChipRow>
@@ -243,7 +243,7 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
                 <button onClick={() => setConcept(false)} style={{ background: "none", border: "none", padding: "6px 0 0", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: PAL.neutral.ink }}>Close</button>
               </div>
             : <button onClick={() => setConcept(true)} aria-expanded={false} style={{ width: "100%", minHeight: SPACING.row1, display: "flex", alignItems: "center", padding: `0 ${SPACING.rowSide}px`, background: "none", border: "none", cursor: "pointer", fontFamily: SANS, textAlign: "left" as const }}>
-                <span style={{ flex: 1, minWidth: 0, fontSize: SPACING.listText, color: note?.body ? C.black : C.light, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{note?.body || "Tap to write it"}</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: SPACING.plannerText, color: note?.body ? C.black : C.light, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{note?.body || "Tap to write it"}</span>
               </button>)}
 
           {toPost.length > 0 && <>

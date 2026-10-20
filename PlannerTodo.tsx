@@ -106,8 +106,8 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
           {auto ? null : <Tick on={isDone} color={PAL.done.mid} size={20} onClick={() => quiet(planner.setTaskStatus(t, isDone ? "open" : "done"))} />}
         </span>
         {auto
-          ? <span style={{ flex: 1, minWidth: 0, fontSize: SPACING.listText, color: isDone ? C.light : C.black, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</span>
-          : <TextInline value={t.title} muted={isDone} strike={isDone} ariaLabel={t.title}
+          ? <span style={{ flex: 1, minWidth: 0, fontSize: SPACING.plannerText, color: isDone ? C.light : C.black, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</span>
+          : <TextInline value={t.title} muted={isDone} strike={isDone} ariaLabel={t.title} size={SPACING.plannerText}
               onSave={v => { if (!v.trim()) removeTask(t); else quiet(planner.updateTask(t.id, { title: v.trim() })); }} />}
         {url && <a href={url} target="_blank" rel="noreferrer" aria-label="Open link" style={{ color: C.muted, display: "inline-flex", padding: 8 }}><Ico d={IC.link} size={13} /></a>}
         {auto && <span style={{ fontSize: SPACING.listMeta, color: isDone ? PAL.done.ink : C.muted, marginRight: 6 }}>{s.actual ?? 0} / {s.target ?? "–"}</span>}
@@ -122,7 +122,7 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
   const addRow = adding > 0 && (
     <div key={`add-${adding}`} style={{ minHeight: SPACING.row1, display: "flex", alignItems: "center", gap: 2, padding: "0 12px 0 0", borderTop: `1px solid ${C.hair}` }}>
       <span style={{ width: SPACING.tap, display: "flex", justifyContent: "center", color: C.light, flexShrink: 0 }}>+</span>
-      <TextInline value="" placeholder="New task" ariaLabel="New task" autoFocus
+      <TextInline value="" placeholder="New task" ariaLabel="New task" autoFocus size={SPACING.plannerText}
         onSave={v => { if (v.trim()) { addTask(v, "both"); setAdding(n => n + 1); } else setAdding(0); }} />
     </div>
   );
@@ -168,7 +168,7 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
         <button onClick={() => setOpenStage(open ? null : s.id)} aria-expanded={open} style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SANS }}>
           <SectionHead dot={PAL.done.mid} label={`Stage ${s.num} · ${s.name}${s.doneOn ? ` · done ${fmtD(s.doneOn)}` : ""}`} right={open ? "▴" : "▾"} />
         </button>
-        {open && (l.length ? listCard(l) : <p style={{ fontSize: SPACING.listText, color: C.muted, margin: 0, padding: "4px 2px" }}>No tasks.</p>)}
+        {open && (l.length ? listCard(l) : <p style={{ fontSize: SPACING.plannerText, color: C.muted, margin: 0, padding: "4px 2px" }}>No tasks.</p>)}
         {open && s.num === Math.max(...finished.map(x => x.num)) && (
           <PillBtn onClick={() => setAskReopen(s)} s={{ marginTop: 8, height: 30 }}>Reopen Stage {s.num}</PillBtn>
         )}
@@ -191,16 +191,16 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
       <TabTitle title="To-do" acc={acc} onAccount={onAccount} isMobile={isMobile} />
       <SummaryLine dot={PAL.progress.mid}>{st ? <>Stage {st.num} of 5 · <Strong>{doneOnes.length} of {list.length} done</Strong></> : "Stages"}</SummaryLine>
       {loading ? (
-        <p style={{ fontSize: SPACING.listText, color: C.muted, marginTop: 16 }}>Loading…</p>
+        <p style={{ fontSize: SPACING.plannerText, color: C.muted, marginTop: 16 }}>Loading…</p>
       ) : loadError ? (
-        <p style={{ fontSize: SPACING.listText, color: C.red, marginTop: 16 }}>{loadError}</p>
+        <p style={{ fontSize: SPACING.plannerText, color: C.red, marginTop: 16 }}>{loadError}</p>
       ) : (
         <>
           {stageCard}
           {st && (
             <>
               <SectionHead label={`To do · ${openCount}`} right={<button onClick={() => setAdding(n => n + 1)} style={{ background: "none", border: "none", padding: "8px 0", margin: "-8px 0", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: PAL.neutral.ink }}>+ Add</button>} />
-              {openOnes.length || adding ? listCard(openOnes, true) : <p style={{ fontSize: SPACING.listText, color: C.muted, margin: 0, padding: "4px 2px" }}>All done for this stage.</p>}
+              {openOnes.length || adding ? listCard(openOnes, true) : <p style={{ fontSize: SPACING.plannerText, color: C.muted, margin: 0, padding: "4px 2px" }}>All done for this stage.</p>}
               {doneOnes.length > 0 && (
                 <>
                   <button onClick={() => setShowDone(o => !o)} aria-expanded={showDone} style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SANS }}>

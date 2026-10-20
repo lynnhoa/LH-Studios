@@ -206,7 +206,7 @@ export const SPACING = {
   gridGap: 8,            // inside tile grids
   dashCardPad: "11px 13px 9px", tilePad: "10px 11px 9px",
   row1: 44, row2: 54, rowSide: 12,
-  listText: 13, listMeta: 11,              // list rows, like the dashboard's lists
+  listText: 13, listMeta: 11, plannerText: 14,   // plannerText: the Planner's To-do, Manager and Creator lists              // list rows, like the dashboard's lists
   field: 40, rowField: 32,                 // fields alone · fields inside a 44 px row (6 px clear of each line)
   chip: 30, pill: 30, mainBtn: 40, tick: 22, tap: 44,
   menuRow: 34, menuText: 13, menuWidth: 232,     // profile menu: 13 px rows of 34 px, app tiles of 40 px
