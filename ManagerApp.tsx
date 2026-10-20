@@ -8,9 +8,10 @@
 
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
-import { C, SANS, TYPE, BREAKPOINT } from "./constants";
+import { C, SANS, TYPE, BREAKPOINT, TRACK, RADIUS, SHADOW, Z } from "./constants";
 import { currentQuote, contractNo } from "./docs";
 import AppLogo from "./AppLogo";
+import { PillBtn } from "./atoms";
 import { AvatarMenu, NavTab, appItems } from "./AppNav";
 import type { Role } from "./types";
 
@@ -196,7 +197,7 @@ export default function ManagerApp({
 
   // ── Content max-width — wider when client detail open ─────
   const contentMaxW =
-    nav === NAV_CLIENTS && clientSel && !isMobile ? 1200 : 860;
+    nav === NAV_CLIENTS && clientSel && !isMobile ? 1200 : 960;   // same as Planner / Outreach
 
   // ── Render ────────────────────────────────────────────────
   return (
@@ -239,30 +240,17 @@ export default function ManagerApp({
             </div>
           </>
         ) : (
-          // ── DESKTOP / IPAD NAV ───────────────────────────
-          <div
-            style={{
-              display:     "grid",
-              gridTemplateColumns: "1fr auto 1fr",
-              alignItems:  "center",
-              padding:     "0 28px",
-              height:      56,
-            }}
-          >
-            {/* Left — avatar */}
-            <div style={{ display: "flex", alignItems: "center" }}>
-              {avatar(true)}
+          // ── DESKTOP / IPAD NAV — same bar as Planner and Outreach ──
+          <div style={{ height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
+              <AppLogo size="nav" onClick={goToDash} />
+              <div style={{ display: "flex" }}>
+                {PRIMARY_TABS.map(t => (
+                  <NavTab key={t.idx} label={t.label} active={nav === t.idx} onClick={() => navTo(t.idx)} height={56} px={10} />
+                ))}
+              </div>
             </div>
-
-            {/* Center — logo */}
-            <AppLogo size="web" onClick={goToDash} />
-
-            {/* Right — primary tabs */}
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              {PRIMARY_TABS.map(t => (
-                <NavTab key={t.idx} label={t.label} active={nav === t.idx} onClick={() => navTo(t.idx)} height={56} px={14} />
-              ))}
-            </div>
+            {avatar(false)}
           </div>
         )}
       </div>
@@ -272,7 +260,7 @@ export default function ManagerApp({
         style={{
           maxWidth:  contentMaxW,
           margin:    "0 auto",
-          padding:   isMobile ? "14px 14px" : "24px 20px",
+          padding:   isMobile ? "14px 14px 28px" : "24px 20px 40px",
         }}
       >
         {banners}
@@ -390,28 +378,10 @@ export default function ManagerApp({
 
       {/* ── BACK TO ACTIVE PROJECTS PILL (drill context) ── */}
       {nav === NAV_CLIENTS && fromDrill && (
-        <button
-          onClick={() => { setFromDrill(null); setNav(NAV_DASHBOARD); }}
-          style={{
-            position:     "fixed",
-            bottom:       24,
-            right:        24,
-            zIndex:       999,
-            background:   C.bg,
-            border:       `1px solid ${C.rule}`,
-            borderRadius: 20,
-            padding:      "8px 20px",
-            fontFamily:   SANS,
-            fontSize:     TYPE.label.size,
-            color:        C.muted,
-            letterSpacing:"0.06em",
-            cursor:       "pointer",
-            boxShadow:    "0 2px 12px rgba(0,0,0,0.10)",
-            whiteSpace:   "nowrap" as const,
-          }}
-        >
-          ← Active Projects
-        </button>
+        <PillBtn onClick={() => { setFromDrill(null); setNav(NAV_DASHBOARD); }}
+          s={{ position: "fixed", bottom: 24, right: 24, zIndex: Z.toast - 1, boxShadow: SHADOW.pop }}>
+          ← Active projects
+        </PillBtn>
       )}
     </div>
   );

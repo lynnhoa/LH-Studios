@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { C, SERIF, TYPE } from "./constants";
+import { C, SERIF, TYPE, TRACK } from "./constants";
 import { I, B, Lbl } from "./atoms";
 import { supabase } from "./useSupabase";
 
@@ -33,7 +33,7 @@ export default function ChangePassword() {
     <div>
       <div style={{ marginBottom: 18 }}>
         <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 6px" }}>Change Password</h2>
-        <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" as const, margin: 0 }}>Update your studio access password</p>
+        <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: 0 }}>Update your studio access password</p>
       </div>
       <div style={{ maxWidth: 380 }}>
         <Lbl>New Password</Lbl>

@@ -13,12 +13,22 @@ export const TYPE = {
   sectionHeading:  { size: 16, font: SERIF },
   kpi:             { size: 28, font: SERIF },
   amount:          { size: 22, font: SERIF },
+  tile:            { size: 20, font: SERIF },   // amounts in tiles, window titles
+  field:           { size: 16, font: SANS  },   // text inside fields (iPhone zooms below 16)
   body:            { size: 14, font: SANS  },
+  row:             { size: 13, font: SANS  },   // list lines, menu items, tile labels
   subtext:         { size: 12, font: SANS  },
   label:           { size: 11, font: SANS  },
   button:          { size: 11, font: SANS  },
   micro:           { size: 10, font: SANS  },
 } as const;
+
+// ─── LETTER SPACING — one value per kind of text ─────────────
+//   caps  every small UPPERCASE label · tag  pastel tags/badges · none  everything else
+export const TRACK = { caps: "0.1em", tag: "0.03em", none: "0" } as const;
+
+// ─── ICON GLYPHS (✕ ▾ − +) ───────────────────────────────────
+export const ICON = { caret: 10, step: 18, close: 20 } as const;
 
 // ─── PALETTE (Gelato Days) — one colour = one meaning, all four apps ─
 //   waiting  butter     waiting · to go · unpaid · expiring · pitched · delivered
@@ -43,23 +53,37 @@ export type Tone = keyof typeof PAL;
 // ─── SPACING · CORNERS · DEPTH (compact, not cramped) ────────
 // 12 inside cards · 8 between cards · 14 before a section
 export const SPACE  = { xs: 4, sm: 8, md: 12, sec: 14, lg: 16 } as const;
-export const RADIUS = { tile: 12, card: 14, pill: 15 } as const;
-export const SHADOW = { card: "0 6px 18px rgba(26,26,26,0.05)" } as const;
+//  thin bars · check boxes · tags · fields · tiles · cards, lists, windows, menus · pills · buttons
+export const RADIUS = { bar: 2, check: 4, tag: 9, field: 10, tile: 12, card: 14, pill: 15, button: 18 } as const;
+//  card = lists and cards · pop = menus, dialogs, toasts · bar = bottom bar · page = PDF pages in the preview
+export const SHADOW = {
+  card: "0 6px 18px rgba(26,26,26,0.05)",
+  pop:  "0 8px 24px rgba(26,26,26,0.10)",
+  bar:  "0 -6px 18px rgba(26,26,26,0.06)",
+  page: "0 4px 24px rgba(0,0,0,0.32)",
+} as const;
 
 // ─── COLORS ──────────────────────────────────────────────────
-// amber / red / green / blue = the readable text shades of the palette
-// (waiting · late · done · in progress)
+// One grey per job. amber / red / green / blue = the palette's text shade
+// (ink) of waiting · late · done · in progress — the same as on the tags.
 export const C = {
   bg:     "#faf9f7",
   black:  "#1a1a1a",
-  muted:  "#888888",
-  light:  "#b8b3ad",
-  rule:   "#e8e4df",
+  ink2:   "#4a4540",   // secondary dark text (chips, detail lines)
+  muted:  "#8a847d",   // small grey text, labels
+  light:  "#b8b3ad",   // faint text, placeholders
+  faint:  "#cfc9c2",   // chevrons, disabled arrows
+  rule:   "#e8e4df",   // page lines, light borders
+  edge:   "#e2ddd6",   // light button borders, category tags
+  pillOn: "#d9d3cc",   // border of a selected neutral pill
+  field:  "#ebe7e2",   // field borders
+  line:   "#efebe6",   // card and list borders
+  hair:   "#f4f1ed",   // lines between rows
   white:  "#ffffff",
-  amber:  "#B38A2E",
-  red:    "#C2537F",
-  green:  "#6E9A4E",
-  blue:   "#4F86B8",
+  amber:  PAL.waiting.ink,
+  red:    PAL.late.ink,
+  green:  PAL.done.ink,
+  blue:   PAL.progress.ink,
 } as const;
 
 // ─── TINTS (backgrounds for status boxes) ────────────────────
@@ -76,7 +100,7 @@ export const STATUS_COLOR: Record<string, string> = {
   lead:       C.light,
   lost:       C.light,
   quoted:     C.light,
-  revised:    "#9a9188",
+  revised:    PAL.neutral.ink,
   contracted: C.blue,
   production: C.blue,
   invoiced:   C.amber,
@@ -95,10 +119,10 @@ export const STATUS_NAME: Record<string, string> = {
 // ─── CATEGORIES — one label + one colour everywhere ──────────
 // key = quote line `cat`; the workspace uses "Influencer" / "UGC" / "Editorial"
 export const CATEGORY: Record<string, { label: string; long: string; color: string; bg: string; border: string }> = {
-  influencer: { label: "Brand Collab", long: "Brand Collaboration", color: PAL.neutral.ink, bg: PAL.neutral.fill, border: "#e2ddd6" },
-  ugc:        { label: "UGC",          long: "UGC",                 color: PAL.neutral.ink, bg: PAL.neutral.fill, border: "#e2ddd6" },
-  editorial:  { label: "Editorial",    long: "Editorial",           color: PAL.neutral.ink, bg: PAL.neutral.fill, border: "#e2ddd6" },
-  hotels:     { label: "Hotels",       long: "Hotels & Hospitality",color: PAL.neutral.ink, bg: PAL.neutral.fill, border: "#e2ddd6" },
+  influencer: { label: "Brand Collab", long: "Brand Collaboration", color: PAL.neutral.ink, bg: PAL.neutral.fill, border: C.edge },
+  ugc:        { label: "UGC",          long: "UGC",                 color: PAL.neutral.ink, bg: PAL.neutral.fill, border: C.edge },
+  editorial:  { label: "Editorial",    long: "Editorial",           color: PAL.neutral.ink, bg: PAL.neutral.fill, border: C.edge },
+  hotels:     { label: "Hotels",       long: "Hotels & Hospitality",color: PAL.neutral.ink, bg: PAL.neutral.fill, border: C.edge },
 };
 const CAT_ALIAS: Record<string, string> = {
   influencer: "influencer", "brand collab": "influencer", collab: "influencer", "brand collaboration": "influencer",
@@ -113,6 +137,8 @@ export const catInfo = (c?: string | null) =>
 export const EXPIRY_WARN_DAYS = 14;
 export const expiryColor = (daysLeft: number | null) =>
   daysLeft === null ? C.muted : daysLeft < 0 ? C.red : daysLeft <= EXPIRY_WARN_DAYS ? C.amber : C.green;
+export const expiryTone = (daysLeft: number | null): Tone =>
+  daysLeft === null ? "neutral" : daysLeft < 0 ? "late" : daysLeft <= EXPIRY_WARN_DAYS ? "waiting" : "done";
 export const expiryTint = (daysLeft: number | null) =>
   daysLeft === null ? C.bg : daysLeft < 0 ? TINT.red : daysLeft <= EXPIRY_WARN_DAYS ? TINT.amber : TINT.green;
 
@@ -151,23 +177,4 @@ export const Z = { nav: 100, menu: 200, modal: 500, dialog: 600, toast: 700 } as
 export const WORDS = {
   toInvoice: "To invoice", unpaid: "Unpaid", pipeline: "Pipeline", paid: "Paid",
   overdue: "Overdue", followUp: "Follow up",
-} as const;
-
-// ─── CARD COLORS — the four rate cards (Service Catalog + Calculator chips) ─
-// Brand Collab pink · UGC blue · Editorial butter · Hotels pistachio · own cards warm grey.
-// Only on chips and icons (statuses never appear on those two screens).
-export const CARD_TONE: Record<string, Tone> = { influencer: "late", ugc: "progress", editorial: "waiting", hotels: "done" };
-export const cardTone = (key: string) => PAL[CARD_TONE[key] || "neutral"];
-
-// ─── DENSITY — compact, not cramped (the master parts use these) ─
-//   rows 44 px (one line) / 54 px (two) · 9 px top+bottom · 12 px left, 10 px right
-//   cards 12 px inside, 10 px apart · section headers 14 px above, 6 px below
-//   fields 40 · chips 30 · main buttons 40 · tiles 50 (2 per row, 6 apart)
-//   text: title 22 serif · rows 14 · details 12 · labels 10 caps · amounts 15 serif
-//   windows: 48 px header, read view first, Cancel / Save at the bottom
-//   rows for things with a description, tiles for short options; tap targets ≥ 44 px
-export const DENSITY = {
-  row1: 44, row2: 54, rowPadY: 9, rowPadL: 12, rowPadR: 10,
-  cardPad: 12, cardGap: 10, sectionTop: 14, sectionBottom: 6,
-  field: 40, chip: 30, mainBtn: 40, tile: 50, tileGap: 6, tap: 44, sheetHeader: 48, sheetPad: 16,
 } as const;

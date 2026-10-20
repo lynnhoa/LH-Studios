@@ -10,7 +10,7 @@
 //   all posted / all delivered — automatic, read only, with its date.
 // ─────────────────────────────────────────────────────────────
 
-import { C, TYPE, TINT } from "./constants";
+import { C, TYPE, TINT, PAL, TRACK, RADIUS } from "./constants";
 import { fmtD, today } from "./formatters";
 import { getCatProgress, projectItems, statusRank, doneWord } from "./wsHelpers";
 import { CatPill, Tick } from "./atoms";
@@ -55,11 +55,11 @@ export default function ProductionSection({ pr, cl, upP, isMobile, clientsHook }
   const col3W = isMobile ? 112 : 140;
 
   return (
-    <div style={{ marginBottom: isMobile ? 12 : 8, border: `1px solid ${C.rule}`, borderRadius: 10, overflow: "hidden" }}>
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? `1fr ${col3W}px` : `${col1W}px 1fr ${col3W}px`, background: "#f5f3f0", borderBottom: `1px solid ${C.rule}` }}>
-        {!isMobile && <div style={{ padding: "4px 8px", fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>Cat.</div>}
-        <div style={{ padding: isMobile ? "5px 8px" : "4px 8px", fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const, borderLeft: isMobile ? "none" : `1px solid ${C.rule}` }}>Deliverable · progress</div>
-        <div style={{ padding: isMobile ? "5px 8px" : "4px 8px", fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const, borderLeft: `1px solid ${C.rule}` }}>Manager</div>
+    <div style={{ marginBottom: isMobile ? 12 : 8, border: `1px solid ${C.rule}`, borderRadius: RADIUS.field, overflow: "hidden" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? `1fr ${col3W}px` : `${col1W}px 1fr ${col3W}px`, background: PAL.neutral.wash, borderBottom: `1px solid ${C.hair}` }}>
+        {!isMobile && <div style={{ padding: "4px 8px", fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const }}>Cat.</div>}
+        <div style={{ padding: isMobile ? "5px 8px" : "4px 8px", fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, borderLeft: isMobile ? "none" : `1px solid ${C.rule}` }}>Deliverable · progress</div>
+        <div style={{ padding: isMobile ? "5px 8px" : "4px 8px", fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, borderLeft: `1px solid ${C.rule}` }}>Manager</div>
       </div>
 
       {catKeys.map((cat, ci) => {
@@ -104,7 +104,7 @@ export default function ProductionSection({ pr, cl, upP, isMobile, clientsHook }
               })}
               {prog.allCreated && !prog.allDone && (
                 <div style={{ display: "flex", justifyContent: "flex-end", padding: "3px 10px 5px" }}>
-                  <span style={{ fontSize: TYPE.micro.size, padding: "1px 7px", borderRadius: 20, background: TINT.green, border: `1px solid ${C.green}`, color: C.green }}>ready</span>
+                  <span style={{ fontSize: TYPE.micro.size, padding: "1px 7px", borderRadius: RADIUS.button, background: TINT.green, border: `1px solid ${C.green}`, color: C.green }}>ready</span>
                 </div>
               )}
             </div>

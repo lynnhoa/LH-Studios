@@ -10,7 +10,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { editLock } from "./saveStatus";
-import { C, SANS, SERIF, TYPE, Z } from "./constants";
+import { C, SANS, SERIF, TYPE, Z, TRACK, RADIUS, ICON } from "./constants";
 import { fmt, fmtD, addM, addD, today, r2 } from "./formatters";
 import { I, S, B, Lbl, Pill, CatPill, LangSwitch, BAR_BTN, NumField } from "./atoms";
 import DocPages from "./DocPages";
@@ -132,8 +132,8 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
 
   // plain render helpers (not components) so inputs keep focus while typing
   const section = (n: string, title: string, children: any) => (
-    <div style={{ border: `1px solid ${C.rule}`, borderRadius: 10, padding: "10px 12px", marginBottom: 10, background: C.white }}>
-      <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 10px", paddingBottom: 6, borderBottom: `1px solid ${C.rule}` }}>{n} — {title}</p>
+    <div style={{ border: `1px solid ${C.rule}`, borderRadius: RADIUS.field, padding: "10px 12px", marginBottom: 10, background: C.white }}>
+      <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: "0 0 10px", paddingBottom: 6, borderBottom: `1px solid ${C.rule}` }}>{n} — {title}</p>
       {children}
     </div>
   );
@@ -194,9 +194,9 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
                 <span style={{ fontSize: TYPE.micro.size, color: C.light }}>base {fmt(l._unitBase)} each · max {max}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                <button onClick={() => setQty(l._key, max, qty - 1)} style={{ width: 32, height: 32, border: `1px solid ${C.rule}`, borderRadius: 10, background: "none", cursor: "pointer", fontSize: TYPE.body.size, color: qty > 0 ? C.black : C.light }}>−</button>
+                <button onClick={() => setQty(l._key, max, qty - 1)} style={{ width: 32, height: 32, border: `1px solid ${C.rule}`, borderRadius: RADIUS.field, background: "none", cursor: "pointer", fontSize: TYPE.body.size, color: qty > 0 ? C.black : C.light }}>−</button>
                 <span style={{ fontSize: TYPE.label.size, fontFamily: SERIF, minWidth: 18, textAlign: "center" as const }}>{qty}</span>
-                <button onClick={() => setQty(l._key, max, qty + 1)} style={{ width: 32, height: 32, border: `1px solid ${C.rule}`, borderRadius: 10, background: "none", cursor: "pointer", fontSize: TYPE.body.size, color: qty < max ? C.black : C.light }}>+</button>
+                <button onClick={() => setQty(l._key, max, qty + 1)} style={{ width: 32, height: 32, border: `1px solid ${C.rule}`, borderRadius: RADIUS.field, background: "none", cursor: "pointer", fontSize: TYPE.body.size, color: qty < max ? C.black : C.light }}>+</button>
               </div>
             </div>
           );
@@ -238,7 +238,7 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
     <>
       {err && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>{isAmendMode ? "Amendment total" : "Renewal total"}</span>
+        <span style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const }}>{isAmendMode ? "Amendment total" : "Renewal total"}</span>
         <span style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size }}>{fmt(totalFee)}</span>
         <div style={{ flex: 1 }} />
         <B onClick={save} s={{ opacity: canSave && !saving ? 1 : 0.4 }}>{saving ? "Saving…" : isAmendMode ? "Save amendment" : "Save renewal"}</B>
@@ -253,7 +253,7 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
     <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
       <div style={{ borderBottom: `1px solid ${C.rule}`, flexShrink: 0 }}>
         <div style={{ height: 44, display: "flex", alignItems: "center", padding: "0 8px 0 2px", gap: 6 }}>
-          <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 20 }}>✕</button>
+          <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: ICON.close }}>✕</button>
           <span style={{ fontFamily: SERIF, fontSize: TYPE.body.size, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{isAmendMode ? "Amendment — Rights Extension" : "Add Renewal"}</span>
           <div style={{ flex: 1 }} />
           <LangSwitch lang={lang} onChange={setLang as any} />
@@ -273,7 +273,7 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
           </div>
         )}
         {(!isM || view === "preview") && (
-          <div style={{ flex: 1, background: "#888", overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isM ? "20px 12px" : "32px 28px", gap: isM ? 16 : 28 }}>
+          <div style={{ flex: 1, background: C.muted, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isM ? "20px 12px" : "32px 28px", gap: isM ? 16 : 28 }}>
             <DocPages doc={{ ...doc, lang: lang as any }} settings={settings} client={client} lang={lang} scale={scale} />
           </div>
         )}

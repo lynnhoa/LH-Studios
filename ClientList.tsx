@@ -9,7 +9,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
-import { C, SANS, SERIF, TYPE, PAL, STATUS_TONE, STATUS_NAME } from "./constants";
+import { C, SANS, SERIF, TYPE, PAL, STATUS_TONE, STATUS_NAME, TRACK, RADIUS } from "./constants";
 import { fmt, addM, today } from "./formatters";
 import { I, S, Lbl, Tag, TSel, TSelWrap, SummaryLine, Strong, Chip, ChipRow, PillBtn, SearchField, ListCard, Row, TonedTag } from "./atoms";
 import { clientTotals, followUp } from "./money";
@@ -174,8 +174,8 @@ export default function ClientList({
 
       {/* New client form */}
       {showAdd && (
-        <div style={{ border: "1px solid #efebe6", borderRadius: 12, padding: 14, marginTop: 12, background: C.white }}>
-          <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const, margin: "0 0 10px" }}>New Client</p>
+        <div style={{ border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, padding: 14, marginTop: 12, background: C.white }}>
+          <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: "0 0 10px" }}>New Client</p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
             <div><Lbl>Brand Name *</Lbl><I value={nb.name} onChange={(e: any) => setNb(p => ({ ...p, name: e.target.value }))} placeholder="Sephora" />
               {nb.name.trim() && (clientsHook.clients || []).some((c: any) => c.name.trim().toLowerCase() === nb.name.trim().toLowerCase()) && (
@@ -239,7 +239,7 @@ export default function ClientList({
         </TSelWrap>
       </div>
 
-      {filtered.length === 0 && !showAdd && <p style={{ fontSize: 13, color: C.muted, margin: "14px 4px" }}>{clients.length ? "No clients in this view." : "No clients yet."}</p>}
+      {filtered.length === 0 && !showAdd && <p style={{ fontSize: TYPE.row.size, color: C.muted, margin: "14px 4px" }}>{clients.length ? "No clients in this view." : "No clients yet."}</p>}
 
       {filtered.length > 0 && (
         <ListCard s={{ marginTop: 10 }}>
@@ -253,7 +253,7 @@ export default function ClientList({
             return (
               <Row key={c.id} first={i === 0} highlight={sel === c.id} onClick={() => setSel(c.id)}
                 icon={<span style={{ width: 32, height: 32, borderRadius: "50%", background: nn ? PAL.waiting.wash : PAL.neutral.fill, color: nn ? PAL.waiting.ink : PAL.neutral.ink,
-                  display: "flex", alignItems: "center", justifyContent: "center", fontFamily: SERIF, fontSize: 15, flexShrink: 0 }}>{nn ? "?" : (c.name.trim()[0] || "?").toUpperCase()}</span>}
+                  display: "flex", alignItems: "center", justifyContent: "center", fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, flexShrink: 0 }}>{nn ? "?" : (c.name.trim()[0] || "?").toUpperCase()}</span>}
                 title={c.name}
                 meta={<>
                   {nn && <span style={{ color: PAL.waiting.ink }}>Needs a name · </span>}
@@ -262,7 +262,7 @@ export default function ClientList({
                   {hint && <span style={{ color: hint.tone.ink }}> · {hint.text}</span>}
                 </>}
                 right={st && value > 0
-                  ? <><div style={{ fontSize: 14 }}>{fmt(value)}</div><TonedTag tone={tone} s={{ marginTop: 3 }}>{STATUS_NAME[st] || st}</TonedTag></>
+                  ? <><div style={{ fontSize: TYPE.body.size }}>{fmt(value)}</div><TonedTag tone={tone} s={{ marginTop: 3 }}>{STATUS_NAME[st] || st}</TonedTag></>
                   : t.dormant ? <TonedTag tone={PAL.neutral}>Dormant</TonedTag> : undefined}
               />
             );

@@ -3,8 +3,8 @@
 // Auto-saves via updateSettings on every field change
 // ─────────────────────────────────────────────────────────────
 
-import { C, SANS, SERIF, TYPE } from "./constants";
-import { I, B, Lbl, Segmented } from "./atoms";
+import { C, SANS, SERIF, TYPE, TRACK, PAL, RADIUS } from "./constants";
+import { I, B, Lbl, Segmented, SectionHead } from "./atoms";
 import { SETTINGS_DEFAULT } from "./rateCards";
 
 interface CreatorProfileProps {
@@ -19,11 +19,7 @@ export default function CreatorProfile({ settings, updateSettings, isMobile }: C
 
   const ku = s.kleinunternehmer === true || s.kleinunternehmer === "true";
 
-  const Sec = ({ title }: { title: string }) => (
-    <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "28px 0 11px", paddingBottom: 6, borderBottom: `1px solid ${C.rule}` }}>
-      {title}
-    </p>
-  );
+  const Sec = ({ title }: { title: string }) => <SectionHead dot={PAL.neutral.mid} label={title} s={{ margin: "18px 4px 6px" }} />;
 
   const Toggle = ({ val, opt, labels, onChange }: { val: any; opt: any[]; labels: string[]; onChange: (v: any) => void }) => (
     <div style={{ marginTop: 5 }}>
@@ -35,7 +31,7 @@ export default function CreatorProfile({ settings, updateSettings, isMobile }: C
     <div>
       <div style={{ marginBottom: 18 }}>
         <h2 style={{ fontFamily: SERIF, fontSize: TYPE.pageTitle.size, fontWeight: "normal", margin: "0 0 6px" }}>Creator Profile</h2>
-        <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" as const, margin: 0 }}>Business info used on all PDFs</p>
+        <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: 0 }}>Business info used on all PDFs</p>
       </div>
 
       {/* ── IDENTITY ── */}
@@ -134,7 +130,7 @@ export default function CreatorProfile({ settings, updateSettings, isMobile }: C
       )}
 
       {/* ── AUTOSAVE NOTICE ── */}
-      <div style={{ marginTop: 16, padding: "11px 14px", background: "#fdf6ee", border: `1px solid ${C.amber}`, borderRadius: 2 }}>
+      <div style={{ marginTop: 16, padding: "11px 14px", background: PAL.waiting.wash, border: `1px solid ${PAL.waiting.fill}`, borderRadius: RADIUS.tile }}>
         <p style={{ fontSize: TYPE.label.size, color: C.amber, margin: 0 }}>Changes save automatically. Business info appears on every new PDF.</p>
       </div>
     </div>

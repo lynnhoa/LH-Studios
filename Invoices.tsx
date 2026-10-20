@@ -8,7 +8,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
-import { C, SANS, SERIF, TYPE, PAL } from "./constants";
+import { C, SANS, SERIF, TYPE, PAL, TRACK, RADIUS, SHADOW } from "./constants";
 import { fmt, fmtD, today } from "./formatters";
 import { Ico, IC } from "./PlannerWindows";
 import { Chip } from "./atoms";
@@ -117,7 +117,7 @@ export default function Invoices({ clients, settings, isMobile, filterTab, focus
     return <PDFModal doc={preview.doc} settings={settings} client={preview.client} editable={false} onClose={() => setPreview(null)} />;
   }
 
-  const btnStyle: any = { height: 30, padding: "0 10px", border: `1px solid ${C.rule}`, borderRadius: 15, background: C.white, cursor: "pointer", fontFamily: SANS, fontSize: 11, color: C.black, display: "flex", alignItems: "center", whiteSpace: "nowrap" as const };
+  const btnStyle: any = { height: 30, padding: "0 10px", border: `1px solid ${C.rule}`, borderRadius: RADIUS.pill, background: C.white, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: C.black, display: "flex", alignItems: "center", whiteSpace: "nowrap" as const };
   const ft = toneOfF(st);
 
   return (
@@ -126,7 +126,7 @@ export default function Invoices({ clients, settings, isMobile, filterTab, focus
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Invoices</h2>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8a847d", marginTop: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: TYPE.subtext.size, color: C.muted, marginTop: 4 }}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: ft.mid, flexShrink: 0 }} />
             {rows.length} {st === "all" ? "" : st === "paid" ? "paid " : st === "overdue" ? "overdue " : "unpaid "}invoice{rows.length === 1 ? "" : "s"} · <span style={{ color: C.black, fontWeight: 500 }}>{fmt(shown)}</span>
           </div>
@@ -137,14 +137,14 @@ export default function Invoices({ clients, settings, isMobile, filterTab, focus
             onClick={() => { if (periods.length && !bulkStatus) setDropOpen(o => !o); }}
             disabled={!periods.length || !!bulkStatus}
             title={periods.length ? "Export a year or month as PDF or CSV" : "No invoices yet"}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 13px", borderRadius: 15, background: C.white, border: "1px solid #e6e1db", fontFamily: SANS, fontSize: 12, color: C.black, position: "relative", zIndex: 200, opacity: periods.length ? 1 : 0.45, cursor: periods.length && !bulkStatus ? "pointer" : "default" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 13px", borderRadius: RADIUS.pill, background: C.white, border: `1px solid ${C.edge}`, fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.black, position: "relative", zIndex: 200, opacity: periods.length ? 1 : 0.45, cursor: periods.length && !bulkStatus ? "pointer" : "default" }}>
             <Ico d={IC.download} size={14} />{bulkStatus || "Export"}
           </button>
           {dropOpen && (
-            <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: C.white, border: `1px solid ${C.rule}`, borderRadius: 12, boxShadow: "0 8px 24px rgba(26,26,26,0.10)", minWidth: 250, zIndex: 200, maxHeight: 320, overflowY: "auto", padding: "4px 0" }}>
+            <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: C.white, border: `1px solid ${C.rule}`, borderRadius: RADIUS.tile, boxShadow: SHADOW.pop, minWidth: 250, zIndex: 200, maxHeight: 320, overflowY: "auto", padding: "4px 0" }}>
               {periods.map((p, i) => (
-                <div key={p.key} style={{ display: "flex", alignItems: "center", gap: 6, padding: p.kind === "year" ? "8px 12px" : "5px 12px 5px 22px", borderTop: i > 0 && p.kind === "year" ? "1px solid #f4f1ed" : "none" }}>
-                  <span style={{ flex: 1, fontSize: 12, color: p.kind === "year" ? C.black : C.muted, fontWeight: p.kind === "year" ? 500 : 400 }}>{p.label}</span>
+                <div key={p.key} style={{ display: "flex", alignItems: "center", gap: 6, padding: p.kind === "year" ? "8px 12px" : "5px 12px 5px 22px", borderTop: i > 0 && p.kind === "year" ? `1px solid ${C.hair}` : "none" }}>
+                  <span style={{ flex: 1, fontSize: TYPE.subtext.size, color: p.kind === "year" ? C.black : C.muted, fontWeight: p.kind === "year" ? 500 : 400 }}>{p.label}</span>
                   <button onClick={() => downloadPdf(p)} style={btnStyle}>PDF</button>
                   <button onClick={() => downloadCsvFor(p)} style={btnStyle}>CSV</button>
                 </div>
@@ -158,34 +158,34 @@ export default function Invoices({ clients, settings, isMobile, filterTab, focus
         {chip("all", "All")}{chip("unpaid", "Unpaid")}{chip("overdue", "Overdue")}{chip("paid", "Paid")}
       </div>
 
-      {dlErr && <p style={{ fontSize: 12, color: C.red, margin: "8px 0 0" }}>{dlErr}</p>}
+      {dlErr && <p style={{ fontSize: TYPE.subtext.size, color: C.red, margin: "8px 0 0" }}>{dlErr}</p>}
       {rows.length === 0 && (
-        <p style={{ fontSize: 13, color: C.muted, margin: "16px 4px" }}>{allRows.length ? "No invoices in this view." : "No invoices yet. They appear here once they're finalized."}</p>
+        <p style={{ fontSize: TYPE.row.size, color: C.muted, margin: "16px 4px" }}>{allRows.length ? "No invoices in this view." : "No invoices yet. They appear here once they're finalized."}</p>
       )}
 
       {/* ── MONTHS ── */}
       {groups.map(g => (
         <div key={g.key} id={`inv-${g.key}`}>
-          <div style={{ display: "flex", justifyContent: "space-between", margin: "14px 4px 6px", fontSize: 11, color: "#6b655e" }}>
-            <span style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "#8a847d" }}>{MO_LONG[g.month]} {g.year}</span>
+          <div style={{ display: "flex", justifyContent: "space-between", margin: "14px 4px 6px", fontSize: TYPE.label.size, color: PAL.neutral.ink }}>
+            <span style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted }}>{MO_LONG[g.month]} {g.year}</span>
             <span>{fmt(g.total)}</span>
           </div>
-          <div style={{ background: C.white, border: "1px solid #efebe6", borderRadius: 12, overflow: "hidden" }}>
+          <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, overflow: "hidden" }}>
             {g.rows.map((r, i) => {
               const d = r.doc, t = rowTone(d);
               return (
                 <div key={r.key} role="button" tabIndex={0} onClick={() => setPreview(r)} onKeyDown={(e) => { if (e.key === "Enter") setPreview(r); }}
-                  style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 54, padding: "7px 10px 7px 12px", borderTop: i ? "1px solid #f4f1ed" : "none", cursor: "pointer" }}>
+                  style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 54, padding: "7px 10px 7px 12px", borderTop: i ? `1px solid ${C.hair}` : "none", cursor: "pointer" }}>
                   <span style={{ width: 30, height: 30, borderRadius: "50%", background: t.wash, color: t.ink, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={rowIcon(d)} size={15} /></span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{r.cName}<span style={{ color: C.muted }}> · {r.pr.name}</span></div>
-                    <div style={{ fontSize: 12, color: "#8a847d", marginTop: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{metaText(r)}</div>
+                    <div style={{ fontSize: TYPE.body.size, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{r.cName}<span style={{ color: C.muted }}> · {r.pr.name}</span></div>
+                    <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{metaText(r)}</div>
                   </div>
                   <div style={{ textAlign: "right" as const, flexShrink: 0 }}>
-                    <div style={{ fontSize: 14, whiteSpace: "nowrap" as const }}>{fmt(d.gross)}</div>
-                    <span style={{ display: "inline-block", fontSize: 10, letterSpacing: "0.03em", padding: "2px 8px", borderRadius: 9, marginTop: 3, background: t.fill, color: t.ink, whiteSpace: "nowrap" as const }}>{tagText(d)}</span>
+                    <div style={{ fontSize: TYPE.body.size, whiteSpace: "nowrap" as const }}>{fmt(d.gross)}</div>
+                    <span style={{ display: "inline-block", fontSize: TYPE.micro.size, letterSpacing: TRACK.tag, padding: "2px 8px", borderRadius: RADIUS.tag, marginTop: 3, background: t.fill, color: t.ink, whiteSpace: "nowrap" as const }}>{tagText(d)}</span>
                   </div>
-                  <Ico d={IC.right} size={15} color="#cfc9c2" />
+                  <Ico d={IC.right} size={15} color={C.faint} />
                 </div>
               );
             })}

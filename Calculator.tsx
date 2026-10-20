@@ -13,12 +13,12 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import PDFModal from "./PDFModal";
 import { editLock } from "./saveStatus";
-import { C, SANS, SERIF, PAL, catInfo, cardTone } from "./constants";
+import { C, SANS, SERIF, PAL, catInfo, TYPE, TRACK, RADIUS } from "./constants";
 import { fmt, fmtD, today, uid, addD, pctSpace } from "./formatters";
 import { I, S, NumField, ConfirmDialog, PillBtn, Chip, ChipRow, Switch, Stepper, DetailLine, BottomBar, BOTTOM_BAR_SPACE } from "./atoms";
 import {
   normalizeCards, pricingCats, cardChoices, cardAddons, priceLine, optLabel, optName, addonPriceText,
-  BASE_CARD_KEYS, pctOn, volPct, retainerPctOf,
+  BASE_CARD_KEYS, pctOn, volPct,
 } from "./pricing";
 import { quoteDraft } from "./quoteDraft";
 import { sendQuestion } from "./docFlow";
@@ -38,7 +38,11 @@ const catTitle = (rc: any, key: string) =>
 const NEW_CLIENT = "__new";
 const PLATFORMS = ["Instagram", "TikTok", "YouTube", "Other"];
 const DE_COUNTRY = /^(germany|deutschland|austria|österreich|oesterreich|switzerland|schweiz)$/i;
-
+// the retainer discount of a rate card (Service Catalog), 20 % when not set
+export const retainerPctOf = (card: any): number => {
+  const v = Number(card?.retainerPct);
+  return card?.retainerPct !== undefined && card?.retainerPct !== null && card?.retainerPct !== "" && Number.isFinite(v) && v >= 0 && v < 100 ? v : 20;
+};
 // language: the client's last document, otherwise their country (no client yet: English)
 function clientLang(c: any): "en" | "de" {
   const docs = (c?.projects || []).flatMap((pr: any) => pr.documents || []).filter((d: any) => d.lang === "en" || d.lang === "de")
@@ -52,11 +56,11 @@ type Line = { id: string; cat: string; key?: string; qty: number; neg: number | 
 type Rights = { usage: any | null; excl: any | null; platforms: string[] };
 const NO_RIGHTS: Rights = { usage: null, excl: null, platforms: [] };
 
-const LBL: any = { fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "#8a847d", marginBottom: 5, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, minHeight: 14 };
-const MI: any  = { fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "#8a847d" };
-const CARD: any = { background: C.white, border: "1px solid #efebe6", borderRadius: 14, padding: 12, marginTop: 10 };
-const SMALL: any = { fontSize: 12, color: "#8a847d" };
-const linkBtn = (color: string): any => ({ background: "none", border: "none", padding: "0 2px", minHeight: 32, cursor: "pointer", fontFamily: SANS, fontSize: 12, color });
+const LBL: any = { fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase", color: C.muted, marginBottom: 5, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, minHeight: 14 };
+const MI: any  = { fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase", color: C.muted };
+const CARD: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, padding: 12, marginTop: 10 };
+const SMALL: any = { fontSize: TYPE.subtext.size, color: C.muted };
+const linkBtn = (color: string): any => ({ background: "none", border: "none", padding: "0 2px", minHeight: 32, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color });
 
 export default function Calculator({
   isMobile, settings, rc: rawRc, prefill, clearPrefill, clientsHook, onAfterSave,
@@ -408,13 +412,13 @@ export default function Calculator({
   }
 
   // ── Small pieces ──────────────────────────────────────────
-  const lockSvg = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#b0aaa3" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>;
+  const lockSvg = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.light} strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>;
   const lockedField = (v: string) => (
-    <div style={{ height: 40, border: "1px solid #f1eeea", background: "#f6f4f1", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, padding: "0 10px", fontSize: 14, color: "#4a4540" }}>
+    <div style={{ height: 40, border: `1px solid ${PAL.neutral.fill}`, background: PAL.neutral.wash, borderRadius: RADIUS.field, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, padding: "0 10px", fontSize: TYPE.body.size, color: C.ink2 }}>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{v || "—"}</span>{lockSvg}
     </div>
   );
-  const chev = (up: boolean) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b0aaa3" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d={up ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} /></svg>;
+  const chev = (up: boolean) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.light} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d={up ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} /></svg>;
   const rightsText = (u: any, e: any, plats: string[]) => [
     u && !u.sentinel ? optName(u.l) : "No usage rights",
     plats.length ? plats.join(", ") : null,
@@ -444,7 +448,7 @@ export default function Calculator({
 
       {/* ── TITLE ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <h2 style={{ fontFamily: SERIF, fontSize: 22, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>{title}</h2>
+        <h2 style={{ fontFamily: SERIF, fontSize: TYPE.amount.size, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>{title}</h2>
         <PillBtn onClick={() => (hasWork ? setAskExit(true) : doExit())}>Exit</PillBtn>
       </div>
 
@@ -454,7 +458,7 @@ export default function Calculator({
           <div style={{ minWidth: 0 }}>
             <div style={LBL}>
               <span>{clientSel === NEW_CLIENT && !locked ? "New client" : "Client"}</span>
-              {lastQuote && <button onClick={useLastQuote} style={{ ...linkBtn(PAL.progress.ink), minHeight: 30, margin: "-8px 0", fontSize: 11, padding: 0, letterSpacing: 0, textTransform: "none" as const }}>Last quote ›</button>}
+              {lastQuote && <button onClick={useLastQuote} style={{ ...linkBtn(PAL.progress.ink), minHeight: 30, margin: "-8px 0", fontSize: TYPE.label.size, padding: 0, letterSpacing: TRACK.none, textTransform: "none" as const }}>Last quote ›</button>}
             </div>
             {locked ? lockedField(brandName)
               : clientSel === NEW_CLIENT ? (
@@ -462,7 +466,7 @@ export default function Calculator({
                   <I value={newName} onChange={(e: any) => setNewName(e.target.value)} placeholder="Brand name" aria-label="New client name" s={{ paddingRight: 34 }} />
                   {clientList.length > 0 && (
                     <button onClick={() => { setClientSel(""); setNewName(""); }} aria-label="Back to the client list"
-                      style={{ position: "absolute", right: 0, top: 0, width: 36, height: 40, background: "none", border: "none", color: "#8a847d", cursor: "pointer", fontSize: 14 }}>✕</button>
+                      style={{ position: "absolute", right: 0, top: 0, width: 36, height: 40, background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: TYPE.body.size }}>✕</button>
                   )}
                 </div>
               ) : (
@@ -474,13 +478,13 @@ export default function Calculator({
               )}
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={LBL}><span>{locked ? "Project" : "Project name *"}</span>{leadSel && <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 8, background: PAL.neutral.fill, color: PAL.neutral.ink, letterSpacing: 0, textTransform: "none" as const }}>lead</span>}</div>
+            <div style={LBL}><span>{locked ? "Project" : "Project name *"}</span>{leadSel && <span style={{ fontSize: TYPE.micro.size, padding: "1px 7px", borderRadius: RADIUS.tag, background: PAL.neutral.fill, color: PAL.neutral.ink, letterSpacing: TRACK.none, textTransform: "none" as const }}>lead</span>}</div>
             {locked ? lockedField(prefill?.projectName || "")
               : <I value={projName} onChange={(e: any) => setProjName(e.target.value)} placeholder="e.g. Spring launch" aria-label="Project name" />}
           </div>
         </div>
         {dupe && !locked && (
-          <div style={{ fontSize: 12, color: PAL.waiting.ink, background: PAL.waiting.wash, borderRadius: 8, padding: "4px 9px", marginTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ fontSize: TYPE.subtext.size, color: PAL.waiting.ink, background: PAL.waiting.wash, borderRadius: RADIUS.tag, padding: "4px 9px", marginTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
             <span>{dupe.name} already exists</span>
             <button onClick={() => { pickClient(dupe.id); setNewName(""); }} style={linkBtn(PAL.waiting.ink)}>use it ›</button>
           </div>
@@ -515,10 +519,10 @@ export default function Calculator({
           </div>
         )}
         {showOrig && (
-          <div style={{ background: "#faf9f7", borderRadius: 10, padding: "4px 10px", marginTop: 4 }}>
+          <div style={{ background: C.bg, borderRadius: RADIUS.field, padding: "4px 10px", marginTop: 4 }}>
             {origLines.map((ln: any, i: number) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 0", borderTop: i ? "1px solid #f1eeea" : "none", fontSize: 12 }}>
-                <span style={{ color: "#4a4540" }}>{(Number(ln.qty) || 1) > 1 ? `${ln.qty}× ` : ""}{ln.name}</span><span>{fmt(Number(ln.amt) || 0)}</span>
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 0", borderTop: i ? `1px solid ${PAL.neutral.fill}` : "none", fontSize: TYPE.subtext.size }}>
+                <span style={{ color: C.ink2 }}>{(Number(ln.qty) || 1) > 1 ? `${ln.qty}× ` : ""}{ln.name}</span><span>{fmt(Number(ln.amt) || 0)}</span>
               </div>
             ))}
           </div>
@@ -529,7 +533,7 @@ export default function Calculator({
       {/* ── ② CATALOGUE ── */}
       <div style={CARD}>
         <ChipRow>
-          {cats.map(k => <Chip key={k} on={bCat === k} tone={cardTone(k)} label={catTitle(rc, k)} onClick={() => setBCat(k)} />)}
+          {cats.map(k => <Chip key={k} on={bCat === k} tone={PAL.neutral} dot={false} label={catTitle(rc, k)} onClick={() => setBCat(k)} />)}
         </ChipRow>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 6, marginTop: 10 }}>
           {tiles.map(ch => {
@@ -537,13 +541,13 @@ export default function Calculator({
             const price = ch.item.p !== null && ch.item.p !== undefined ? fmt(Number(ch.item.p) || 0) : ch.item.m ? pctSpace(ch.item.m) : "";
             return (
               <button key={ch.key} onClick={() => addTile(ch)} aria-label={`Add ${ch.item.n}`}
-                style={{ background: "#faf9f7", border: "1px solid #f1eeea", borderRadius: 10, minHeight: 52, padding: "6px 8px 6px 10px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", textAlign: "left" as const, fontFamily: SANS, color: C.black, minWidth: 0 }}>
+                style={{ background: C.bg, border: `1px solid ${PAL.neutral.fill}`, borderRadius: RADIUS.field, minHeight: 52, padding: "6px 8px 6px 10px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", textAlign: "left" as const, fontFamily: SANS, color: C.black, minWidth: 0 }}>
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: "block", fontSize: 13, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{ch.kind === "package" ? "Package · " : ""}{ch.item.n}</span>
-                  <span style={{ display: "block", fontSize: 12, color: "#8a847d", marginTop: 2 }}>{price}</span>
+                  <span style={{ display: "block", fontSize: TYPE.row.size, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{ch.kind === "package" ? "Package · " : ""}{ch.item.n}</span>
+                  <span style={{ display: "block", fontSize: TYPE.subtext.size, color: C.muted, marginTop: 2 }}>{price}</span>
                 </span>
-                <span style={{ minWidth: 24, height: 24, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0,
-                  ...(n ? { background: C.black, color: C.white } : { border: "1px solid #e2ddd6", color: C.black }) }}>{n || "+"}</span>
+                <span style={{ minWidth: 24, height: 24, borderRadius: RADIUS.tile, display: "flex", alignItems: "center", justifyContent: "center", fontSize: TYPE.subtext.size, flexShrink: 0,
+                  ...(n ? { background: C.black, color: C.white } : { border: `1px solid ${C.edge}`, color: C.black }) }}>{n || "+"}</span>
               </button>
             );
           })}
@@ -556,11 +560,11 @@ export default function Calculator({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minHeight: 44 }}>
           <span style={MI}>{isAmend ? "Amendment" : "Quote"} · {items.length} {items.length === 1 ? "item" : "items"}</span>
           {!isAmend && (
-            <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: retOn ? C.black : "#8a847d" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: TYPE.subtext.size, color: retOn ? C.black : C.muted }}>
               Retainer −{String(retPct).replace(".", ",")} %
               {retOn && (
                 <select value={retMo} aria-label="Retainer months" onChange={(e: any) => setRetMo(parseInt(e.target.value) || 6)}
-                  style={{ height: 32, border: "1px solid #ebe7e2", borderRadius: 16, background: C.white, fontFamily: SANS, fontSize: 16, padding: "0 8px", color: C.black }}>
+                  style={{ height: 32, border: `1px solid ${C.field}`, borderRadius: RADIUS.pill, background: C.white, fontFamily: SANS, fontSize: TYPE.field.size, padding: "0 8px", color: C.black }}>
                   {[2, 3, 4, 5, 6, 9, 12, 18, 24].map(m => <option key={m} value={m}>{m} mo</option>)}
                 </select>
               )}
@@ -570,13 +574,13 @@ export default function Calculator({
         </div>
 
         {lines.some(l => !l.fixed) && (
-          <div style={{ background: "#faf9f7", borderRadius: 10, padding: "8px 10px", marginTop: 2 }}>
+          <div style={{ background: C.bg, borderRadius: RADIUS.field, padding: "8px 10px", marginTop: 2 }}>
             {!rightsOpen ? (
               <div role="button" tabIndex={0} onClick={() => setRightsOpen(true)} onKeyDown={(e: any) => { if (e.key === "Enter") setRightsOpen(true); }}
                 style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, cursor: "pointer", minHeight: 44 }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={MI}>Rights · all items</div>
-                  <div style={{ fontSize: 13, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{rightsText(rights.usage, rights.excl, rights.platforms)}</div>
+                  <div style={{ fontSize: TYPE.row.size, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{rightsText(rights.usage, rights.excl, rights.platforms)}</div>
                 </div>
                 <span style={SMALL}>Change</span>
               </div>
@@ -584,7 +588,7 @@ export default function Calculator({
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", minHeight: 32 }}>
                   <span style={MI}>Rights · all items</span>
-                  <PillBtn dark onClick={() => setRightsOpen(false)} s={{ height: 28, padding: "0 12px", fontSize: 12 }}>Done</PillBtn>
+                  <PillBtn dark onClick={() => setRightsOpen(false)} s={{ height: 28, padding: "0 12px", fontSize: TYPE.subtext.size }}>Done</PillBtn>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8, marginTop: 6 }}>
                   <div><div style={LBL}>Usage rights</div>{optSelect(rCard.usage, idxIn(rCard.usage, rights.usage), i => setRights(r => ({ ...r, usage: rCard.usage[i]?.sentinel ? null : rCard.usage[i] || null })), "Usage rights", "None")}</div>
@@ -613,18 +617,18 @@ export default function Calculator({
             (it.addons || []).length ? `+${it.addons.length} add-on${it.addons.length === 1 ? "" : "s"}` : null,
           ].filter(Boolean).join(" · ");
           return (
-            <div key={it.id} style={{ borderTop: i || lines.some(l => !l.fixed) ? "1px solid #f4f1ed" : "none" }}>
+            <div key={it.id} style={{ borderTop: i || lines.some(l => !l.fixed) ? `1px solid ${C.hair}` : "none" }}>
               <div role="button" tabIndex={0} aria-expanded={open} onClick={() => setOpenLine(open ? null : it.id)} onKeyDown={(e: any) => { if (e.key === "Enter") setOpenLine(open ? null : it.id); }}
                 style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 50, padding: "8px 0", cursor: "pointer" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{it.name}</div>
-                  <div style={{ fontSize: 12, color: "#8a847d", marginTop: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{meta}</div>
+                  <div style={{ fontSize: TYPE.body.size, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{it.name}</div>
+                  <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{meta}</div>
                 </div>
-                <div style={{ fontSize: 14, flexShrink: 0 }}>{fmt(Number(it.amt) || 0)}</div>
+                <div style={{ fontSize: TYPE.body.size, flexShrink: 0 }}>{fmt(Number(it.amt) || 0)}</div>
                 {chev(open)}
               </div>
               {open && (
-                <div style={{ background: "#faf9f7", borderRadius: 10, padding: "8px 10px 6px", marginBottom: 8 }}>
+                <div style={{ background: C.bg, borderRadius: RADIUS.field, padding: "8px 10px 6px", marginBottom: 8 }}>
                   {ln.fixed ? (
                     <div style={{ ...SMALL, padding: "4px 0" }}>Kept as in the original quote. Remove it, or add the item again from the catalogue.</div>
                   ) : <>
@@ -632,7 +636,7 @@ export default function Calculator({
                       <div><div style={LBL}>Qty</div><Stepper value={ln.qty} onChange={v => upd(ln.id, { qty: v })} label={`${it.name} quantity`} /></div>
                       <div><div style={LBL}>Your rate</div><NumField value={ln.neg} onChange={v => upd(ln.id, { neg: v })} placeholder={fmt(Number(ch?.item.p ?? 0) || 0)} ariaLabel={`${it.name} your rate`} /></div>
                     </div>
-                    {ln.neg !== null && <div style={{ fontSize: 11, color: "#8a847d", marginTop: 4, textAlign: "right" as const }}>Rate card {fmt((Number(it.listAmt) || Number(it.amt)) / Math.max(1, it.qty))} per item</div>}
+                    {ln.neg !== null && <div style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 4, textAlign: "right" as const }}>Rate card {fmt((Number(it.listAmt) || Number(it.amt)) / Math.max(1, it.qty))} per item</div>}
                     {adds.length > 0 && <>
                       <div style={{ ...LBL, marginTop: 8, marginBottom: 0 }}>Add-ons</div>
                       <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const, marginTop: 5 }}>
@@ -652,7 +656,7 @@ export default function Calculator({
                         const a = adds.find((y: any) => y.key === x.key);
                         return (
                           <div key={x.key} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 150px", alignItems: "center", gap: 8, marginTop: 6 }}>
-                            <span style={{ ...SMALL, color: "#4a4540" }}>{a?.n} · months</span>
+                            <span style={{ ...SMALL, color: C.ink2 }}>{a?.n} · months</span>
                             <Stepper value={x.months} onChange={v => upd(ln.id, { addons: ln.addons.map(y => (y.key === x.key ? { ...y, months: v } : y)) })} label={`${a?.n} months`} />
                           </div>
                         );
@@ -661,7 +665,7 @@ export default function Calculator({
                     {volPct(ln.cat, ln.qty, true) > 0 && (
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6 }}>
                         <Switch on={ln.vol} onChange={v => upd(ln.id, { vol: v })} label="Volume discount" />
-                        <span style={{ fontSize: 12, color: "#4a4540" }}>Volume discount −{String(volPct(ln.cat, ln.qty, true)).replace(".", ",")} %</span>
+                        <span style={{ fontSize: TYPE.subtext.size, color: C.ink2 }}>Volume discount −{String(volPct(ln.cat, ln.qty, true)).replace(".", ",")} %</span>
                       </div>
                     )}
                     {ln.own && (
@@ -689,35 +693,35 @@ export default function Calculator({
         })}
 
         {discounted.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 4, borderTop: "1px solid #f4f1ed", minHeight: 50 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, borderTop: `1px solid ${C.hair}`, minHeight: 50 }}>
             <Switch on={showDisc} onChange={setShowDisc} label="Show discounts on the PDF" />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13 }}>Show discounts on the PDF</div>
+              <div style={{ fontSize: TYPE.row.size }}>Show discounts on the PDF</div>
               <div style={{ ...SMALL, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{discounted[0].name} {fmt(Number(discounted[0].listAmt))} → {fmt(Number(discounted[0].amt))}</div>
             </div>
           </div>
         )}
       </div>
-      {formErr && formErr !== missing && <div style={{ fontSize: 12, color: PAL.late.ink, margin: "8px 4px 0" }}>{formErr}</div>}
+      {formErr && formErr !== missing && <div style={{ fontSize: TYPE.subtext.size, color: PAL.late.ink, margin: "8px 4px 0" }}>{formErr}</div>}
 
       {/* ── BOTTOM BAR: total · what's missing · the one main button ── */}
       <BottomBar>
         <div style={{ minWidth: 0 }}>
           {missing ? <>
             <div style={MI}>Before the preview</div>
-            <div style={{ fontSize: 13, color: PAL.waiting.ink, marginTop: 4 }}>{missing}</div>
+            <div style={{ fontSize: TYPE.row.size, color: PAL.waiting.ink, marginTop: 4 }}>{missing}</div>
           </> : isAmend ? <>
             <div style={MI}>Adds {fmt(subtotal)} · new total</div>
-            <div style={{ fontFamily: SERIF, fontSize: 20, marginTop: 2 }}>{fmt(origTotal + subtotal)}</div>
+            <div style={{ fontFamily: SERIF, fontSize: TYPE.tile.size, marginTop: 2 }}>{fmt(origTotal + subtotal)}</div>
           </> : <>
             <div style={MI}>
               {retOn ? `${fmt(monthly)} / month × ${retMo}` : `${items.length} ${items.length === 1 ? "item" : "items"} · `}
               {!retOn && (isRev ? <span style={{ color: PAL.progress.ink }}>{diff >= 0 ? "+" : "−"}{fmt(Math.abs(diff))} vs original</span> : "total")}
             </div>
-            <div style={{ fontFamily: SERIF, fontSize: 20, marginTop: 2 }}>{fmt(totalAll)}</div>
+            <div style={{ fontFamily: SERIF, fontSize: TYPE.tile.size, marginTop: 2 }}>{fmt(totalAll)}</div>
           </>}
         </div>
-        <PillBtn dark dim={!!missing} onClick={openPreview} s={{ height: 38, padding: "0 16px", fontSize: 13 }}>
+        <PillBtn dark dim={!!missing} onClick={openPreview} s={{ height: 38, padding: "0 16px", fontSize: TYPE.row.size }}>
           {isAmend ? "Preview amendment" : isRev ? "Preview revision" : "Preview quote"}
         </PillBtn>
       </BottomBar>

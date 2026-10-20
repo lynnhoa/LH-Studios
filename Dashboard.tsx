@@ -13,7 +13,7 @@
 
 import { useState, useMemo } from "react";
 import type { ReactNode } from "react";
-import { C, SANS, SERIF, PAL, RADIUS, SHADOW, CATEGORY, catKeyOf, WORDS } from "./constants";
+import { C, SANS, SERIF, PAL, RADIUS, SHADOW, CATEGORY, catKeyOf, WORDS, TYPE, TRACK } from "./constants";
 import { fmt, today } from "./formatters";
 import { docsOf, isOpenInvoice, isPaidInvoice, isOverdue, paidDateOf, lineAmt } from "./docs";
 import { allLicenses, needsAction } from "./licenses";
@@ -24,7 +24,7 @@ const MO = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt
 const KU_LIMIT = 25000;   // § 19 UStG: more revenue than this in a year ends Kleinunternehmer for the next year
 const pct2 = (n: number) => `${n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
 const int  = (n: number) => Math.round(n).toLocaleString("de-DE");
-const microLabel: any = { fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const };
+const microLabel: any = { fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const };
 type ToneSet = { fill: string; wash: string; mid: string; ink: string };
 
 interface DashboardProps {
@@ -93,7 +93,7 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
   const circle = (d: string, t: { wash: string; ink: string }, bg?: string) => (
     <span style={{ width: 22, height: 22, borderRadius: "50%", background: bg || t.wash, color: t.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={d} size={12} /></span>
   );
-  const chev = (c = "#c4beb7") => <Ico d={IC.right} size={14} color={c} />;
+  const chev = (c: string = C.faint) => <Ico d={IC.right} size={14} color={c} />;
   const section = (title: string) => (
     <div style={{ display: "flex", alignItems: "center", gap: 7, margin: "14px 2px 7px" }}>
       <span style={{ width: 7, height: 7, borderRadius: "50%", background: PAL.neutral.mid }} />
@@ -106,13 +106,13 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
         <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>{circle(icon, t, C.white)}<span style={{ ...microLabel, color: t.ink, whiteSpace: "nowrap" as const }}>{label}</span></span>
         {onClick && chev(t.mid)}
       </div>
-      <div style={{ fontFamily: SERIF, fontSize: 19, marginTop: 7, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
-      <div style={{ fontSize: 11, color: t.ink, marginTop: 1 }}>{sub}</div>
+      <div style={{ fontFamily: SERIF, fontSize: TYPE.tile.size, marginTop: 7, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
+      <div style={{ fontSize: TYPE.label.size, color: t.ink, marginTop: 1 }}>{sub}</div>
     </div>
   );
   const yearBtn = (label: string, to: number | undefined, ch: string) => (
     <button onClick={() => to !== undefined && setYear(to)} disabled={to === undefined} aria-label={label}
-      style={{ background: "none", border: "none", padding: "0 8px", height: 28, cursor: to === undefined ? "default" : "pointer", color: to === undefined ? "#ddd8d2" : C.muted, fontFamily: SANS, fontSize: 14 }}>{ch}</button>
+      style={{ background: "none", border: "none", padding: "0 8px", height: 28, cursor: to === undefined ? "default" : "pointer", color: to === undefined ? C.faint : C.muted, fontFamily: SANS, fontSize: TYPE.body.size }}>{ch}</button>
   );
   const licTone: ToneSet = expired ? PAL.late : expiring ? PAL.waiting : PAL.done;
   const licText = expired && expiring ? `${expired} expired · ${expiring} expiring` : expired ? `${expired} expired` : expiring ? `${expiring} expiring` : "Nothing expiring";
@@ -121,25 +121,25 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
     <div style={{ fontFamily: SANS, color: C.black }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
         <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Dashboard</h2>
-        <span style={{ display: "inline-flex", alignItems: "center", border: `1px solid ${C.rule}`, borderRadius: 14, background: C.white, height: 28, fontSize: 12 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", border: `1px solid ${C.rule}`, borderRadius: RADIUS.card, background: C.white, height: 28, fontSize: TYPE.subtext.size }}>
           {yearBtn("Previous year", data.years[yi - 1], "‹")}<span style={{ minWidth: 40, textAlign: "center" as const }}>{year}</span>{yearBtn("Next year", data.years[yi + 1], "›")}
         </span>
       </div>
-      <div style={{ ...microLabel, letterSpacing: "0.06em", color: C.muted, marginTop: 4 }}>Overview · read only</div>
+      <div style={{ ...microLabel, letterSpacing: TRACK.caps, color: C.muted, marginTop: 4 }}>Overview · read only</div>
 
       <div style={{ display: isMobile ? "block" : "grid", gridTemplateColumns: "minmax(0,1.15fr) minmax(0,1fr)", gap: 16, alignItems: "start" }}>
         <div>
           {/* ── revenue ── */}
           <div {...press(onOpenInvoices ? () => onOpenInvoices("paid") : undefined)}
-            style={{ marginTop: 10, background: C.white, border: "1px solid #efebe6", borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden", cursor: onOpenInvoices ? "pointer" : "default" }}>
+            style={{ marginTop: 10, background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden", cursor: onOpenInvoices ? "pointer" : "default" }}>
             <div style={{ padding: "11px 13px 9px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 7 }}>{circle(IC.euro, PAL.done)}<span style={{ ...microLabel, color: C.muted }}>Revenue {year}</span></span>
                 {onOpenInvoices && chev()}
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 8, marginTop: 6 }}>
-                <div style={{ fontFamily: SERIF, fontSize: 28, lineHeight: 1.05, whiteSpace: "nowrap" as const }}>{fmt(revenue)}</div>
-                <div style={{ fontSize: 11, color: "#8a847d", textAlign: "right" as const, lineHeight: 1.35 }}>
+                <div style={{ fontFamily: SERIF, fontSize: TYPE.kpi.size, lineHeight: 1.05, whiteSpace: "nowrap" as const }}>{fmt(revenue)}</div>
+                <div style={{ fontSize: TYPE.label.size, color: C.muted, textAlign: "right" as const, lineHeight: 1.35 }}>
                   {paidInYear.length} paid invoice{paidInYear.length === 1 ? "" : "s"}
                   {curMonth >= 0 && <><br />{MO[curMonth]} {fmt(byMonth[curMonth])}</>}
                 </div>
@@ -149,22 +149,22 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
                   const go = v > 0 && onOpenInvoices ? (e: any) => { e.stopPropagation(); onOpenInvoices("paid", `${year}-${String(m + 1).padStart(2, "0")}`); } : undefined;
                   return (
                     <button key={m} onClick={go} disabled={!go} aria-label={`${MO[m]}: ${fmt(v)}`} title={`${MO[m]} · ${fmt(v)}`}
-                      style={{ height: v > 0 ? Math.max(6, Math.round((v / maxMonth) * 38)) : 3, background: v > 0 ? (m === curMonth ? PAL.done.mid : PAL.done.fill) : m > curMonth && curMonth >= 0 ? "#f6f4f1" : "#f1eeea",
+                      style={{ height: v > 0 ? Math.max(6, Math.round((v / maxMonth) * 38)) : 3, background: v > 0 ? (m === curMonth ? PAL.done.mid : PAL.done.fill) : m > curMonth && curMonth >= 0 ? PAL.neutral.wash : PAL.neutral.fill,
                         borderRadius: v > 0 ? 5 : 2, border: "none", padding: 0, cursor: go ? "pointer" : "default", width: "100%" }} />
                   );
                 })}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0,1fr))", gap: 4, marginTop: 4, fontSize: 10, color: "#bdb7b0", textAlign: "center" as const }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0,1fr))", gap: 4, marginTop: 4, fontSize: TYPE.micro.size, color: C.light, textAlign: "center" as const }}>
                 {MO.map((m, k) => <span key={m} style={{ color: k === curMonth ? C.black : undefined }}>{m}</span>)}
               </div>
             </div>
             {ku && (
-              <div style={{ padding: "7px 13px 8px", borderTop: "1px solid #f4f1ed", background: "#fcfbf9" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11, color: kuTone === PAL.neutral ? "#6b655e" : kuTone.ink }}>
+              <div style={{ padding: "7px 13px 8px", borderTop: `1px solid ${C.hair}`, background: PAL.neutral.wash }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: TYPE.label.size, color: kuTone === PAL.neutral ? PAL.neutral.ink : kuTone.ink }}>
                   <span>Kleinunternehmer · {int(revenue)} of {int(KU_LIMIT)} €</span><span>{pct2(kuPct)}</span>
                 </div>
-                <div style={{ height: 4, background: "#efebe6", borderRadius: 2, marginTop: 5 }}>
-                  <div style={{ width: `${Math.min(100, kuPct)}%`, height: 4, background: kuTone.mid, borderRadius: 2 }} />
+                <div style={{ height: 4, background: C.line, borderRadius: RADIUS.bar, marginTop: 5 }}>
+                  <div style={{ width: `${Math.min(100, kuPct)}%`, height: 4, background: kuTone.mid, borderRadius: RADIUS.bar }} />
                 </div>
               </div>
             )}
@@ -182,11 +182,11 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
               `${data.signed.length} project${data.signed.length === 1 ? "" : "s"} · not invoiced`,
               onOpenProjects ? () => onOpenProjects("signed") : undefined)}
             <div {...press(onOpenProjects ? () => onOpenProjects("quoted") : undefined)}
-              style={{ gridColumn: "1 / -1", background: PAL.neutral.wash, border: "1px solid #efebe6", borderRadius: RADIUS.tile, padding: "9px 11px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, cursor: onOpenProjects ? "pointer" : "default" }}>
+              style={{ gridColumn: "1 / -1", background: PAL.neutral.wash, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, padding: "9px 11px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, cursor: onOpenProjects ? "pointer" : "default" }}>
               <span style={{ display: "flex", alignItems: "center", gap: 6 }}>{circle(IC.file, PAL.neutral, C.white)}<span style={{ ...microLabel, color: PAL.neutral.ink }}>Pipeline</span></span>
               <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                <span style={{ fontSize: 11, color: PAL.neutral.ink, whiteSpace: "nowrap" as const }}>{data.quoted.length} quote{data.quoted.length === 1 ? "" : "s"}</span>
-                <span style={{ fontFamily: SERIF, fontSize: 19, whiteSpace: "nowrap" as const }}>{fmt(pipeline)}</span>
+                <span style={{ fontSize: TYPE.label.size, color: PAL.neutral.ink, whiteSpace: "nowrap" as const }}>{data.quoted.length} quote{data.quoted.length === 1 ? "" : "s"}</span>
+                <span style={{ fontFamily: SERIF, fontSize: TYPE.tile.size, whiteSpace: "nowrap" as const }}>{fmt(pipeline)}</span>
                 {onOpenProjects && chev(PAL.neutral.mid)}
               </span>
             </div>
@@ -194,26 +194,26 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
 
           {/* ── licenses ── */}
           <div {...press(onOpenLicenses ? () => onOpenLicenses(expired + expiring ? "action" : "active") : undefined)}
-            style={{ minHeight: 44, boxSizing: "border-box" as const, marginTop: 8, height: 42, padding: "0 12px", background: C.white, border: "1px solid #efebe6", borderRadius: RADIUS.tile, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, cursor: onOpenLicenses ? "pointer" : "default" }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>{circle(IC.shield, licTone)}Licenses</span>
+            style={{ minHeight: 44, boxSizing: "border-box" as const, marginTop: 8, height: 42, padding: "0 12px", background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, cursor: onOpenLicenses ? "pointer" : "default" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: TYPE.row.size }}>{circle(IC.shield, licTone)}Licenses</span>
             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 10, letterSpacing: "0.03em", padding: "2px 8px", borderRadius: 9, background: expired || expiring ? licTone.fill : "transparent", color: licTone.ink }}>{licText}</span>
+              <span style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.tag, padding: "2px 8px", borderRadius: RADIUS.tag, background: expired || expiring ? licTone.fill : "transparent", color: licTone.ink }}>{licText}</span>
               {onOpenLicenses && chev()}
             </span>
           </div>
 
           {/* ── revenue by offer ── */}
           {section(`Revenue by offer · ${year}`)}
-          <div style={{ background: C.white, border: "1px solid #efebe6", borderRadius: RADIUS.tile, padding: "2px 12px" }}>
-            {offers.length === 0 && <p style={{ fontSize: 12, color: C.muted, margin: 0, padding: "10px 0" }}>No paid invoices in {year} yet.</p>}
+          <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, padding: "2px 12px" }}>
+            {offers.length === 0 && <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: 0, padding: "10px 0" }}>No paid invoices in {year} yet.</p>}
             {offers.map((o, k) => (
-              <div key={o.k} style={{ padding: "8px 0", borderTop: k ? "1px solid #f4f1ed" : "none" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13 }}>
+              <div key={o.k} style={{ padding: "8px 0", borderTop: k ? `1px solid ${C.hair}` : "none" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: TYPE.row.size }}>
                   <span>{o.label}</span>
-                  <span style={{ whiteSpace: "nowrap" as const }}>{fmt(o.v)} <span style={{ fontSize: 11, color: "#8a847d", marginLeft: 4 }}>{pct2(revenue ? (o.v / revenue) * 100 : 0)}</span></span>
+                  <span style={{ whiteSpace: "nowrap" as const }}>{fmt(o.v)} <span style={{ fontSize: TYPE.label.size, color: C.muted, marginLeft: 4 }}>{pct2(revenue ? (o.v / revenue) * 100 : 0)}</span></span>
                 </div>
-                <div style={{ height: 4, background: "#f4f1ed", borderRadius: 2, marginTop: 6 }}>
-                  <div style={{ width: `${revenue ? Math.min(100, (o.v / revenue) * 100) : 0}%`, height: 4, background: PAL.neutral.mid, borderRadius: 2 }} />
+                <div style={{ height: 4, background: C.hair, borderRadius: RADIUS.bar, marginTop: 6 }}>
+                  <div style={{ width: `${revenue ? Math.min(100, (o.v / revenue) * 100) : 0}%`, height: 4, background: PAL.neutral.mid, borderRadius: RADIUS.bar }} />
                 </div>
               </div>
             ))}

@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { C, SANS, SERIF, TYPE, Z } from "./constants";
+import { C, SANS, SERIF, TYPE, Z, TRACK, SHADOW, RADIUS } from "./constants";
 import { initials } from "./formatters";
 import type { Role } from "./types";
 
@@ -26,8 +26,8 @@ const ROW_H    = 36;
 const itemStyle = (active: boolean, color: string): any => ({
   display: "flex", alignItems: "center", width: "100%", height: ROW_H, padding: "0 14px",
   background: active ? "rgba(0,0,0,0.035)" : "none", border: "none", cursor: "pointer",
-  textAlign: "left" as const, fontFamily: SANS, fontSize: 13, color,
-  letterSpacing: "0.01em", boxSizing: "border-box" as const,
+  textAlign: "left" as const, fontFamily: SANS, fontSize: TYPE.row.size, color,
+  letterSpacing: TRACK.none, boxSizing: "border-box" as const,
 });
 
 export function AvatarMenu({ settings, roleLabel, items, apps, onSignOut, dropLeft = false }: {
@@ -45,17 +45,17 @@ export function AvatarMenu({ settings, roleLabel, items, apps, onSignOut, dropLe
       <button
         onClick={() => setOpen(o => !o)}
         title="Account"
-        style={{ width: 36, height: 36, borderRadius: "50%", background: C.black, color: C.white, border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.04em", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: Z.menu, flexShrink: 0 }}
+        style={{ width: 36, height: 36, borderRadius: "50%", background: C.black, color: C.white, border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: TRACK.tag, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: Z.menu, flexShrink: 0 }}
       >
         {ini}
       </button>
 
       {open && (
-        <div role="menu" style={{ position: "absolute", ...(dropLeft ? { left: 0 } : { right: 0 }), top: "calc(100% + 8px)", width: MENU_W, background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, boxShadow: "0 6px 20px rgba(0,0,0,0.10)", zIndex: Z.menu }}>
+        <div role="menu" style={{ position: "absolute", ...(dropLeft ? { left: 0 } : { right: 0 }), top: "calc(100% + 8px)", width: MENU_W, background: C.bg, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, overflow: "hidden", boxShadow: SHADOW.pop, zIndex: Z.menu }}>
           {/* who you are */}
           <div style={{ padding: "10px 14px 9px", borderBottom: `1px solid ${C.rule}` }}>
-            <p style={{ fontSize: 15, lineHeight: 1.2, fontFamily: SERIF, color: C.black, margin: 0 }}>{settings?.name || settings?.company || "Lynn Hoa"}</p>
-            <p style={{ fontSize: TYPE.micro.size, fontFamily: SANS, color: C.light, margin: "2px 0 0", letterSpacing: "0.10em", textTransform: "uppercase" as const }}>{roleLabel} · Private</p>
+            <p style={{ fontSize: TYPE.sectionHeading.size, lineHeight: 1.2, fontFamily: SERIF, color: C.black, margin: 0 }}>{settings?.name || settings?.company || "Lynn Hoa"}</p>
+            <p style={{ fontSize: TYPE.micro.size, fontFamily: SANS, color: C.light, margin: "2px 0 0", letterSpacing: TRACK.caps, textTransform: "uppercase" as const }}>{roleLabel} · Private</p>
           </div>
           {/* pages */}
           {items.length > 0 && (
@@ -86,7 +86,7 @@ export const NavTab = ({ label, active, onClick, height, px }: {
 }) => (
   <button
     onClick={onClick}
-    style={{ padding: `0 ${px}px`, height, background: "none", border: "none", borderBottom: active ? `2px solid ${C.black}` : "2px solid transparent", color: active ? C.black : C.muted, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.12em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const, flexShrink: 0 }}
+    style={{ padding: `0 ${px}px`, height, background: "none", border: "none", borderBottom: active ? `2px solid ${C.black}` : "2px solid transparent", color: active ? C.black : C.muted, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, whiteSpace: "nowrap" as const, flexShrink: 0 }}
   >
     {label}
   </button>

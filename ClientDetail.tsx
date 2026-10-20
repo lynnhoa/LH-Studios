@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
-import { C, SANS, SERIF, PAL, STATUS_TONE, STATUS_NAME, WORDS } from "./constants";
+import { C, SANS, SERIF, PAL, STATUS_TONE, STATUS_NAME, WORDS, TYPE, TRACK, RADIUS } from "./constants";
 import { fmt, fmtD, today } from "./formatters";
 import { I, S, Lbl, Tag, ConfirmDialog, PillBtn, SectionHead, ListCard, Row, TonedTag, IconCircle } from "./atoms";
 import type { ToneSet } from "./atoms";
@@ -119,11 +119,11 @@ export default function ClientDetail({
   const licTag = (l: License) => l.action ? `${ACTION_LABEL[l.action.action] || l.action.action}` : !l.alerts ? "info only"
     : l.daysLeft < 0 ? `${Math.abs(l.daysLeft)} days expired` : `${l.daysLeft} ${l.daysLeft === 1 ? "day" : "days"}`;
 
-  const card: any = { background: C.white, border: "1px solid #efebe6", borderRadius: 12, padding: "4px 12px" };
+  const card: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, padding: "4px 12px" };
   const infoRow = (lbl: string, val: any, first = false) => (
-    <div key={lbl} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 0", borderTop: first ? "none" : "1px solid #f4f1ed" }}>
-      <span style={{ fontSize: 12, color: "#8a847d" }}>{lbl}</span>
-      <span style={{ fontSize: 12, color: C.black, textAlign: "right" as const, maxWidth: "62%", overflowWrap: "anywhere" as const }}>{val || "—"}</span>
+    <div key={lbl} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 0", borderTop: first ? "none" : `1px solid ${C.hair}` }}>
+      <span style={{ fontSize: TYPE.subtext.size, color: C.muted }}>{lbl}</span>
+      <span style={{ fontSize: TYPE.subtext.size, color: C.black, textAlign: "right" as const, maxWidth: "62%", overflowWrap: "anywhere" as const }}>{val || "—"}</span>
     </div>
   );
 
@@ -142,7 +142,7 @@ export default function ClientDetail({
       )}
 
       <button onClick={() => { setSel(null); setEditMode(false); }}
-        style={{ background: "none", border: "none", padding: "0 8px 0 0", minHeight: 44, display: "inline-flex", alignItems: "center", cursor: "pointer", fontFamily: SANS, fontSize: 12, color: "#8a847d" }}>‹ Clients</button>
+        style={{ background: "none", border: "none", padding: "0 8px 0 0", minHeight: 44, display: "inline-flex", alignItems: "center", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.muted }}>‹ Clients</button>
 
       {/* ── HEADER ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginTop: 0 }}>
@@ -150,7 +150,7 @@ export default function ClientDetail({
           {editMode
             ? <I value={ed.name} onChange={(e: any) => setEd((p: any) => ({ ...p, name: e.target.value }))} s={{ fontFamily: SERIF }} />
             : <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>{cl.name}</h2>}
-          <div style={{ fontSize: 12, color: "#8a847d", marginTop: 4 }}>{[cl.agency || "Direct", `${t.projects} project${t.projects === 1 ? "" : "s"}`, cl.contact].filter(Boolean).join(" · ")}</div>
+          <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 4 }}>{[cl.agency || "Direct", `${t.projects} project${t.projects === 1 ? "" : "s"}`, cl.contact].filter(Boolean).join(" · ")}</div>
           {!editMode && (cl.tags || []).length > 0 && <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const, marginTop: 6 }}>{cl.tags.map((x: string) => <Tag key={x}>{x}</Tag>)}</div>}
         </div>
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
@@ -163,10 +163,10 @@ export default function ClientDetail({
       {/* ── TOTALS ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 6, marginTop: 12 }}>
         {([[WORDS.toInvoice, t.signed, PAL.progress], [WORDS.unpaid, t.owed, PAL.waiting], [`${WORDS.paid} ${year}`, t.paidYear, PAL.done]] as [string, number, ToneSet][]).map(([lbl, v, tn]) => (
-          <div key={lbl} style={{ background: tn.wash, borderRadius: 12, padding: "9px 10px", minWidth: 0 }}>
-            <div style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: tn.ink }}>{lbl}</div>
-            <div style={{ fontFamily: SERIF, fontSize: 16, marginTop: 4, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{fmt(v)}</div>
-            {lbl === WORDS.unpaid && t.overdue > 0 && <div style={{ fontSize: 10, color: PAL.late.ink, marginTop: 2 }}>{t.overdue} overdue</div>}
+          <div key={lbl} style={{ background: tn.wash, borderRadius: RADIUS.tile, padding: "9px 10px", minWidth: 0 }}>
+            <div style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: tn.ink }}>{lbl}</div>
+            <div style={{ fontFamily: SERIF, fontSize: TYPE.field.size, marginTop: 4, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{fmt(v)}</div>
+            {lbl === WORDS.unpaid && t.overdue > 0 && <div style={{ fontSize: TYPE.micro.size, color: PAL.late.ink, marginTop: 2 }}>{t.overdue} overdue</div>}
           </div>
         ))}
       </div>
@@ -179,17 +179,17 @@ export default function ClientDetail({
             <Row key={pr.id} first={i === 0} highlight={!!highlightedQNo && pr.qd?.qNo === highlightedQNo}
               onClick={onOpenProject ? () => { onClearHighlight(); onOpenProject(pr.id); } : undefined}
               title={pr.name || "Untitled"} meta={projMeta(pr)}
-              right={<div style={{ fontSize: 14, color: pr.status === "lost" ? C.muted : C.black }}>{fmt(pr.amount)}</div>} />
+              right={<div style={{ fontSize: TYPE.body.size, color: pr.status === "lost" ? C.muted : C.black }}>{fmt(pr.amount)}</div>} />
           ))}
         </ListCard>
-      ) : <p style={{ fontSize: 13, color: C.muted, margin: "4px 4px 0" }}>No projects yet.</p>}
+      ) : <p style={{ fontSize: TYPE.row.size, color: C.muted, margin: "4px 4px 0" }}>No projects yet.</p>}
       <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
         {showAddP ? <>
           <I value={newPN} onChange={(e: any) => setNewPN(e.target.value)} placeholder="Project name" onKeyDown={(e: any) => e.key === "Enter" && addProject()} />
           <PillBtn dark onClick={addProject}>Add</PillBtn>
           <PillBtn onClick={() => { setShowAddP(false); setNewPN(""); }}>Cancel</PillBtn>
         </> : (
-          <button onClick={() => setShowAddP(true)} style={{ fontSize: 12, color: "#8a847d", background: "none", border: "none", cursor: "pointer", fontFamily: SANS, padding: "0 4px", minHeight: 44 }}>+ Add a lead without a quote</button>
+          <button onClick={() => setShowAddP(true)} style={{ fontSize: TYPE.subtext.size, color: C.muted, background: "none", border: "none", cursor: "pointer", fontFamily: SANS, padding: "0 4px", minHeight: 44 }}>+ Add a lead without a quote</button>
         )}
       </div>
 
@@ -203,7 +203,7 @@ export default function ClientDetail({
               <Row key={`${l.projectId}-${l.key}`} first={i === 0}
                 icon={<IconCircle tone={tn}><Ico d={l.kind === "excl" ? IC.lock : l.kind === "organic" ? IC.leaf : IC.speaker} size={15} /></IconCircle>}
                 title={l.projectName} meta={`${l.label}${l.extended ? " · renewed" : ""}`}
-                right={<><div style={{ fontSize: 13 }}>{fmtD(l.end)}</div><TonedTag tone={tn} s={{ marginTop: 3 }}>{licTag(l)}</TonedTag></>} />
+                right={<><div style={{ fontSize: TYPE.row.size }}>{fmtD(l.end)}</div><TonedTag tone={tn} s={{ marginTop: 3 }}>{licTag(l)}</TonedTag></>} />
             );
           })}
         </ListCard>
@@ -255,12 +255,12 @@ export default function ClientDetail({
       <div style={{ ...card, padding: "10px 12px" }}>
         {editMode
           ? <textarea value={ed.notes || ""} onChange={(e: any) => setEd((p: any) => ({ ...p, notes: e.target.value }))}
-              style={{ width: "100%", minHeight: 70, padding: "8px 10px", border: `1px solid ${C.rule}`, borderRadius: 8, background: C.bg, fontFamily: SANS, color: C.black, boxSizing: "border-box" as const, resize: "vertical" as const }} />
-          : <p style={{ fontSize: 13, color: cl.notes ? C.black : C.light, margin: 0, lineHeight: 1.6 }}>{cl.notes || "No notes yet"}</p>}
+              style={{ width: "100%", minHeight: 70, padding: "8px 10px", border: `1px solid ${C.rule}`, borderRadius: RADIUS.tag, background: C.bg, fontFamily: SANS, color: C.black, boxSizing: "border-box" as const, resize: "vertical" as const }} />
+          : <p style={{ fontSize: TYPE.row.size, color: cl.notes ? C.black : C.light, margin: 0, lineHeight: 1.6 }}>{cl.notes || "No notes yet"}</p>}
       </div>
 
       <div style={{ textAlign: "center" as const, margin: "18px 0 6px" }}>
-        <button onClick={() => deleteClient()} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: 12, color: C.red, minHeight: 44, padding: "0 12px" }}>Delete client</button>
+        <button onClick={() => deleteClient()} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.red, minHeight: 44, padding: "0 12px" }}>Delete client</button>
       </div>
     </div>
   );

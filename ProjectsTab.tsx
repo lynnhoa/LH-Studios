@@ -6,12 +6,12 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef } from "react";
-import { C, SERIF, SANS, TYPE, expiryColor, expiryTint, PAL, STATUS_TONE, STATUS_NAME, WORDS } from "./constants";
+import { C, SERIF, SANS, TYPE, expiryColor, expiryTint, PAL, STATUS_TONE, STATUS_NAME, WORDS, TRACK, RADIUS, ICON } from "./constants";
 import { signedOpen, followUp, validUntil, currentContractOf, daysSince } from "./money";
 import { fmt, fmtD, fmtE, today, addM, dLeft } from "./formatters";
 import { projectLicenses, ACTION_LABEL } from "./licenses";
 import { pdfFlow, finalizeQuestion } from "./docFlow";
-import { I, B, TSel, TSelWrap, StatusBadge, ConfirmDialog, TonedTag } from "./atoms";
+import { I, B, TSel, TSelWrap, StatusBadge, ConfirmDialog, TonedTag, SummaryLine, Strong, SectionHead, listSeg, ListCard } from "./atoms";
 import RenewalModal from "./RenewalModal";
 import ProductionSection from "./ProductionSection";
 import PDFModal from "./PDFModal";
@@ -32,7 +32,7 @@ function LicenseLine({ label, end }: { label: string; end: string }) {
   const bd  = col;
   const txt = d < 0 ? `${Math.abs(d)}d expired` : `${d}d left`;
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 8px", background: bg, border: `1px solid ${bd}`, borderRadius: 10, marginBottom: 3 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 8px", background: bg, border: `1px solid ${bd}`, borderRadius: RADIUS.field, marginBottom: 3 }}>
       <span style={{ fontSize: TYPE.micro.size, color: col, fontWeight: "500" }}>{label}</span>
       <span style={{ fontSize: TYPE.micro.size, color: col, fontWeight: "600" }}>{fmtD(end)} · {txt}</span>
     </div>
@@ -44,14 +44,14 @@ function ProjectLicenseTracker({ pr }: { pr: any }) {
   if (!lic.length) return null;
   return (
     <div style={{ marginBottom: 8, marginTop: 4 }}>
-      <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 4px" }}>Licenses</p>
+      <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: "0 0 4px" }}>Licenses</p>
       {lic.map(l => l.action
-        ? <div key={l.key} style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", marginBottom: 3, border: `1px solid ${C.rule}`, borderRadius: 10 }}>
+        ? <div key={l.key} style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", marginBottom: 3, border: `1px solid ${C.rule}`, borderRadius: RADIUS.field }}>
             <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{l.label}</span>
             <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{fmtD(l.end)} · {ACTION_LABEL[l.action.action] || l.action.action}</span>
           </div>
         : !l.alerts
-        ? <div key={l.key} style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", marginBottom: 3, border: `1px solid ${C.rule}`, borderRadius: 10 }}>
+        ? <div key={l.key} style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", marginBottom: 3, border: `1px solid ${C.rule}`, borderRadius: RADIUS.field }}>
             <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{l.label}</span>
             <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{fmtD(l.end)}</span>
           </div>
@@ -106,7 +106,7 @@ function ProjectRow({
   const pid    = pr.id;
   const upP    = (data: any) => h.updateProject(cid, pid, data);
   // the one next step of this stage: dark, first, full width on the phone
-  const NEXT: any = { order: -1, fontSize: 14, minHeight: 42, ...(isMobile ? { flexBasis: "100%" } : { paddingLeft: 20, paddingRight: 20 }) };
+  const NEXT: any = { order: -1, fontSize: TYPE.body.size, minHeight: 42, ...(isMobile ? { flexBasis: "100%" } : { paddingLeft: 20, paddingRight: 20 }) };
   // signed without a delivery date → ask once (can be skipped; invoices and licenses need it).
   // The question lives in the Projects tab: after signing, this row moves to the Production group.
   const askDelivery = () => { if (!pr.deliveryDate && onAskDelivery) onAskDelivery({ cid, pid, name: pr.name }); };
@@ -257,7 +257,7 @@ function ProjectRow({
   const amendDocsDraft = (a: any) => { const d = amendmentDoc(pr, a.id); return !d || d.status === "draft"; };
 
   return (
-    <div ref={rowRef} data-prid={pr.id} style={{ borderBottom: `1px solid ${C.rule}`, opacity: pr.paid ? 0.55 : 1 }}>
+    <div ref={rowRef} data-prid={pr.id} style={{ borderBottom: `1px solid ${C.hair}`, opacity: pr.paid ? 0.55 : 1 }}>
 
       {dialog && (
         <ConfirmDialog
@@ -285,26 +285,26 @@ function ProjectRow({
           : quote ? (fuMeta || <> · {vu ? `valid until ${fmtD(vu)}` : pr.status}</>)
           : <> · lead</>;
         return (
-          <div onClick={onToggle} style={{ padding: "9px 0", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, fontFamily: SANS }}>
+          <div onClick={onToggle} style={{ padding: "9px 0", minHeight: 54, boxSizing: "border-box" as const, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, fontFamily: SANS }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                <span style={{ fontSize: 14, color: C.black, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr.name || "Untitled"}</span>
+                <span style={{ fontSize: TYPE.body.size, color: C.black, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pr.name || "Untitled"}</span>
                 {/^untitled project$/i.test(String(pr.name || "")) && <TonedTag tone={PAL.waiting}>Needs a name</TonedTag>}
               </div>
-              <div style={{ fontSize: 12, color: "#8a847d", marginTop: 2, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 2, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>
                 {onOpenClient
                   ? <button onClick={(e) => { e.stopPropagation(); onOpenClient(pr._cname); }} aria-label={`Open client ${pr._cname}`}
-                      style={{ background: "none", border: "none", padding: "9px 2px", margin: "-9px -2px", font: "inherit", color: "inherit", cursor: "pointer", textDecoration: "underline", textDecorationColor: "#d9d3cc", textUnderlineOffset: 2 }}>{pr._cname}</button>
+                      style={{ background: "none", border: "none", padding: "9px 2px", margin: "-9px -2px", font: "inherit", color: "inherit", cursor: "pointer", textDecoration: "underline", textDecorationColor: C.pillOn, textUnderlineOffset: 2 }}>{pr._cname}</button>
                   : pr._cname}
                 {meta}
               </div>
             </div>
             <div style={{ textAlign: "right" as const, flexShrink: 0 }}>
-              <div style={{ fontFamily: SERIF, fontSize: 15, color: pr.status === "lost" ? C.muted : C.black }}>{fmt(pr.amount)}</div>
+              <div style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: pr.status === "lost" ? C.muted : C.black }}>{fmt(pr.amount)}</div>
               {fu ? <TonedTag tone={PAL[fu.tone]} s={{ marginTop: 3 }}>{fu.label}</TonedTag>
                 : (pr.paid || pr.status === "lost") ? <div style={{ marginTop: 3 }}><StatusBadge status={pr.paid ? "paid" : "lost"} /></div> : null}
             </div>
-            <span style={{ color: "#cfc9c2", fontSize: 11, flexShrink: 0 }}>{isExpanded ? "▴" : "▾"}</span>
+            <span style={{ color: C.faint, fontSize: ICON.caret, flexShrink: 0 }}>{isExpanded ? "▴" : "▾"}</span>
           </div>
         );
       })()}
@@ -316,7 +316,7 @@ function ProjectRow({
           {/* 1. DETAILS */}
           {pr.qd && (
             <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Details</p>
+              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Details</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 {pr.qd.qNo    && <div style={{ display: "flex", justifyContent: "space-between", fontSize: TYPE.body.size }}><span style={{ color: C.muted }}>Quote No.</span><span style={{ color: C.black, fontWeight: 500 }}>{pr.qd.qNo}</span></div>}
                 {pr.qd.contact && <div style={{ display: "flex", justifyContent: "space-between", fontSize: TYPE.body.size }}><span style={{ color: C.muted }}>Contact</span><span style={{ color: C.black, fontWeight: 500 }}>{pr.qd.contact}</span></div>}
@@ -342,7 +342,7 @@ function ProjectRow({
           {/* 2. DELIVERABLES */}
           {pr.qd && (pr.qd.lines || []).length > 0 && (
             <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Deliverables</p>
+              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Deliverables</p>
               {(pr.qd.lines || []).map((ln: any, li: number) => {
                 const qty = Math.max(1, parseInt(ln.qty) || 1);
                 const amt = parseFloat(ln.amt) || 0;
@@ -350,7 +350,7 @@ function ProjectRow({
                   <div key={li} style={{ marginBottom: li < (pr.qd.lines || []).length - 1 ? 8 : 0, paddingBottom: li < (pr.qd.lines || []).length - 1 ? 8 : 0, borderBottom: li < (pr.qd.lines || []).length - 1 ? `1px solid ${C.rule}` : "none" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3, flexWrap: "wrap" as const }}>
                       <span style={{ fontSize: TYPE.body.size, color: C.black, fontWeight: 500 }}>{qty > 1 ? `${qty}× ` : ""}{ln.name}</span>
-                      {ln.usageLabel && <span style={{ fontSize: TYPE.micro.size, color: C.muted, padding: "1px 5px", border: `1px solid ${C.rule}`, borderRadius: 10 }}>{ln.usageLabel}</span>}
+                      {ln.usageLabel && <span style={{ fontSize: TYPE.micro.size, color: C.muted, padding: "1px 5px", border: `1px solid ${C.rule}`, borderRadius: RADIUS.field }}>{ln.usageLabel}</span>}
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: TYPE.label.size }}>
                       <span style={{ color: C.muted }}>{qty > 1 ? `${fmtE(amt / qty)} € each` : "Rate"}</span>
@@ -372,7 +372,7 @@ function ProjectRow({
           {/* 4. DOCUMENTS */}
           {(docs.length > 0 || pr.qd) && (
             <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Documents</p>
+              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Documents</p>
               <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const }}>
                 {!hasQuoteDoc && pr.qd && (
                   <B v="sec" s={{ fontSize: TYPE.micro.size, padding: "5px 10px" }} onClick={() => setLegacyQuote(true)}>Quote</B>
@@ -392,7 +392,7 @@ function ProjectRow({
           {/* 5. PRODUCTION SECTION */}
           {pr.status === "production" && (
             <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Production</p>
+              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Production</p>
               <ProductionSection pr={pr} clients={clients} cl={cl} upP={upP} isMobile={isMobile} clientsHook={clientsHook} />
             </div>
           )}
@@ -403,13 +403,13 @@ function ProjectRow({
           {/* 7. NOTES */}
           {pr.notes && (
             <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Notes</p>
+              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Notes</p>
               <p style={{ fontSize: TYPE.body.size, color: C.muted, margin: 0, lineHeight: 1.5 }}>{pr.notes}</p>
             </div>
           )}
 
           {/* 8. ACTION ROW */}
-          <div style={{ display: "flex", gap: isMobile ? 6 : 5, flexWrap: "wrap" as const, paddingTop: 10, borderTop: `1px solid ${C.rule}`, opacity: busy ? 0.5 : 1 }}>
+          <div style={{ display: "flex", gap: isMobile ? 6 : 5, flexWrap: "wrap" as const, paddingTop: 10, borderTop: `1px solid ${C.hair}`, opacity: busy ? 0.5 : 1 }}>
 
             {["quoted","revised"].includes(pr.status) && <>
               <B v="sec" s={{ fontSize: TYPE.micro.size }} onClick={() => onRevise(pr, cl)}>Revise quote</B>
@@ -596,10 +596,7 @@ export default function ProjectsTab({
         const sum = filteredActive.reduce((s: number, pr: any) => s + open(pr), 0);
         const what = statusFilter === "all" ? "open" : statusFilter === "signed" ? "to invoice" : (FILTERS.find(f => f[0] === statusFilter)?.[1] || "").toLowerCase();
         return (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8a847d", marginTop: 4, fontFamily: SANS }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: tone.mid, flexShrink: 0 }} />
-            {filteredActive.length} {what} · <span style={{ color: C.black, fontWeight: 500 }}>{fmt(sum)}</span>
-          </div>
+          <SummaryLine dot={tone.mid}>{filteredActive.length} {what} · <Strong>{fmt(sum)}</Strong></SummaryLine>
         );
       })()}
 
@@ -609,13 +606,13 @@ export default function ProjectsTab({
           const t = PAL[statusFilter === "signed" || statusFilter === "active" ? "progress" : STATUS_TONE[statusFilter] || "neutral"];
           const on = statusFilter !== "all";
           return (
-            <span style={{ position: "relative", display: "inline-flex", alignItems: "center", height: 30, borderRadius: 15, border: `1px solid ${on ? t.fill : C.rule}`, background: on ? t.wash : C.white, color: on ? t.ink : "#4a4540", paddingLeft: 11, paddingRight: 28 }}>
+            <span style={{ position: "relative", display: "inline-flex", alignItems: "center", height: 30, borderRadius: RADIUS.pill, border: `1px solid ${on ? t.fill : C.rule}`, background: on ? t.wash : C.white, color: on ? t.ink : C.ink2, paddingLeft: 11, paddingRight: 28 }}>
               <span style={{ width: 7, height: 7, borderRadius: "50%", background: t.mid, marginRight: 7, flexShrink: 0 }} />
               <select className="psel" value={statusFilter} onChange={(e: any) => setStatusFilter(e.target.value)} aria-label="Filter"
                 style={{ appearance: "none" as const, WebkitAppearance: "none" as const, border: "none", background: "transparent", color: "inherit", fontFamily: SANS, height: 28, padding: 0, cursor: "pointer", outline: "none" }}>
                 {FILTERS.map(([val, lbl]) => <option key={val} value={val}>{lbl}</option>)}
               </select>
-              <span style={{ position: "absolute", right: 10, pointerEvents: "none" as const, fontSize: 10 }}>▾</span>
+              <span style={{ position: "absolute", right: 10, pointerEvents: "none" as const, fontSize: ICON.caret }}>▾</span>
             </span>
           );
         })()}
@@ -633,7 +630,7 @@ export default function ProjectsTab({
         {!isMobile && (
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 110px 100px", padding: "8px 0 2px" }}>
             {["Client · Project", "Delivery", "Amount"].map((h, i) => (
-              <span key={i} style={{ fontSize: TYPE.micro.size, letterSpacing: "0.07em", textTransform: "uppercase" as const, color: C.light, textAlign: i >= 1 ? "right" as const : "left" as const }}>{h}</span>
+              <span key={i} style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.light, textAlign: i >= 1 ? "right" as const : "left" as const }}>{h}</span>
             ))}
           </div>
         )}
@@ -647,19 +644,13 @@ export default function ProjectsTab({
             if (!list.length) return;
             const t = PAL[STATUS_TONE[st] || "neutral"];
             out.push(
-              <div key={`h-${st}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "14px 4px 6px", fontFamily: SANS }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "#8a847d" }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: t.mid }} />{STATUS_NAME[st] || st} · {list.length}
-                </span>
-                <span style={{ fontSize: 11, color: "#6b655e" }}>{fmt(list.reduce((s: number, pr: any) => s + (Number(pr.amount) || 0), 0))}</span>
-              </div>
+              <SectionHead key={`h-${st}`} dot={t.mid} label={`${STATUS_NAME[st] || st} · ${list.length}`}
+                right={fmt(list.reduce((s: number, pr: any) => s + (Number(pr.amount) || 0), 0))} />
             );
             list.forEach((pr: any, i: number) => {
               const first = i === 0, last = i === list.length - 1;
               out.push(
-                <div key={pr.id} style={{ background: C.white, borderLeft: "1px solid #efebe6", borderRight: "1px solid #efebe6",
-                  borderTop: first ? "1px solid #efebe6" : "none", borderBottom: last ? "1px solid #efebe6" : "none",
-                  borderRadius: `${first ? 12 : 0}px ${first ? 12 : 0}px ${last ? 12 : 0}px ${last ? 12 : 0}px`, overflow: "hidden", padding: "0 12px" }}>
+                <div key={pr.id} style={{ ...listSeg(first, last), overflow: "hidden", padding: "0 12px" }}>
                   <div style={{ marginBottom: last ? -1 : 0 }}>
                     <ProjectRow
                       pr={pr}
@@ -700,11 +691,11 @@ export default function ProjectsTab({
         <div style={{ marginTop: 14 }}>
           <button onClick={() => setShowLost(o => !o)} aria-expanded={showLost}
             style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 4px", background: "none", border: "none", cursor: "pointer", fontFamily: SANS }}>
-            <span style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "#8a847d" }}>Lost · {lost.length}</span>
-            <span style={{ fontSize: 11, color: "#8a847d" }}>{showLost ? "▴" : "▾"}</span>
+            <span style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted }}>Lost · {lost.length}</span>
+            <span style={{ fontSize: ICON.caret, color: C.muted }}>{showLost ? "▴" : "▾"}</span>
           </button>
           {showLost && (
-            <div style={{ background: C.white, border: "1px solid #efebe6", borderRadius: 12, overflow: "hidden", padding: "0 12px", opacity: 0.85 }}>
+            <ListCard s={{ padding: "0 12px", opacity: 0.85 }}>
               <div style={{ marginBottom: -1 }}>
                 {lost.map((pr: any) => (
                   <ProjectRow key={pr.id} pr={pr} clients={clients} isMobile={isMobile} isExpanded={expanded === pr.id}
@@ -713,18 +704,16 @@ export default function ProjectsTab({
                     onModalClosed={() => setScrollTrigger(t => t + 1)} onOpenClient={onOpenClient} onAskDelivery={setAskDeliv} />
                 ))}
               </div>
-            </div>
+            </ListCard>
           )}
         </div>
       )}
 
       {/* ── DONE SECTION ── */}
       {done.length > 0 && (
-        <div style={{ marginTop: active.length > 0 ? 24 : 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 6, borderBottom: `1px solid ${C.rule}` }}>
-            <span style={{ fontSize: TYPE.micro.size, color: C.light, letterSpacing: "0.07em", textTransform: "uppercase" as const, fontWeight: "500" }}>Done — {done.length}</span>
-            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>{fmt(doneTotal)} earned</span>
-          </div>
+        <div>
+          <SectionHead dot={PAL.done.mid} label={`Done · ${done.length}`} right={`${fmt(doneTotal)} earned`} />
+          <ListCard s={{ padding: "0 12px" }}><div style={{ marginBottom: -1 }}>
           {done.map(pr => (
             <ProjectRow
               key={pr.id}
@@ -743,6 +732,7 @@ export default function ProjectsTab({
                     onOpenClient={onOpenClient} onAskDelivery={setAskDeliv}
             />
           ))}
+          </div></ListCard>
         </div>
       )}
 

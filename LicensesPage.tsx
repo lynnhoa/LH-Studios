@@ -10,7 +10,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
-import { C, SANS, SERIF, PAL } from "./constants";
+import { C, SANS, SERIF, PAL, TYPE } from "./constants";
 import { fmtD } from "./formatters";
 import { Ico, IC } from "./PlannerWindows";
 import { Chip, ChipRow, SummaryLine, SectionHead, ListCard, IconCircle, TonedTag, PillBtn, TimeBar } from "./atoms";
@@ -110,9 +110,9 @@ export default function Licenses({ clients, clientsHook, settings, rc, isMobile,
         <Chip on={filter === "done"} tone={PAL.neutral} dot={false} label="Done" count={count("done")} onClick={() => setFilter("done")} />
         <Chip on={filter === "all"} tone={PAL.neutral} dot={false} label="All" count={count("all")} onClick={() => setFilter("all")} />
       </ChipRow>
-      {err && <p style={{ fontSize: 12, color: C.red, margin: "8px 0 0" }}>{err}</p>}
+      {err && <p style={{ fontSize: TYPE.subtext.size, color: C.red, margin: "8px 0 0" }}>{err}</p>}
       {groups.length === 0 && (
-        <p style={{ fontSize: 13, color: C.muted, margin: "16px 4px" }}>{filter === "action" ? "Nothing expiring in the next 14 days." : "No licenses here."}</p>
+        <p style={{ fontSize: TYPE.row.size, color: C.muted, margin: "16px 4px" }}>{filter === "action" ? "Nothing expiring in the next 14 days." : "No licenses here."}</p>
       )}
       {groups.map(g => (
         <div key={g.key}>
@@ -123,15 +123,15 @@ export default function Licenses({ clients, clientsHook, settings, rc, isMobile,
               const pct = l.state === "done" ? null : elapsed(l);
               const acts = (l.alerts && !l.action) || !!l.action;
               return (
-                <div key={`${l.projectId}-${l.key}`} style={{ padding: "8px 10px 9px 12px", borderTop: i ? "1px solid #f4f1ed" : "none" }}>
+                <div key={`${l.projectId}-${l.key}`} style={{ padding: "8px 10px 9px 12px", borderTop: i ? `1px solid ${C.hair}` : "none" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 38 }}>
                     <IconCircle tone={t}><Ico d={iconOf(l)} size={15} /></IconCircle>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{l.projectName}</div>
-                      <div style={{ fontSize: 12, color: "#8a847d", marginTop: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{l.label} · {l.clientName}{l.extended ? " · renewed" : ""}</div>
+                      <div style={{ fontSize: TYPE.body.size, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{l.projectName}</div>
+                      <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{l.label} · {l.clientName}{l.extended ? " · renewed" : ""}</div>
                     </div>
                     <div style={{ textAlign: "right" as const, flexShrink: 0 }}>
-                      {!l.action && <div style={{ fontSize: 13 }}>{fmtD(l.end)}</div>}
+                      {!l.action && <div style={{ fontSize: TYPE.row.size }}>{fmtD(l.end)}</div>}
                       <TonedTag tone={t} s={{ marginTop: 3 }}>{tagOf(l)}</TonedTag>
                     </div>
                   </div>

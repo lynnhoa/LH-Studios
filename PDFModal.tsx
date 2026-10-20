@@ -7,9 +7,9 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { C, SANS, SERIF, TYPE, Z } from "./constants";
+import { C, SANS, SERIF, TYPE, Z, PAL, TRACK, ICON, RADIUS } from "./constants";
+import type { Tone } from "./constants";
 import { I, B, Lbl, Pill, ConfirmDialog, LangSwitch, BAR_BTN, NumField } from "./atoms";
-import { PAL } from "./constants";
 import { isMobileDevice } from "./PDFExport";
 import { editLock } from "./saveStatus";
 import { fmt, r2 } from "./formatters";
@@ -46,8 +46,9 @@ interface PDFModalProps {
 
 const clone = (x: any) => JSON.parse(JSON.stringify(x));
 
-const STATUS_COLOR: Record<string, string> = {
-  draft: C.amber, sent: C.blue, signed: C.green, paid: C.green, cancelled: C.red, superseded: C.light,
+// palette meaning: draft = maybe · sent = waiting · signed = in progress · paid = done · cancelled = late
+const DOC_TONE: Record<string, Tone> = {
+  draft: "neutral", sent: "waiting", signed: "progress", paid: "done", cancelled: "late", superseded: "neutral",
 };
 
 export default function PDFModal({
@@ -263,13 +264,16 @@ export default function PDFModal({
 
   const kind  = current.kind;
   const isInv = kind === "invoice" && current.subtype !== "storno";
-  const statusBadge = (
-    <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: STATUS_COLOR[current.status] || C.muted, border: `1px solid ${STATUS_COLOR[current.status] || C.rule}`, height: 22, padding: "0 7px", display: "inline-flex", alignItems: "center", borderRadius: 2, whiteSpace: "nowrap" as const, flexShrink: 0 }}>
-      {isNew ? "New" : STATUS_LABEL[current.status] || current.status}
-    </span>
-  );
+  const statusBadge = (() => {
+    const t = PAL[isNew ? "neutral" : DOC_TONE[current.status] || "neutral"];
+    return (
+      <span style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: t.ink, background: t.fill, height: 22, padding: "0 8px", display: "inline-flex", alignItems: "center", borderRadius: RADIUS.tag, whiteSpace: "nowrap" as const, flexShrink: 0 }}>
+        {isNew ? "New" : STATUS_LABEL[current.status] || current.status}
+      </span>
+    );
+  })();
 
-  const taStyle: any = { width: "100%", padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: 16, color: C.black, borderRadius: 2, outline: "none", resize: "vertical", boxSizing: "border-box", minHeight: 72 };
+  const taStyle: any = { width: "100%", padding: "8px 10px", border: `1px solid ${C.field}`, background: C.white, fontFamily: SANS, fontSize: TYPE.field.size, color: C.black, borderRadius: RADIUS.field, outline: "none", resize: "vertical", boxSizing: "border-box", minHeight: 72 };
 
   const showPanel   = canEdit && (!isMobile || showEdit);
   const showPreview = !isMobile || !showEdit || !canEdit;
@@ -280,7 +284,7 @@ export default function PDFModal({
       {/* ── TOP BAR (one row: close on the left, actions on the right) ── */}
       <div style={{ height: 44, borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", padding: "0 8px 0 2px", gap: 6, flexShrink: 0 }}>
         <button onClick={tryClose} aria-label="Close" title="Close"
-          style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 20, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+          style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: ICON.close, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         <LangSwitch lang={lang} onChange={setLang} />
         {!(isMobile && current.status === "draft") && statusBadge}   {/* the page itself says DRAFT */}
         <div style={{ flex: 1 }} />
@@ -302,7 +306,7 @@ export default function PDFModal({
       {blockMsg && <ConfirmDialog title="Before this invoice gets its number" text={blockMsg} okLabel="OK" onOk={() => setBlockMsg(null)} onCancel={() => setBlockMsg(null)} />}
       {ready && (
         <div style={{ borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", flexShrink: 0, background: PAL.done.wash }}>
-          <span style={{ flex: 1, fontSize: 13, color: PAL.done.ink }}>PDF ready</span>
+          <span style={{ flex: 1, fontSize: TYPE.row.size, color: PAL.done.ink }}>PDF ready</span>
           {ready.canShare && <B onClick={share} s={{ minHeight: 36 }}>Share</B>}
           <B v="sec" onClick={() => window.open(ready.url, "_blank")} s={{ minHeight: 36 }}>Open</B>
         </div>
@@ -330,9 +334,9 @@ export default function PDFModal({
           <div style={{ width: isMobile ? "100%" : panelW, flexShrink: 0, display: "flex", flexDirection: "column", borderRight: isMobile ? "none" : `1px solid ${C.rule}`, flex: isMobile ? 1 : undefined, minHeight: 0 }}>
             <div style={{ flex: 1, overflowY: "auto", padding: "4px 14px 14px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 8 }}>
-                <button onClick={undo} disabled={!canUndo} aria-label="Undo" title="Undo" style={{ width: 30, height: 30, background: "none", border: `1px solid ${canUndo ? C.rule : "transparent"}`, borderRadius: 2, cursor: canUndo ? "pointer" : "default", color: canUndo ? C.black : C.light, fontSize: 14 }}>←</button>
-                <button onClick={redo} disabled={!canRedo} aria-label="Redo" title="Redo" style={{ width: 30, height: 30, background: "none", border: `1px solid ${canRedo ? C.rule : "transparent"}`, borderRadius: 2, cursor: canRedo ? "pointer" : "default", color: canRedo ? C.black : C.light, fontSize: 14 }}>→</button>
-                <span style={{ fontSize: TYPE.micro.size, color: C.light, letterSpacing: "0.08em", textTransform: "uppercase" as const, marginLeft: 4 }}>Undo · Redo</span>
+                <button onClick={undo} disabled={!canUndo} aria-label="Undo" title="Undo" style={{ width: 30, height: 30, background: "none", border: `1px solid ${canUndo ? C.rule : "transparent"}`, borderRadius: "50%", cursor: canUndo ? "pointer" : "default", color: canUndo ? C.black : C.light, fontSize: TYPE.body.size }}>←</button>
+                <button onClick={redo} disabled={!canRedo} aria-label="Redo" title="Redo" style={{ width: 30, height: 30, background: "none", border: `1px solid ${canRedo ? C.rule : "transparent"}`, borderRadius: "50%", cursor: canRedo ? "pointer" : "default", color: canRedo ? C.black : C.light, fontSize: TYPE.body.size }}>→</button>
+                <span style={{ fontSize: TYPE.micro.size, color: C.light, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, marginLeft: 4 }}>Undo · Redo</span>
               </div>
               {note && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "10px 0 0", lineHeight: 1.5 }}>{note}</p>}
 
@@ -360,10 +364,10 @@ export default function PDFModal({
 
               <Lbl>Line items</Lbl>
               {(staged.data?.lines || []).map((ln: any, i: number) => (
-                <div key={ln.id || i} style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: 10, marginBottom: 7, background: C.white }}>
+                <div key={ln.id || i} style={{ border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, padding: 10, marginBottom: 7, background: C.white }}>
                   <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 5 }}>
                     <I value={ln.name || ""} onChange={(e: any) => updLine(i, "name", e.target.value)} />
-                    <button onClick={() => removeLine(i)} title="Remove line" style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 14, padding: "0 2px" }}>✕</button>
+                    <button onClick={() => removeLine(i)} title="Remove line" style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: TYPE.body.size, padding: "0 2px" }}>✕</button>
                   </div>
                   <I value={ln.note || ""} onChange={(e: any) => updLine(i, "note", e.target.value)} s={{ marginBottom: 5, color: C.muted }} placeholder="note (optional)" />
                   <div style={{ display: "grid", gridTemplateColumns: "64px 1fr", gap: 6, alignItems: "center" }}>
@@ -379,11 +383,11 @@ export default function PDFModal({
                 <div style={{ marginTop: 6 }}>
                   <Lbl>Contract clauses ({lang.toUpperCase()})</Lbl>
                   {templates.map((cl, ci) => (
-                    <div key={ci} style={{ border: `1px solid ${C.rule}`, borderRadius: 2, padding: "9px 10px", marginBottom: 7, background: C.white }}>
+                    <div key={ci} style={{ border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, padding: "9px 10px", marginBottom: 7, background: C.white }}>
                       <div style={{ display: "flex", justifyContent: "flex-end", gap: 3, marginBottom: 5 }}>
-                        <button onClick={() => moveClause(ci, -1)} disabled={ci === 0} style={{ background: "none", border: `1px solid ${C.rule}`, borderRadius: 2, cursor: ci === 0 ? "default" : "pointer", color: ci === 0 ? C.light : C.muted, fontSize: TYPE.label.size, padding: "1px 6px" }}>↑</button>
-                        <button onClick={() => moveClause(ci, 1)} disabled={ci === templates.length - 1} style={{ background: "none", border: `1px solid ${C.rule}`, borderRadius: 2, cursor: ci === templates.length - 1 ? "default" : "pointer", color: ci === templates.length - 1 ? C.light : C.muted, fontSize: TYPE.label.size, padding: "1px 6px" }}>↓</button>
-                        <button onClick={() => deleteClause(ci)} style={{ background: "none", border: `1px solid ${C.rule}`, borderRadius: 2, cursor: "pointer", color: C.red, fontSize: TYPE.label.size, padding: "1px 6px" }}>✕</button>
+                        <button onClick={() => moveClause(ci, -1)} disabled={ci === 0} style={{ background: "none", border: `1px solid ${C.edge}`, borderRadius: RADIUS.pill, cursor: ci === 0 ? "default" : "pointer", color: ci === 0 ? C.light : C.muted, fontSize: TYPE.label.size, padding: "1px 6px" }}>↑</button>
+                        <button onClick={() => moveClause(ci, 1)} disabled={ci === templates.length - 1} style={{ background: "none", border: `1px solid ${C.edge}`, borderRadius: RADIUS.pill, cursor: ci === templates.length - 1 ? "default" : "pointer", color: ci === templates.length - 1 ? C.light : C.muted, fontSize: TYPE.label.size, padding: "1px 6px" }}>↓</button>
+                        <button onClick={() => deleteClause(ci)} style={{ background: "none", border: `1px solid ${C.edge}`, borderRadius: RADIUS.pill, cursor: "pointer", color: C.red, fontSize: TYPE.label.size, padding: "1px 6px" }}>✕</button>
                       </div>
                       <I value={fillTokens(cl.title, ctx)} onChange={(e: any) => editClause(ci, "title", e.target.value)} s={{ marginBottom: 5, fontFamily: SERIF }} />
                       <textarea value={fillTokens(cl.text, ctx)} onChange={(e: any) => editClause(ci, "text", e.target.value)} style={taStyle} />
@@ -419,7 +423,7 @@ export default function PDFModal({
         )}
 
         {showPreview && (
-          <div ref={pagesRef} style={{ flex: 1, background: "#888", overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isMobile ? "16px 0" : "32px 28px", gap: isMobile ? 16 : 28 }}>
+          <div ref={pagesRef} style={{ flex: 1, background: C.muted, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isMobile ? "16px 0" : "32px 28px", gap: isMobile ? 16 : 28 }}>
             <DocPages doc={current} settings={settings} client={client} lang={lang} scale={pageScale} />
           </div>
         )}

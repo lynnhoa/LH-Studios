@@ -1,12 +1,12 @@
 // ─────────────────────────────────────────────────────────────
 // ATOMS — reusable UI primitives
-// Every value comes from constants. No inline hex. No raw px.
+// Every colour, size, corner, shadow and letter spacing comes from constants.
 // Desktop + iPad + PWA iOS safe.
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, expiryColor, expiryTint, Z, SIZE, PAL, STATUS_TONE } from "./constants";
+import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, Z, SIZE, PAL, STATUS_TONE, TRACK, RADIUS, SHADOW, ICON, expiryTone } from "./constants";
 import { fmtD, dLeft, today, parseDE, fmtNumDE } from "./formatters";
 import { saveStatus } from "./saveStatus";
 
@@ -17,12 +17,12 @@ export const I = ({ s, ...p }: any) => (
       width:       "100%",
       height:      SIZE.field,
       padding:     "0 10px",
-      border:      "1px solid #ebe7e2",
+      border:      `1px solid ${C.field}`,
       background:  C.white,
       fontFamily:  SANS,
-      fontSize:    16,  // iOS auto-zooms inputs < 16px — never go below
+      fontSize: TYPE.field.size,  // iOS auto-zooms inputs < 16px — never go below
       color:       C.black,
-      borderRadius: 10,
+      borderRadius: RADIUS.field,
       outline:     "none",
       boxSizing:   "border-box" as const,
       WebkitAppearance: "none" as const,
@@ -44,7 +44,7 @@ export const TSel = ({ s, className, ...p }: any) => (
       fontFamily:    SANS,
       fontSize:      TYPE.micro.size,
       color:         C.muted,
-      letterSpacing: "0.08em",
+      letterSpacing: TRACK.caps,
       textTransform: "uppercase" as const,
       padding:       "4px 2px",
       cursor:        "pointer",
@@ -63,12 +63,12 @@ export const TSel = ({ s, className, ...p }: any) => (
 export const TSelWrap = ({ children }: any) => (
   <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
     {children}
-    <span style={{ fontSize: 8, color: C.light, pointerEvents: "none" as const }}>▾</span>
+    <span style={{ fontSize: ICON.caret, color: C.light, pointerEvents: "none" as const }}>▾</span>
   </span>
 );
 
 // ─── SELECT ──────────────────────────────────────────────────
-const SELECT_ARROW = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888888' stroke-width='1.3'/%3E%3C/svg%3E")`;
+const SELECT_ARROW = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a847d' stroke-width='1.3'/%3E%3C/svg%3E")`;
 
 export const S = ({ s, ...p }: any) => (
   <select
@@ -76,15 +76,15 @@ export const S = ({ s, ...p }: any) => (
       width:        "100%",
       height:       SIZE.field,
       padding:      "0 28px 0 10px",
-      border:       "1px solid #ebe7e2",
+      border:       `1px solid ${C.field}`,
       backgroundColor: C.white,
       backgroundImage: SELECT_ARROW,
       backgroundRepeat: "no-repeat",
       backgroundPosition: "right 10px center",
       fontFamily:   SANS,
-      fontSize:     16,  // iOS auto-zooms selects < 16px — never go below
+      fontSize: TYPE.field.size,  // iOS auto-zooms selects < 16px — never go below
       color:        C.black,
-      borderRadius: 10,
+      borderRadius: RADIUS.field,
       outline:      "none",
       boxSizing:    "border-box" as const,
       cursor:       "pointer",
@@ -105,19 +105,19 @@ export const B = ({ v = "pri", s, ...p }: any) => {
   // ghost = text only, danger = light pill with red text. Text never below 12 px.
   const styles: Record<string, any> = {
     pri:    { background: C.black, color: C.white, border: `1px solid ${C.black}` },
-    sec:    { background: C.white, color: C.black, border: "1px solid #e2ddd6" },
+    sec:    { background: C.white, color: C.black, border: `1px solid ${C.edge}` },
     ghost:  { background: "none",  color: C.muted, border: "none" },
     danger: { background: C.white, color: C.red,   border: `1px solid ${PAL.late.fill}` },
   };
-  const fs = Math.max(12, Number(s?.fontSize) || 13);
+  const fs = Math.max(TYPE.subtext.size, Number(s?.fontSize) || TYPE.row.size);
   return (
     <button
       style={{
         padding:       "0 15px",
-        borderRadius:  18,
+        borderRadius: RADIUS.button,
         cursor:        "pointer",
         fontFamily:    SANS,
-        letterSpacing: "0.01em",
+        letterSpacing: TRACK.none,
         textTransform: "none" as const,
         whiteSpace:    "nowrap" as const,
         lineHeight:    1,
@@ -137,23 +137,25 @@ export const B = ({ v = "pri", s, ...p }: any) => {
 // ─── PILL TOGGLE ─────────────────────────────────────────────
 // Used for category tabs, filter pills
 export const Pill = ({ on, onClick, children, size }: any) => (
+  // same look as the filter Chip (neutral, no dot): sentence case, 12 px
   <button
     onClick={onClick}
+    aria-pressed={!!on}
     style={{
       padding:       size === "sm" ? "0 9px" : "0 11px",
-      border:        `1px solid ${on ? "#d9d3cc" : C.rule}`,
+      border:        `1px solid ${on ? C.pillOn : C.rule}`,
       background:    on ? PAL.neutral.fill : C.white,
-      color:         on ? C.black : C.muted,
-      borderRadius:  15,
+      color:         on ? C.black : C.ink2,
+      borderRadius:  RADIUS.pill,
       cursor:        "pointer",
       fontFamily:    SANS,
-      fontSize:      TYPE.micro.size,
-      letterSpacing: "0.10em",
-      textTransform: "uppercase" as const,
+      fontSize:      TYPE.subtext.size,
+      letterSpacing: TRACK.none,
       whiteSpace:    "nowrap" as const,
       minHeight:     size === "sm" ? SIZE.chip : SIZE.pill,
       display:       "inline-flex",
       alignItems:    "center",
+      flexShrink:    0,
     }}
   >
     {children}
@@ -180,12 +182,12 @@ export function NumField({ value, onChange, minDec = 2, placeholder, s, ariaLabe
 
 // ─── LANGUAGE SWITCH (EN | DE as one joined control) ─────────
 export const LangSwitch = ({ lang, onChange }: { lang: string; onChange: (l: "en" | "de") => void }) => (
-  <span style={{ display: "inline-flex", flexShrink: 0 }}>
-    {(["en", "de"] as const).map((l, i) => {
+  <span style={{ display: "inline-flex", flexShrink: 0, height: SIZE.barBtn, border: `1px solid ${C.rule}`, borderRadius: RADIUS.pill, background: C.white, padding: 2, boxSizing: "border-box" as const }}>
+    {(["en", "de"] as const).map((l) => {
       const on = lang === l;
       return (
-        <button key={l} onClick={() => onChange(l)}
-          style={{ height: SIZE.barBtn, padding: "0 9px", border: `1px solid ${on ? C.black : C.rule}`, borderLeftWidth: i ? 0 : 1, background: on ? C.black : "transparent", color: on ? C.white : C.muted, borderRadius: i ? "0 2px 2px 0" : "2px 0 0 2px", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.10em" }}>
+        <button key={l} onClick={() => onChange(l)} aria-pressed={on}
+          style={{ height: "100%", padding: "0 10px", border: "none", background: on ? PAL.neutral.fill : "transparent", color: on ? C.black : C.muted, borderRadius: RADIUS.pill, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: TRACK.caps }}>
           {l.toUpperCase()}
         </button>
       );
@@ -203,7 +205,7 @@ export const Lbl = ({ children }: any) => (
       fontSize:      TYPE.micro.size,
       fontFamily:    SANS,
       color:         C.muted,
-      letterSpacing: "0.08em",
+      letterSpacing: TRACK.caps,
       textTransform: "uppercase" as const,
       margin:        `${SIZE.labelTop}px 0 ${SIZE.labelGap}px`,
     }}
@@ -220,7 +222,7 @@ export const Tag = ({ children, onRemove }: any) => (
       alignItems:  "center",
       gap:         4,
       border:      `1px solid ${C.rule}`,
-      borderRadius: 9,
+      borderRadius: RADIUS.tag,
       padding:     "3px 10px",
       fontSize:    TYPE.micro.size,
       fontFamily:  SANS,
@@ -291,21 +293,19 @@ export function UBadge({
   if (!end) return null;
   const d   = dLeft(end);
   const exp = d !== null && d < 0;
-  const col = expiryColor(d);
-  const bg  = expiryTint(d);
-  const bd  = col;
-
+  const t   = PAL[expiryTone(d)];
   return (
-    <span
+    <span data-tag=""
       style={{
-        fontSize:     TYPE.micro.size,
-        fontFamily:   SANS,
-        color:        col,
-        border:       `1px solid ${bd}`,
-        background:   bg,
-        padding:      "3px 10px",
-        borderRadius: 9,
-        whiteSpace:   "nowrap" as const,
+        fontSize:      TYPE.micro.size,
+        fontFamily:    SANS,
+        letterSpacing: TRACK.tag,
+        color:         t.ink,
+        background:    t.fill,
+        padding:       "2px 8px",
+        borderRadius:  RADIUS.tag,
+        whiteSpace:    "nowrap" as const,
+        display:       "inline-block",
       }}
     >
       {exp
@@ -331,7 +331,7 @@ export const Empty = ({ message }: { message: string }) => (
   <div
     style={{
       border:       `1px solid ${C.rule}`,
-      borderRadius: 12,
+      borderRadius: RADIUS.tile,
       padding:      "40px 20px",
       textAlign:    "center" as const,
     }}
@@ -358,7 +358,7 @@ export const Loading = () => (
         fontSize:      TYPE.micro.size,
         fontFamily:    SANS,
         color:         C.muted,
-        letterSpacing: "0.14em",
+        letterSpacing: TRACK.caps,
         textTransform: "uppercase" as const,
       }}
     >
@@ -382,8 +382,8 @@ export const StatusBadge = ({ status }: { status: string }) => {
         color:         t.ink,
         background:    t.fill,
         padding:       "2px 8px",
-        borderRadius:  9,
-        letterSpacing: "0.07em",
+        borderRadius: RADIUS.tag,
+        letterSpacing: TRACK.caps,
         textTransform: "uppercase" as const,
         whiteSpace:    "nowrap" as const,
         display:       "inline-block",
@@ -399,7 +399,7 @@ export const CatPill = ({ cat, onClick, title, label }: { cat: string; onClick?:
   const c = catInfo(cat);
   return (
     <span onClick={onClick} title={title}
-      style={{ fontSize: TYPE.micro.size, fontFamily: SANS, padding: "2px 8px", borderRadius: 10, border: `1px solid ${c.border}`, background: c.bg, color: c.color, whiteSpace: "nowrap" as const, flexShrink: 0, cursor: onClick ? "pointer" : "default", display: "inline-block" }}>
+      style={{ fontSize: TYPE.micro.size, fontFamily: SANS, padding: "2px 8px", borderRadius: RADIUS.field, border: `1px solid ${c.border}`, background: c.bg, color: c.color, whiteSpace: "nowrap" as const, flexShrink: 0, cursor: onClick ? "pointer" : "default", display: "inline-block" }}>
       {label || c.label}
     </span>
   );
@@ -414,7 +414,7 @@ export const Tick = ({ on, onClick, color = C.black, disabled, size = 20, label 
     onClick={(e) => { e.stopPropagation(); if (!disabled && onClick) onClick(); }}
     style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.35 : 1, userSelect: "none" as const }}
   >
-    <span style={{ width: size, height: size, borderRadius: 3, border: `1.5px solid ${on ? color : C.light}`, background: on ? color : "transparent", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxSizing: "border-box" as const }}>
+    <span style={{ width: size, height: size, borderRadius: RADIUS.check, border: `1.5px solid ${on ? color : C.light}`, background: on ? color : "transparent", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxSizing: "border-box" as const }}>
       {on && <span style={{ fontSize: Math.round(size * 0.55), color: C.white, lineHeight: 1, fontWeight: 500 }}>✓</span>}
     </span>
     {label && <span style={{ fontSize: TYPE.label.size, fontFamily: SANS, color: C.black }}>{label}</span>}
@@ -440,7 +440,7 @@ export const ConfirmDialog = ({ title, text, dateLabel, okLabel, cancelLabel = "
   const [date, setDate] = useState(today());
   return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: Z.dialog, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(250,249,247,0.88)", padding: 16 }}>
-      <div style={{ background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 14, padding: "24px 28px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)", width: "100%", maxWidth: 340 }}>
+      <div style={{ background: C.bg, border: `1px solid ${C.rule}`, borderRadius: RADIUS.card, padding: "20px 22px 18px", boxShadow: SHADOW.pop, width: "100%", maxWidth: 340 }}>
         <p style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black, margin: "0 0 8px" }}>{title}</p>
         {text && <p style={{ fontSize: TYPE.label.size, fontFamily: SANS, color: C.muted, margin: "0 0 12px", lineHeight: 1.5 }}>{text}</p>}
         {error && <p style={{ fontSize: TYPE.label.size, fontFamily: SANS, color: C.red, margin: "0 0 12px", lineHeight: 1.5 }}>{error}</p>}
@@ -469,9 +469,9 @@ export const SaveToast = () => {
     const t = setTimeout(() => setShowSaved(false), 1500);
     return () => clearTimeout(t);
   }, [st.savedAt, st.pending]);
-  const base: any = { position: "fixed", left: "50%", bottom: 20, transform: "translateX(-50%)", zIndex: Z.toast, borderRadius: 12, padding: "8px 14px", fontFamily: SANS, fontSize: TYPE.label.size, letterSpacing: "0.04em", boxShadow: "0 2px 12px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 12, maxWidth: "calc(100vw - 32px)" };
+  const base: any = { position: "fixed", left: "50%", bottom: 20, transform: "translateX(-50%)", zIndex: Z.toast, borderRadius: RADIUS.tile, padding: "8px 14px", fontFamily: SANS, fontSize: TYPE.label.size, letterSpacing: TRACK.tag, boxShadow: SHADOW.pop, display: "flex", alignItems: "center", gap: 12, maxWidth: "calc(100vw - 32px)" };
   if (st.error) return (
-    <div style={{ ...base, background: TINT_RED, border: `1px solid ${C.red}`, color: C.red }}>
+    <div style={{ ...base, background: TINT_RED, border: `1px solid ${PAL.late.fill}`, color: C.red }}>
       <span>Couldn't save — {st.error}. Your last change was undone.</span>
       <button onClick={() => saveStatus.clearError()} style={{ background: "none", border: "none", color: C.red, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, textDecoration: "underline" }}>OK</button>
     </div>
@@ -480,11 +480,11 @@ export const SaveToast = () => {
   if (showSaved) return <div style={{ ...base, background: C.bg, border: `1px solid ${C.rule}`, color: C.green }}>Saved ✓</div>;
   return null;
 };
-const TINT_RED = "#fdf0f0";
+const TINT_RED = PAL.late.wash;
 
 // ─── LOAD ERROR BANNER (data could not be loaded) ────────────
 export const LoadErrorBanner = ({ what, message, onRetry }: { what: string; message: string; onRetry: () => void }) => (
-  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 14px", marginBottom: 14, background: TINT_RED, border: `1px solid ${C.red}`, borderRadius: 12 }}>
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 14px", marginBottom: 14, background: TINT_RED, border: `1px solid ${PAL.late.fill}`, borderRadius: RADIUS.tile }}>
     <span style={{ fontSize: TYPE.label.size, fontFamily: SANS, color: C.red }}>{what} couldn't be loaded ({message}). Tap Retry.</span>
     <B v="danger" onClick={onRetry} s={{ minHeight: 36, padding: "0 14px" }}>Retry</B>
   </div>
@@ -505,7 +505,7 @@ export const Card = ({
     onClick={onClick}
     style={{
       border:       `1px solid ${C.rule}`,
-      borderRadius: 12,
+      borderRadius: RADIUS.tile,
       padding:      "14px 16px",
       background:   C.bg,
       cursor:       onClick ? "pointer" : "default",
@@ -517,7 +517,7 @@ export const Card = ({
           fontSize:      TYPE.micro.size,
           fontFamily:    SANS,
           color:         C.muted,
-          letterSpacing: "0.07em",
+          letterSpacing: TRACK.caps,
           textTransform: "uppercase" as const,
           margin:        "0 0 10px",
         }}
@@ -555,7 +555,7 @@ export const PageHeader = ({
           fontSize:      TYPE.micro.size,
           fontFamily:    SANS,
           color:         C.muted,
-          letterSpacing: "0.07em",
+          letterSpacing: TRACK.caps,
           textTransform: "uppercase" as const,
           margin:        0,
         }}
@@ -596,7 +596,7 @@ export const Dot = ({ c, s }: { c: string; s?: any }) => (
 
 // "● 8 open · 5.716,00 €" under a title
 export const SummaryLine = ({ dot, children }: { dot: string; children: any }) => (
-  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8a847d", marginTop: 4, fontFamily: SANS, flexWrap: "wrap" as const }}>
+  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: TYPE.subtext.size, color: C.muted, marginTop: 4, fontFamily: SANS, flexWrap: "wrap" as const }}>
     <Dot c={dot} />{children}
   </div>
 );
@@ -605,11 +605,11 @@ export const Strong = ({ children, color }: { children: any; color?: string }) =
 // filter chip: dot · label · count; on = tinted with its tone (neutral for "All")
 export const Chip = ({ on, tone, label, count, onClick, dot = true }: { on: boolean; tone: ToneSet; label: string; count?: number | string; onClick: () => void; dot?: boolean }) => (
   <button onClick={onClick} aria-pressed={on}
-    style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 11px", borderRadius: 15, border: `1px solid ${on ? (dot ? tone.fill : "#d9d3cc") : C.rule}`,
-      background: on ? (dot ? tone.wash : PAL.neutral.fill) : C.white, color: on ? (dot ? tone.ink : C.black) : "#4a4540",
-      fontFamily: SANS, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" as const, flexShrink: 0 }}>
+    style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 11px", borderRadius: RADIUS.pill, border: `1px solid ${on ? (dot ? tone.fill : C.pillOn) : C.rule}`,
+      background: on ? (dot ? tone.wash : PAL.neutral.fill) : C.white, color: on ? (dot ? tone.ink : C.black) : C.ink2,
+      fontFamily: SANS, fontSize: TYPE.subtext.size, cursor: "pointer", whiteSpace: "nowrap" as const, flexShrink: 0 }}>
     {dot && <Dot c={tone.mid} />}{label}
-    {count !== undefined && <span style={{ fontSize: 11, color: on ? (dot ? tone.ink : "#6b655e") : C.muted }}>{count}</span>}
+    {count !== undefined && <span style={{ fontSize: TYPE.label.size, color: on ? (dot ? tone.ink : PAL.neutral.ink) : C.muted }}>{count}</span>}
   </button>
 );
 export const ChipRow = ({ children, s }: { children: any; s?: any }) => (
@@ -619,14 +619,14 @@ export const ChipRow = ({ children, s }: { children: any; s?: any }) => (
 // pill button: dark = the main action
 export const PillBtn = ({ children, onClick, dark, dim, s, title }: { children: any; onClick?: () => void; dark?: boolean; dim?: boolean; s?: any; title?: string }) => (
   <button onClick={onClick} title={title}
-    style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 13px", borderRadius: 15, border: `1px solid ${dark ? C.black : "#e2ddd6"}`,
-      background: dark ? C.black : C.white, color: dark ? C.white : C.black, fontFamily: SANS, fontSize: 12, cursor: "pointer",
+    style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 13px", borderRadius: RADIUS.pill, border: `1px solid ${dark ? C.black : C.edge}`,
+      background: dark ? C.black : C.white, color: dark ? C.white : C.black, fontFamily: SANS, fontSize: TYPE.subtext.size, cursor: "pointer",
       opacity: dim ? 0.5 : 1, whiteSpace: "nowrap" as const, flexShrink: 0, ...s }}>{children}</button>
 );
 
 export const SearchField = ({ value, onChange, placeholder, s }: { value: string; onChange: (v: string) => void; placeholder: string; s?: any }) => (
-  <label style={{ display: "flex", alignItems: "center", gap: 8, height: 38, padding: "0 12px", background: C.white, border: "1px solid #ebe7e2", borderRadius: 12, boxSizing: "border-box" as const, ...s }}>
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#b0aaa3" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M10 17a7 7 0 1 0 0-14a7 7 0 0 0 0 14zM21 21l-6-6" /></svg>
+  <label style={{ display: "flex", alignItems: "center", gap: 8, height: 38, padding: "0 12px", background: C.white, border: `1px solid ${C.field}`, borderRadius: RADIUS.tile, boxSizing: "border-box" as const, ...s }}>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.light} strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M10 17a7 7 0 1 0 0-14a7 7 0 0 0 0 14zM21 21l-6-6" /></svg>
     <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={placeholder}
       style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontFamily: SANS, color: C.black, padding: 0, height: 34 }} />
   </label>
@@ -635,17 +635,28 @@ export const SearchField = ({ value, onChange, placeholder, s }: { value: string
 // group header: ● LABEL · n ……… total
 export const SectionHead = ({ dot, label, right, s }: { dot?: string; label: string; right?: any; s?: any }) => (
   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, margin: "14px 4px 6px", fontFamily: SANS, ...s }}>
-    <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "#8a847d" }}>{dot && <Dot c={dot} />}{label}</span>
-    {right !== undefined && right !== null && <span style={{ fontSize: 11, color: "#6b655e", whiteSpace: "nowrap" as const }}>{right}</span>}
+    <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted }}>{dot && <Dot c={dot} />}{label}</span>
+    {right !== undefined && right !== null && <span style={{ fontSize: TYPE.label.size, color: PAL.neutral.ink, whiteSpace: "nowrap" as const }}>{right}</span>}
   </div>
 );
 
 export const ListCard = ({ children, s }: { children: any; s?: any }) => (
-  <div style={{ background: C.white, border: "1px solid #efebe6", borderRadius: 12, overflow: "hidden", ...s }}>{children}</div>
+  <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden", ...s }}>{children}</div>
 );
 
+// one row of a list that is built row by row (Projects): together the rows look like one ListCard
+export const listSeg = (first: boolean, last: boolean): any => {
+  const r = (on: boolean) => (on ? RADIUS.card : 0);
+  return {
+    background: C.white, borderLeft: `1px solid ${C.line}`, borderRight: `1px solid ${C.line}`,
+    borderTop: first ? `1px solid ${C.line}` : "none", borderBottom: last ? `1px solid ${C.line}` : "none",
+    borderRadius: `${r(first)}px ${r(first)}px ${r(last)}px ${r(last)}px`,
+    boxShadow: SHADOW.card, clipPath: `inset(${first ? -30 : 0}px -30px ${last ? -30 : 0}px -30px)`,
+  };
+};
+
 export const TonedTag = ({ tone, children, s }: { tone: ToneSet; children: any; s?: any }) => (
-  <span data-tag="" style={{ display: "inline-block", fontSize: 10, letterSpacing: "0.03em", padding: "2px 8px", borderRadius: 9, background: tone.fill, color: tone.ink, whiteSpace: "nowrap" as const, ...s }}>{children}</span>
+  <span data-tag="" style={{ display: "inline-block", fontSize: TYPE.micro.size, letterSpacing: TRACK.tag, padding: "2px 8px", borderRadius: RADIUS.tag, background: tone.fill, color: tone.ink, whiteSpace: "nowrap" as const, ...s }}>{children}</span>
 );
 
 export const IconCircle = ({ tone, children, size = 30, s }: { tone: ToneSet; children: any; size?: number; s?: any }) => (
@@ -657,21 +668,21 @@ export const Row = ({ icon, title, meta, right, onClick, first, chevron = true, 
   icon?: any; title: any; meta?: any; right?: any; onClick?: () => void; first?: boolean; chevron?: boolean; highlight?: boolean; s?: any;
 }) => (
   <div role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} onKeyDown={onClick ? (e: any) => { if (e.key === "Enter") onClick(); } : undefined}
-    style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 54, padding: "9px 10px 9px 12px", borderTop: first ? "none" : "1px solid #f4f1ed",
+    style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 54, padding: "9px 10px 9px 12px", borderTop: first ? "none" : `1px solid ${C.hair}`,
       cursor: onClick ? "pointer" : "default", background: highlight ? PAL.progress.wash : undefined, fontFamily: SANS, ...s }}>
     {icon}
     <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ fontSize: 14, color: C.black, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
-      {meta && <div style={{ fontSize: 12, color: "#8a847d", marginTop: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{meta}</div>}
+      <div style={{ fontSize: TYPE.body.size, color: C.black, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
+      {meta && <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{meta}</div>}
     </div>
     {right !== undefined && right !== null && <div style={{ textAlign: "right" as const, flexShrink: 0 }}>{right}</div>}
-    {onClick && chevron && <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#cfc9c2" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d="M9 6l6 6-6 6" /></svg>}
+    {onClick && chevron && <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d="M9 6l6 6-6 6" /></svg>}
   </div>
 );
 
 export const TimeBar = ({ pct, color, s }: { pct: number; color: string; s?: any }) => (
-  <div style={{ height: 3, background: "#f1eeea", borderRadius: 2, ...s }}>
-    <div style={{ width: `${Math.max(0, Math.min(100, pct))}%`, height: 3, background: color, borderRadius: 2 }} />
+  <div style={{ height: 3, background: PAL.neutral.fill, borderRadius: RADIUS.bar, ...s }}>
+    <div style={{ width: `${Math.max(0, Math.min(100, pct))}%`, height: 3, background: color, borderRadius: RADIUS.bar }} />
   </div>
 );
 
@@ -680,7 +691,7 @@ export const TimeBar = ({ pct, color, s }: { pct: number; color: string; s?: any
 export const Switch = ({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) => (
   <button role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)}
     style={{ minWidth: 44, minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
-    <span style={{ width: 30, height: 18, borderRadius: 9, background: on ? C.black : "#e8e4df", position: "relative", transition: "background .15s" }}>
+    <span style={{ width: 30, height: 18, borderRadius: RADIUS.tag, background: on ? C.black : C.rule, position: "relative", transition: "background .15s" }}>
       <span style={{ position: "absolute", top: 2, left: on ? 14 : 2, width: 14, height: 14, borderRadius: "50%", background: C.white, transition: "left .15s" }} />
     </span>
   </button>
@@ -688,47 +699,26 @@ export const Switch = ({ on, onChange, label }: { on: boolean; onChange: (v: boo
 
 // − n + (whole numbers, min 1)
 export const Stepper = ({ value, onChange, min = 1, label }: { value: number; onChange: (v: number) => void; min?: number; label: string }) => (
-  <div role="group" aria-label={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: SIZE.field, border: "1px solid #ebe7e2", borderRadius: 10, background: C.white, fontFamily: SANS }}>
-    <button aria-label={`${label} minus`} onClick={() => onChange(Math.max(min, value - 1))} style={{ width: 44, height: "100%", background: "none", border: "none", fontSize: 18, color: C.muted, cursor: "pointer" }}>−</button>
-    <span style={{ fontSize: 15 }}>{value}</span>
-    <button aria-label={`${label} plus`} onClick={() => onChange(value + 1)} style={{ width: 44, height: "100%", background: "none", border: "none", fontSize: 18, color: C.muted, cursor: "pointer" }}>+</button>
+  <div role="group" aria-label={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: SIZE.field, border: `1px solid ${C.field}`, borderRadius: RADIUS.field, background: C.white, fontFamily: SANS }}>
+    <button aria-label={`${label} minus`} onClick={() => onChange(Math.max(min, value - 1))} style={{ width: 44, height: "100%", background: "none", border: "none", fontSize: ICON.step, color: C.muted, cursor: "pointer" }}>−</button>
+    <span style={{ fontSize: TYPE.body.size }}>{value}</span>
+    <button aria-label={`${label} plus`} onClick={() => onChange(value + 1)} style={{ width: 44, height: "100%", background: "none", border: "none", fontSize: ICON.step, color: C.muted, cursor: "pointer" }}>+</button>
   </div>
 );
 
 // one quiet line of details with an edit pencil (date · validity · language …)
 export const DetailLine = ({ children, onEdit, s }: { children: any; onEdit?: () => void; s?: any }) => (
-  <div onClick={onEdit} role={onEdit ? "button" : undefined} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minHeight: 44, fontSize: 12, color: "#4a4540", fontFamily: SANS, cursor: onEdit ? "pointer" : "default", ...s }}>
+  <div onClick={onEdit} role={onEdit ? "button" : undefined} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minHeight: 44, fontSize: TYPE.subtext.size, color: C.ink2, fontFamily: SANS, cursor: onEdit ? "pointer" : "default", ...s }}>
     <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{children}</span>
-    {onEdit && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a847d" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>}
+    {onEdit && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>}
   </div>
 );
 
 // bar fixed to the bottom of the screen (total + main action); content needs paddingBottom: BOTTOM_BAR_SPACE
 export const BOTTOM_BAR_SPACE = 96;
 export const BottomBar = ({ children }: { children: any }) => (
-  <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: C.white, borderTop: "1px solid #efebe6", boxShadow: "0 -6px 18px rgba(26,26,26,0.06)",
+  <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: C.white, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar,
     padding: "11px 14px calc(14px + env(safe-area-inset-bottom, 0px))", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontFamily: SANS }}>
     {children}
   </div>
 );
-
-
-// item window: one level above the screen — 48 px header (✕ · title · action),
-// content, and an optional bottom bar (Cancel / Save). Read view first.
-export const Sheet = ({ title, onClose, right, children, footer }: { title: string; onClose: () => void; right?: any; children: any; footer?: any }) =>
-  createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", flexDirection: "column", justifyContent: "flex-end", fontFamily: SANS }}>
-      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(26,26,26,0.28)" }} />
-      <div role="dialog" aria-modal="true" aria-label={title}
-        style={{ position: "relative", background: C.white, borderRadius: "18px 18px 0 0", boxShadow: "0 -10px 30px rgba(26,26,26,0.12)", maxHeight: "88vh", display: "flex", flexDirection: "column", width: "100%", maxWidth: 560, margin: "0 auto", color: C.black }}>
-        <div style={{ height: 48, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px 0 4px", flexShrink: 0 }}>
-          <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, background: "none", border: "none", fontSize: 18, color: "#8a847d", cursor: "pointer" }}>✕</button>
-          <span style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "#8a847d", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, padding: "0 6px" }}>{title}</span>
-          <span style={{ minWidth: 44, display: "flex", justifyContent: "flex-end" }}>{right}</span>
-        </div>
-        <div style={{ overflowY: "auto", padding: "2px 16px 16px", WebkitOverflowScrolling: "touch" as any }}>{children}</div>
-        {footer && <div style={{ padding: "12px 16px calc(16px + env(safe-area-inset-bottom, 0px))", borderTop: "1px solid #efebe6", display: "flex", gap: 8, flexShrink: 0 }}>{footer}</div>}
-      </div>
-    </div>,
-    document.body
-  );
