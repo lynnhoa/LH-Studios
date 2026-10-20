@@ -16,14 +16,10 @@ import RenewalModal from "./RenewalModal";
 import ProductionSection from "./ProductionSection";
 import PDFModal from "./PDFModal";
 import type { DocAction } from "./PDFModal";
-import { sortDocs, docLabel, currentContract, currentQuote, projectInvoice, monthlyInvoices, nextRetainerMonth, renewalInvoice, amendmentDoc, docsOf, isPaidInvoice, isOpenInvoice } from "./docs";
+import { sortDocs, docLabel, currentContract, currentQuote, projectInvoice, monthlyInvoices, nextRetainerMonth, renewalInvoice, amendmentDoc, docsOf, isPaidInvoice, isOpenInvoice, DOC_TONE, STATUS_LABEL, stageTag } from "./docs";
 import type { DocRecord } from "./types";
 
 // Document chip dot colour by status
-const dotCol = (st: string) => ({
-  draft: C.light, sent: C.amber, signed: C.green, paid: C.green, cancelled: C.red, superseded: C.rule,
-}[st] ?? C.light);
-
 // ── License tracker (inline mini) ────────────────────────────
 function LicenseLine({ label, end }: { label: string; end: string }) {
   const d   = dLeft(end) ?? 0;
@@ -277,6 +273,7 @@ function ProjectRow({
         const since = sinceDays(pr);
         const quote = !pr.paid && (pr.status === "quoted" || pr.status === "revised");
         const fu = followUp(pr, today());
+        const tag = stageTag(pr);
         const fuMeta = fu ? <span style={{ color: PAL[fu.tone].ink }}> · {fu.text}</span> : null;
         const ct = pr.status === "contracted" ? currentContractOf(pr) : null;
         const vu = quote ? validUntil(pr) : null;
@@ -306,8 +303,10 @@ function ProjectRow({
             </div>
             <div style={{ textAlign: "right" as const, flexShrink: 0 }}>
               <div style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: pr.status === "lost" ? C.muted : C.black }}>{fmt(pr.amount)}</div>
+              {/* one tag: Paid / Lost · Follow up / Overdue · else the state of the current document */}
               {fu ? <TonedTag tone={PAL[fu.tone]} s={{ marginTop: 3 }}>{fu.label}</TonedTag>
-                : (pr.paid || pr.status === "lost") ? <div style={{ marginTop: 3 }}><StatusBadge status={pr.paid ? "paid" : "lost"} /></div> : null}
+                : (pr.paid || pr.status === "lost") ? <div style={{ marginTop: 3 }}><StatusBadge status={pr.paid ? "paid" : "lost"} /></div>
+                : tag ? <TonedTag tone={PAL[tag.tone]} s={{ marginTop: 3 }}>{tag.label}</TonedTag> : null}
             </div>
             <span style={{ color: C.faint, fontSize: ICON.caret, flexShrink: 0 }}>{isExpanded ? "▴" : "▾"}</span>
           </div>
@@ -382,14 +381,17 @@ function ProjectRow({
                 {!hasQuoteDoc && pr.qd && (
                   <B v="sec" s={{ fontSize: TYPE.micro.size, padding: "5px 10px" }} onClick={() => setLegacyQuote(true)}>Quote</B>
                 )}
-                {docs.map(d => (
-                  <B key={d.id} v="sec"
-                    s={{ fontSize: TYPE.micro.size, padding: "5px 10px", gap: 6, color: d.status === "superseded" ? C.light : C.black, textDecoration: d.status === "superseded" || d.status === "cancelled" ? "line-through" : "none" }}
-                    onClick={() => openDoc(d)}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotCol(d.status), display: "inline-block", flexShrink: 0 }} />
-                    {docLabel(d, pr)}
-                  </B>
-                ))}
+                {docs.map(d => {
+                  // the whole chip in its status colour (draft grey · sent yellow · signed blue · paid green)
+                  const t = PAL[DOC_TONE[d.status] || "neutral"];
+                  return (
+                    <B key={d.id} v="sec" title={`${docLabel(d, pr)} · ${STATUS_LABEL[d.status] || d.status}`}
+                      s={{ fontSize: TYPE.micro.size, padding: "5px 12px", background: t.fill, border: `1px solid ${t.fill}`, color: d.status === "superseded" ? C.light : t.ink, textDecoration: d.status === "superseded" || d.status === "cancelled" ? "line-through" : "none" }}
+                      onClick={() => openDoc(d)}>
+                      {docLabel(d, pr)}
+                    </B>
+                  );
+                })}
               </div>
             </div>
           )}

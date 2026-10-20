@@ -24,7 +24,7 @@ import { editLock } from "./saveStatus";
 import { fmt, r2 } from "./formatters";
 import DocPages, { buildDocPdf } from "./DocPages";
 import { clauseContext, clauseTemplates, fillTokens, tokenizeClause } from "./A4Document";
-import { STATUS_LABEL, docFileName, lineAmt, lineQty } from "./docs";
+import { STATUS_LABEL, DOC_TONE, docFileName, lineAmt, lineQty } from "./docs";   // DOC_TONE: one colour per status, shared with Projects
 import { requantify, lineBase } from "./pricing";
 import { sentVersion } from "./docFlow";
 import type { DocView } from "./docs";
@@ -61,10 +61,6 @@ const clone = (x: any) => JSON.parse(JSON.stringify(x));
 const slotOf = (a: DocAction) => a.slot || (a.kind === "pri" ? "main" : a.kind === "danger" ? "more" : "side");
 const SENDABLE = ["quote", "contract", "amendment", "invoice"];
 
-// palette meaning: draft = maybe · sent = waiting · signed = in progress · paid = done · cancelled = late
-const DOC_TONE: Record<string, Tone> = {
-  draft: "neutral", sent: "waiting", signed: "progress", paid: "done", cancelled: "late", superseded: "neutral",
-};
 
 // A PDF made for the share sheet (or the download on a computer)
 interface Built { key: string; name: string; file: File; url: string }

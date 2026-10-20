@@ -6,6 +6,7 @@
 
 import { r2, today, addD, fmtD } from "./formatters";
 import type { DocRecord, DocKind, DocStatus } from "./types";
+import type { Tone } from "./constants";
 
 // ─── NUMBERS ─────────────────────────────────────────────────
 const pad = (n: number, w: number) => String(n).padStart(w, "0");
@@ -181,6 +182,13 @@ export const STATUS_LABEL: Record<DocStatus, string> = {
   draft: "Draft", sent: "Sent", signed: "Signed", paid: "Paid", cancelled: "Cancelled", superseded: "Replaced",
 };
 
+// One colour per document status — the document window's status, the document chips
+// in Projects and the tags on project lines all read this, so they can't drift apart:
+// draft grey · sent yellow · signed blue · paid green · cancelled pink · replaced grey
+export const DOC_TONE: Record<DocStatus, Tone> = {
+  draft: "neutral", sent: "waiting", signed: "progress", paid: "done", cancelled: "late", superseded: "neutral",
+};
+
 export const isLocked = (d: { status: DocStatus }) => d.status !== "draft";
 
 export function docLabel(d: DocRecord, pr?: any): string {
@@ -221,6 +229,32 @@ export const currentContract = (pr: any): DocRecord | null =>
 export const projectInvoice = (pr: any): DocRecord | null =>
   docsOf(pr).filter(d => d.kind === "invoice" && d.subtype === "project" && d.status !== "cancelled")
     .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))[0] || null;
+
+// The tag on a project line in Projects: the state of the document the project is at.
+// (Paid / Lost and Follow up / Overdue come first — ProjectsTab shows those as before.)
+//   an open invoice (sent, unpaid) → Unpaid · only an invoice draft → Invoice draft
+//   contracted / production → Contract draft · Contract sent · Signed
+//   lead / quoted / revised → Quote draft · Quote sent   (R1 draft after a sent quote → Quote draft)
+//   no document → no tag
+export function stageTag(pr: any): { label: string; tone: Tone } | null {
+  if (!pr || pr.paid || pr.status === "lost") return null;
+  const invs = docsOf(pr).filter(d => d.kind === "invoice" && d.subtype !== "storno" && d.status !== "cancelled");
+  if (invs.some(d => d.status === "sent"))  return { label: "Unpaid", tone: DOC_TONE.sent };
+  if (invs.some(d => d.status === "draft")) return { label: "Invoice draft", tone: DOC_TONE.draft };
+  if (pr.status === "contracted" || pr.status === "production") {
+    const c = currentContract(pr);
+    if (!c) return null;
+    if (c.status === "draft") return { label: "Contract draft", tone: DOC_TONE.draft };
+    if (c.status === "sent")  return { label: "Contract sent", tone: DOC_TONE.sent };
+    return { label: "Signed", tone: DOC_TONE.signed };
+  }
+  if (pr.status === "lead" || pr.status === "quoted" || pr.status === "revised") {
+    const q = currentQuote(pr);
+    if (!q) return null;
+    return q.status === "draft" ? { label: "Quote draft", tone: DOC_TONE.draft } : { label: "Quote sent", tone: DOC_TONE.sent };
+  }
+  return null;
+}
 
 export const monthlyInvoices = (pr: any): DocRecord[] =>
   docsOf(pr).filter(d => d.kind === "invoice" && d.subtype === "monthly" && d.status !== "cancelled")
