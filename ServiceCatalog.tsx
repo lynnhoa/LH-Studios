@@ -281,23 +281,30 @@ function CardShell({ title, card, settings, panel, footer, onClose }: any) {
 //     standard         For a client · Share PDF        under the page: Card settings
 //     for a client     Cancel · Done                   (edit view in the same window)
 //     client version   Adjust · Share PDF              under the page: Back to standard · Card settings
-//   "For a client" only changes this PDF: who it's for (a "Prepared for" line) and what's
-//   shown. Prices and texts are changed for good in the Service Catalog / Card settings.
+//   "For a client" only changes this PDF: who it's for (a "Prepared for" line), what's
+//   shown, and the price of a deliverable or package for this client (empty = the catalog
+//   price). Prices and texts are changed for good in the Service Catalog / Card settings.
 //   Share PDF opens the phone's share sheet in the same tap — the PDF is made in the
 //   background while the window is open. On a computer: download. Closing resets to standard.
-interface RCAdjust { forName: string; hideSec: number[]; hideItem: string[] }
-const RC_STANDARD: RCAdjust = { forName: "", hideSec: [], hideItem: [] };
+interface RCAdjust { forName: string; hideSec: number[]; hideItem: string[]; prices: Record<string, number> }
+const RC_STANDARD: RCAdjust = { forName: "", hideSec: [], hideItem: [], prices: {} };
 const rcItemKey = (si: number, it: any, ii: number) => `${si}:${it?.id || ii}`;
 const rcPicks = (sec: any) => { const k = sectionKind(sec); return k === "deliverables" || k === "packages"; };
-const rcAdjusted = (a: RCAdjust) => !!(a.forName.trim() || a.hideSec.length || a.hideItem.length);
+const rcAdjusted = (a: RCAdjust) => !!(a.forName.trim() || a.hideSec.length || a.hideItem.length || Object.keys(a.prices || {}).length);
 
-// the card as this PDF shows it: hidden sections and items left out (a section without items goes too)
+// the card as this PDF shows it: hidden sections and items left out (a section without items
+// goes too), and the client's prices in place of the catalog prices
 function adjustCard(card: any, a: RCAdjust) {
   if (!rcAdjusted(a)) return card;
+  const prices = a.prices || {};
   const sections = (card.sections || []).map((sec: any, si: number) => {
     if (a.hideSec.includes(si)) return null;
     if (!rcPicks(sec)) return sec;
-    const items = (sec.items || []).filter((it: any, ii: number) => !a.hideItem.includes(rcItemKey(si, it, ii)));
+    const items = (sec.items || []).flatMap((it: any, ii: number) => {
+      const k = rcItemKey(si, it, ii);
+      if (a.hideItem.includes(k)) return [];
+      return [prices[k] !== undefined && it.p !== null && it.p !== undefined ? { ...it, p: prices[k] } : it];
+    });
     return items.length ? { ...sec, items } : null;
   }).filter(Boolean);
   return { ...card, sections };
@@ -439,12 +446,20 @@ function RateCardWindow({ card, cardKey, cardName, settings, clientNames, onClos
   };
 
   // ── For a client ────────────────────────────────────────────
-  const openAdjust = () => { setMsg(null); setStaged({ ...applied, hideSec: [...applied.hideSec], hideItem: [...applied.hideItem] }); };
+  const openAdjust = () => { setMsg(null); setStaged({ ...applied, hideSec: [...applied.hideSec], hideItem: [...applied.hideItem], prices: { ...applied.prices } }); };
   const done_      = () => { if (staged) setApplied({ ...staged, forName: staged.forName.trim() }); setStaged(null); };
   const toggle = (list: "hideSec" | "hideItem", v: any) => setStaged(st => {
     if (!st) return st;
     const cur = st[list] as any[];
     return { ...st, [list]: cur.includes(v) ? cur.filter(x => x !== v) : [...cur, v] };
+  });
+  // the client's price for one item: empty (or the catalog price again) = the catalog price
+  const setPrice = (k: string, catalog: number, n: number | null) => setStaged(st => {
+    if (!st) return st;
+    const prices = { ...st.prices };
+    if (n === null || !Number.isFinite(n) || n < 0 || Math.abs(n - catalog) < 0.005) delete prices[k];
+    else prices[k] = Math.round(n * 100) / 100;
+    return { ...st, prices };
   });
   const names = useMemo(() => Array.from(new Set((clientNames || []).map((n: any) => String(n || "").trim()).filter(Boolean))).sort((a: any, b: any) => a.localeCompare(b)), [clientNames]);
 
@@ -496,13 +511,21 @@ function RateCardWindow({ card, cardKey, cardName, settings, clientNames, onClos
                 if (!it?.n) return null;
                 const k = rcItemKey(si, it, ii);
                 const shown = !staged.hideItem.includes(k);
-                const price = it.p !== null && it.p !== undefined ? money(it.p) : pctSpace(it.m || "");
+                const fixed = it.p !== null && it.p !== undefined;
+                const catalog = Number(it.p) || 0;
+                const own = staged.prices[k];
+                const changed = shown && fixed && own !== undefined;
                 return (
-                  <button key={k} onClick={() => toggle("hideItem", k)} aria-pressed={shown} aria-label={`${shown ? "Hide" : "Show"} ${it.n}`} style={{ ...ROW, borderTop: `1px solid ${C.hair}` }}>
-                    <span style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", background: shown ? C.black : C.white, border: shown ? "none" : `1.5px solid ${C.faint}`, color: C.white, fontSize: 11, boxSizing: "border-box" as const }}>{shown ? "✓" : ""}</span>
-                    <span style={{ flex: 1, minWidth: 0, fontSize: TYPE.row.size, color: shown ? C.black : C.light, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pctSpace(it.n)}</span>
-                    <span style={{ fontSize: TYPE.subtext.size, color: shown ? C.muted : C.faint, whiteSpace: "nowrap" as const }}>{price}</span>
-                  </button>
+                  <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44, padding: "0 12px 0 22px", borderTop: `1px solid ${C.hair}` }}>
+                    <button onClick={() => toggle("hideItem", k)} aria-pressed={shown} aria-label={`${shown ? "Hide" : "Show"} ${it.n}`} style={{ ...ROW, padding: 0, minHeight: 44, flex: 1, minWidth: 0, width: "auto" }}>
+                      <span style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", background: shown ? C.black : C.white, border: shown ? "none" : `1.5px solid ${C.faint}`, color: C.white, fontSize: 11, boxSizing: "border-box" as const }}>{shown ? "✓" : ""}</span>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: TYPE.row.size, color: shown ? C.black : C.light, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pctSpace(it.n)}</span>
+                    </button>
+                    {changed && <span style={{ fontSize: TYPE.subtext.size, color: C.muted, textDecoration: "line-through", whiteSpace: "nowrap" as const }}>{money(catalog)}</span>}
+                    {shown && fixed
+                      ? <NumField mini value={own ?? null} onChange={n => setPrice(k, catalog, n)} placeholder={money(catalog)} ariaLabel={`${it.n} price for this client`} s={{ width: 96, flexShrink: 0 }} />
+                      : <span style={{ fontSize: TYPE.subtext.size, color: shown ? C.muted : C.faint, whiteSpace: "nowrap" as const }}>{fixed ? money(catalog) : pctSpace(it.m || "")}</span>}
+                  </div>
                 );
               })}
             </div>
