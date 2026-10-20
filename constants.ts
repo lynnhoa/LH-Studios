@@ -209,5 +209,5 @@ export const SPACING = {
   listText: 13, listMeta: 11,              // list rows, like the dashboard's lists
   field: 40, rowField: 32,                 // fields alone · fields inside a 44 px row (6 px clear of each line)
   chip: 30, pill: 30, mainBtn: 40, tick: 22, tap: 44,
-  menuRow: 36, menuText: 13, menuWidth: 232,
+  menuRow: 28, menuText: 13, menuWidth: 232,     // profile menu: compact 28 px rows
 } as const;
