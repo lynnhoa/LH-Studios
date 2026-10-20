@@ -109,13 +109,16 @@ export default function Calculator({
     return clientList.length ? "" : NEW_CLIENT;
   })();
 
-  // The quote that was being built before a tab switch. "+ Quote" for another client while
-  // an unsaved quote exists asks first (Discard / Continue it) — nothing is lost silently.
+  // The quote that was being built before a tab switch. "+ Quote" for another client — or for a
+  // lead the kept quote isn't for — starts that quote; with unsaved work it asks first
+  // (Discard / Continue it), so nothing is lost silently and a lead is never skipped.
   const draftKey = locked ? `${isRev ? "rev" : "amend"}:${prefill?.pid || ""}` : "new";
   const boot = useRef<{ saved: any; pending: any } | null>(null);
   if (!boot.current) {
     const st = quoteDraft.get(draftKey);
-    const other = !!st && !locked && !!(prefill?.cid || prefill?.brand) && st.clientSel !== initialClient;
+    const otherClient = !!st && st.clientSel !== initialClient;
+    const otherLead   = !!st && !!prefill?.pid && st.target !== prefill.pid;
+    const other = !!st && !locked && !!(prefill?.cid || prefill?.brand) && (otherClient || otherLead);
     boot.current = { saved: st && !other ? st : null, pending: other && draftHasWork(st) ? st : null };
   }
   const saved0 = boot.current.saved;
