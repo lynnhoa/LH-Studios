@@ -3,7 +3,7 @@
 // "By client" replaces the old Clients tab. Tap a project → its items.
 // ─────────────────────────────────────────────────────────────
 import { useState, useMemo } from "react";
-import { C, SANS, SERIF, TYPE, PAL, RADIUS } from "./constants";
+import { C, SANS, SERIF, TYPE, PAL, RADIUS, SPACING } from "./constants";
 import { fmtD } from "./formatters";
 import { SummaryLine, Strong, Chip, ChipRow, SectionHead, TonedTag } from "./atoms";
 import { projectItems, isInProduction, shownStatus } from "./wsHelpers";
@@ -29,7 +29,7 @@ export default function CreatorProjects({ clients, isMobile }: { clients: any[];
         <div role="button" tabIndex={0} aria-expanded={open} onClick={() => setExp(open ? null : key)} onKeyDown={(e: any) => { if (e.key === "Enter") setExp(open ? null : key); }}
           style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", minHeight: 54, boxSizing: "border-box" as const, cursor: "pointer" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: TYPE.body.size, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{r.pr.name}</div>
+            <div style={{ fontSize: SPACING.listText, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{r.pr.name}</div>
             <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>
               <button onClick={(e) => { e.stopPropagation(); setBy("client"); }} style={{ background: "none", border: "none", padding: "9px 2px", margin: "-9px -2px", font: "inherit", color: "inherit", cursor: "pointer", textDecoration: "underline", textDecorationColor: C.edge, textUnderlineOffset: 2 }}>{r.c.name}</button>
               {" · "}{r.pr.deliveryDate ? `delivery ${fmtD(r.pr.deliveryDate)}` : <span style={{ color: PAL.waiting.ink }}>No delivery date</span>}

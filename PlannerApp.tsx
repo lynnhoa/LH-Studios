@@ -92,18 +92,16 @@ export default function PlannerApp({ userId, settings, signOut, switchTo, banner
         {isMobile ? (
           <>
             <div style={{ textAlign: "center", padding: "8px 20px 6px" }}><AppLogo size="nav" /></div>
-            <div style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 8px 0 6px", borderTop: `1px solid ${C.rule}` }}>
-              <div style={{ display: "flex", minWidth: 0, overflowX: "auto" }}>{tabs(40, 8)}</div>
-              {avatar}
+            <div style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 44px 0 6px", borderTop: `1px solid ${C.rule}`, position: "relative" as const }}>
+              <div style={{ display: "flex", minWidth: 0, overflowX: "auto" as const }}>{tabs(40, 8)}</div>
+              <div style={{ position: "absolute", right: 8 }}>{avatar}</div>
             </div>
           </>
         ) : (
-          <div style={{ height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
-              <AppLogo size="nav" />
-              <div style={{ display: "flex" }}>{tabs(56, 10)}</div>
-            </div>
-            {avatar}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "0 28px", height: 56 }}>
+            <div style={{ display: "flex", alignItems: "center" }}>{avatar}</div>
+            <AppLogo size="nav" />
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>{tabs(56, 10)}</div>
           </div>
         )}
       </div>

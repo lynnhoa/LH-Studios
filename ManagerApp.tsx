@@ -171,7 +171,7 @@ export default function ManagerApp({
 
   // ── Avatar menu + tabs (shared with the Creator app) ─────
   const MENU_ITEMS: [string, number][] = [
-    ["Creator Profile",  NAV_PROFILE],
+    ["Business profile", NAV_PROFILE],
     ["Change Password",  NAV_PASSWORD],
     ["Service Catalog",  NAV_CATALOG],
     ["Invoices",         NAV_INVOICES],

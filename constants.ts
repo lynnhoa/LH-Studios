@@ -195,3 +195,19 @@ export const DENSITY = {
   sectionTop: 14, sectionBottom: 7, row1: 44, row2: 54, iconSm: 22, iconMd: 30,
   barMax: 38, thin: 4, tick: 22, tap: 44, field: 40, chip: 30, tile: 50, tileGap: 6, sheetHeader: 48,
 } as const;
+
+// ─── SPACING — the one spacing master (taken from the Manager dashboard) ─
+// Every part reads these; no screen sets its own spacing.
+export const SPACING = {
+  screen: 14,            // sides + top of every screen
+  titleToSummary: 4,     // summary line under a title
+  sectionTop: 14, sectionBottom: 7,
+  cardGap: 10,           // between cards
+  gridGap: 8,            // inside tile grids
+  dashCardPad: "11px 13px 9px", tilePad: "10px 11px 9px",
+  row1: 44, row2: 54, rowSide: 12,
+  listText: 13, listMeta: 11,              // list rows, like the dashboard's lists
+  field: 40, rowField: 32,                 // fields alone · fields inside a 44 px row (6 px clear of each line)
+  chip: 30, pill: 30, mainBtn: 40, tick: 22, tap: 44,
+  menuRow: 36, menuText: 13, menuWidth: 232,
+} as const;

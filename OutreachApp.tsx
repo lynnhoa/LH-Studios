@@ -52,18 +52,16 @@ export default function OutreachApp({ userId, settings, signOut, switchTo, banne
         {isMobile ? (
           <>
             <div style={{ textAlign: "center", padding: "8px 20px 6px" }}><AppLogo size="nav" /></div>
-            <div style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 8px 0 6px", borderTop: `1px solid ${C.rule}` }}>
+            <div style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 44px 0 6px", borderTop: `1px solid ${C.rule}`, position: "relative" as const }}>
               <NavTab label="Email list" active={true} onClick={() => {}} height={40} px={8} />
-              {avatar}
+              <div style={{ position: "absolute", right: 8 }}>{avatar}</div>
             </div>
           </>
         ) : (
-          <div style={{ height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
-              <AppLogo size="nav" />
-              <NavTab label="Email list" active={true} onClick={() => {}} height={56} px={10} />
-            </div>
-            {avatar}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "0 28px", height: 56 }}>
+            <div style={{ display: "flex", alignItems: "center" }}>{avatar}</div>
+            <AppLogo size="nav" />
+            <div style={{ display: "flex", justifyContent: "flex-end" }}><NavTab label="Email list" active={true} onClick={() => {}} height={56} px={10} /></div>
           </div>
         )}
       </div>

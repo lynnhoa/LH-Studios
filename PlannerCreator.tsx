@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { C, SANS, SERIF, TYPE } from "./constants";
+import { C, SANS, SERIF, TYPE, SPACING, RADIUS, PAL } from "./constants";
 import { B, Tick, BAR_BTN } from "./atoms";
 import { parseYMD, monthStart, monthEnd, today } from "./formatters";
 import {
@@ -84,15 +84,15 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
   };
 
   // ── pieces ──────────────────────────────────────────────────
-  const card: any = { background: C.white, border: `1px solid ${C.rule}`, borderRadius: 3, marginTop: 10, overflow: "hidden" };
+  const card: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, marginTop: 10, overflow: "hidden" };
   const band = (icon: string, title: string, right?: any) => (
-    <div style={{ minHeight: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", background: look.bg, color: look.color, ...microLabel }}>
+    <div style={{ minHeight: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", background: C.white, color: PAL.neutral.ink, ...microLabel }}>
       <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Ico d={icon} size={13} color={look.color} />{title}</span>
       {right != null && <span style={{ color: C.muted }}>{right}</span>}
     </div>
   );
   const edChip = (it: Item) => show === "all" && it.list === "editorial"
-    ? <span style={{ fontSize: 9, letterSpacing: "0.08em", padding: "1px 6px", borderRadius: 10, background: "#f0f0f5", color: "#6a6aaa", border: "1px solid #c8c8e0", marginLeft: 6, verticalAlign: 1 }}>EDITORIAL</span> : null;
+    ? <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", padding: "1px 6px", borderRadius: 10, background: "#f0f0f5", color: "#6a6aaa", border: "1px solid #c8c8e0", marginLeft: 6, verticalAlign: 1 }}>EDITORIAL</span> : null;
   const metaLine = (parts: { t: string; c?: string }[]) => parts.length === 0 ? null : (
     <div style={{ fontSize: 12, color: C.muted, marginTop: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>
       {parts.map((m, k) => <span key={k} style={{ color: m.c || C.muted }}>{k ? " · " : ""}{m.t}</span>)}
@@ -106,9 +106,9 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
     if (it.list === "editorial" && storyLines(it.direction).length === 0) p.push({ t: "needs storyline", c: AMBER });
     return p;
   };
-  const rowS: any = { minHeight: 46, display: "flex", alignItems: "center", gap: 10, padding: "5px 4px 5px 12px", borderTop: "1px solid #f0ece7", cursor: "pointer" };
+  const rowS: any = { minHeight: SPACING.row1, display: "flex", alignItems: "center", gap: 10, padding: "5px 4px 5px 12px", borderTop: `1px solid ${C.hair}`, cursor: "pointer" };
   const title = (it: Item, muted = false) => (
-    <div style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, color: muted ? C.muted : C.black }}>{it.title}{edChip(it)}</div>
+    <div style={{ fontSize: SPACING.listText, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, color: muted ? C.muted : C.black }}>{it.title}{edChip(it)}</div>
   );
 
   // ── this week's goals: Done (counted from the plan) | Goal (locked; Edit goals opens them) ──
@@ -125,11 +125,11 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
     <input key={`${label}-${value}`} inputMode="numeric" defaultValue={value ?? ""} placeholder="–" aria-label={label} onFocus={(e) => e.target.select()}
       onBlur={(e) => { const v = e.target.value.trim() === "" ? null : parseIntDe(e.target.value); if (v !== value) onSave(v); }}
       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-      style={{ width: "100%", height: 28, border: `1px solid ${look.color}`, borderRadius: 2, padding: "0 7px", textAlign: "right" as const, fontFamily: SANS, fontSize: 13, background: C.white, boxSizing: "border-box" as const }} />
+      style={{ width: "100%", height: SPACING.rowField, border: `1px solid ${C.field}`, borderRadius: RADIUS.field - 2, padding: "0 7px", textAlign: "right" as const, fontFamily: SANS, fontSize: 13, background: C.white, boxSizing: "border-box" as const }} />
   );
   const num = (v: any, muted = false, color?: string) => <span style={{ textAlign: "right" as const, paddingRight: 8, fontSize: 13, color: color || (muted ? C.light : C.black) }}>{v ?? "–"}</span>;
   const goalLine = (key: string, icon: string, name: string, done: number, target: number | null, onGoal: (v: number | null) => void, mark: any) => (
-    <div key={key} style={{ display: "grid", gridTemplateColumns: GRID, alignItems: "center", columnGap: 8, padding: "0 12px", minHeight: 40, borderTop: "1px solid #f0ece7", fontSize: 13 }}>
+    <div key={key} style={{ display: "grid", gridTemplateColumns: GRID, alignItems: "center", columnGap: 8, padding: "0 12px", minHeight: SPACING.row1, borderTop: `1px solid ${C.hair}`, fontSize: 13 }}>
       <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Ico d={icon} size={13} color={look.color} />{name}</span>
       {num(done)}
       {editGoals ? goalField(target, `Goal for ${name}`, onGoal) : num(target, target == null)}
@@ -145,17 +145,17 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
   const reached = weekGoals.filter(t => planner.stateOf(t, now).done).length;
   const strip = (
     <div id="card-goals-creator" style={{ ...card, marginTop: 12 }}>
-      <div style={{ minHeight: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", background: look.bg, color: look.color, ...microLabel }}>
+      <div style={{ minHeight: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", background: C.white, color: PAL.neutral.ink, ...microLabel }}>
         <span>This week's goals</span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
           <span style={{ color: weekGoals.length && reached === weekGoals.length ? C.green : C.black }}>{reached} of {weekGoals.length} reached</span>
           <button onClick={() => setEditGoals(e => !e)} aria-pressed={editGoals}
-            style={{ height: 22, padding: "0 7px", borderRadius: 2, border: `1px solid ${editGoals ? C.black : C.rule}`, background: editGoals ? C.black : C.white, color: editGoals ? C.white : C.black, fontFamily: SANS, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase" as const, cursor: "pointer" }}>
+            style={{ height: 22, padding: "0 7px", borderRadius: 2, border: `1px solid ${editGoals ? C.black : C.rule}`, background: editGoals ? C.black : C.white, color: editGoals ? C.white : C.black, fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, cursor: "pointer" }}>
             {editGoals ? "Done" : "Edit goals"}
           </button>
         </span>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: GRID, columnGap: 8, padding: "0 12px", minHeight: 24, alignItems: "center", background: "#fcfbf9", fontSize: 9, letterSpacing: "0.1em", color: C.muted }}>
+      <div style={{ display: "grid", gridTemplateColumns: GRID, columnGap: 8, padding: "0 12px", minHeight: 24, alignItems: "center", background: C.bg, fontSize: TYPE.micro.size, letterSpacing: "0.1em", color: C.muted }}>
         <span /><span style={{ textAlign: "right" as const, paddingRight: 8 }}>DONE</span><span style={{ textAlign: "right" as const, paddingRight: 8, color: editGoals ? look.color : C.muted, display: "inline-flex", justifyContent: "flex-end", alignItems: "center", gap: 3 }}>{!editGoals && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2.2" aria-hidden="true"><path d="M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3" /></svg>}GOAL</span><span />
       </div>
       {weekGoals.map(t => {
@@ -168,7 +168,7 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
       {fsT && fs && goalLine("firstset", IC.camera, "First set", fs.actual ?? 0, fsT.target ?? null,
         v => quiet(planner.updateTask(fsT.id, { target: v })),
         fs.done ? <ResultMark state="reached" /> : fsT.target != null ? <ResultMark state="togo" text={`${(fsT.target ?? 0) - (fs.actual ?? 0)} to go`} /> : <ResultMark state="none" text="No goal set" />)}
-      <div style={{ padding: "6px 12px", borderTop: "1px solid #f0ece7", background: "#fcfbf9", fontSize: 11, color: C.muted }}>Counted from the content plan · {monthName(now)}{fsT && fs ? " and First set are" : " counts"} portfolio pieces</div>
+      <div style={{ padding: "6px 12px", borderTop: `1px solid ${C.hair}`, background: C.bg, fontSize: 11, color: C.muted }}>Counted from the content plan · {monthName(now)}{fsT && fs ? " and First set are" : " counts"} portfolio pieces</div>
     </div>
   );
 
@@ -177,7 +177,7 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
     <div role="tablist" aria-label="Show" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", marginTop: 10, border: `1px solid ${C.rule}`, borderRadius: 2, background: C.white, overflow: "hidden" }}>
       {([["all", "All"], ["idea", "Content"], ["editorial", "Editorials"]] as [Show, string][]).map(([k, l], i) => (
         <button key={k} role="tab" aria-selected={show === k} onClick={() => setShow(k)}
-          style={{ height: 30, border: "none", borderLeft: i ? `1px solid ${C.rule}` : "none", background: show === k ? C.black : C.white, color: show === k ? C.white : C.muted, fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, cursor: "pointer" }}>{l}</button>
+          style={{ height: 30, border: "none", borderLeft: i ? `1px solid ${C.rule}` : "none", background: show === k ? PAL.neutral.fill : C.white, color: show === k ? C.black : C.muted, fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, cursor: "pointer" }}>{l}</button>
       ))}
     </div>
   );
@@ -188,7 +188,7 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
   const conceptCard = (
     <div id="card-concept" style={card}>
       <button onClick={() => setConcept(o => !o)} aria-expanded={concept}
-        style={{ width: "100%", minHeight: 40, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", background: "none", border: "none", cursor: "pointer", fontFamily: SANS, textAlign: "left" as const }}>
+        style={{ width: "100%", minHeight: SPACING.row1, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", background: "none", border: "none", cursor: "pointer", fontFamily: SANS, textAlign: "left" as const }}>
         <Ico d={IC.bulb} size={14} color={look.color} />
         <span style={{ ...microLabel, color: look.color, flexShrink: 0 }}>{isLynn ? "Social concept" : "Concept"}</span>
         <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: note?.body ? C.black : C.light, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
@@ -221,14 +221,14 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
   const shootCard = (
     <div id="card-shoot" style={{ ...card, boxShadow: "0 6px 18px rgba(26,26,26,0.06)", borderColor: look.border }}>
       {band(IC.camera, `To shoot · ${toShoot.length}`, "Tick = filmed")}
-      {toShoot.length === 0 && <p style={{ fontSize: 13, color: C.muted, margin: 0, padding: "10px 12px", borderTop: "1px solid #f0ece7" }}>Nothing planned. Give an idea a date with Plan ›.</p>}
+      {toShoot.length === 0 && <p style={{ fontSize: 13, color: C.muted, margin: 0, padding: "10px 12px", borderTop: `1px solid ${C.hair}` }}>Nothing planned. Give an idea a date with Plan ›.</p>}
       {toShoot.map(shootRow)}
     </div>
   );
 
   // ── Ideas ───────────────────────────────────────────────────
   const ideaRow = (it: Item) => (
-    <div key={it.id} className="lh-prow" role="button" tabIndex={0} onClick={() => setOpen(it.id)} onKeyDown={(e) => { if (e.key === "Enter") setOpen(it.id); }} style={{ ...rowS, minHeight: 42 }}>
+    <div key={it.id} className="lh-prow" role="button" tabIndex={0} onClick={() => setOpen(it.id)} onKeyDown={(e) => { if (e.key === "Enter") setOpen(it.id); }} style={{ ...rowS, minHeight: SPACING.row1 }}>
       <div style={{ flex: 1, minWidth: 0 }}>{title(it)}{metaLine(planParts(it))}</div>
       <span style={{ ...microLabel, color: C.black, flexShrink: 0 }}>Plan ›</span>
       <XBtn label={`Delete ${it.title}`} onClick={() => remove(it)} />
@@ -265,7 +265,7 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
   const historyCard = done.length > 0 && (
     <div style={card}>
       <button onClick={() => setHistory(o => !o)} aria-expanded={history}
-        style={{ width: "100%", minHeight: 40, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", background: "#fcfbf9", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.muted }}>
+        style={{ width: "100%", minHeight: SPACING.row1, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", background: C.bg, border: "none", cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.muted }}>
         <span style={{ display: "flex", alignItems: "center", gap: 7 }}><Ico d={IC.history} size={14} />History · {done.length} filmed · {postedN} posted</span>
         <Ico d={history ? IC.up : IC.down} size={13} color={C.light} />
       </button>

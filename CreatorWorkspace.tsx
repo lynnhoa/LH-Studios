@@ -7,7 +7,7 @@
 //   No tap-to-change on tags or names any more.
 // ─────────────────────────────────────────────────────────────
 import { useState, useMemo, useEffect } from "react";
-import { C, SANS, SERIF, TYPE, PAL, RADIUS, SHADOW, Z, TRACK } from "./constants";
+import { C, SANS, SERIF, TYPE, PAL, RADIUS, SHADOW, Z, TRACK, SPACING } from "./constants";
 import { fmtD } from "./formatters";
 import { SummaryLine, Strong, Chip, ChipRow, SearchField, SectionHead, ListCard, TonedTag, Sheet, PillBtn, I, S, Row } from "./atoms";
 import { getWsItems, isOverdue, isThisWeek, fmtDeadline, finalStatus, statusRank, shownStatus, WS_CATS, WS_CAT_LABEL } from "./wsHelpers";
@@ -144,7 +144,7 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: { c
                     onKeyDown={(e: any) => { if (e.key === "Enter") setWin({ pid: it.projectId, id: it.id }); }}
                     style={{ display: "flex", alignItems: "center", gap: 4, minHeight: 54, padding: "9px 0 9px 12px", borderTop: i ? `1px solid ${C.hair}` : "none", cursor: "pointer", boxSizing: "border-box" as const }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: TYPE.body.size, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: SPACING.listText, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>
                         <span style={{ width: 6, height: 6, borderRadius: "50%", background: catTone(it.category).mid, flexShrink: 0 }} />{it.name}
                       </div>
                       <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{it.clientName} · {it.projectName}{due(it)}</div>

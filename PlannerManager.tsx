@@ -13,7 +13,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
-import { C, SANS, TYPE } from "./constants";
+import { C, SANS, TYPE, SPACING, RADIUS, PAL } from "./constants";
 import { B, BAR_BTN } from "./atoms";
 import {
   DAY_SHORT, OWNER_LOOK, isVisible, periodOf, stageNumOf, todayIndex, weekRange, fmtPct2, addDays, thisMonday, mondayOf,
@@ -113,9 +113,9 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
   };
 
   // ── pieces ──────────────────────────────────────────────────
-  const card: any = { background: C.white, border: `1px solid ${C.rule}`, borderRadius: 3, marginTop: 10, overflow: "hidden" };
+  const card: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, marginTop: 10, overflow: "hidden" };
   const band = (title: string, right?: any) => (
-    <div style={{ minHeight: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", background: look.bg, color: look.color, ...microLabel }}>
+    <div style={{ minHeight: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", background: C.white, color: PAL.neutral.ink, ...microLabel }}>
       <span>{title}</span>{right}
     </div>
   );
@@ -124,7 +124,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     <input key={`${id}|${value}`} inputMode="numeric" defaultValue={value == null ? "" : fmtInt(value)} placeholder="–" aria-label={label} onFocus={(e) => e.target.select()}
       onBlur={(e) => { const v = e.target.value.trim() === "" ? null : parseIntDe(e.target.value); if (v !== value) onSave(v); }}
       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-      style={{ width: "100%", height: 28, border: `1px solid ${goal ? look.color : C.rule}`, borderRadius: 2, padding: `0 ${PAD}px`, textAlign: "right" as const, fontFamily: SANS, fontSize: 13, background: goal ? C.white : "#faf9f7", boxSizing: "border-box" as const }} />
+      style={{ width: "100%", height: SPACING.rowField, border: `1px solid ${C.field}`, borderRadius: RADIUS.field - 2, padding: `0 ${PAD}px`, textAlign: "right" as const, fontFamily: SANS, fontSize: 13, background: goal ? C.white : "#faf9f7", boxSizing: "border-box" as const }} />
   );
   const plain = (v: any, muted = false) => <span style={{ textAlign: "right" as const, paddingRight: PAD + 1, fontSize: 13, color: muted ? C.light : C.black }}>{v == null ? "–" : typeof v === "number" ? fmtInt(v) : v}</span>;
   const lock = <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2.2" aria-hidden="true"><path d="M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3" /></svg>;
@@ -146,7 +146,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
       : state === "none" ? (notEntered ? "Not entered" : "No goal set") : undefined;
     const typed = !fromSprint && (t.source === "following" || t.source === "pitches" || leads);
     return (
-      <div key={t.id} style={{ display: "grid", gridTemplateColumns: GRID, alignItems: "center", columnGap: GAP, padding: "0 12px", minHeight: 42, borderTop: "1px solid #f0ece7", fontSize: 13 }}>
+      <div key={t.id} style={{ display: "grid", gridTemplateColumns: GRID, alignItems: "center", columnGap: GAP, padding: "0 12px", minHeight: SPACING.row1, borderTop: `1px solid ${C.hair}`, fontSize: 13 }}>
         <span style={{ display: "flex", alignItems: "center", gap: 6, color: s.done ? C.muted : C.black }}><Ico d={ICON(t)} size={13} color={look.color} />{NAME(t)}</span>
         {days ? (
           <span style={{ gridColumn: "span 2", display: "flex", justifyContent: "space-between", gap: 2 }}>
@@ -156,7 +156,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
                 <button key={d} onClick={() => { const ds = [...s.days]; ds[i] = !ds[i]; quiet(planner.saveEntry(t.id, period, { days: ds })); }}
                   aria-pressed={on} aria-label={`${d}${on ? ", done" : ""}`} title={d}
                   style={{ width: 16, height: 16, padding: 0, flexShrink: 0, borderRadius: 3, cursor: "pointer", boxSizing: "border-box" as const,
-                    border: i === ti ? `2px solid ${C.black}` : `1.5px solid ${on ? C.green : C.light}`, background: on ? C.green : C.white, color: C.white, fontSize: 9, lineHeight: 1 }}>{on ? "✓" : ""}</button>
+                    border: i === ti ? `2px solid ${C.black}` : `1.5px solid ${on ? C.green : C.light}`, background: on ? C.green : C.white, color: C.white, fontSize: TYPE.micro.size, lineHeight: 1 }}>{on ? "✓" : ""}</button>
               );
             })}
           </span>
@@ -185,7 +185,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
   const prevSn = planner.snaps[snapKey(acc, addDays(monday, -7))];
   const fDiff = sn?.followers != null && prevSn?.followers != null ? sn.followers - prevSn.followers : null;
   const followersRow = (
-    <div key="followers" style={{ display: "grid", gridTemplateColumns: GRID, alignItems: "center", columnGap: GAP, padding: "0 12px", minHeight: 42, borderTop: "1px solid #f0ece7", fontSize: 13 }}>
+    <div key="followers" style={{ display: "grid", gridTemplateColumns: GRID, alignItems: "center", columnGap: GAP, padding: "0 12px", minHeight: SPACING.row1, borderTop: `1px solid ${C.hair}`, fontSize: 13 }}>
       <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Ico d={IC.userPlus} size={13} color={look.color} />Followers</span>
       {numField(`followers|${acc}`, sn?.followers ?? null, "Followers this week", v => quiet(planner.saveSnapshot(acc, monday, { followers: v })))}
       {plain("–", true)}
@@ -196,7 +196,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
   const checkNote = checkT && (() => {
     const e = planner.entries[`${checkT.id}|${periodOf(checkT, monday)}`];
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderTop: "1px solid #f0ece7", background: "#fcfbf9" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderTop: `1px solid ${C.hair}`, background: C.bg }}>
         <span style={{ ...microLabel, flexShrink: 0 }}>Check-in</span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <InlineText value={e?.note || ""} placeholder="Note for this week" ariaLabel="Check-in note"
@@ -212,11 +212,11 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
           <span style={{ color: counted.length && reached === counted.length ? C.green : C.black }}>{reached} of {counted.length} reached</span>
           <button onClick={() => setEditGoals(e => !e)} aria-pressed={editGoals}
-            style={{ height: 22, padding: "0 7px", borderRadius: 2, border: `1px solid ${editGoals ? C.black : C.rule}`, background: editGoals ? C.black : C.white, color: editGoals ? C.white : C.black, fontFamily: SANS, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase" as const, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+            style={{ height: 22, padding: "0 7px", borderRadius: 2, border: `1px solid ${editGoals ? C.black : C.rule}`, background: editGoals ? C.black : C.white, color: editGoals ? C.white : C.black, fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
             {editGoals ? "Done" : <><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.black} strokeWidth="2" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" /></svg>Edit goals</>}
           </button>
         </span>)}
-      <div style={{ display: "grid", gridTemplateColumns: GRID, columnGap: GAP, padding: "0 12px", minHeight: 24, alignItems: "center", background: "#fcfbf9", fontSize: 9, letterSpacing: "0.1em", color: C.muted }}>
+      <div style={{ display: "grid", gridTemplateColumns: GRID, columnGap: GAP, padding: "0 12px", minHeight: 24, alignItems: "center", background: C.bg, fontSize: TYPE.micro.size, letterSpacing: "0.1em", color: C.muted }}>
         <span /><span style={{ textAlign: "right" as const, paddingRight: PAD + 1 }}>DONE</span>
         <span style={{ textAlign: "right" as const, paddingRight: PAD + 1, display: "inline-flex", justifyContent: "flex-end", alignItems: "center", gap: 3, color: editGoals ? look.color : C.muted }}>{!editGoals && lock}GOAL</span><span />
       </div>
@@ -246,7 +246,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     const mark = (val: number | null | undefined, target: number | null) =>
       target == null ? <span /> : (Number(val) || 0) >= target ? <ResultMark state="reached" /> : <ResultMark state="togo" text={`${target - (Number(val) || 0)} to go`} />;
     const row = (label: string, key: "p" | "f", target: number | null) => (
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 56px 44px 72px", alignItems: "center", columnGap: 8, padding: "0 12px", minHeight: 42, borderTop: "1px solid #f0ece7", fontSize: 13 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 56px 44px 72px", alignItems: "center", columnGap: 8, padding: "0 12px", minHeight: SPACING.row1, borderTop: `1px solid ${C.hair}`, fontSize: 13 }}>
         <span>{label} {isToday ? "today" : <span style={{ color: C.muted }}>· {dayLabel(day)}</span>}</span>
         {numField(`${sp.id}|${day}|${key}`, v[key] ?? null, `${label} ${isToday ? "today" : dayLabel(day)}`, val => saveDay(sp, day, key, val))}
         <span style={{ fontSize: 13 }}>/ {target ?? "–"}</span>
@@ -258,7 +258,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
         {band(`Sales sprint ${sp.num} · day ${d.day} of ${d.total}`, <span style={{ color: C.black }}>{focusText(sp)}</span>)}
         {row("Pitches", "p", dailyP)}
         {row("Follow-ups", "f", dailyF)}
-        <div style={{ padding: "8px 12px", borderTop: "1px solid #f0ece7", display: "grid", gridTemplateColumns: `repeat(${Math.min(14, allDays.length)}, minmax(0,1fr))`, gap: 3 }}>
+        <div style={{ padding: "8px 12px", borderTop: `1px solid ${C.hair}`, display: "grid", gridTemplateColumns: `repeat(${Math.min(14, allDays.length)}, minmax(0,1fr))`, gap: 3 }}>
           {allDays.map(dd => {
             const n = sp.days[dd]?.p;
             const hit = dailyP != null && (Number(n) || 0) >= dailyP;
@@ -274,7 +274,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
           <div style={{ display: "flex", justifyContent: "space-between" }}><span>Pitches {st.pitches} / {sp.pitchGoal ?? "–"}</span><span>Follow-ups {st.followUps} / {sp.followUpGoal ?? "–"}</span></div>
           <Bar value={st.pitches} max={sp.pitchGoal ?? 0} done={sp.pitchGoal != null && st.pitches >= sp.pitchGoal} color={look.color} track={look.border} h={3} />
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "6px 12px", borderTop: "1px solid #f0ece7", background: "#fcfbf9" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "6px 12px", borderTop: `1px solid ${C.hair}`, background: C.bg }}>
           <span style={{ fontSize: 11, color: C.muted }}>{dailyP ? `Daily target ${dailyP} = ${sp.pitchGoal} pitches over ${workDays} work days` : sprintRange(sp)}</span>
           <B v="sec" onClick={() => setSprintWin({ id: sp.id, review: true })} s={{ ...BAR_BTN, height: 26, minHeight: 26, color: C.black, flexShrink: 0 }}>End &amp; review</B>
         </div>
@@ -297,14 +297,14 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
       {past.length > 0 && (
         <>
           <button onClick={() => setPastOpen(o => !o)} aria-expanded={pastOpen}
-            style={{ width: "100%", minHeight: 34, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", border: "none", borderTop: "1px solid #f0ece7", background: "#fcfbf9", cursor: "pointer", fontFamily: SANS, fontSize: 12, color: C.muted }}>
+            style={{ width: "100%", minHeight: 34, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", border: "none", borderTop: `1px solid ${C.hair}`, background: C.bg, cursor: "pointer", fontFamily: SANS, fontSize: 12, color: C.muted }}>
             <span>Past sprints · {past.length}</span><Ico d={pastOpen ? IC.up : IC.down} size={12} />
           </button>
           {pastOpen && past.map(p => {
             const ps = planner.sprintStats(p);
             return (
               <button key={p.id} onClick={() => setSprintWin({ id: p.id })}
-                style={{ width: "100%", minHeight: 38, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", border: "none", borderTop: "1px solid #f0ece7", background: C.white, cursor: "pointer", fontFamily: SANS, fontSize: 13, textAlign: "left" as const }}>
+                style={{ width: "100%", minHeight: 38, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", border: "none", borderTop: `1px solid ${C.hair}`, background: C.white, cursor: "pointer", fontFamily: SANS, fontSize: 13, textAlign: "left" as const }}>
                 <span>Sprint {p.num} <span style={{ color: C.muted, fontSize: 12 }}>· {focusText(p)}</span></span>
                 <span style={{ fontSize: 12, color: C.muted, whiteSpace: "nowrap" as const }}>{ps.pitches} pitches · {ps.rate == null ? "–" : fmtPct2(ps.rate)} · {ps.deals} {ps.deals === 1 ? "deal" : "deals"}</span>
               </button>

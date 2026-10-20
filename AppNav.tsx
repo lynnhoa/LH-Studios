@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { C, SANS, SERIF, TYPE, Z, TRACK, SHADOW, RADIUS } from "./constants";
+import { C, SANS, SERIF, TYPE, Z, TRACK, SHADOW, RADIUS, SPACING, PAL } from "./constants";
 import { initials } from "./formatters";
 import type { Role } from "./types";
 
@@ -21,11 +21,11 @@ export const appItems = (current: Role, switchTo: (r: Role) => void): MenuItem[]
   APPS.map(a => ({ key: a.key, label: a.label, active: a.key === current, onClick: () => { if (a.key !== current) switchTo(a.key); } }));
 
 // Compact, balanced rows: 13 px text in 36 px rows (same for Manager and Creator)
-const MENU_W   = 212;
-const ROW_H    = 36;
+const MENU_W   = SPACING.menuWidth;
+const ROW_H    = SPACING.menuRow;
 const itemStyle = (active: boolean, color: string): any => ({
-  display: "flex", alignItems: "center", width: "100%", height: ROW_H, padding: "0 14px",
-  background: active ? "rgba(0,0,0,0.035)" : "none", border: "none", cursor: "pointer",
+  display: "flex", alignItems: "center", gap: 9, width: "100%", height: ROW_H, padding: "0 12px",
+  background: "none", border: "none", cursor: "pointer", fontWeight: active ? 500 : 400,
   textAlign: "left" as const, fontFamily: SANS, fontSize: TYPE.row.size, color,
   letterSpacing: TRACK.none, boxSizing: "border-box" as const,
 });
@@ -52,29 +52,29 @@ export function AvatarMenu({ settings, roleLabel, items, apps, onSignOut, dropLe
 
       {open && (
         <div role="menu" style={{ position: "absolute", ...(dropLeft ? { left: 0 } : { right: 0 }), top: "calc(100% + 8px)", width: MENU_W, background: C.bg, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, overflow: "hidden", boxShadow: SHADOW.pop, zIndex: Z.menu }}>
-          {/* who you are */}
-          <div style={{ padding: "10px 14px 9px", borderBottom: `1px solid ${C.rule}` }}>
-            <p style={{ fontSize: TYPE.sectionHeading.size, lineHeight: 1.2, fontFamily: SERIF, color: C.black, margin: 0 }}>{settings?.name || settings?.company || "Lynn Hoa"}</p>
-            <p style={{ fontSize: TYPE.micro.size, fontFamily: SANS, color: C.light, margin: "2px 0 0", letterSpacing: TRACK.caps, textTransform: "uppercase" as const }}>{roleLabel} · Private</p>
+          {/* who you are: name · role */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, padding: "10px 12px 8px", borderBottom: `1px solid ${C.hair}` }}>
+            <span style={{ fontSize: TYPE.figure.size, fontFamily: SERIF, color: C.black, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{settings?.name || settings?.company || "Lynn Hoa"}</span>
+            <span style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, flexShrink: 0 }}>{roleLabel}</span>
           </div>
-          {/* pages */}
-          {items.length > 0 && (
-            <div style={{ padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
-              {items.map(it => (
-                <button key={it.key} role="menuitem" onClick={() => run(it.onClick)} style={itemStyle(!!it.active, it.active ? C.black : C.muted)}>{it.label}</button>
+          {(() => {
+            const isAccount = (it: MenuItem) => /password|profile/i.test(it.label);
+            const pages = items.filter(it => !isAccount(it)), account = items.filter(isAccount);
+            const label = (t: string, first = false) => (
+              <div style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted, padding: "8px 12px 2px", borderTop: first ? "none" : `1px solid ${C.hair}`, marginTop: first ? 0 : 4 }}>{t}</div>
+            );
+            const dot = (on: boolean) => <span style={{ width: 7, height: 7, borderRadius: "50%", boxSizing: "border-box" as const, background: on ? C.black : "transparent", border: on ? "none" : `1px solid ${PAL.neutral.mid}`, flexShrink: 0 }} />;
+            return <>
+              {pages.length > 0 && <>{label("This app", true)}{pages.map(it => <button key={it.key} role="menuitem" onClick={() => run(it.onClick)} style={itemStyle(!!it.active, C.black)}>{it.label}</button>)}</>}
+              {label("Apps", pages.length === 0)}
+              {apps.map(a => (
+                <button key={a.key} role="menuitem" onClick={() => run(a.onClick)} aria-current={a.active ? "page" : undefined} style={itemStyle(!!a.active, a.active ? C.black : C.ink2)}>{dot(!!a.active)}{a.label}</button>
               ))}
-            </div>
-          )}
-          {/* all apps — the current one marked */}
-          <div style={{ padding: "4px 0", borderBottom: `1px solid ${C.rule}` }}>
-            {apps.map(a => (
-              <button key={a.key} role="menuitem" onClick={() => run(a.onClick)} aria-current={a.active ? "page" : undefined}
-                style={itemStyle(!!a.active, a.active ? C.black : C.muted)}>{a.label}</button>
-            ))}
-          </div>
-          <div style={{ padding: "4px 0" }}>
-            <button role="menuitem" onClick={() => run(onSignOut)} style={itemStyle(false, C.red)}>Sign Out</button>
-          </div>
+              {label("Account")}
+              {account.map(it => <button key={it.key} role="menuitem" onClick={() => run(it.onClick)} style={itemStyle(false, C.ink2)}>{it.label}</button>)}
+              <button role="menuitem" onClick={() => run(onSignOut)} style={itemStyle(false, C.red)}>Sign out</button>
+            </>;
+          })()}
         </div>
       )}
     </div>

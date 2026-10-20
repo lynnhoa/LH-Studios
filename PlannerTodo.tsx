@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { C, SANS, SERIF, TYPE } from "./constants";
+import { C, SANS, SERIF, TYPE, SPACING, RADIUS, PAL } from "./constants";
 import { B, Tick, ConfirmDialog } from "./atoms";
 import { fmtD } from "./formatters";
 import { OWNER_LOOK, accLook, rowKind, stageOf, gateOf, byOrder, STAGE_SHORT, thisMonday } from "./planner";
@@ -88,10 +88,10 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
   };
 
   // ── pieces ──────────────────────────────────────────────────
-  const card: any = { background: C.white, border: `1px solid ${C.rule}`, borderRadius: 3, marginTop: 12, overflow: "hidden" };
+  const card: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, marginTop: 12, overflow: "hidden" };
   const tag = (t: string, color: string = C.muted) => <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color, whiteSpace: "nowrap" as const }}>{t}</span>;
   const band = (look: Look, title: string, right?: any) => (
-    <div style={{ minHeight: 34, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", background: look.bg, color: look.color, ...microLabel }}>
+    <div style={{ minHeight: 34, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", background: C.white, color: PAL.neutral.ink, ...microLabel }}>
       <span style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: look.color, flexShrink: 0 }} />{title}
       </span>
@@ -118,7 +118,7 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
               : <Tick on={isDone} color={C.green} size={20} onClick={() => quiet(planner.setTaskStatus(t, isDone ? "open" : "done"))} />}
         <div style={{ flex: 1, minWidth: 0 }}>
           {auto
-            ? <span style={{ fontSize: 14, color: isDone ? C.light : C.black }}>{t.title}</span>
+            ? <span style={{ fontSize: SPACING.listText, color: isDone ? C.light : C.black }}>{t.title}</span>
             : <InlineText value={t.title} muted={isDone} ariaLabel={t.title}
                 onSave={v => { if (!v.trim()) removeTask(t); else quiet(planner.updateTask(t.id, { title: v.trim() })); }}
                 onEnter={() => setNewRow(n => n + 1)} />}
@@ -170,7 +170,7 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
       {doneOnes.length > 0 && (
         <>
           <button onClick={() => setShowDone(o => !o)} aria-expanded={showDone}
-            style={{ width: "100%", minHeight: 40, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", border: "none", borderTop: `1px solid ${ROW_RULE}`, background: "#fcfbf9", cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.muted }}>
+            style={{ width: "100%", minHeight: SPACING.row1, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", border: "none", borderTop: `1px solid ${ROW_RULE}`, background: C.bg, cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.muted }}>
             <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ color: C.green }}>✓</span>Done · {doneOnes.length}</span>
             <Ico d={showDone ? IC.up : IC.down} size={14} />
           </button>
@@ -178,7 +178,7 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
         </>
       )}
       {next && (
-        <div style={{ padding: "10px 12px", borderTop: `1px solid ${ROW_RULE}`, background: "#fcfbf9" }}>
+        <div style={{ padding: "10px 12px", borderTop: `1px solid ${ROW_RULE}`, background: C.bg }}>
           <B onClick={() => setAskNext(true)} s={{ width: "100%" }}>Stage {st.num} done → start Stage {next.num}</B>
         </div>
       )}
@@ -192,13 +192,13 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
     return (
       <div key={s.id} style={card}>
         <button onClick={() => setOpenStage(open ? null : s.id)} aria-expanded={open}
-          style={{ width: "100%", minHeight: 40, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", border: "none", background: "#fcfbf9", cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.muted, textAlign: "left" as const }}>
+          style={{ width: "100%", minHeight: SPACING.row1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", border: "none", background: C.bg, cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.muted, textAlign: "left" as const }}>
           <span><span style={{ color: C.green }}>✓</span> Stage {s.num} · {s.name}{s.doneOn ? ` · done ${fmtD(s.doneOn)}` : ""}</span>
           <Ico d={open ? IC.up : IC.down} size={13} />
         </button>
         {open && (l.length ? l.map(noteRow) : <p style={{ fontSize: 13, color: C.muted, margin: 0, padding: "10px 12px", borderTop: `1px solid ${ROW_RULE}` }}>No tasks.</p>)}
         {open && s.num === Math.max(...finished.map(x => x.num)) && (
-          <div style={{ padding: "8px 12px", borderTop: `1px solid ${ROW_RULE}`, background: "#fcfbf9", display: "flex", justifyContent: "flex-end" }}>
+          <div style={{ padding: "8px 12px", borderTop: `1px solid ${ROW_RULE}`, background: C.bg, display: "flex", justifyContent: "flex-end" }}>
             <B v="sec" onClick={() => setAskReopen(s)} s={{ height: 28, minHeight: 28, fontSize: TYPE.micro.size, letterSpacing: "0.1em" }}>Reopen Stage {s.num}</B>
           </div>
         )}
@@ -246,6 +246,6 @@ function AddField({ placeholder, onAdd, autoFocus }: { placeholder: string; onAd
     <input value={t} placeholder={placeholder} aria-label={placeholder} autoFocus={autoFocus}
       onChange={(e) => setT(e.target.value)} onBlur={() => { if (t.trim()) add(); }}
       onKeyDown={(e) => { if (e.key === "Enter") add(); }}
-      style={{ width: "100%", height: 32, border: "none", outline: "none", background: "transparent", fontFamily: SANS, fontSize: 14, color: C.black, padding: 0 }} />
+      style={{ width: "100%", height: 32, border: "none", outline: "none", background: "transparent", fontFamily: SANS, fontSize: SPACING.listText, color: C.black, padding: 0 }} />
   );
 }
