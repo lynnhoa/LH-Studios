@@ -1,8 +1,10 @@
 // ─────────────────────────────────────────────────────────────
 // useSettings — profiles table CRUD
-// Fetches and updates the creator's business profile (settings).
-// Typing is saved 0,7 s after you stop, one save at a time, so a
-// fast-typed IBAN can never be stored half-finished.
+// Fetches and saves the creator's business profile (settings).
+// Saving is explicit (Business profile › Edit › Save): the changes are written
+// at once, your profile row is created if it was never made, and the stored row
+// is read back — so what the page then shows is what's really saved. A refusal
+// comes back as a message (never silently lost).
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -18,7 +20,7 @@ interface UseSettingsReturn {
   error:          string | null;
   loadError:      string | null;
   reload:         () => void;
-  updateSettings: (updates: Partial<Settings>) => Promise<string | null>;
+  updateSettings: (updates: Partial<Settings>) => Promise<string | null>;   // null = saved, else the reason
 }
 
 // ── Map DB row (snake_case) → Settings (camelCase) ───────────
@@ -77,10 +79,7 @@ export function useSettings(userId: string | null): UseSettingsReturn {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tick,      setTick]      = useState(0);   // bump to reload
 
-  // pending changes waiting to be saved
-  const pending  = useRef<Partial<Settings>>({});
-  const timer    = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inFlight = useRef<Promise<void> | null>(null);
+  const inFlight = useRef<Promise<string | null> | null>(null);
 
   const reload = useCallback(() => setTick(t => t + 1), []);
   useEffect(() => registerReloader(reload), [reload]);
@@ -110,7 +109,7 @@ export function useSettings(userId: string | null): UseSettingsReturn {
         }
         setLoadError(null);
         if (res?.data) {
-          setSettings({ ...rowToSettings(res.data), ...pending.current });
+          setSettings(rowToSettings(res.data));
           setLoaded(true);
           setLoading(false);
           return;
@@ -126,45 +125,39 @@ export function useSettings(userId: string | null): UseSettingsReturn {
     return () => { cancelled = true; };
   }, [userId, tick]);
 
-  // ── Save the collected changes (one request at a time) ───
-  const flush = useCallback(async (): Promise<void> => {
-    if (!userId) return;
-    if (inFlight.current) await inFlight.current;          // wait for the previous save
-    const patch = pending.current;
-    if (Object.keys(patch).length === 0) return;
-    pending.current = {};
-    const run = (async () => {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ ...settingsToRow(patch), updated_at: new Date().toISOString() })
-        .eq("id", userId);
-      if (error) setError(error.message);
-    })();
-    inFlight.current = run;
-    await run;
-    inFlight.current = null;
-  }, [userId]);
-
-  // ── Update settings (shown at once, saved after typing stops) ─
+  // ── Save: written at once, then read back (one save at a time) ─
+  // upsert = changes your profile row, or creates it if it was never made (an update
+  // would silently change nothing then). The stored row comes back and is shown.
   const updateSettings = useCallback(
     async (updates: Partial<Settings>): Promise<string | null> => {
-      if (!userId) return "Not authenticated";
-      setSettings(s => ({ ...s, ...updates }));
-      pending.current = { ...pending.current, ...updates };
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => { timer.current = null; flush(); }, 700);
-      return null;
+      if (!userId) return "You're signed out. Sign in again to save.";
+      const row = settingsToRow(updates);
+      if (Object.keys(row).length === 0) return null;
+      if (inFlight.current) await inFlight.current;          // wait for the previous save
+      const run = (async (): Promise<string | null> => {
+        try {
+          const { data, error } = await supabase
+            .from("profiles")
+            .upsert({ id: userId, ...row }, { onConflict: "id" })
+            .select("*")
+            .maybeSingle();
+          if (error) return error.message;
+          if (!data) return "Not saved: the database didn't give your profile back. Run the profile SQL once (Supabase → SQL Editor).";
+          setSettings(rowToSettings(data));
+          setLoaded(true);
+          return null;
+        } catch (e: any) {
+          return e?.message || "Not saved. Check your connection and try again.";
+        }
+      })();
+      inFlight.current = run;
+      const err = await run;
+      inFlight.current = null;
+      setError(err);
+      return err;
     },
-    [userId, flush]
+    [userId]
   );
-
-  // save anything still waiting when the screen closes or the app goes to the background
-  useEffect(() => {
-    const now = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } flush(); };
-    const onHide = () => { if (document.visibilityState === "hidden") now(); };
-    document.addEventListener("visibilitychange", onHide);
-    return () => { document.removeEventListener("visibilitychange", onHide); if (timer.current || Object.keys(pending.current).length) now(); };
-  }, [flush]);
 
   return { settings, loading, loaded, error, loadError, reload, updateSettings };
 }

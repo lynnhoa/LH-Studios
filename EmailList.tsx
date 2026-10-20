@@ -1,17 +1,18 @@
 // ─────────────────────────────────────────────────────────────
-// EmailList — Outreach › Email list
-// Header: count + copy symbol (copies the emails in view),
-//         [Excel columns] [Prompt]
-// Toolbar (28 px): Search · Filter (category, tier, city, added) · Sort · Download
-// Phone: two lines per contact · iPad/desktop: one-line table
-// Windows (one level): Filter (sheet on phone), contact, columns
+// EmailList — Outreach › Email list (the same parts as the other apps' list screens)
+// Title · Import (light) · Log pitch (dark)
+// Summary line: ● n contacts · to follow up · Copy emails
+// Toolbar (38 px): Search · Filter (category, tier, city, added) · Sort · Download
+// Active filters as chips (✕) · the contacts in one white card
+// Phone: two lines per contact · iPad/desktop: one-line table in a card
+// Windows (one level): Filter (sheet on phone), contact, Import (the three steps)
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE, Z } from "./constants";
+import { C, SANS, SERIF, TYPE, Z, PAL, RADIUS, SHADOW } from "./constants";
 import { fmtD } from "./formatters";
-import { B, I, S, Lbl, ConfirmDialog, BAR_BTN } from "./atoms";
+import { B, I, S, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard } from "./atoms";
 import {
   OUTREACH_CATEGORIES, OUTREACH_TIERS, OUTREACH_COLUMNS, OUTREACH_STATUSES, STATUS_FILTERS, PITCH_ACCOUNTS, SORTS, ADDED, DEFAULT_VIEW,
   catOf, tierOf, statusOf, followUpDue, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt,
@@ -39,7 +40,7 @@ const loadView = (): OutreachView => { try { return { ...DEFAULT_VIEW, ...JSON.p
 
 const CatPill = ({ k }: { k: string }) => {
   const c = catOf(k);
-  return <span style={{ fontSize: TYPE.micro.size, padding: "2px 8px", borderRadius: 10, border: `1px solid ${c.border}`, background: c.bg, color: c.color, whiteSpace: "nowrap" as const }}>{c.label}</span>;
+  return <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.03em", padding: "2px 8px", borderRadius: RADIUS.tag, border: `1px solid ${c.border}`, background: c.bg, color: c.color, whiteSpace: "nowrap" as const }}>{c.label}</span>;
 };
 
 interface EmailListProps {
@@ -80,6 +81,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
   const counts = useMemo(() => { const m: Record<string, number> = {}; contacts.forEach((c: OutreachContact) => { m[c.category] = (m[c.category] || 0) + 1; }); return m; }, [contacts]);
   const nFilters = activeFilters(view);
   const filtered = nFilters > 0 || !!view.q.trim();
+  const nDue = useMemo(() => contacts.filter((c: OutreachContact) => followUpDue(c)).length, [contacts]);   // pitched, no answer, due again
   const brand = (settings?.company || settings?.name || "LH Studio").trim();
   const set = (patch: Partial<OutreachView>) => setView(v => ({ ...v, ...patch }));
 
@@ -100,15 +102,15 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
 
   const iconBtn = (key: "filter" | "sort" | "download", icon: string, label: string, active = false, badge = 0) => (
     <button key={key} onClick={() => setOpen(o => (o === key ? null : key))} aria-label={label} title={label}
-      style={{ height: 28, minWidth: 28, padding: isMobile ? 0 : "0 9px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, border: `1px solid ${active ? C.black : C.rule}`, background: active ? C.black : "transparent", color: active ? C.white : C.black, borderRadius: 2, cursor: "pointer", position: "relative", flexShrink: 0, fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>
-      <Ico d={icon} />
+      style={{ height: 38, minWidth: 38, padding: isMobile ? 0 : "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, border: `1px solid ${active ? C.pillOn : C.field}`, background: active ? PAL.neutral.fill : C.white, color: C.black, borderRadius: RADIUS.tile, cursor: "pointer", position: "relative", flexShrink: 0, fontFamily: SANS, fontSize: TYPE.subtext.size, whiteSpace: "nowrap" as const, boxSizing: "border-box" as const }}>
+      <Ico d={icon} size={15} />
       {!isMobile && <span>{label}</span>}
-      {badge > 0 && <span style={{ position: "absolute", top: -6, right: -6, minWidth: 15, height: 15, borderRadius: 8, background: C.amber, color: C.white, fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center", letterSpacing: 0 }}>{badge}</span>}
+      {badge > 0 && <span style={{ position: "absolute", top: -6, right: -6, minWidth: 16, height: 16, borderRadius: 8, background: PAL.waiting.mid, color: PAL.waiting.ink, fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", letterSpacing: 0 }}>{badge}</span>}
     </button>
   );
 
   // ── popovers / sheet ────────────────────────────────────────
-  const menuBox: any = { position: "absolute", top: "calc(100% + 6px)", right: 0, background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, boxShadow: "0 6px 20px rgba(0,0,0,0.10)", zIndex: Z.menu, padding: "4px 0" };
+  const menuBox: any = { position: "absolute", top: "calc(100% + 6px)", right: 0, background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.pop, zIndex: Z.menu, padding: "4px 0", overflow: "hidden" };
   const opt = (on: boolean): any => ({ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", height: 34, padding: "0 12px", border: "none", background: on ? "rgba(0,0,0,0.035)" : "none", color: on ? C.black : C.muted, fontFamily: SANS, fontSize: 13, cursor: "pointer", textAlign: "left" as const });
 
   const filterBody = (
@@ -154,10 +156,10 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
 
   const toolbar = (
     <div style={{ display: "flex", gap: 6, alignItems: "center", position: "relative" }}>
-      <div style={{ flex: isMobile ? 1 : "0 1 300px", height: 28, border: `1px solid ${C.rule}`, borderRadius: 2, display: "flex", alignItems: "center", gap: 6, padding: "0 8px", boxSizing: "border-box" as const, color: C.muted }}>
-        <Ico d={IC.search} size={13} />
-        <input value={view.q} onChange={(e) => set({ q: e.target.value })} placeholder="Search" aria-label="Search"
-          style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontFamily: SANS, fontSize: 16, color: C.black, height: 26, padding: 0 }} />
+      <div style={{ flex: isMobile ? 1 : "0 1 340px", minWidth: 0, height: 38, border: `1px solid ${C.field}`, borderRadius: RADIUS.tile, background: C.white, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", boxSizing: "border-box" as const, color: C.light }}>
+        <Ico d={IC.search} size={15} />
+        <input value={view.q} onChange={(e) => set({ q: e.target.value })} placeholder="Search contacts" aria-label="Search"
+          style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontFamily: SANS, fontSize: 16, color: C.black, height: 34, padding: 0 }} />
       </div>
       <div style={{ position: "relative" }}>
         {iconBtn("filter", IC.filter, nFilters ? `Filter · ${nFilters}` : "Filter", nFilters > 0, isMobile ? nFilters : 0)}
@@ -191,39 +193,39 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
     </div>
   );
 
-  const tagStyle = (c?: any): any => ({ height: 22, padding: "0 6px 0 8px", border: `1px solid ${c?.border || C.rule}`, background: c?.bg || "transparent", color: c?.color || C.muted, borderRadius: 11, fontSize: TYPE.label.size, display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer", fontFamily: SANS });
+  const tagStyle = (c?: any): any => ({ height: 30, padding: "0 11px", border: `1px solid ${c ? c.border : C.pillOn}`, background: c ? c.bg : PAL.neutral.fill, color: c ? c.color : C.black, borderRadius: RADIUS.pill, fontSize: TYPE.subtext.size, display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", fontFamily: SANS, whiteSpace: "nowrap" as const });
   const tags = (
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginTop: 7 }}>
+    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const, marginTop: 10 }}>
       {view.cat !== "all" && <button onClick={() => set({ cat: "all" })} style={tagStyle(catOf(view.cat))}>{catOf(view.cat).label} ✕</button>}
       {view.tier !== "all" && <button onClick={() => set({ tier: "all" })} style={tagStyle()}>{tierOf(view.tier).label} ✕</button>}
       {view.status && view.status !== "all" && <button onClick={() => set({ status: "all" })} style={tagStyle()}>{STATUS_FILTERS.find(x => x.key === view.status)?.label} ✕</button>}
       {view.city !== "all" && <button onClick={() => set({ city: "all" })} style={tagStyle()}>{view.city} ✕</button>}
       {view.added !== "any" && <button onClick={() => set({ added: "any" })} style={tagStyle()}>{ADDED.find(a => a.key === view.added)?.label} ✕</button>}
-      <span style={{ ...tagStyle(), cursor: "default", padding: "0 8px" }}>{SORTS.find(s => s.key === view.sort)?.short}</span>
+      <button onClick={() => setOpen("sort")} style={{ ...tagStyle(), background: C.white, borderColor: C.rule, color: C.ink2 }}>{SORTS.find(s => s.key === view.sort)?.short}</button>
     </div>
   );
 
   // ── list ────────────────────────────────────────────────────
   const emailCell = (c: OutreachContact, small = false) => (
     <button onClick={(e) => { e.stopPropagation(); copy(c.email, "Email copied ✓"); }} title="Copy email" className="lh-copy-email"
-      style={{ background: "none", border: "none", padding: 0, cursor: "copy", display: "inline-flex", alignItems: "center", gap: 5, color: small ? C.muted : C.black, fontFamily: SANS, fontSize: small ? 12 : 13, minWidth: 0, maxWidth: "100%" }}>
+      style={{ background: "none", border: "none", padding: 0, cursor: "copy", display: "inline-flex", alignItems: "center", gap: 5, color: small ? C.muted : C.black, fontFamily: SANS, fontSize: small ? TYPE.label.size : 13, minWidth: 0, maxWidth: "100%" }}>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{c.email}</span>
       <span className="lh-copy-ico" style={{ color: C.light, display: "inline-flex", opacity: isMobile ? 1 : 0 }}><Ico d={IC.copy} size={12} /></span>
     </button>
   );
 
   const phoneList = (
-    <div style={{ marginTop: 8, borderTop: `1px solid ${C.rule}` }}>
-      {shown.map((c: OutreachContact) => (
-        <div key={c.id} onClick={() => setOpenId(c.id)} style={{ padding: "8px 0", borderBottom: `1px solid ${C.rule}`, cursor: "pointer" }}>
+    <ListCard s={{ marginTop: 10 }}>
+      {shown.map((c: OutreachContact, i: number) => (
+        <div key={c.id} onClick={() => setOpenId(c.id)} style={{ minHeight: 54, padding: "9px 10px 9px 12px", borderTop: i ? `1px solid ${C.hair}` : "none", cursor: "pointer", boxSizing: "border-box" as const }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{c.company || c.email}</span>
+            <span style={{ fontSize: TYPE.row.size, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{c.company || c.email}</span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
               {c.tier && c.tier !== "now" && <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: C.muted }}>{tierOf(c.tier).label}</span>}
               <CatPill k={c.category} />
             </span>
           </div>
-          <div style={{ fontSize: 12, color: C.muted, marginTop: 2, display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+          <div style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 2, display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
             {c.contactName && <span style={{ flexShrink: 0 }}>{c.contactName} ·</span>}
             {emailCell(c, true)}
             <span style={{ flex: 1 }} />
@@ -231,7 +233,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
           </div>
         </div>
       ))}
-    </div>
+    </ListCard>
   );
 
   const cols: { key: string; label: string; fr: string; sort?: SortKey[] }[] = [
@@ -251,12 +253,12 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
     set({ sort: view.sort === a && b ? b : a });
   };
   const arrow = (c: typeof cols[number]) => !c.sort ? "" : view.sort === c.sort[0] ? (c.key === "added" ? " ▾" : " ▴") : view.sort === c.sort[1] ? (c.key === "added" ? " ▴" : " ▾") : "";
-  const td: any = { padding: "0 10px", height: 36, display: "flex", alignItems: "center", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", borderBottom: `1px solid ${C.rule}`, minWidth: 0 };
+  const td: any = { padding: "0 10px", height: 40, display: "flex", alignItems: "center", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", borderTop: `1px solid ${C.hair}`, minWidth: 0 };
   const cut = (t: any) => <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, minWidth: 0 }}>{t}</span>;
   const table = (
-    <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: cols.map(c => `minmax(0,${c.fr})`).join(" ") }}>
+    <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: cols.map(c => `minmax(0,${c.fr})`).join(" "), background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, padding: "0 4px 4px" }}>
       {cols.map(c => (
-        <div key={c.key} onClick={() => headClick(c)} style={{ position: "sticky", top: stickyTop, background: C.bg, zIndex: 2, padding: "0 10px", height: 30, display: "flex", alignItems: "center", fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: C.muted, borderBottom: `1px solid ${C.black}`, cursor: c.sort ? "pointer" : "default", userSelect: "none" as const }}>{c.label}{arrow(c)}</div>
+        <div key={c.key} onClick={() => headClick(c)} style={{ position: "sticky", top: stickyTop, background: C.white, zIndex: 2, padding: "0 10px", height: 34, display: "flex", alignItems: "center", fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: C.muted, cursor: c.sort ? "pointer" : "default", userSelect: "none" as const, borderRadius: 0 }}>{c.label}{arrow(c)}</div>
       ))}
       {shown.map((c: OutreachContact) => (
         <div key={c.id} className="lh-row" onClick={() => setOpenId(c.id)} style={{ display: "contents", cursor: "pointer" }}>
@@ -281,30 +283,22 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
       {/* hover: row tint + show the copy icon (desktop / iPad) */}
       <style>{`.lh-row:hover > div { background: rgba(0,0,0,0.025); } .lh-row:hover .lh-copy-ico, .lh-copy-email:focus .lh-copy-ico { opacity: 1 !important; }`}</style>
 
-      {/* ── HEADER ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "flex-end", gap: 8 }}>
-        <div>
-          <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Email list</h2>
-          <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 4, fontSize: TYPE.micro.size, letterSpacing: "0.06em", textTransform: "uppercase" as const, color: C.muted }}>
-            <span style={{ whiteSpace: "nowrap" as const }}>{filtered ? `${shown.length} of ${contacts.length}` : contacts.length} {contacts.length === 1 ? "contact" : "contacts"}</span>
-            {shown.length > 0 && (
-              <button onClick={() => copy(emailsText(shown), `${shown.length} ${shown.length === 1 ? "email" : "emails"} copied ✓`)} aria-label="Copy the emails in view" title="Copy the emails in view"
-                style={{ background: "none", border: "none", padding: 2, cursor: "pointer", color: C.black, display: "inline-flex" }}><Ico d={IC.copy} size={13} /></button>
-            )}
-            {shown.length > 0 && !outreach.pitchError && (
-              <button onClick={() => setShowLog(true)} title="Log a pitch for the contacts in view"
-                style={{ background: "none", border: "none", padding: "2px 0 2px 6px", marginLeft: 2, borderLeft: `1px solid ${C.rule}`, cursor: "pointer", color: C.black, fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: "0.06em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>Log pitch</button>
-            )}
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" as const, justifyContent: "flex-end" }}>
-          {!isMobile && toolbar}
-          <B v="sec" onClick={() => setShowCols(true)} s={{ ...BAR_BTN, height: 28, minHeight: 28, gap: 5, display: "inline-flex", alignItems: "center", marginLeft: isMobile ? 0 : 10 }}><Ico d={IC.table} size={12} />Excel columns</B>
-          <B v="sec" onClick={() => copy(buildPrompt(loginEmail), "Prompt copied ✓ — paste it into Claude")} s={{ ...BAR_BTN, height: 28, minHeight: 28, gap: 5, display: "inline-flex", alignItems: "center" }}><Ico d={IC.copy} size={12} />Prompt</B>
+      {/* ── HEADER: title · Import · Log pitch ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? TYPE.screen.size : TYPE.pageTitle.size, fontWeight: "normal", margin: 0, lineHeight: 1.1, whiteSpace: "nowrap" as const }}>Email list</h2>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+          <PillBtn onClick={() => setShowCols(true)}>Import</PillBtn>
+          {shown.length > 0 && !outreach.pitchError && <PillBtn dark onClick={() => setShowLog(true)} title="Log a pitch for the contacts in view">Log pitch</PillBtn>}
         </div>
       </div>
+      <SummaryLine dot={nDue ? PAL.waiting.mid : PAL.neutral.mid}>
+        <span style={{ whiteSpace: "nowrap" as const }}>{filtered ? `${shown.length} of ${contacts.length}` : contacts.length} {contacts.length === 1 ? "contact" : "contacts"}</span>
+        {nDue > 0 && <> · <Strong color={PAL.waiting.ink}>{nDue} to follow up</Strong></>}
+        {shown.length > 0 && <> · <button onClick={() => copy(emailsText(shown), `${shown.length} ${shown.length === 1 ? "email" : "emails"} copied ✓`)} aria-label="Copy the emails in view" title="Copy the emails in view"
+          style={{ background: "none", border: "none", padding: "4px 0", margin: "-4px 0", cursor: "pointer", color: C.black, display: "inline-flex", alignItems: "center", gap: 4, fontFamily: SANS, fontSize: TYPE.subtext.size }}>Copy emails <Ico d={IC.copy} size={12} color={C.muted} /></button></>}
+      </SummaryLine>
 
-      {isMobile && <div style={{ marginTop: 12 }}>{toolbar}</div>}
+      <div style={{ marginTop: 12 }}>{toolbar}</div>
       {tags}
 
       {/* ── CONTENT ── */}
@@ -313,14 +307,10 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
       ) : loadError ? (
         <p style={{ fontSize: TYPE.label.size, color: C.red, marginTop: 16, lineHeight: 1.5 }}>{loadError}</p>
       ) : contacts.length === 0 ? (
-        <div style={{ marginTop: 18, padding: "18px 0", borderTop: `1px solid ${C.rule}` }}>
-          <p style={{ fontFamily: SERIF, fontSize: 15, color: C.muted, margin: "0 0 8px" }}>No contacts yet</p>
-          <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: 0, lineHeight: 1.7 }}>
-            1 · Build your Excel with the <strong>Excel columns</strong>.<br />
-            2 · Tap <strong>Prompt</strong>, paste it into Claude and attach the Excel.<br />
-            3 · Run Claude's SQL in Supabase → SQL editor, then come back here.
-          </p>
-        </div>
+        <ListCard s={{ marginTop: 12, padding: "14px 14px 16px" }}>
+          <p style={{ fontFamily: SERIF, fontSize: 15, color: C.black, margin: "0 0 6px" }}>No contacts yet</p>
+          <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: 0, lineHeight: 1.6 }}>Tap <strong style={{ fontWeight: 500, color: C.black }}>Import</strong>: build your Excel with the columns, copy the prompt for Claude, run Claude's SQL in Supabase.</p>
+        </ListCard>
       ) : shown.length === 0 ? (
         <p style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 16 }}>No contacts match. <button onClick={() => set({ q: "", cat: "all", tier: "all", status: "all", city: "all", added: "any" })} style={{ background: "none", border: "none", padding: 0, color: C.black, textDecoration: "underline", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size }}>Clear search and filters</button></p>
       ) : isMobile ? phoneList : table}
@@ -342,32 +332,39 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
       {showLog && <LogWindow ids={shown.map((c: OutreachContact) => c.id)} followUp={view.status === "followup"} outreach={outreach} isMobile={isMobile}
         onClose={() => setShowLog(false)} onDone={(n) => { setShowLog(false); setToast(`${n} ${n === 1 ? "pitch" : "pitches"} logged ✓`); }} />}
 
-      {/* ── EXCEL COLUMNS WINDOW ── */}
+      {/* ── IMPORT WINDOW: the three steps ── */}
       {showCols && (
-        <Window title="Excel columns" isMobile={isMobile} onClose={() => setShowCols(false)}>
-          <p style={{ fontSize: 12, color: C.muted, margin: "0 0 8px", lineHeight: 1.5 }}>Use these as the first row of your Excel. Claude also understands similar names.</p>
-          {OUTREACH_COLUMNS.map(col => (
-            <div key={col.key} style={{ display: "grid", gridTemplateColumns: "128px minmax(0,1fr)", gap: 8, padding: "8px 0", borderBottom: `1px solid ${C.rule}` }}>
-              <div>
-                <div style={{ fontSize: 13 }}>{col.label}</div>
-                <div style={{ fontSize: 9, letterSpacing: "0.08em", color: col.required ? C.amber : C.light, marginTop: 2 }}>{col.required ? "REQUIRED" : "OPTIONAL"}</div>
+        <Window title="Import contacts" isMobile={isMobile} onClose={() => setShowCols(false)}>
+          <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: "0 0 10px", lineHeight: 1.6 }}>
+            1 · Build your Excel with these columns (first row).<br />
+            2 · Copy the prompt, paste it into Claude and attach the Excel.<br />
+            3 · Run Claude's SQL in Supabase → SQL editor, then come back here.
+          </p>
+          <ListCard>
+            {OUTREACH_COLUMNS.map((col, i) => (
+              <div key={col.key} style={{ display: "grid", gridTemplateColumns: "118px minmax(0,1fr)", gap: 8, padding: "9px 12px", borderTop: i ? `1px solid ${C.hair}` : "none" }}>
+                <div>
+                  <div style={{ fontSize: 13 }}>{col.label}</div>
+                  <div style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", color: col.required ? PAL.waiting.ink : C.light, marginTop: 2 }}>{col.required ? "REQUIRED" : "OPTIONAL"}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12 }}>{col.example}</div>
+                  {col.note && <div style={{ fontSize: 11, color: C.muted, marginTop: 2, lineHeight: 1.4 }}>{col.note}</div>}
+                </div>
               </div>
-              <div>
-                <div style={{ fontSize: 12 }}>{col.example}</div>
-                {col.note && <div style={{ fontSize: 11, color: C.muted, marginTop: 2, lineHeight: 1.4 }}>{col.note}</div>}
-              </div>
-            </div>
-          ))}
-          <p style={{ fontSize: 11, color: C.light, margin: "6px 0 12px" }}>Date added and source file are filled in automatically.</p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <B v="sec" onClick={() => copy(headerRow(), "Header row copied ✓ — paste into cell A1")} s={{ flex: 1, height: 32, minHeight: 32, fontSize: TYPE.micro.size }}>Copy header row</B>
-            <B v="sec" onClick={() => downloadTemplate(`${brand} – Email list template`)} s={{ flex: 1, height: 32, minHeight: 32, fontSize: TYPE.micro.size }}>Excel template</B>
+            ))}
+          </ListCard>
+          <p style={{ fontSize: 11, color: C.muted, margin: "6px 4px 12px" }}>Date added and source file are filled in automatically.</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+            <PillBtn onClick={() => copy(headerRow(), "Header row copied ✓ — paste into cell A1")} s={{ flex: 1, height: 36, justifyContent: "center" }}>Copy header row</PillBtn>
+            <PillBtn onClick={() => downloadTemplate(`${brand} – Email list template`)} s={{ flex: 1, height: 36, justifyContent: "center" }}>Excel template</PillBtn>
           </div>
+          <PillBtn dark onClick={() => copy(buildPrompt(loginEmail), "Prompt copied ✓ — paste it into Claude")} s={{ width: "100%", height: 38, justifyContent: "center", marginTop: 8, fontSize: TYPE.row.size }}>Copy prompt for Claude</PillBtn>
         </Window>
       )}
 
       {toast && createPortal(
-        <div style={{ position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", zIndex: Z.toast, background: C.black, color: C.white, fontFamily: SANS, fontSize: 12, padding: "8px 14px", borderRadius: 2, maxWidth: "calc(100vw - 32px)" }}>{toast}</div>,
+        <div style={{ position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", zIndex: Z.toast, background: C.black, color: C.white, fontFamily: SANS, fontSize: 12, padding: "9px 14px", borderRadius: RADIUS.field, maxWidth: "calc(100vw - 32px)", boxShadow: SHADOW.pop }}>{toast}</div>,
         document.body)}
     </div>
   );
