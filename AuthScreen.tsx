@@ -14,7 +14,11 @@ interface AuthScreenProps {
 }
 
 export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
-  const [role,     setRole]     = useState<Role>("manager");
+  // the app you used last is chosen already (remembered on this device)
+  const [role,     setRole]     = useState<Role>(() => {
+    try { const r = localStorage.getItem("lh_role") as Role; return (["planner", "outreach", "manager", "creator"] as Role[]).includes(r) ? r : "manager"; }
+    catch { return "manager"; }
+  });
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
   const [err,      setErr]      = useState<string | null>(null);
@@ -25,7 +29,9 @@ export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
     setBusy(true);
     setErr(null);
     const error = await onSignIn(email.trim(), password, role);
-    if (error) setErr("Incorrect email or password.");
+    if (error) setErr(/invalid login credentials|invalid (email|password)/i.test(error) ? "Incorrect email or password."
+      : /fetch|network|timeout|offline|load failed/i.test(error) ? "Couldn't sign in — check your connection and try again."
+      : `Couldn't sign in (${error}).`);
     setBusy(false);
   };
 

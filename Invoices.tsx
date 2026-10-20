@@ -15,6 +15,7 @@ import { Chip } from "./atoms";
 import PDFModal from "./PDFModal";
 import { downloadInvoiceReport } from "./InvoiceReport";
 import { saveFile } from "./PDFExport";
+import { invoiceActions } from "./docFlow";
 import { invoiceRows, invoicesCsv, invoiceTypeLabel, invoicePeriods, isOpenInvoice, isPaidInvoice, isOverdue, paidDateOf, MONTH_DE } from "./docs";
 import type { InvoiceRow, InvoicePeriod } from "./docs";
 
@@ -31,11 +32,15 @@ interface InvoicesProps {
   isMobile:   boolean;
   filterTab?: "unpaid" | "paid" | "overdue";
   focusMonth?: string | null;
+  clientsHook?: any;                              // the invoice window's actions (Mark paid, Cancel …)
+  onOpenProject?: (projectId: string) => void;   // "Open project" → Projects with it open
 }
 type ToneSet = { fill: string; wash: string; mid: string; ink: string };
 
-export default function Invoices({ clients, settings, isMobile, filterTab, focusMonth }: InvoicesProps) {
-  const [preview,    setPreview]    = useState<InvoiceRow | null>(null);
+export default function Invoices({ clients, settings, isMobile, filterTab, focusMonth, clientsHook, onOpenProject }: InvoicesProps) {
+  // the open invoice by id: the window always shows the live invoice (after Mark paid: Paid;
+  // after Cancel: the new Storno)
+  const [openKey,    setOpenKey]    = useState<string | null>(null);
   const [dropOpen,   setDropOpen]   = useState(false);
   const [bulkStatus, setBulkStatus] = useState<string | null>(null);
 
@@ -112,8 +117,14 @@ export default function Invoices({ clients, settings, isMobile, filterTab, focus
     <Chip key={f} on={st === f} tone={toneOfF(f)} dot={f !== "all"} label={label} count={count(f)} onClick={() => setSt(f)} />
   );
 
-  if (preview) {
-    return <PDFModal doc={preview.doc} settings={settings} client={preview.client} editable={false} onClose={() => setPreview(null)} />;
+  const openRow = openKey ? allRows.find(r => r.key === openKey) : null;
+  if (openRow) {
+    const d = openRow.doc;
+    const actions = clientsHook ? invoiceActions(clientsHook, openRow.cid, openRow.pr.id, d, settings, {
+      storno: (id) => setOpenKey(id),
+      openProject: onOpenProject ? () => { setOpenKey(null); onOpenProject(openRow.pr.id); } : undefined,
+    }) : [];
+    return <PDFModal key={d.id} doc={d} settings={settings} client={openRow.client} editable={false} actions={actions} onClose={() => setOpenKey(null)} />;
   }
 
   const btnStyle: any = { height: 30, padding: "0 10px", border: `1px solid ${C.rule}`, borderRadius: RADIUS.pill, background: C.white, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: C.black, display: "flex", alignItems: "center", whiteSpace: "nowrap" as const };
@@ -173,7 +184,7 @@ export default function Invoices({ clients, settings, isMobile, filterTab, focus
             {g.rows.map((r, i) => {
               const d = r.doc, t = rowTone(d);
               return (
-                <div key={r.key} role="button" tabIndex={0} onClick={() => setPreview(r)} onKeyDown={(e) => { if (e.key === "Enter") setPreview(r); }}
+                <div key={r.key} role="button" tabIndex={0} onClick={() => setOpenKey(r.key)} onKeyDown={(e) => { if (e.key === "Enter") setOpenKey(r.key); }}
                   style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 54, padding: "7px 10px 7px 12px", borderTop: i ? `1px solid ${C.hair}` : "none", cursor: "pointer" }}>
                   <span style={{ width: 30, height: 30, borderRadius: "50%", background: t.wash, color: t.ink, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={rowIcon(d)} size={15} /></span>
                   <div style={{ flex: 1, minWidth: 0 }}>

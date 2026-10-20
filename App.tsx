@@ -75,25 +75,26 @@ function useAuth() {
     return () => { cancelled = true; if (unsub) unsub(); };
   }, []);
 
+  // Signing in keeps the login screen (it shows "Signing in…"), so a mistake keeps what you
+  // typed and the app you picked. The app you picked is stored first: the sign-in event reads it.
   const signIn = async (email: string, password: string, r: Role): Promise<string | null> => {
     try { sessionStorage.setItem("lh_role", r); localStorage.setItem("lh_role", r); } catch {}
     signingIn.current = true;
-    setLoading(true);
     setError(null);
     try {
-      const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
       if (err) {
         signingIn.current = false;
         try { sessionStorage.removeItem("lh_role"); } catch {}
         setError(err.message);
-        setLoading(false);
         return err.message;
       }
+      // signed in: open the app (also when the sign-in event came first or doesn't come)
+      if (data?.session?.user) { signingIn.current = false; setUserId(data.session.user.id); setRole(getRole()); setLoading(false); }
       return null;
     } catch (e: any) {
       signingIn.current = false;
-      setLoading(false);
-      return e?.message || "Sign in failed";
+      return e?.message || "Network error";
     }
   };
 

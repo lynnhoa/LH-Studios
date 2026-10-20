@@ -31,7 +31,7 @@ interface UseClientsReturn {
   setLicenseAction:       (clientId: string, projectId: string, key: string, action: string | null) => Promise<void>;
   patchWs:                (clientId: string, projectId: string, field: string, patch: Record<string, any>) => Promise<void>;
   setWsStatus:            (clientId: string, projectId: string, changes: { id: string; status: string }[], by?: string) => Promise<void>;
-  revertWsStatus:         (clientId: string, projectId: string, ids: string[]) => Promise<void>;
+  revertWsStatus:         (clientId: string, projectId: string, ids: string[], expect?: string) => Promise<void>;
 
   // Client ops
   addClient:    (c: Omit<Client, "id" | "projects" | "createdAt">) => Promise<string | null>;
@@ -1484,12 +1484,15 @@ export function useClients(userId: string | null): UseClientsReturn {
     await patchWs(clientId, projectId, "workspaceStatusHistory", hist);
   };
 
-  // undo the last step of items: status + history go back (an undone tick no longer counts)
-  const revertWsStatus = async (clientId: string, projectId: string, ids: string[]) => {
+  // undo the last step of items: status + history go back (an undone tick no longer counts).
+  // expect: only items that still have this status — the tick was really saved (after a failed
+  // save the stored state is back on screen, and an older, real step must not be removed)
+  const revertWsStatus = async (clientId: string, projectId: string, ids: string[], expect?: string) => {
     const { project } = findProject(clientId, projectId);
-    if (!ids.length) return;
+    const todo = expect === undefined ? ids : ids.filter(id => ((((project.workspaceStatus || {}) as any)[id]) || "Not started") === expect);
+    if (!todo.length) return;
     const st: Record<string, any> = {}, hist: Record<string, any> = {};
-    ids.forEach(id => {
+    todo.forEach(id => {
       const h = [...((((project.workspaceStatusHistory || {}) as any)[id]) || [])];
       h.pop();
       hist[id] = h.length ? h : null;                              // nothing left → back to untouched

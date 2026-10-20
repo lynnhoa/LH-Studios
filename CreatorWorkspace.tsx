@@ -12,6 +12,7 @@ import { fmtD } from "./formatters";
 import { SummaryLine, Strong, Chip, ChipRow, SearchField, SectionHead, ListCard, TonedTag, Sheet, PillBtn, I, S, Row } from "./atoms";
 import { getWsItems, isOverdue, isThisWeek, fmtDeadline, finalStatus, statusRank, shownStatus, WS_CATS, WS_CAT_LABEL } from "./wsHelpers";
 import { catTone, statusTone, Tick2 } from "./CreatorShared";
+import { showUndo } from "./undo";
 
 type By = "urgency" | "client" | "card" | "status";
 
@@ -72,8 +73,6 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: { c
   const [q, setQ] = useState("");
   const [unfold, setUnfold] = useState<Record<string, boolean>>({});
   const [win, setWin] = useState<null | { pid: string; id: string }>(null);
-  const [undo, setUndo] = useState<null | { label: string; cid: string; pid: string; id: string; prev: string }>(null);
-  useEffect(() => { if (!undo) return; const t = setTimeout(() => setUndo(null), 5000); return () => clearTimeout(t); }, [undo]);
 
   const all = useMemo(() => getWsItems(clients), [clients]);
   const ql = q.trim().toLowerCase();
@@ -82,9 +81,13 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: { c
   const overdueN = open.filter((it: any) => isOverdue(it.deadline)).length;
   const weekN = open.filter((it: any) => !isOverdue(it.deadline) && isThisWeek(it.deadline)).length;
 
+  // one tick = one step. Undo (the app's Undo bar, above the save message) takes exactly that
+  // step back — only once the tick is saved, and only while the item still has that status
   const setStatus = async (it: any, status: string, label: string) => {
-    setUndo({ label, cid: it.clientId, pid: it.projectId, id: it.id, prev: it.status });
-    try { await clientsHook.setWsStatus(it.clientId, it.projectId, [{ id: it.id, status }]); } catch { /* the save message reports it */ }
+    try {
+      await clientsHook.setWsStatus(it.clientId, it.projectId, [{ id: it.id, status }]);
+      showUndo(label, () => clientsHook.revertWsStatus(it.clientId, it.projectId, [it.id], status));
+    } catch { /* the save message reports it */ }
   };
   const toggleCreated = (it: any) => setStatus(it, statusRank(it.status) >= 1 ? "Not started" : "Created", statusRank(it.status) >= 1 ? "Back to not started" : "Marked created");
   const toggleDone = (it: any) => setStatus(it, it.done ? "Created" : finalStatus(it.category), it.done ? "Back to created" : `Marked ${finalStatus(it.category).toLowerCase()}`);
@@ -158,13 +161,6 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: { c
           </div>
         );
       })}
-      {undo && (
-        <div role="status" style={{ position: "fixed", left: "50%", bottom: 20, transform: "translateX(-50%)", zIndex: Z.toast, background: C.black, color: C.white, borderRadius: RADIUS.tile, padding: "8px 8px 8px 14px", display: "flex", alignItems: "center", gap: 10, fontSize: TYPE.row.size, boxShadow: SHADOW.pop }}>
-          {undo.label}
-          <button onClick={async () => { const u = undo; setUndo(null); try { await clientsHook.setWsStatus(u.cid, u.pid, [{ id: u.id, status: u.prev }]); } catch { /* reported */ } }}
-            style={{ background: "none", border: "none", color: C.white, textDecoration: "underline", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.row.size, minHeight: 36 }}>Undo</button>
-        </div>
-      )}
     </div>
   );
 }

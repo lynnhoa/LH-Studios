@@ -12,6 +12,7 @@
 import { profileGaps, senderSnapshot, clientSnapshot, issueDates, countryKnown, reverseChargeGap, taxRule, docMoney } from "./docs";
 import { today, fmtD } from "./formatters";
 import type { DocView } from "./docs";
+import type { DocAction } from "./PDFModal";
 
 // Extra line for the Finalize question when the address is missing (info only)
 export function addressNote(settings: any): string {
@@ -90,4 +91,33 @@ export function pdfFlow(h: any, clientId: string, projectId: string, settings: a
       return h.markDocSent(clientId, projectId, d.id, settings);
     },
   };
+}
+
+// ── The actions of one invoice in its window — the same in Projects, Invoices and Licenses ──
+//   draft      Delete draft (no number used yet)
+//   sent       Mark paid (main, asks for the date) · Cancel invoice (Storno)
+//   paid       Cancel invoice · Mark unpaid
+//   + "Open project" under the page where the window isn't in Projects already
+export function invoiceActions(h: any, clientId: string, projectId: string, d: any, settings: any,
+  on: { storno?: (id: string) => void; deleted?: () => void; openProject?: () => void } = {}): DocAction[] {
+  if (d?.kind !== "invoice" || !d.id) return [];
+  const open: DocAction[] = on.openProject ? [{ key: "project", label: "Open project", slot: "more", run: on.openProject }] : [];
+  if (d.subtype === "storno") return open;
+  const cancel: DocAction = { key: "cancel", label: "Cancel invoice", kind: "danger", slot: "more",
+    confirm: "Creates a cancellation invoice (Storno) with its own number. The original stays on file.",
+    run: async () => { const st = await h.cancelInvoice(clientId, projectId, d.id, settings); if (st && on.storno) on.storno(st.id); } };
+  if (d.status === "draft") return [
+    { key: "delete", label: "Delete draft", kind: "danger", slot: "more", confirm: "The draft is deleted. No invoice number has been used yet.",
+      run: async () => { await h.cancelInvoice(clientId, projectId, d.id, settings); on.deleted?.(); } },
+  ];
+  if (d.status === "sent") return [
+    { key: "paid", label: "Mark paid", slot: "main", date: "Paid on", run: (dt?: string) => h.markInvoicePaid(clientId, projectId, d.id, dt || today()) },
+    cancel, ...open,
+  ];
+  if (d.status === "paid") return [
+    cancel,
+    { key: "unpaid", label: "Mark unpaid", slot: "more", run: () => h.markInvoiceUnpaid(clientId, projectId, d.id) },
+    ...open,
+  ];
+  return open;                                       // cancelled: nothing to do but look
 }

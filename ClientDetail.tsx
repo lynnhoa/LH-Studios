@@ -25,7 +25,7 @@ interface ClientDetailProps {
   settings:         any;
   rc:               any;
   clientsHook:      any;
-  onGoToCalc:       (name: string, leadId?: string) => void;
+  onGoToCalc:       (clientId: string, leadId?: string) => void;
   onRevise:         (pr: any, cl: any) => void;
   onAmend:          (pr: any, cl: any) => void;
   setSel:           (id: string | null) => void;
@@ -70,8 +70,14 @@ export default function ClientDetail({
   const year = parseInt(todayStr.slice(0, 4));
   const t = clientTotals(cl, year, todayStr);       // money.ts — same rule as Dashboard and Projects
 
+  // one client per brand name: not empty, not the name of another client (this one doesn't count)
+  const [nameErr, setNameErr] = useState<string | null>(null);
   const saveClient = async () => {
-    await clientsHook.updateClient(cl.id, ed);
+    const name = String(ed.name || "").trim();
+    if (!name) { setNameErr("Add a brand name."); return; }
+    if (clients.some((c: any) => c.id !== cl.id && String(c.name || "").trim().toLowerCase() === name.toLowerCase())) { setNameErr("A client with this name already exists."); return; }
+    setNameErr(null);
+    await clientsHook.updateClient(cl.id, { ...ed, name });
     setEditMode(false);
   };
 
@@ -151,15 +157,16 @@ export default function ClientDetail({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginTop: 0 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           {editMode
-            ? <I value={ed.name} onChange={(e: any) => setEd((p: any) => ({ ...p, name: e.target.value }))} s={{ fontFamily: SERIF }} />
+            ? <><I value={ed.name} onChange={(e: any) => { setNameErr(null); setEd((p: any) => ({ ...p, name: e.target.value })); }} s={{ fontFamily: SERIF }} />
+                {nameErr && <p role="alert" style={{ fontSize: TYPE.label.size, color: C.red, margin: "5px 0 0" }}>{nameErr}</p>}</>
             : <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>{cl.name}</h2>}
           <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 4 }}>{[cl.agency || "Direct", `${t.projects} project${t.projects === 1 ? "" : "s"}`, cl.contact].filter(Boolean).join(" · ")}</div>
           {!editMode && (cl.tags || []).length > 0 && <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const, marginTop: 6 }}>{cl.tags.map((x: string) => <Tag key={x}>{x}</Tag>)}</div>}
         </div>
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
           {editMode
-            ? <><PillBtn dark onClick={saveClient}>Save</PillBtn><PillBtn onClick={() => setEditMode(false)}>Cancel</PillBtn></>
-            : <><PillBtn onClick={() => { setEd({ ...cl }); setEditMode(true); }}>Edit</PillBtn><PillBtn dark onClick={() => onGoToCalc(cl.name)}>+ Quote</PillBtn></>}
+            ? <><PillBtn dark onClick={saveClient}>Save</PillBtn><PillBtn onClick={() => { setNameErr(null); setEditMode(false); }}>Cancel</PillBtn></>
+            : <><PillBtn onClick={() => { setEd({ ...cl }); setEditMode(true); }}>Edit</PillBtn><PillBtn dark onClick={() => onGoToCalc(cl.id)}>+ Quote</PillBtn></>}
         </div>
       </div>
 

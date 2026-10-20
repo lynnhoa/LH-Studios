@@ -16,6 +16,8 @@ import { Ico, IC } from "./PlannerWindows";
 import { Chip, ChipRow, SummaryLine, SectionHead, ListCard, IconCircle, TonedTag, PillBtn, TimeBar } from "./atoms";
 import { today } from "./formatters";
 import RenewalModal from "./RenewalModal";
+import PDFModal from "./PDFModal";
+import { pdfFlow, invoiceActions } from "./docFlow";
 import { allLicenses, needsAction, ACTION_LABEL } from "./licenses";
 import type { License } from "./licenses";
 
@@ -38,6 +40,7 @@ export default function Licenses({ clients, clientsHook, settings, rc, isMobile,
   const [renewFor, setRenewFor] = useState<License | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [openDoc, setOpenDoc] = useState<null | { cid: string; pid: string; id: string }>(null);   // the renewal's invoice
 
   const all = allLicenses(clients);
   const rows = filter === "action" ? all.filter(needsAction)
@@ -60,12 +63,30 @@ export default function Licenses({ clients, clientsHook, settings, rc, isMobile,
         p={pr} rc={rc} settings={settings} client={client}
         onClose={() => setRenewFor(null)}
         onSave={async (r: any, doc: any) => {
-          await clientsHook.addRenewalWithInvoice(client.id, pr.id, r, doc, settings);
+          const d = await clientsHook.addRenewalWithInvoice(client.id, pr.id, r, doc, settings);
           setRenewFor(null);
-          if (onAfterRenew) onAfterRenew(pr.id);
+          setOpenDoc({ cid: client.id, pid: pr.id, id: d.id });          // its invoice draft opens right here
         }}
       />
     );
+  }
+
+  // the renewal's invoice, opened right after saving — the same window and actions as in Projects
+  if (openDoc) {
+    const oc = (clients || []).find((c: any) => c.id === openDoc.cid);
+    const op = oc?.projects.find((p: any) => p.id === openDoc.pid);
+    const d = op && (op.documents || []).find((x: any) => x.id === openDoc.id);
+    if (d) {
+      const flow = pdfFlow(clientsHook, openDoc.cid, openDoc.pid, settings);
+      return (
+        <PDFModal key={d.id} doc={d} settings={settings} client={oc} editable={d.status === "draft"}
+          note={d.status === "draft" ? "Draft — Send to client gives it its number (you're asked first)." : undefined}
+          onSave={async (next) => clientsHook.updateDocument(openDoc.cid, openDoc.pid, d.id, next, settings)}
+          onPdf={flow.prepare} pdfConfirm={flow.confirmFor} sendBlock={flow.blockFor}
+          actions={invoiceActions(clientsHook, openDoc.cid, openDoc.pid, d, settings, { storno: (id) => setOpenDoc({ ...openDoc, id }), deleted: () => setOpenDoc(null) })}
+          onClose={() => setOpenDoc(null)} />
+      );
+    }
   }
 
   const expired  = all.filter(l => l.state === "expired").length;

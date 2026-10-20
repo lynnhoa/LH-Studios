@@ -69,7 +69,7 @@ export default function ManagerApp({
 
   // ── Prefill state — passed to Calculator from other pages ──
   const [prefill,         setPrefill]         = useState<any>(null);
-  const [pendingClientName, setPendingClientName] = useState<string | null>(null);
+  const [pendingClientId,   setPendingClientId]   = useState<string | null>(null);
   const [pendingProjectQNo, setPendingProjectQNo] = useState<string | null>(null);
   const [clientSel,       setClientSel]       = useState<string | null>(null);   // the open client, kept while you're in other tabs
   const [clientBack,      setClientBack]      = useState<{ clientId: string; projectId: string } | null>(null);   // came from Projects
@@ -110,9 +110,10 @@ export default function ManagerApp({
   };
 
   // New quote for a client (optionally for one of its leads)
-  const goToCalc = (clientName: string, leadId?: string) => {
-    const c = (clientsHook.clients || []).find((x: any) => x.name === clientName);
-    setPrefill({ brand: clientName, contact: c?.contact || "", cid: c?.id, pid: leadId });
+  // (by id — two clients can share a name)
+  const goToCalc = (clientId: string, leadId?: string) => {
+    const c = (clientsHook.clients || []).find((x: any) => x.id === clientId);
+    setPrefill({ brand: c?.name || "", contact: c?.contact || "", cid: c?.id, pid: leadId });
     setNav(NAV_CALCULATOR);
   };
 
@@ -175,9 +176,9 @@ export default function ManagerApp({
     setNav(NAV_PROJECTS);
   };
 
-  const goToClients = (brand?: string, qNo?: string) => {
-    setPendingClientName(brand ?? null);
-    setPendingProjectQNo(qNo ?? null);
+  const goToClients = (clientId?: string, projectId?: string) => {
+    setPendingClientId(clientId ?? null);
+    setPendingProjectQNo(projectId ?? null);
     setNav(NAV_CLIENTS);
   };
 
@@ -298,10 +299,10 @@ export default function ManagerApp({
             rc={rateCardsHook.rc}
             selReset={clientSelReset}
             onSelChange={setClientSel}
-            pendingClientName={pendingClientName}
+            pendingClientId={pendingClientId}
             pendingProjectQNo={pendingProjectQNo}
             onPendingClear={() => {
-              setPendingClientName(null);
+              setPendingClientId(null);
               setPendingProjectQNo(null);
             }}
             onGoToCalc={goToCalc}
@@ -314,11 +315,10 @@ export default function ManagerApp({
 
         {nav === NAV_PROJECTS && (
           <ProjectsTab
-            onOpenClient={(name: string, projectId?: string) => {
-              // the client page then shows "‹ Projects", back to this project (still open)
-              const c = (clientsHook.clients || []).find((x: any) => x.name.toLowerCase() === String(name || "").toLowerCase());
-              setClientBack(c && projectId ? { clientId: c.id, projectId } : null);
-              goToClients(name, projectId);
+            onOpenClient={(clientId: string, projectId?: string) => {
+              // the client page then shows "‹ Projects", back to this project (still open) — by id, not name
+              setClientBack(clientId && projectId ? { clientId, projectId } : null);
+              goToClients(clientId, projectId);
             }}
             clients={clientsHook.clients}
             isMobile={isMobile}
@@ -374,6 +374,8 @@ export default function ManagerApp({
         {nav === NAV_INVOICES && (
           <Invoices
             clients={clientsHook.clients}
+            clientsHook={clientsHook}
+            onOpenProject={(pid: string) => { setProjectFilter(null); goToProjects(pid); }}
             settings={settings}
             isMobile={isMobile}
             filterTab={invoiceFilter || undefined}

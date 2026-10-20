@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import { C, SANS, BREAKPOINT } from "./constants";
 import AppLogo from "./AppLogo";
 import { AvatarMenu, NavTab, appItems } from "./AppNav";
+import { UndoBar } from "./undo";
 import type { Role } from "./types";
 
 // ── Page imports ──────────────────────────────────────────────
@@ -170,6 +171,8 @@ export default function CreatorApp({
           />
         )}
       </div>
+      {/* the app's Undo bar (Workspace ticks), above the save message */}
+      <UndoBar />
     </div>
   );
 }

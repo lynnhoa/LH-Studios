@@ -23,10 +23,10 @@ interface ClientListProps {
   rc:               any;
   selReset:         number;
   onSelChange:      (id: string | null) => void;
-  pendingClientName:string | null;
+  pendingClientId:  string | null;
   pendingProjectQNo:string | null;
   onPendingClear:   () => void;
-  onGoToCalc:       (name: string) => void;
+  onGoToCalc:       (clientId: string, leadId?: string) => void;
   onRevise:         (pr: any, cl: any) => void;
   onAmend:          (pr: any, cl: any) => void;
   goTo:             (n: number) => void;
@@ -57,7 +57,7 @@ function usageEnd(pr: any): string | null {
 
 export default function ClientList({
   clients, isMobile, settings, rc, selReset, onSelChange,
-  pendingClientName, pendingProjectQNo, onPendingClear,
+  pendingClientId, pendingProjectQNo, onPendingClear,
   onGoToCalc, onRevise, onAmend, goTo, clientsHook, initialSel, backTo, onBackToProjects,
 }: ClientListProps) {
 
@@ -70,6 +70,7 @@ export default function ClientList({
   const [sortOrder,      setSortOrder]     = useState("recent");
   const [showAdd,        setShowAdd]       = useState(false);
   const [tagI,           setTagI]          = useState("");
+  const [addErr,         setAddErr]        = useState<string | null>(null);
   const EMPTY_CLIENT = {
     name: "", contact: "", email: "", agency: "Direct",
     street: "", plz: "", city: "", country: "Germany", vatId: "", tags: [] as string[], notes: "",
@@ -83,8 +84,8 @@ export default function ClientList({
   useEffect(() => { if (firstReset.current) { firstReset.current = false; return; } setSel(null); }, [selReset]);
 
   useEffect(() => {
-    if (!pendingClientName) return;
-    const c = clients.find((x: any) => x.name.toLowerCase() === pendingClientName.toLowerCase());
+    if (!pendingClientId) return;
+    const c = clients.find((x: any) => x.id === pendingClientId);       // by id: two clients can share a name
     if (c) { setSel(c.id); if (pendingProjectQNo) setHighlightedQNo(pendingProjectQNo); }
     setTimeout(() => onPendingClear(), 100);
   }, []);
@@ -121,7 +122,7 @@ export default function ClientList({
   })();
 
   const addCl = async () => {
-    if (!nb.name.trim()) return;
+    if (!nb.name.trim()) { setAddErr("Add a brand name."); return; }
     // one client per brand name — no duplicates
     if ((clientsHook.clients || []).some((c: any) => c.name.trim().toLowerCase() === nb.name.trim().toLowerCase())) return;
     await clientsHook.addClient({ ...nb, name: nb.name.trim() });
@@ -183,7 +184,8 @@ export default function ClientList({
         <div style={{ border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, padding: 14, marginTop: 12, background: C.white }}>
           <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: "0 0 10px" }}>New Client</p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
-            <div><Lbl>Brand Name *</Lbl><I value={nb.name} onChange={(e: any) => setNb(p => ({ ...p, name: e.target.value }))} placeholder="Sephora" />
+            <div><Lbl>Brand Name *</Lbl><I value={nb.name} onChange={(e: any) => { setAddErr(null); setNb(p => ({ ...p, name: e.target.value })); }} placeholder="Sephora" />
+              {addErr && !nb.name.trim() && <p role="alert" style={{ fontSize: TYPE.label.size, color: C.red, margin: "5px 0 0" }}>{addErr}</p>}
               {nb.name.trim() && (clientsHook.clients || []).some((c: any) => c.name.trim().toLowerCase() === nb.name.trim().toLowerCase()) && (
                 <p style={{ fontSize: TYPE.label.size, color: C.amber, margin: "5px 0 0" }}>A client with this name already exists.</p>
               )}

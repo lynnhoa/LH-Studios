@@ -11,7 +11,7 @@ import { signedOpen, followUp, validUntil, currentContractOf, daysSince, toInvoi
 import { workOpen } from "./wsHelpers";
 import { fmt, fmtD, fmtE, today, addM, dLeft } from "./formatters";
 import { projectLicenses, ACTION_LABEL } from "./licenses";
-import { pdfFlow, finalizeQuestion } from "./docFlow";
+import { pdfFlow, finalizeQuestion, invoiceActions } from "./docFlow";
 import { I, B, TSel, TSelWrap, StatusBadge, ConfirmDialog, TonedTag, SummaryLine, Strong, SectionHead, listSeg, ListCard } from "./atoms";
 import RenewalModal from "./RenewalModal";
 import ProductionSection from "./ProductionSection";
@@ -73,14 +73,14 @@ const sinceDays = (pr: any): number | null => {
 export function ProjectRow({
   pr, clients, isMobile, isExpanded, onToggle, clientsHook, onRevise, onAmend, onGoToCalc, settings, onModalClosed, rc, onOpenClient, onAskDelivery, showStatus,
 }: {
-  onOpenClient?: (name: string, projectId?: string) => void;
+  onOpenClient?: (clientId: string, projectId?: string) => void;
   showStatus?: boolean;
   onAskDelivery?: (p: { cid: string; pid: string; name: string }) => void;
   pr: any; clients: any[]; isMobile: boolean; isExpanded: boolean;
   onToggle: () => void; clientsHook: any;
   onRevise: (pr: any, cl: any) => void;
   onAmend: (pr: any, cl: any) => void;
-  onGoToCalc: (name: string, leadId?: string) => void;
+  onGoToCalc: (clientId: string, leadId?: string) => void;
   rc?:        any;
   settings: any;
   onModalClosed: () => void;
@@ -165,20 +165,8 @@ export function ProjectRow({
       if (d.status === "sent") return [sign];
       return [];
     }
-    if (d.kind === "invoice" && d.subtype !== "storno") {
-      const cancel: DocAction = { key: "cancel", label: "Cancel invoice", kind: "danger", slot: "more", confirm: "Creates a cancellation invoice (Storno) with its own number. The original stays on file.", run: async () => { const st = await h.cancelInvoice(cid, pid, d.id, settings); if (st) setOpenDocId(st.id); } };
-      if (d.status === "draft") return [
-        { key: "delete", label: "Delete draft", kind: "danger", slot: "more", confirm: "The draft is deleted. No invoice number has been used yet.", run: async () => { await h.cancelInvoice(cid, pid, d.id, settings); close(); } },
-      ];
-      if (d.status === "sent") return [
-        { key: "paid", label: "Mark paid", slot: "main", date: "Paid on", run: (dt?: string) => h.markInvoicePaid(cid, pid, d.id, dt || today()) },
-        cancel,
-      ];
-      if (d.status === "paid") return [
-        cancel,
-        { key: "unpaid", label: "Mark unpaid", slot: "more", run: () => h.markInvoiceUnpaid(cid, pid, d.id) },
-      ];
-    }
+    // invoices: the one shared list (docFlow) — the same actions as on the Invoices and Licenses pages
+    if (d.kind === "invoice") return invoiceActions(h, cid, pid, d, settings, { storno: (id) => setOpenDocId(id), deleted: close });
     return [];
   };
 
@@ -306,7 +294,7 @@ export function ProjectRow({
                 {showStatus
                   ? (() => { const st = pr.paid ? "paid" : pr.status; return <span style={{ color: PAL[STATUS_TONE[st] || "neutral"].ink }}>{STATUS_NAME[st] || st}</span>; })()
                   : onOpenClient
-                  ? <button onClick={(e) => { e.stopPropagation(); onOpenClient(pr._cname, pr.id); }} aria-label={`Open client ${pr._cname}`}
+                  ? <button onClick={(e) => { e.stopPropagation(); onOpenClient(pr._cid, pr.id); }} aria-label={`Open client ${pr._cname}`}
                       style={{ background: "none", border: "none", padding: "9px 2px", margin: "-9px -2px", font: "inherit", color: "inherit", cursor: "pointer", textDecoration: "underline", textDecorationColor: C.pillOn, textUnderlineOffset: 2 }}>{pr._cname}</button>
                   : pr._cname}
                 {meta}
@@ -381,7 +369,7 @@ export function ProjectRow({
           {/* 3. BUILD QUOTE */}
           {!pr.qd && (
             <div style={{ marginBottom: 12 }}>
-              <B s={{ fontSize: TYPE.micro.size, padding: "8px 14px", width: "100%" }} onClick={() => onGoToCalc(pr._cname, pr.id)}>+ Create quote</B>
+              <B s={{ fontSize: TYPE.micro.size, padding: "8px 14px", width: "100%" }} onClick={() => onGoToCalc(pr._cid, pr.id)}>+ Create quote</B>
             </div>
           )}
 
@@ -549,11 +537,11 @@ interface ProjectsTabProps {
   settings:         any;
   rc:               any;
   initialFilter?:   string | null;    // from a dashboard tile: "quoted" | "active" | status
-  onOpenClient?:    (name: string, projectId?: string) => void;   // client name in a row → Clients ("‹ Projects" brings you back)
+  onOpenClient?:    (clientId: string, projectId?: string) => void;   // client name in a row → Clients ("‹ Projects" brings you back)
   clientsHook:      any;
   onRevise:         (pr: any, cl: any) => void;
   onAmend:          (pr: any, cl: any) => void;
-  onGoToCalc:       (name: string, leadId?: string) => void;
+  onGoToCalc:       (clientId: string, leadId?: string) => void;
   pendingProjectQNo:string | null;
   onPendingClear:   () => void;
 }
