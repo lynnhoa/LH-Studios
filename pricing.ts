@@ -138,11 +138,13 @@ const VOL_STANDARD:  VolTier[] = [{ from: 3, pct: 15 }, { from: 10, pct: 20 }];
 const VOL_EDITORIAL: VolTier[] = [{ from: 3, pct: 10 }];
 
 export function volTiersOf(card: any, cat: string): VolTier[] {
-  const own = (Array.isArray(card?.volumeTiers) ? card.volumeTiers : [])
-    .map((t: any) => ({ from: Math.round(Number(t?.from)), pct: Number(t?.pct) }))
-    .filter((t: VolTier) => Number.isFinite(t.from) && t.from >= 1 && t.pct > 0 && t.pct < 100)
-    .sort((x: VolTier, y: VolTier) => x.from - y.from);
-  if (own.length) return own;
+  // set in Card settings → exactly those (an empty list = no volume discount on this card)
+  if (Array.isArray(card?.volumeTiers)) {
+    return card.volumeTiers
+      .map((t: any) => ({ from: Math.round(Number(t?.from)), pct: Number(t?.pct) }))
+      .filter((t: VolTier) => Number.isFinite(t.from) && t.from >= 1 && t.pct > 0 && t.pct < 100)
+      .sort((x: VolTier, y: VolTier) => x.from - y.from);
+  }
   return cat === "editorial" ? VOL_EDITORIAL : VOL_STANDARD;
 }
 

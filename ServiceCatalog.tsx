@@ -16,33 +16,55 @@ import { SETTINGS_DEFAULT } from "./rateCards";
 import { pagesToPdf, isMobileDevice } from "./PDFExport";
 import { editLock } from "./saveStatus";
 import {
-  normalizeCard, sectionKind, KIND_LABEL, optName, pctText, addonPriceText, BASE_CARD_KEYS, retainerPctOf
+  normalizeCard, sectionKind, KIND_LABEL, optName, pctText, addonPriceText, BASE_CARD_KEYS, retainerPctOf, volTiersOf
 } from "./pricing";
-import type { SectionKind } from "./pricing";
+import type { SectionKind, VolTier } from "./pricing";
 
 const cardTitle = (rc: any, k: string) => BASE_CARD_KEYS.includes(k) ? catInfo(k).label : (rc?.[k]?.label || k);
 const cleanSecT = (t: string) => String(t || "").replace(/\s*[—–-]\s*added to base rate.*$/i, "").replace(/\s*[—–-]\s*\d+%[^"<]*/g, "").replace(/^Volume Discount\s*[&]\s*/i, "").trim();
 const money = (p: any) => fmt(Number(p) || 0);          // German: 200,00 €
 
+// ── Volume discount (Card settings) ─────────────────────────
+// A card's "3+ pieces …" line follows its tiers on the rate card and in the list.
+const isVolRow = (it: any) => /\b\d+\s*\+\s*(pieces|pcs|stück|stk)\b|volume|mengenrabatt/i.test(String(it?.n || ""));
+const tiersText = (tiers: VolTier[]) => (tiers.length ? tiers.map(t => `${t.from}+ pieces −${pctText(t.pct)}`).join(" · ") : "No volume discount");
+const cleanTiers = (ts: any[]): VolTier[] => {
+  const m = new Map<number, number>();
+  (ts || []).forEach((t: any) => { const f = Math.round(Number(t?.from)); const p = Number(t?.pct); if (f >= 1 && p > 0 && p < 100) m.set(f, p); });
+  return Array.from(m.entries()).sort((a, b) => a[0] - b[0]).map(([from, pct]) => ({ from, pct }));
+};
+
 // Rows a section shows (usage / exclusivity come from the options)
-function sectionRows(card: any, sec: any): { key: string; n: string; note?: string; price: string }[] {
+function sectionRows(card: any, sec: any, cardKey?: string, lang?: string): { key: string; n: string; note?: string; price: string }[] {
   const kind = sectionKind(sec);
+  const de = lang === "de";
   if (kind === "usage" || kind === "exclusivity") {
     const opts = (kind === "usage" ? card.usage : card.excl) || [];
     return opts.filter((o: any) => !o.sentinel).map((o: any, i: number) => ({
       key: `o${i}`, n: optName(o.l), price: Number(o.pct) > 0 ? `+${pctText(o.pct)}` : "included",
     }));
   }
-  return (sec.items || []).map((it: any, i: number) => ({
-    key: it.id || `i${i}`,
-    n: pctSpace(it.n),
-    note: pctSpace([it.note, kind === "packages" && it.includes?.length ? `Includes ${it.includes.map((x: any) => `${x.qty || 1}× ${x.n}`).join(", ")}` : ""].filter(Boolean).join(" · ")),
-    price: kind === "addons" ? addonPriceText(it) : it.p !== null && it.p !== undefined ? money(it.p) : pctSpace(it.m || ""),
-  }));
+  return (sec.items || []).flatMap((it: any, i: number) => {
+    // the volume line shows the card's tiers (none → the line is left out)
+    if (kind === "info" && isVolRow(it)) {
+      return volTiersOf(card, cardKey || "").map((t, k) => ({
+        key: `${it.id || `i${i}`}_v${k}`,
+        n: de ? `ab ${t.from} Stück (gleiche Leistung)` : `${t.from}+ pieces (same deliverable)`,
+        note: k === 0 ? pctSpace(it.note || "") : "",
+        price: `−${pctText(t.pct)}`,
+      }));
+    }
+    return [{
+      key: it.id || `i${i}`,
+      n: pctSpace(it.n),
+      note: pctSpace([it.note, kind === "packages" && it.includes?.length ? `Includes ${it.includes.map((x: any) => `${x.qty || 1}× ${x.n}`).join(", ")}` : ""].filter(Boolean).join(" · ")),
+      price: kind === "addons" ? addonPriceText(it) : it.p !== null && it.p !== undefined ? money(it.p) : pctSpace(it.m || ""),
+    }];
+  });
 }
 
 // ── Rate card A4 content ──────────────────────────────────────
-function RCContent({ card, lang, guards }: any) {
+function RCContent({ card, lang, guards, cardKey }: any) {
   const l = lang === "de";
   const g = guards || {};
   const pct = retainerPctOf(card);
@@ -55,7 +77,7 @@ function RCContent({ card, lang, guards }: any) {
         <p style={{ fontSize: 7.5, color: PDF.label, margin: 0 }}>{pctSpace(card.sub)}</p>
       </div>
       {(card.sections || []).map((sec: any, si: number) => {
-        const rows = sectionRows(card, sec);
+        const rows = sectionRows(card, sec, cardKey, lang);
         if (!rows.length) return null;
         const info = sectionKind(sec) === "info";
         return (
@@ -89,7 +111,7 @@ function RCContent({ card, lang, guards }: any) {
 //    first row and repeats when its section continues. Measured on an untouched copy.
 const RC_PAGE_H = 841, RC_TOP_N = 52, RC_FOOT = 59, RC_FREE = 28;
 const RC_LIMIT = RC_PAGE_H - RC_FOOT - RC_FREE;
-function RCPages({ card, lang, settings, scale = 1, onPages }: any) {
+function RCPages({ card, lang, settings, scale = 1, onPages, cardKey }: any) {
   const measureRef = useRef<HTMLDivElement>(null);
   const [guards, setGuards] = useState<Record<string, any>>({});
   const [numPages, setNumPages] = useState(1);
@@ -138,13 +160,13 @@ function RCPages({ card, lang, settings, scale = 1, onPages }: any) {
   return (
     <>
       <div ref={measureRef} style={{ position: "fixed", top: 0, left: -9999, width: 595, visibility: "hidden", pointerEvents: "none", zIndex: -1 }}>
-        <RCContent card={card} lang={lang} />
+        <RCContent card={card} lang={lang} cardKey={cardKey} />
       </div>
       {Array.from({ length: numPages }, (_, i) => (
         <div key={i} data-rcpage={i} style={{ width: 595 * scale, height: RC_PAGE_H * scale, overflow: "hidden", flexShrink: 0, boxShadow: SHADOW.page }}>
           <div data-pdf-page="true" style={{ width: 595, height: RC_PAGE_H, overflow: "hidden", background: PDF.page, position: "relative", transform: scale < 1 ? `scale(${scale})` : "none", transformOrigin: "top left" }}>
             <div style={{ position: "absolute", top: -i * RC_PAGE_H, left: 0, width: 595 }}>
-              <RCContent card={card} lang={lang} guards={guards} />
+              <RCContent card={card} lang={lang} guards={guards} cardKey={cardKey} />
             </div>
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, background: PDF.page, zIndex: 3, borderBottom: `1px solid ${PDF.rule}` }}>
               <div style={{ padding: "13px 62px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -254,7 +276,7 @@ function CardShell({ title, card, settings, panel, footer, onClose }: any) {
 // ── Rate card window: two slim bars above the original A4 pages ─────
 //   ✕ · "Rate card · <card>" + "A4 · n pages" · Share PDF (→ Open / Share, same place)
 //   EN / DE · Edit texts › (opens Card settings — the one place for the texts)
-function RateCardWindow({ card, cardName, settings, onClose, onEditTexts }: any) {
+function RateCardWindow({ card, cardKey, cardName, settings, onClose, onEditTexts }: any) {
   useEffect(() => editLock.acquire(), []);
   const [lang, setLang] = useState<"en" | "de">("en");
   const [winW, setWinW] = useState(() => window.innerWidth);
@@ -307,7 +329,7 @@ function RateCardWindow({ card, cardName, settings, onClose, onEditTexts }: any)
         </div>
       </div>
       <div ref={previewRef} style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 14, padding: 15, WebkitOverflowScrolling: "touch" as any }}>
-        <RCPages card={card} lang={lang} settings={settings} scale={scale} onPages={setPages} />
+        <RCPages card={card} lang={lang} settings={settings} scale={scale} onPages={setPages} cardKey={cardKey} />
       </div>
     </div>,
     document.body
@@ -496,7 +518,7 @@ const SMALLT: any = { fontSize: TYPE.subtext.size, color: C.muted };
 const redLink: any = { background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.red, minHeight: 36, padding: "0 4px" };
 
 // ── Item window (deliverable · package · add-on · line) ─────
-function ItemWindow({ kind, item, card, cardName, isNew, onSave, onDelete, onMove, onClose }: any) {
+function ItemWindow({ kind, item, card, cardKey, cardName, isNew, onSave, onDelete, onMove, onClose }: any) {
   const clone = (x: any) => JSON.parse(JSON.stringify(x || {}));
   const [mode, setMode] = useState<"read" | "edit">(isNew ? "edit" : "read");
   const [d, setD] = useState<any>(() => clone(item));
@@ -512,7 +534,8 @@ function ItemWindow({ kind, item, card, cardName, isNew, onSave, onDelete, onMov
     onSave({ ...d, n: String(d.n).trim() }); setErr(null); setMode("read");
   };
   const up = (patch: any) => setD((x: any) => ({ ...x, ...patch }));
-  const priceText = kind === "addons" ? addonPriceText(d) : kind === "info" ? pctSpace(d.m || "") : d.p !== null && d.p !== undefined ? money(d.p) : "";
+  const volRow = kind === "info" && isVolRow(item);
+  const priceText = kind === "addons" ? addonPriceText(d) : kind === "info" ? (volRow ? "" : pctSpace(d.m || "")) : d.p !== null && d.p !== undefined ? money(d.p) : "";
   return (
     <Sheet title={`${KIND_NAME[kind] || "Item"} · ${cardName}`} onClose={mode === "edit" ? cancel : onClose}
       right={mode === "read" ? <PillBtn onClick={() => setMode("edit")}>Edit</PillBtn> : null}
@@ -527,7 +550,8 @@ function ItemWindow({ kind, item, card, cardName, isNew, onSave, onDelete, onMov
           <span style={{ fontFamily: SERIF, fontSize: TYPE.tile.size, whiteSpace: "nowrap" as const }}>{priceText}</span>
         </div>
         {(item.note || kind === "info") && <div style={{ ...SMALLT, marginTop: 3 }}>{kind === "info" ? withRetainer(item.note, pct) : pctSpace(item.note)}</div>}
-        {kind === "addons" && <div style={{ ...SMALLT, marginTop: 6 }}>{[item.perMonth ? "charged per month" : null, item.info ? "info only, not charged" : null].filter(Boolean).join(" · ") || "charged once"}</div>}
+        {volRow && <div style={{ ...SMALLT, marginTop: 6 }}>{tiersText(volTiersOf(card, cardKey))} · set in Card settings</div>}
+        {kind === "addons" && <div style={{ ...SMALLT, marginTop: 6 }}>{[item.info ? "info only, not charged" : item.perMonth ? "charged per month" : "charged once", item.work && !item.info ? "content to produce · listed in Production" : null].filter(Boolean).join(" · ")}</div>}
         {kind === "packages" && <>
           <div style={{ ...LBLS }}>Contents</div>
           {(item.includes || []).length ? (
@@ -562,12 +586,14 @@ function ItemWindow({ kind, item, card, cardName, isNew, onSave, onDelete, onMov
                 onChange={(n) => { const v = Math.max(0, n || 0); up(d.p !== null && d.p !== undefined ? { p: v } : { pct: v }); }} /></div>
           </div>
         )}
-        {kind === "info" && <><div style={LBLS}>Text on the right</div><I value={d.m || ""} onChange={(e: any) => up({ m: e.target.value })} aria-label="Text on the right" /></>}
+        {kind === "info" && !volRow && <><div style={LBLS}>Text on the right</div><I value={d.m || ""} onChange={(e: any) => up({ m: e.target.value })} aria-label="Text on the right" /></>}
+        {volRow && <div style={{ ...SMALLT, marginTop: 10 }}>The pieces and percentages come from Card settings → Volume discount.</div>}
         <div style={LBLS}>Note</div><I value={d.note || ""} onChange={(e: any) => up({ note: e.target.value })} aria-label="Note" />
         {kind === "addons" && (
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const, marginTop: 6 }}>
             <span style={{ display: "flex", alignItems: "center" }}><Switch on={!!d.perMonth} onChange={v => up({ perMonth: v })} label="Per month" /><span style={{ fontSize: TYPE.row.size }}>Per month</span></span>
             <span style={{ display: "flex", alignItems: "center" }}><Switch on={!!d.info} onChange={v => up({ info: v })} label="Info only" /><span style={{ fontSize: TYPE.row.size }}>Info only (not charged)</span></span>
+            <span style={{ display: "flex", alignItems: "center" }}><Switch on={!!d.work} onChange={v => up({ work: v })} label="Content to produce" /><span style={{ fontSize: TYPE.row.size }}>Content to produce</span></span>
           </div>
         )}
         {kind === "packages" && <>
@@ -642,7 +668,10 @@ function OptWindow({ kind, opt, cardName, isNew, onSave, onDelete, onMove, onClo
 
 // ── Card settings window (name · subtitle · fine print · retainer · sections) ──
 function CardWindow({ card, cardKey, cardName, onSave, onDeleteCard, onClose }: any) {
-  const pick = (c: any) => ({ label: c.label || "", sub: c.sub || "", fine: c.fine || "", retainerPct: retainerPctOf(c), sections: JSON.parse(JSON.stringify(c.sections || [])) });
+  const pick = (c: any) => ({ label: c.label || "", sub: c.sub || "", fine: c.fine || "", retainerPct: retainerPctOf(c),
+    volumeTiers: volTiersOf(c, cardKey).map(t => ({ ...t })), sections: JSON.parse(JSON.stringify(c.sections || [])) });
+  const setTier = (i: number, patch: any) => setD((x: any) => ({ ...x, volumeTiers: x.volumeTiers.map((t: any, j: number) => (j === i ? { ...t, ...patch } : t)) }));
+  const addTier = () => setD((x: any) => { const last = x.volumeTiers[x.volumeTiers.length - 1]; return { ...x, volumeTiers: [...x.volumeTiers, { from: last ? (Number(last.from) || 0) + 3 : 3, pct: last ? Math.min(90, (Number(last.pct) || 0) + 5) : 10 }] }; });
   const [mode, setMode] = useState<"read" | "edit">("read");
   const [d, setD] = useState<any>(() => pick(card));
   const [askSec, setAskSec] = useState<number | null>(null);
@@ -667,7 +696,8 @@ function CardWindow({ card, cardKey, cardName, onSave, onDeleteCard, onClose }: 
         <ListCard>
           <Row first title="Name on the PDF" meta={card.label || cardName} />
           <Row title="Subtitle" meta={card.sub || "—"} />
-          <Row title="Retainer discount" meta={`−${String(retainerPctOf(card)).replace(".", ",")} % per month · the Calculator and the Brand Ambassador line use it`} />
+          <Row title="Retainer discount" meta={`−${pctText(retainerPctOf(card))} per month · the Calculator and the Brand Ambassador line use it`} />
+          <Row title="Volume discount" meta={`${tiersText(volTiersOf(card, cardKey))} · same item · switched on per line in the Calculator`} />
           <Row title="Fine print" meta={card.fine ? pctSpace(card.fine) : "—"} />
         </ListCard>
         <div style={LBLS}>Sections · {(card.sections || []).length}</div>
@@ -677,6 +707,20 @@ function CardWindow({ card, cardKey, cardName, onSave, onDeleteCard, onClose }: 
           <div><div style={{ ...LBLS, marginTop: 0 }}>Name on the PDF</div><I value={d.label} onChange={(e: any) => setD((x: any) => ({ ...x, label: e.target.value }))} aria-label="Name on the PDF" /></div>
           <div><div style={{ ...LBLS, marginTop: 0 }}>Retainer discount (%)</div><NumField minDec={0} value={d.retainerPct} onChange={(n) => setD((x: any) => ({ ...x, retainerPct: n === null ? 20 : Math.max(0, Math.min(90, n)) }))} ariaLabel="Retainer discount in percent" /></div>
         </div>
+        <div style={LBLS}>Volume discount · same item</div>
+        {d.volumeTiers.map((t: any, i: number) => (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "auto minmax(0,1fr) auto minmax(0,1fr) auto 36px", alignItems: "center", gap: 6, marginTop: i ? 6 : 0 }}>
+            <span style={SMALLT}>From</span>
+            <NumField minDec={0} value={t.from ?? null} onChange={(n) => setTier(i, { from: n })} ariaLabel={`Volume tier ${i + 1}: from pieces`} />
+            <span style={SMALLT}>pieces −</span>
+            <NumField minDec={0} value={t.pct ?? null} onChange={(n) => setTier(i, { pct: n })} ariaLabel={`Volume tier ${i + 1}: percent`} />
+            <span style={SMALLT}>%</span>
+            <button onClick={() => setD((x: any) => ({ ...x, volumeTiers: x.volumeTiers.filter((_: any, j: number) => j !== i) }))} aria-label="Remove tier"
+              style={{ width: 36, height: 40, background: "none", border: "none", cursor: "pointer", color: C.red, fontSize: TYPE.figure.size }}>✕</button>
+          </div>
+        ))}
+        {!d.volumeTiers.length && <div style={SMALLT}>No volume discount on this card.</div>}
+        <button onClick={addTier} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: PAL.progress.ink, minHeight: 36, padding: "0 2px" }}>+ Add a tier</button>
         <div style={LBLS}>Subtitle</div><I value={d.sub} onChange={(e: any) => setD((x: any) => ({ ...x, sub: e.target.value }))} aria-label="Subtitle" />
         <div style={LBLS}>Fine print</div>
         <textarea value={d.fine} onChange={(e: any) => setD((x: any) => ({ ...x, fine: e.target.value }))} aria-label="Fine print"
@@ -752,7 +796,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings }:
   const moveIn  = (arr: any[], i: number, dir: number) => { const a = [...arr]; const j = i + dir; if (j < 0 || j >= a.length) return a; [a[i], a[j]] = [a[j], a[i]]; return a; };
   const addItem = (si: number, kind: SectionKind) => {
     const id = uid();
-    const blank = kind === "addons" ? { id, n: "", note: "", p: 50, pct: null, perMonth: false, info: false }
+    const blank = kind === "addons" ? { id, n: "", note: "", p: 50, pct: null, perMonth: false, info: false, work: false }
       : kind === "info" ? { id, n: "", note: "", p: null, m: "" }
       : kind === "packages" ? { id, n: "", note: "", p: 0, includes: [] }
       : { id, n: "", note: "", p: 0 };
@@ -778,7 +822,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings }:
     const sec = card.sections[win.si]; const kind = sec ? sectionKind(sec) : "deliverables";
     const item = (sec?.items || []).find((x: any) => x.id === win.id);
     if (item) windowEl = (
-      <ItemWindow key={win.id} kind={kind} item={item} card={card} cardName={cardName} isNew={!!win.isNew}
+      <ItemWindow key={win.id} kind={kind} item={item} card={card} cardKey={tab} cardName={cardName} isNew={!!win.isNew}
         onSave={(next: any) => { upSec(win.si, s => ({ ...s, items: s.items.map((x: any) => (x.id === win.id ? next : x)) })); setWin({ ...win, isNew: false }); }}
         onDelete={() => { upSec(win.si, s => ({ ...s, items: s.items.filter((x: any) => x.id !== win.id) })); setWin(null); }}
         onMove={(dir: number) => upSec(win.si, s => ({ ...s, items: moveIn(s.items, s.items.findIndex((x: any) => x.id === win.id), dir) }))}
@@ -803,7 +847,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings }:
   } else if (win?.type === "card") {
     windowEl = (
       <CardWindow card={card} cardKey={tab} cardName={cardName}
-        onSave={(d: any) => setCard(c => ({ ...c, label: d.label, sub: d.sub, fine: d.fine, retainerPct: d.retainerPct, sections: d.sections }))}
+        onSave={(d: any) => setCard(c => ({ ...c, label: d.label, sub: d.sub, fine: d.fine, retainerPct: d.retainerPct, volumeTiers: cleanTiers(d.volumeTiers), sections: d.sections }))}
         onDeleteCard={() => { setWin(null); deleteCard(tab); setTab("influencer"); }}
         onClose={() => setWin(null)} />
     );
@@ -827,7 +871,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings }:
     <div style={{ fontFamily: SANS, color: C.black }}>
       {windowEl}
       {showBuilder && <AddCardModal rc={rc} settings={settings} onSave={(key: string, built: any) => { upsertCard(key, built); setTab(key); setShowBuilder(false); }} onClose={() => setShowBuilder(false)} />}
-      {showPreview && <RateCardWindow card={card} cardName={cardName} settings={settings} onClose={() => setShowPreview(false)} onEditTexts={() => { setShowPreview(false); setWin({ type: "card" }); }} />}
+      {showPreview && <RateCardWindow card={card} cardKey={tab} cardName={cardName} settings={settings} onClose={() => setShowPreview(false)} onEditTexts={() => { setShowPreview(false); setWin({ type: "card" }); }} />}
 
       {/* ── TITLE ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
@@ -893,8 +937,8 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings }:
                     ? ((it.includes || []).length
                         ? <>{contentsText(it)}{pv && pv.saves > 0 && <span style={{ color: PAL.done.ink }}> · saves {pv.pct} %</span>}</>
                         : <>{pctSpace(it.note) || ""}<span style={{ color: PAL.waiting.ink }}>{it.note ? " · " : ""}add contents</span></>)
-                    : kind === "info" ? withRetainer(it.note, retPct) : pctSpace(it.note || "");
-                  const right = kind === "info" ? (it.m ? <span style={{ fontSize: TYPE.row.size, color: C.muted }}>{pctSpace(it.m)}</span> : null)
+                    : kind === "info" ? (isVolRow(it) ? `${tiersText(volTiersOf(card, tab))} · Card settings` : withRetainer(it.note, retPct)) : pctSpace(it.note || "");
+                  const right = kind === "info" ? (it.m && !isVolRow(it) ? <span style={{ fontSize: TYPE.row.size, color: C.muted }}>{pctSpace(it.m)}</span> : null)
                     : it.p !== null && it.p !== undefined ? amount(money(it.p)) : <span style={{ fontSize: TYPE.row.size, color: C.muted }}>{pctSpace(it.m || "")}</span>;
                   return <Row key={it.id || i} first={i === 0} chevron={false} onClick={() => setWin({ type: "item", si, id: it.id })}
                     title={pctSpace(it.n) || "Untitled"} meta={meta || undefined} right={right} />;
