@@ -234,6 +234,7 @@ function ProjectRow({
         onSave={async (next) => h.updateDocument(cid, pid, openD.id, next, settings)}
         onPdf={flow.prepare}
         pdfConfirm={flow.confirmFor}
+        sendBlock={flow.blockFor}
         actions={docActions(openD)}
         onClose={() => { setOpenDocId(null); onModalClosed(); }}
       />

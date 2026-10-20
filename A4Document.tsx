@@ -10,8 +10,7 @@ import { fmt, fmtD } from "./formatters";
 import { SETTINGS_DEFAULT } from "./rateCards";
 import {
   docNet, retainerMonthly, linesSum, lineAmt, lineQty, vatInfo, taxNote, docTitle,
-  contractNo as mkContractNo,
-} from "./docs";
+  contractNo as mkContractNo, retDiscOf } from "./docs";
 import type { DocView } from "./docs";
 
 interface A4Props {
@@ -57,6 +56,17 @@ const looksGerman = (cls: any[]) =>
   /vertrag|lieferung|zahlung|nutzungsrecht|korrektur|stornierung/i.test(String(cls?.[0]?.title || "") + String(cls?.[0]?.text || "").slice(0, 80));
 
 // Clause templates (with tokens) for one language: own edits first, else defaults
+// § 4 names the start of the usage period (contracts made from clause set 2 on).
+// Older contracts keep the wording they were sent with.
+const S4_START: Record<"en" | "de", [string, string]> = {
+  en: [" for the usage period and purpose", " for the usage period (starting on the delivery date) and purpose"],
+  de: [" genannten Nutzungszeitraum", " genannten Nutzungszeitraum (beginnend mit dem Liefertermin)"],
+};
+const withStart = (list: { title: string; text: string }[], [a, b]: [string, string]) =>
+  list.map(c => (c.title.startsWith("§ 4") ? { ...c, text: c.text.replace(a, b) } : c));
+const CLAUSES_EN_2 = withStart(CLAUSES_EN, S4_START.en);
+const CLAUSES_DE_2 = withStart(CLAUSES_DE, S4_START.de);
+
 export function clauseTemplates(data: any, lang: string): { title: string; text: string }[] {
   const de = lang === "de";
   const c = data?.clauses;
@@ -66,7 +76,8 @@ export function clauseTemplates(data: any, lang: string): { title: string; text:
     const own = c[de ? "de" : "en"];
     if (Array.isArray(own) && own.length > 0) return own;
   }
-  return de ? CLAUSES_DE : CLAUSES_EN;
+  const set2 = Number(data?.clauseSet) >= 2;
+  return de ? (set2 ? CLAUSES_DE_2 : CLAUSES_DE) : (set2 ? CLAUSES_EN_2 : CLAUSES_EN);
 }
 
 // Values that replace the tokens
@@ -183,7 +194,10 @@ export default function A4Document({
             {subDetails.length > 0 && <span style={{ fontSize: 7, color: PDF.label, display: "block" }}>{subDetails.join(" · ")}</span>}
           </div>
           <span style={{ fontSize: 8, textAlign: "right" as const, color: PDF.label }}>{qty}</span>
-          <span style={{ fontSize: 8, textAlign: "right" as const, color: PDF.label }}>{fmt(unit)}</span>
+          <span style={{ fontSize: 8, textAlign: "right" as const, color: PDF.label }}>
+            {d?.showDiscount && Number(ln.listAmt) > amt + 0.004 && <span style={{ display: "block", textDecoration: "line-through", color: PDF.faint }}>{fmt(Math.round((Number(ln.listAmt) / qty) * 100) / 100)}</span>}
+            {fmt(unit)}
+          </span>
           <span style={{ fontSize: 8, textAlign: "right" as const }}>{fmt(amt)}</span>
         </div>
       </div>
@@ -208,6 +222,14 @@ export default function A4Document({
 
   // ── Totals ──
   const totalLabel = tax.mode === "domestic" ? (l ? "Gesamt brutto" : "Total incl. VAT") : (l ? "Gesamt (EUR)" : "Total (EUR)");
+  // optional: what your own rates took off the rate card ("Show discounts on the PDF")
+  const discTotal = d?.showDiscount ? (lines || []).reduce((t: number, ln: any) => { const la = Number(ln.listAmt) || 0, a = lineAmt(ln); return t + (la > a ? la - a : 0); }, 0) : 0;
+  const DiscRow = () => discTotal > 0.004 ? (
+    <div style={{ display: "flex", justifyContent: "flex-end" }}><div style={{ width: 200 }}>
+      <SumRow lb={l ? "Ihr Rabatt (enthalten)" : "Your discount (included)"} v={`−${fmt(discTotal)}`} />
+    </div></div>
+  ) : null;
+
   const TotalBlock = () => {
     if (kind === "amendment") {
       const orig = Number(d.origTotal) || 0;
@@ -227,7 +249,7 @@ export default function A4Document({
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
           <div style={{ width: 200 }}>
             <SumRow lb={l ? "Mtl. Zwischensumme" : "Monthly subtotal"} v={fmt(sum)} />
-            <SumRow lb={l ? "Retainer-Rabatt −20 %" : "Retainer discount −20 %"} v={`−${fmt(sum - monthly)}`} />
+            <SumRow lb={l ? `Retainer-Rabatt −${String(retDiscOf(d)).replace(".", ",")} %` : `Retainer discount −${String(retDiscOf(d)).replace(".", ",")} %`} v={`−${fmt(sum - monthly)}`} />
             <div style={{ borderTop: `1px solid ${PDF.rule}`, paddingTop: 4, marginTop: 3 }}>
               <SumRow lb={l ? "Monatliche Rate" : "Monthly fee"} v={fmt(monthly)} />
               <SumRow lb={`× ${d.retMo} ${l ? "Monate" : "months"}`} v={fmt(net)} />
@@ -359,7 +381,7 @@ export default function A4Document({
       )}
 
       {/* ── TOTALS (contract shows them above the clauses) ── */}
-      {kind === "contract" && <div style={{ marginTop: 12 }}><TotalBlock /></div>}
+      {kind === "contract" && <div style={{ marginTop: 12 }}><DiscRow /><TotalBlock /></div>}
 
       {/* ── CONTRACT CLAUSES ── */}
       {kind === "contract" && (
@@ -376,7 +398,7 @@ export default function A4Document({
       {/* ── TOTALS + CLOSING (all other documents) ── */}
       {kind !== "contract" && (
         <div data-sig-anchor="true" style={{ marginTop: 22 + extraSigMargin }}>
-          <TotalBlock />
+          <DiscRow /><TotalBlock />
 
           {kind === "quote" && (
             <div style={{ paddingTop: 14, borderTop: `1px solid ${PDF.rule}` }}>

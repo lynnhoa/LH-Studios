@@ -206,6 +206,12 @@ async function waitForStableLayout(el: HTMLElement) {
 }
 
 export async function downloadDocPdf(doc: DocView, settings: any, client: any, filename: string, mw: Window | null): Promise<void> {
+  const pdf = await buildDocPdf(doc, settings, client);
+  deliverPdf(pdf, filename, mw);
+}
+
+// draws the document off-screen and returns the PDF (jsPDF) — the caller saves or shares it
+export async function buildDocPdf(doc: DocView, settings: any, client: any): Promise<any> {
   const wrap = document.createElement("div");
   wrap.style.cssText = "position:fixed;left:-20000px;top:0;width:595px;pointer-events:none;";
   document.body.appendChild(wrap);
@@ -215,8 +221,7 @@ export async function downloadDocPdf(doc: DocView, settings: any, client: any, f
     await waitForStableLayout(wrap);
     const pages = Array.from(wrap.querySelectorAll("[data-pdf-page]")) as HTMLElement[];
     if (!pages.length) throw new Error("The PDF couldn't be prepared.");
-    const pdf = await pagesToPdf(pages, "portrait");
-    deliverPdf(pdf, filename, mw);
+    return await pagesToPdf(pages, "portrait");
   } finally {
     root.unmount();
     wrap.remove();

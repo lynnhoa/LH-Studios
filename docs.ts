@@ -38,13 +38,18 @@ export function docNet(kind: DocKind | string, data: any): number {
   const sum = linesSum(d.lines || []);
   if (kind === "amendment") return sum;
   if ((kind === "quote" || kind === "contract") && d.retainer && d.retMo) {
-    return r2(Math.round(sum * 0.8) * Number(d.retMo));
+    return r2(Math.round(sum * (1 - retDiscOf(d) / 100)) * Number(d.retMo));
   }
   return sum;
 }
 
 // Monthly fee of a retainer quote/contract
-export const retainerMonthly = (data: any): number => Math.round(linesSum(data?.lines || []) * 0.8);
+export const retainerMonthly = (data: any): number => Math.round(linesSum(data?.lines || []) * (1 - retDiscOf(data) / 100));
+// the retainer discount stored with the quote (Service Catalog setting); older quotes: 20 %
+export function retDiscOf(d: any): number {
+  const v = Number(d?.retDisc);
+  return d?.retDisc !== undefined && d?.retDisc !== null && d?.retDisc !== "" && Number.isFinite(v) ? v : 20;
+}
 
 // ─── VAT ─────────────────────────────────────────────────────
 // mode: "ku"       → Kleinunternehmer, no VAT (§ 19 note)
@@ -143,6 +148,7 @@ export function profileGaps(s: any): string[] {
   if (!(s?.name || s?.company)) gaps.push("name");
   if (!s?.street || !s?.city)   gaps.push("address");
   if (!s?.iban)                 gaps.push("IBAN");
+  if (!s?.steuernummer && !s?.ustIdNr) gaps.push("tax number");   // every invoice needs one (also under § 19)
   return gaps;
 }
 

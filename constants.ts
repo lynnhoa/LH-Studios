@@ -129,7 +129,7 @@ export const PDF = {
 // ─── SIZES (compact density, one place for the whole app) ────
 // Field text stays 16 px — iPhone zooms in on anything smaller.
 export const SIZE = {
-  field:    36,   // inputs + selects
+  field:    40,   // inputs + selects (16 px text, rounded)
   button:   36,   // standard buttons
   barBtn:   30,   // buttons in window top bars
   pill:     30,   // category / filter pills
@@ -142,3 +142,13 @@ export const SIZE = {
 export const BREAKPOINT = 768;    // phone below, iPad from here
 export const WIDE       = 1200;   // desktop from here
 export const Z = { nav: 100, menu: 200, modal: 500, dialog: 600, toast: 700 } as const;
+
+// ─── WORDS — one name per number, the same in every tab ─────
+//   To invoice  agreed work not invoiced yet (contracted + production)
+//   Unpaid      issued invoices not paid yet (overdue ones included)
+//   Pipeline    open quotes          Paid   paid invoices (by paid date)
+//   "open" alone only ever means "all open work" (Projects).
+export const WORDS = {
+  toInvoice: "To invoice", unpaid: "Unpaid", pipeline: "Pipeline", paid: "Paid",
+  overdue: "Overdue", followUp: "Follow up",
+} as const;

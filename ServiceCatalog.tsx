@@ -577,6 +577,16 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, i
         );
       })}
 
+      {/* ── RETAINER DISCOUNT (used by the Calculator for monthly retainers) ── */}
+      {edit ? (
+        <div style={{ marginTop: 10, maxWidth: 220 }}>
+          <Lbl>Retainer discount (%)</Lbl>
+          <NumField value={card.retainerPct ?? 20} minDec={0} onChange={(v: number | null) => setCard(c => ({ ...c, retainerPct: v === null ? 20 : Math.max(0, Math.min(90, v)) }))} ariaLabel="Retainer discount in percent" />
+        </div>
+      ) : (
+        <p style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 10 }}>Monthly retainer: −{String(card.retainerPct ?? 20).replace(".", ",")} %</p>
+      )}
+
       {/* ── FINE PRINT ── */}
       {edit ? (
         <div style={{ marginTop: 10 }}>

@@ -55,7 +55,7 @@ export default function ProductionSection({ pr, cl, upP, isMobile, clientsHook }
   const col3W = isMobile ? 112 : 140;
 
   return (
-    <div style={{ marginBottom: isMobile ? 12 : 8, border: `1px solid ${C.rule}`, borderRadius: 2, overflow: "hidden" }}>
+    <div style={{ marginBottom: isMobile ? 12 : 8, border: `1px solid ${C.rule}`, borderRadius: 10, overflow: "hidden" }}>
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? `1fr ${col3W}px` : `${col1W}px 1fr ${col3W}px`, background: "#f5f3f0", borderBottom: `1px solid ${C.rule}` }}>
         {!isMobile && <div style={{ padding: "4px 8px", fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const }}>Cat.</div>}
         <div style={{ padding: isMobile ? "5px 8px" : "4px 8px", fontSize: TYPE.micro.size, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase" as const, borderLeft: isMobile ? "none" : `1px solid ${C.rule}` }}>Deliverable · progress</div>

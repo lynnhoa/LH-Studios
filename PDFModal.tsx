@@ -9,10 +9,12 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { C, SANS, SERIF, TYPE, Z } from "./constants";
 import { I, B, Lbl, Pill, ConfirmDialog, LangSwitch, BAR_BTN, NumField } from "./atoms";
+import { PAL } from "./constants";
+import { isMobileDevice } from "./PDFExport";
 import { editLock } from "./saveStatus";
 import { fmt, r2 } from "./formatters";
 import { openPdfWindow } from "./PDFExport";
-import DocPages, { downloadDocPdf } from "./DocPages";
+import DocPages, { buildDocPdf } from "./DocPages";
 import { clauseContext, clauseTemplates, fillTokens, tokenizeClause } from "./A4Document";
 import { STATUS_LABEL, docFileName, lineAmt, lineQty } from "./docs";
 import type { DocView } from "./docs";
@@ -36,7 +38,8 @@ interface PDFModalProps {
   note?:      string;
   onSave?:    (next: DocView) => Promise<DocView | void>;   // returns the stored document
   onPdf?:     (d: DocView) => Promise<DocView>;            // before the PDF: mark sent / finalize
-  pdfConfirm?:(d: DocView) => string | null;               // one question before the PDF (draft invoices)
+  pdfConfirm?:(d: DocView) => string | null;               // one question before "Send…"
+  sendBlock?: (d: DocView) => string | null;               // stops "Send…" (invoice checklist)
   actions?:   DocAction[];
   onClose:    () => void;
 }
@@ -48,7 +51,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function PDFModal({
-  doc, settings, client, editable, isNew, justSaved, note, onSave, onPdf, pdfConfirm, actions = [], onClose,
+  doc, settings, client, editable, isNew, justSaved, note, onSave, onPdf, pdfConfirm, sendBlock, actions = [], onClose,
 }: PDFModalProps) {
   const [hs,           setHs]           = useState({ hist: [clone(doc)], idx: 0 });
   const [lang,         setLang]         = useState<"en" | "de">(doc.lang || "en");
@@ -154,16 +157,24 @@ export default function PDFModal({
     onClose();
   };
 
-  // ── Save PDF ────────────────────────────────────────────────
-  // One tap: saves unsaved changes, brings a draft to "sent" (an invoice
-  // gets its number), then draws the document fresh and saves the PDF.
-  // Nothing in the profile is required — missing details are left off.
-  const startPdf = async () => {
-    setErr(null);
+  // ── PDF: Draft PDF (nothing changes) · Send… (sent / numbered) · Share ──
+  // The PDF is drawn first; then Share opens the phone's share sheet (Mail, WhatsApp,
+  // Files) in its own tap — sharing has to start from a tap. Desktop: saved directly.
+  const [ready,    setReady]    = useState<null | { file: File; url: string; name: string; canShare: boolean }>(null);
+  const [blockMsg, setBlockMsg] = useState<string | null>(null);
+  const offerPdf = (pdf: any, name: string) => {
+    const blob: Blob = pdf.output("blob");
+    const file = new File([blob], `${name}.pdf`, { type: "application/pdf" });
+    const nav: any = navigator;
+    const canShare = !!(nav.canShare && nav.canShare({ files: [file] }));
+    if (canShare || isMobileDevice()) setReady({ file, url: URL.createObjectURL(blob), name, canShare });
+    else pdf.save(`${name}.pdf`);
+  };
+  const startPdf = async (mode: "draft" | "send" | "asis") => {
+    setErr(null); setReady(null);
     if (settings && settings.__ready === false && !current.data?.sender) {
       setErr("Your profile is still loading — try again in a moment."); return;
     }
-    const mw = openPdfWindow();               // must happen in the tap (iPhone)
     setDownloading(true);
     try {
       let d: DocView = current;
@@ -175,21 +186,28 @@ export default function PDFModal({
         baseRef.current = JSON.stringify(current);
         setFlash("saved");
       }
-      if (onPdf && d.status === "draft") d = await onPdf(d);
-      await downloadDocPdf({ ...d, lang } as DocView, settings, client, docFileName(d), mw);
+      if (mode === "send" && onPdf && d.status === "draft") d = await onPdf(d);
+      const name = docFileName(d);
+      offerPdf(await buildDocPdf({ ...d, lang } as DocView, settings, client), name);
     } catch (e: any) {
-      mw?.close();
       setErr(e?.message || "The PDF couldn't be created.");
     } finally {
       setSaving(false);
       setDownloading(false);
     }
   };
-  const download = () => {
+  const clickSend = () => {
     if (downloading) return;
+    const block = sendBlock ? sendBlock(current) : null;
+    if (block) { setBlockMsg(block); return; }
     const ask = pdfConfirm ? pdfConfirm(current) : null;
     if (ask) { setPdfAsk(ask); return; }
-    startPdf();
+    startPdf("send");
+  };
+  const share = async () => {
+    if (!ready) return;
+    try { await (navigator as any).share({ files: [ready.file], title: ready.name }); }
+    catch (e: any) { if (e?.name !== "AbortError") setErr("Sharing didn't work — use Open instead."); }
   };
 
   // ── Line editing ────────────────────────────────────────────
@@ -264,7 +282,7 @@ export default function PDFModal({
         <button onClick={tryClose} aria-label="Close" title="Close"
           style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 20, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         <LangSwitch lang={lang} onChange={setLang} />
-        {statusBadge}
+        {!(isMobile && current.status === "draft") && statusBadge}   {/* the page itself says DRAFT */}
         <div style={{ flex: 1 }} />
         {isMobile && canEdit && (
           <B v="sec" onClick={() => setShowEdit(e => !e)} s={BAR_BTN}>{showEdit ? "View" : "Edit"}</B>
@@ -272,10 +290,23 @@ export default function PDFModal({
         {canEdit && (isNew || dirty) && (
           <B v="sec" onClick={() => { save(); }} s={{ ...BAR_BTN, opacity: saving ? 0.5 : 1 }}>{saving ? "Saving…" : "Save"}</B>
         )}
-        <B onClick={download} s={{ ...BAR_BTN, opacity: downloading ? 0.5 : 1 }}>{downloading ? "Preparing…" : "Save PDF"}</B>
+        {current.status === "draft" ? <>
+          <B v="sec" onClick={() => !downloading && startPdf("draft")} s={{ ...BAR_BTN, opacity: downloading ? 0.5 : 1 }}>{isMobile ? "Draft" : "Draft PDF"}</B>
+          <B onClick={clickSend} s={{ ...BAR_BTN, opacity: downloading ? 0.5 : 1 }}>{downloading ? "Preparing…" : "Send…"}</B>
+        </> : (
+          <B onClick={() => !downloading && startPdf("asis")} s={{ ...BAR_BTN, opacity: downloading ? 0.5 : 1 }}>{downloading ? "Preparing…" : "Share PDF"}</B>
+        )}
       </div>
 
       {/* ── ACTION BAR (status actions) ── */}
+      {blockMsg && <ConfirmDialog title="Before this invoice gets its number" text={blockMsg} okLabel="OK" onOk={() => setBlockMsg(null)} onCancel={() => setBlockMsg(null)} />}
+      {ready && (
+        <div style={{ borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", flexShrink: 0, background: PAL.done.wash }}>
+          <span style={{ flex: 1, fontSize: 13, color: PAL.done.ink }}>PDF ready</span>
+          {ready.canShare && <B onClick={share} s={{ minHeight: 36 }}>Share</B>}
+          <B v="sec" onClick={() => window.open(ready.url, "_blank")} s={{ minHeight: 36 }}>Open</B>
+        </div>
+      )}
       {(actions.length > 0 || err || flash) && (
         <div style={{ borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", flexWrap: "wrap" as const, flexShrink: 0 }}>
           <div style={{ flex: 1, minWidth: 120 }}>
@@ -410,10 +441,10 @@ export default function PDFModal({
       {/* ── QUESTION BEFORE THE PDF (draft invoice → finalize) ── */}
       {pdfAsk && (
         <ConfirmDialog
-          title="Finalize and save the PDF?"
+          title={current.kind === "invoice" ? "Number and send this invoice?" : `Send this ${current.kind === "contract" ? "contract" : current.kind === "amendment" ? "amendment" : "quote"}?`}
           text={pdfAsk}
-          okLabel="Finalize & save PDF"
-          onOk={() => { setPdfAsk(null); startPdf(); }}
+          okLabel="Send"
+          onOk={() => { setPdfAsk(null); startPdf("send"); }}
           onCancel={() => setPdfAsk(null)}
         />
       )}

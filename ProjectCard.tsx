@@ -86,7 +86,7 @@ export default function ProjectCard({
   if (openD) {
     const flow = pdfFlow(clientsHook, cl.id, pr.id, settings);
     return <PDFModal key={openD.id} doc={openD} settings={settings} client={client} editable={false}
-      onPdf={flow.prepare} pdfConfirm={flow.confirmFor} onClose={() => setOpenDocId(null)} />;
+      onPdf={flow.prepare} pdfConfirm={flow.confirmFor} sendBlock={flow.blockFor} onClose={() => setOpenDocId(null)} />;
   }
   if (legacyQuote && pr.qd) {
     return (

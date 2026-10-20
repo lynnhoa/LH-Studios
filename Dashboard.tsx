@@ -2,7 +2,7 @@
 // Dashboard — read-only overview, to read at a glance.
 //   Revenue     paid invoices by PAID date (net), month bars, and
 //               the § 19 line while Kleinunternehmer is on
-//   Money flow  Outstanding (issued, not paid · gross, overdue count)
+//   Money flow  Unpaid (issued, not paid · gross, overdue count)
 //               Signed (contracted + production, not invoiced yet)
 //               Pipeline (open quotes)
 //   Licenses    one line: expiring / expired
@@ -13,7 +13,7 @@
 
 import { useState, useMemo } from "react";
 import type { ReactNode } from "react";
-import { C, SANS, SERIF, PAL, RADIUS, SHADOW, CATEGORY, catKeyOf } from "./constants";
+import { C, SANS, SERIF, PAL, RADIUS, SHADOW, CATEGORY, catKeyOf, WORDS } from "./constants";
 import { fmt, today } from "./formatters";
 import { docsOf, isOpenInvoice, isPaidInvoice, isOverdue, paidDateOf, lineAmt } from "./docs";
 import { allLicenses, needsAction } from "./licenses";
@@ -175,10 +175,10 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
           {/* ── money flow ── */}
           {section("Money flow")}
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
-            {tile(PAL.waiting, IC.hourglass, "Outstanding", fmt(outstanding),
+            {tile(PAL.waiting, IC.hourglass, WORDS.unpaid, fmt(outstanding),
               <>{data.open.length} open{overdue ? <> · <span style={{ color: PAL.late.ink }}>{overdue} overdue</span></> : ""}</>,
               onOpenInvoices ? () => onOpenInvoices(overdue ? "overdue" : "unpaid") : undefined)}
-            {tile(PAL.progress, IC.sign, "Signed", fmt(data.signedValue),
+            {tile(PAL.progress, IC.sign, WORDS.toInvoice, fmt(data.signedValue),
               `${data.signed.length} project${data.signed.length === 1 ? "" : "s"} · not invoiced`,
               onOpenProjects ? () => onOpenProjects("signed") : undefined)}
             <div {...press(onOpenProjects ? () => onOpenProjects("quoted") : undefined)}
@@ -194,7 +194,7 @@ export default function Dashboard({ clients, isMobile, settings, onOpenInvoices,
 
           {/* ── licenses ── */}
           <div {...press(onOpenLicenses ? () => onOpenLicenses(expired + expiring ? "action" : "active") : undefined)}
-            style={{ marginTop: 8, height: 42, padding: "0 12px", background: C.white, border: "1px solid #efebe6", borderRadius: RADIUS.tile, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, cursor: onOpenLicenses ? "pointer" : "default" }}>
+            style={{ minHeight: 44, boxSizing: "border-box" as const, marginTop: 8, height: 42, padding: "0 12px", background: C.white, border: "1px solid #efebe6", borderRadius: RADIUS.tile, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, cursor: onOpenLicenses ? "pointer" : "default" }}>
             <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>{circle(IC.shield, licTone)}Licenses</span>
             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 10, letterSpacing: "0.03em", padding: "2px 8px", borderRadius: 9, background: expired || expiring ? licTone.fill : "transparent", color: licTone.ink }}>{licText}</span>

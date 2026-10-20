@@ -32,7 +32,9 @@ function rowToCard(row: any): { key: CategoryKey; card: RateCard } {
       fine:     row.fine          ?? "",
       usage:    row.usage_options ?? [],
       excl:     row.excl_options  ?? [],
-    },
+      // retainer discount in % (Service Catalog); not set → the Calculator uses 20 %
+      ...(row.retainer_pct !== null && row.retainer_pct !== undefined ? { retainerPct: Number(row.retainer_pct) } : {}),
+    } as any,
   };
 }
 
@@ -133,6 +135,8 @@ export function useRateCards(userId: string | null): UseRateCardsReturn {
               fine:          card.fine,
               usage_options: card.usage,
               excl_options:  card.excl,
+              // only sent once set, so cards still save before the column exists
+              ...((card as any).retainerPct !== undefined ? { retainer_pct: (card as any).retainerPct } : {}),
               updated_at:    new Date().toISOString(),
             },
             { onConflict: "user_id,category_key" }

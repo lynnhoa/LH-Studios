@@ -697,7 +697,7 @@ export const Stepper = ({ value, onChange, min = 1, label }: { value: number; on
 
 // one quiet line of details with an edit pencil (date · validity · language …)
 export const DetailLine = ({ children, onEdit, s }: { children: any; onEdit?: () => void; s?: any }) => (
-  <div onClick={onEdit} role={onEdit ? "button" : undefined} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minHeight: 32, fontSize: 12, color: "#4a4540", fontFamily: SANS, cursor: onEdit ? "pointer" : "default", ...s }}>
+  <div onClick={onEdit} role={onEdit ? "button" : undefined} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minHeight: 44, fontSize: 12, color: "#4a4540", fontFamily: SANS, cursor: onEdit ? "pointer" : "default", ...s }}>
     <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{children}</span>
     {onEdit && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a847d" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>}
   </div>

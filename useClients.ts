@@ -11,8 +11,7 @@ import { registerReloader } from "./saveStatus";
 import {
   quoteNo, contractNo, amendNo, invoiceNo, projectNoFrom, pnoFromQNo, yearOf,
   docMoney, docNet, linesSum, senderSnapshot, clientSnapshot, profileGaps, dueFrom,
-  currentQuote, currentContract, projectInvoice, monthlyInvoices, nextRetainerMonth,
-} from "./docs";
+  currentQuote, currentContract, projectInvoice, monthlyInvoices, nextRetainerMonth, retDiscOf } from "./docs";
 import type {
   Client, Project, Amendment, Renewal, MonthlyInvoice,
   Deliverable, QuoteDoc, ProjectStatus, DocRecord,
@@ -1195,7 +1194,7 @@ export function useClients(userId: string | null): UseClientsReturn {
     const skip = ["usage","excl","rush","revision","whitelisting","aspect","raw footage","kill","pinned","link in bio"];
     const lines = (project.qd?.lines || []).map((l: any) => {
       const amt = parseFloat(l.amt) || 0;
-      return { ...l, amt: skip.some(s => (l.name || "").toLowerCase().includes(s)) ? amt : Math.round(amt * 0.8) };
+      return { ...l, amt: skip.some(s => (l.name || "").toLowerCase().includes(s)) ? amt : Math.round(amt * (1 - retDiscOf(project.qd) / 100)) };
     });
     const toBill = unbilledAmendments(project);                      // signed amendments go on the next month once
     const content = { ...baseInvoiceContent(client, project, pno), lines: [...lines, ...toBill.flatMap(a => a.lines || [])], retainer: true, retMo: project.qd?.retMo, monthNo: m };

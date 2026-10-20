@@ -9,7 +9,7 @@ import jsPDF from "jspdf";
 // Loaded together with the app (not on demand): an app that stays open
 // during an update could otherwise look for files that no longer exist.
 
-function isMobileDevice(): boolean {
+export function isMobileDevice(): boolean {
   return /iPad|iPhone|iPod|Android/i.test(navigator.userAgent) ||
     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
