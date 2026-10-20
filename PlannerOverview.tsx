@@ -9,7 +9,8 @@
 //   Sales sprint (from Stage 2) · Creator · Content flow
 // ─────────────────────────────────────────────────────────────
 
-import { C, SANS, SERIF, TYPE } from "./constants";
+import { SectionHead, DashCard, DashCardHead, DashStrip, DashTile, DashIcon, BarList, LinkRow } from "./atoms";
+import { C, SANS, SERIF, TYPE, PAL, RADIUS, SHADOW, TRACK } from "./constants";
 import {
   OWNER_LOOK, TONE, accLook, stageOf, stageNumOf, gateOf, isVisible, addDays, entryKey, monthName, isoWeek, weekRange,
   fmtInt, fmtPct2, monthGoalOf, thisMonday, todayIndex, MANAGER_GOAL, CREATOR_GOAL, managerOrder, creatorOrder, rowKind, snapKey, shortName, isTotal,
@@ -20,7 +21,7 @@ import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
 import { Ico, IC, TabTitle, sprintDay } from "./PlannerWindows";
 
-const microLabel: any = { fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted };
+const microLabel: any = { fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted };
 
 interface PlannerOverviewProps {
   planner:   PlannerHook;
@@ -98,21 +99,18 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
   const weeks = [-35, -28, -21, -14, -7, 0].map(o => addDays(monday, o));
 
   // ── pieces ──────────────────────────────────────────────────
-  const card: any = { background: C.white, border: `1px solid ${C.rule}`, borderRadius: 4, marginTop: 12, overflow: "hidden" };
-  const section = (color: string, title: string) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 16, ...microLabel, color }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: color }} />{title}</div>
-  );
-  const tile = (key: string, accent: string, label: string, value: any, sub: any, ring?: { ratio: number; done: boolean }, wide = false) => (
-    <div key={key} style={{ background: C.white, border: `1px solid ${C.rule}`, borderRadius: 4, padding: "10px 10px 9px 13px", display: "flex", gap: 10, alignItems: "center", position: "relative", overflow: "hidden", minWidth: 0, ...(wide ? { gridColumn: "1 / -1" } : {}) }}>
-      <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: accent }} />
-      {ring && <Ring ratio={ring.ratio} done={ring.done} />}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ ...microLabel, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
-        <div style={{ fontFamily: SERIF, fontSize: 19, lineHeight: 1.15, marginTop: 2, whiteSpace: "nowrap" as const }}>{value}</div>
-        {sub && <div style={{ fontSize: 11, marginTop: 2, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>}
+  const card: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, marginTop: 10, overflow: "hidden" };
+  const section = (color: string, title: string) => <SectionHead dot={color} label={title} />;
+  // Manager dashboard tile: reached = pistachio · to go = butter · missed = pink · not entered = grey
+  const gl = (d: string) => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
+  const tile = (key: string, _accent: string, label: string, value: any, sub: any, ring?: { ratio: number; done: boolean; empty?: boolean }, wide = false) => {
+    const tone = ring?.done ? PAL.done : ring?.empty ? PAL.neutral : past ? PAL.late : PAL.waiting;
+    return (
+      <div key={key} style={{ gridColumn: wide ? "1 / -1" : undefined, minWidth: 0 }}>
+        <DashTile tone={tone} icon={gl(ring?.done ? "M5 12l4 4 10-10" : "M12 7v5l3 2M12 21a9 9 0 1 0 0-18a9 9 0 0 0 0 18z")} label={label} value={value} sub={sub} />
       </div>
-    </div>
-  );
+    );
+  };
   const small = (t: string) => <small style={{ fontFamily: SANS, fontSize: 11, color: C.muted }}>{t}</small>;
   const goalSub = (t: Task) => {
     const s = planner.stateOf(t, monday);
@@ -126,32 +124,30 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
 
   // ── hero ────────────────────────────────────────────────────
   const hero = (
-    <div style={{ ...card, boxShadow: "0 10px 26px rgba(26,26,26,0.07)", borderColor: "#ece7e1" }}>
-      <div style={{ padding: 14, display: "flex", gap: 14, alignItems: "center" }}>
-        <Ring ratio={all.length ? reached / all.length : 0} done={reached === all.length && all.length > 0} size={76} stroke={7} label={`${reached}/${all.length}`} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={microLabel}>{past ? `Week ${isoWeek(monday)}` : "This week"}</span>
-            <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, padding: "2px 8px", borderRadius: 10, background: status.bg, color: status.c, border: `1px solid ${status.b}` }}>{status.t}</span>
-          </div>
-          <div style={{ fontFamily: SERIF, fontSize: 19, marginTop: 4, lineHeight: 1.2 }}>{reached} of {all.length} goals reached</div>
-          <div style={{ fontSize: 12, marginTop: 5, color: "#6b655e", lineHeight: 1.5, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>
-            {best && <span style={{ color: C.green }}>✓ {shortName(best)}</span>}
+    <DashCard>
+      <div style={{ padding: "11px 13px 9px" }}>
+        <DashCardHead icon={<DashIcon tone={reached === all.length && all.length ? PAL.done : PAL.neutral}>{gl("M12 21a9 9 0 1 0 0-18a9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8a4 4 0 0 0 0 8z")}</DashIcon>} label={past ? `Week ${isoWeek(monday)}` : "This week"} />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 8, marginTop: 6 }}>
+          <div style={{ fontFamily: SERIF, fontSize: TYPE.kpi.size, lineHeight: 1.05, whiteSpace: "nowrap" as const }}>{reached} of {all.length}</div>
+          <div style={{ fontSize: TYPE.label.size, color: C.muted, textAlign: "right" as const, lineHeight: 1.35 }}>
+            <span style={{ color: status.c }}>{status.t}</span>
+            {(best || weakest) && <br />}
+            {best && <span style={{ color: PAL.done.ink }}>✓ {shortName(best)}</span>}
             {best && weakest && " · "}
-            {weakest && <span style={{ color: past ? TONE.miss : TONE.attn }}>{shortName(weakest)} {valText(weakest)}</span>}
+            {weakest && <span style={{ color: past ? PAL.late.ink : PAL.waiting.ink }}>{shortName(weakest)} {valText(weakest)}</span>}
           </div>
         </div>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${weeks.length}, minmax(0,1fr))`, gap: 4, alignItems: "end", height: 38, marginTop: 10 }} aria-label={`Goals reached, last 6 weeks: ${weeks.map(w => reachedIn(w)).join(", ")}`}>
+          {weeks.map((w, k) => {
+            const r = reachedIn(w), cur = k === weeks.length - 1;
+            return <span key={w} title={`W${isoWeek(w)}: ${r} of ${all.length}`} style={{ height: r > 0 ? Math.max(6, Math.round((all.length ? r / all.length : 0) * 38)) : 3, background: r > 0 ? (cur ? PAL.done.mid : PAL.done.fill) : PAL.neutral.fill, borderRadius: r > 0 ? 5 : RADIUS.bar }} />;
+          })}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${weeks.length}, minmax(0,1fr))`, gap: 4, marginTop: 4, fontSize: TYPE.micro.size, color: C.light, textAlign: "center" as const }}>
+          {weeks.map((w, k) => <span key={w} style={{ color: k === weeks.length - 1 ? C.black : undefined }}>W{isoWeek(w)}</span>)}
+        </div>
       </div>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 6, padding: "0 14px", height: 30 }} aria-label={`Goals reached, last 6 weeks: ${weeks.map(w => `${reachedIn(w)} of ${all.length}`).join(", ")}`}>
-        {weeks.map((w, k) => {
-          const r = reachedIn(w), cur = k === weeks.length - 1, full = all.length > 0 && r === all.length;
-          return <div key={w} title={`W${isoWeek(w)}: ${r} of ${all.length}`} style={{ flex: 1, height: `${Math.max(8, all.length ? (r / all.length) * 100 : 0)}%`, background: cur ? C.black : full ? "#cfe2cf" : "#ece8e3", borderRadius: 2 }} />;
-        })}
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 14px 10px", fontSize: 9, letterSpacing: "0.06em", color: C.light }}>
-        {weeks.map((w, k) => <span key={w} style={{ color: k === weeks.length - 1 ? C.black : C.light }}>W{isoWeek(w)}</span>)}
-      </div>
-    </div>
+    </DashCard>
   );
 
   // ── stage ───────────────────────────────────────────────────
@@ -159,19 +155,11 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
   const stageCard = st && (() => {
     const g = gateOf(st, tasks, planner.doneOf);
     const next = stages.find(s => s.account === acc && s.num === st.num + 1);
+    const pct = g.total ? Math.round((g.done / g.total) * 100) : 0;
     return (
-      <div style={{ ...card, background: aLook.bg, borderColor: aLook.border, display: "flex", gap: 14, alignItems: "center", padding: "12px 14px" }}>
-        <div style={{ fontFamily: SERIF, fontSize: 44, lineHeight: 1, color: aLook.color }}>{st.num}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ ...microLabel, color: aLook.color }}>Stage {st.num} of 5</div>
-          <div style={{ fontSize: 15, marginTop: 2 }}>{st.name}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 7 }}>
-            <div style={{ flex: 1, height: 4, background: aLook.border, borderRadius: 2 }}><div style={{ width: `${g.total ? Math.round((g.done / g.total) * 100) : 0}%`, height: 4, background: aLook.color, borderRadius: 2 }} /></div>
-            <span style={{ fontSize: 12 }}>{g.done} / {g.total}</span>
-          </div>
-          {next && <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>Next: {next.name}</div>}
-        </div>
-      </div>
+      <DashCard s={{ marginTop: 8 }}>
+        <DashStrip tone={PAL.progress} left={<>Stage {st.num} of 5 · {st.name}{next ? <span style={{ color: C.muted }}> · next: {next.name}</span> : null}</>} right={`${pct} %`} pct={pct} />
+      </DashCard>
     );
   })();
 
@@ -202,7 +190,7 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
     if (t.source === "pitches" && leadsN != null) sub = <>{sub}<span style={{ color: C.muted }}> · {leadsN} {leadsN === 1 ? "lead" : "leads"}</span></>;
     const ratio = t.source === "pitches" && spCovers ? (s.target ? Math.min(1, (s.actual ?? 0) / s.target) : 0) : ratioOf(t, monday);
     // an odd last tile spans both columns, so the grid stays even
-    return tile(t.id, mLook.border, shortName(t), value, sub, { ratio, done: s.done }, mCounted.length % 2 === 1 && k === mCounted.length - 1);
+    return tile(t.id, mLook.border, shortName(t), value, sub, { ratio, done: s.done, empty: isTotal(t) && s.actual == null }, mCounted.length % 2 === 1 && k === mCounted.length - 1);
   });
 
   // ── sales sprint (from Stage 2) ─────────────────────────────
@@ -234,7 +222,7 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
   const cLook = OWNER_LOOK.creator;
   const cTiles = cGoals.map(t => {
     const s = planner.stateOf(t, monday);
-    return tile(t.id, cLook.border, shortName(t), <>{s.actual ?? 0} {small(`/ ${s.target ?? "–"}`)}</>, goalSub(t));
+    return tile(t.id, cLook.border, shortName(t), <>{s.actual ?? 0} {small(`/ ${s.target ?? "–"}`)}</>, goalSub(t), { ratio: 0, done: s.done });
   });
   const mine = items.filter(i => i.account === acc);
   const flow = [
@@ -249,25 +237,14 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
   const mt = visible.find(t => t.rhythm === "monthly" && t.area === "portfolio" && t.account === acc) || visible.find(t => t.rhythm === "monthly" && t.area === "portfolio");
   const goal = mt ? (mt.account === "both" ? monthGoalOf(mt, planner.entries[entryKey(mt.id, ms)], acc) : planner.targetOf(mt.id, ms)) : null;
   const doneMonth = mine.filter(x => x.portfolio && (x.status === "posted" || x.status === "in_kit") && !!x.postedOn && x.postedOn >= ms && x.postedOn <= me).length;
+  const maxFlow = Math.max(1, ...flow.map(f => f.n));
   const flowCard = (
-    <div style={{ ...card, padding: "12px 12px 10px", marginTop: 8 }}>
-      <div style={microLabel}>Content flow</div>
-      <div style={{ display: "flex", gap: 4, marginTop: 8, alignItems: "center" }}>
-        {flow.map((f, k) => (
-          <div key={f.l} style={{ display: "contents" }}>
-            <div style={{ flex: 1, textAlign: "center" as const }}>
-              <div style={{ fontFamily: SERIF, fontSize: 20, lineHeight: 1.1, color: k === 3 && f.n ? C.green : C.black }}>{f.n}</div>
-              <div style={microLabel}>{f.l}</div>
-            </div>
-            {k < flow.length - 1 && <span style={{ color: "#d6d1cb", fontSize: 14 }}>›</span>}
-          </div>
-        ))}
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#6b655e", marginTop: 10, paddingTop: 8, borderTop: "1px solid #f0ece7" }}>
-        <span style={{ color: goal != null && doneMonth >= goal ? C.green : "#6b655e" }}>Portfolio · {monthName(monday).slice(0, 3)} {doneMonth} / {goal ?? "–"}</span>
-        {fs && fsT && <span style={{ color: fs.done ? C.green : "#6b655e" }}>First set {fs.actual ?? 0} / {fsT.target ?? "–"}{fs.done ? " ✓" : ""}</span>}
-      </div>
-    </div>
+    <>
+      <BarList rows={flow.map(f => ({ key: f.l, label: f.l, value: String(f.n), pct: (f.n / maxFlow) * 100, color: f.l === "Posted" && f.n ? PAL.done.mid : undefined }))} />
+      <LinkRow icon={<DashIcon tone={goal != null && doneMonth >= goal ? PAL.done : PAL.neutral}>{gl("M4 5h16v14H4zM4 15l5-5 4 4 3-3 4 4")}</DashIcon>} label={`Portfolio · ${monthName(monday).slice(0, 3)}`}
+        tag={`${doneMonth} / ${goal ?? "–"}`} tone={goal != null && doneMonth >= goal ? PAL.done : PAL.waiting} tagFilled={goal != null} />
+      {fs && fsT && <LinkRow icon={<DashIcon tone={fs.done ? PAL.done : PAL.neutral}>{gl("M5 12l4 4 10-10")}</DashIcon>} label="First set" tag={`${fs.actual ?? 0} / ${fsT.target ?? "–"}${fs.done ? " ✓" : ""}`} tone={fs.done ? PAL.done : PAL.waiting} />}
+    </>
   );
 
   const stage3 = stageNumOf(stages, acc) >= 3;
