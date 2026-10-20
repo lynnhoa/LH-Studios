@@ -7,7 +7,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { C, SERIF, SANS, TYPE, expiryColor, expiryTint, PAL, STATUS_TONE, STATUS_NAME, WORDS, TRACK, RADIUS, ICON } from "./constants";
-import { signedOpen, followUp, validUntil, currentContractOf, daysSince } from "./money";
+import { signedOpen, followUp, validUntil, currentContractOf, daysSince, toInvoice, openAmendments, backStepBlock } from "./money";
+import { workOpen } from "./wsHelpers";
 import { fmt, fmtD, fmtE, today, addM, dLeft } from "./formatters";
 import { projectLicenses, ACTION_LABEL } from "./licenses";
 import { pdfFlow, finalizeQuestion } from "./docFlow";
@@ -277,6 +278,8 @@ export function ProjectRow({
         const quote = !pr.paid && (pr.status === "quoted" || pr.status === "revised");
         const fu = followUp(pr, today());
         const tag = stageTag(pr);
+        // a signed amendment on an invoiced / paid project that isn't invoiced yet
+        const amendOpen = (pr.paid || pr.status === "invoiced") && openAmendments(pr).length > 0;
         const fuMeta = fu ? <span style={{ color: PAL[fu.tone].ink }}> · {fu.text}</span> : null;
         const ct = pr.status === "contracted" ? currentContractOf(pr) : null;
         const vu = quote ? validUntil(pr) : null;
@@ -313,6 +316,7 @@ export function ProjectRow({
               <div style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: pr.status === "lost" ? C.muted : C.black }}>{fmt(pr.amount)}</div>
               {/* one tag: Paid / Lost · Follow up / Overdue · else the state of the current document */}
               {fu ? <TonedTag tone={PAL[fu.tone]} s={{ marginTop: 3 }}>{fu.label}</TonedTag>
+                : amendOpen ? <TonedTag tone={PAL.progress} s={{ marginTop: 3 }}>Amend to invoice</TonedTag>
                 : (pr.paid || pr.status === "lost") ? <div style={{ marginTop: 3 }}><StatusBadge status={pr.paid ? "paid" : "lost"} /></div>
                 : tag ? <TonedTag tone={PAL[tag.tone]} s={{ marginTop: 3 }}>{tag.label}</TonedTag> : null}
             </div>
@@ -404,8 +408,8 @@ export function ProjectRow({
             </div>
           )}
 
-          {/* 5. PRODUCTION SECTION */}
-          {pr.status === "production" && (
+          {/* 5. PRODUCTION SECTION — in production, or invoiced with items still open (the Workspace's rule) */}
+          {workOpen(pr) && (
             <div style={{ marginBottom: 12 }}>
               <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Production</p>
               <ProductionSection pr={pr} clients={clients} cl={cl} upP={upP} isMobile={isMobile} clientsHook={clientsHook} />
@@ -485,7 +489,7 @@ export function ProjectRow({
             })}
 
             {["revised","contracted","production"].includes(pr.status) && (
-              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted }} onClick={() => setDialog({ title: "Back one step", text: pr.status === "production" ? "The contract goes back to not signed." : pr.status === "contracted" ? "The contract is withdrawn (a draft is deleted, a sent one is kept as replaced)." : "The project goes back to Quoted.", okLabel: "Back one step", run: () => h.undoContract(cid, pid) })}>← Back one step</B>
+              <B v="sec" s={{ fontSize: TYPE.micro.size, color: C.muted }} onClick={() => { const block = backStepBlock(pr); if (block) { setRowErr(block); return; } setDialog({ title: "Back one step", text: pr.status === "production" ? "The contract goes back to not signed." : pr.status === "contracted" ? "The contract is withdrawn (a draft is deleted, a sent one is kept as replaced)." : "The project goes back to Quoted.", okLabel: "Back one step", run: () => h.undoContract(cid, pid) }); }}>← Back one step</B>
             )}
 
             {["production","invoiced","paid"].includes(pr.status) && pr.qd && (
@@ -589,25 +593,28 @@ export default function ProjectsTab({
   );
 
   const lost   = all.filter((pr: any) => !pr.paid && pr.status === "lost");
-  const active = all.filter((pr: any) => !pr.paid && pr.status !== "lost").sort((a: any, b: any) => {
+  const bySort = (a: any, b: any) => {
     if (sortOrder === "amount")  return b.amount - a.amount;
     if (sortOrder === "oldest")  return String(a.date || "").localeCompare(String(b.date || ""));
     return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
-  });
+  };
+  const active = all.filter((pr: any) => !pr.paid && pr.status !== "lost").sort(bySort);
 
   const done  = all.filter((pr: any) => pr.paid).sort((a: any, b: any) => String(b.date || "").localeCompare(String(a.date || "")));
+  // under "To invoice", a paid project with an amendment to invoice sits in the list above — not twice
+  const doneShown = statusFilter === "signed" ? done.filter((pr: any) => !(toInvoice(pr) > 0)) : done;
 
   const FILTERS = [["all","All"],["signed","To invoice"],["active","Active (signed)"],["production","Production"],["invoiced","Invoiced"],["contracted","Contracted"],["quoted","Quoted"],["lead","Leads"]];
   const filteredActive = statusFilter === "all"
     ? active
     : statusFilter === "signed"
-    ? active.filter((pr: any) => ["contracted","production"].includes(pr.status))
+    ? all.filter((pr: any) => toInvoice(pr) > 0).sort(bySort)          // money.ts — also invoiced / paid projects with an amendment to invoice
     : statusFilter === "active"
     ? active.filter((pr: any) => ["contracted","production","invoiced"].includes(pr.status))
     : active.filter((pr: any) => pr.status === statusFilter || (statusFilter === "quoted" && pr.status === "revised"));
 
   const activeTotal  = active.reduce((s: number, pr: any) => s + pr.amount, 0);
-  const doneTotal    = done.reduce((s: number, pr: any) => s + pr.amount, 0);
+  const doneTotal    = doneShown.reduce((s: number, pr: any) => s + pr.amount, 0);
   const byStatus     = (st: string) => active.filter((pr: any) => pr.status === st).length;
   const invoicedAmt  = active.filter((pr: any) => pr.status === "invoiced").reduce((s: number, pr: any) => s + pr.amount, 0);
 
@@ -617,7 +624,7 @@ export default function ProjectsTab({
       {(() => {
         const tone = PAL[statusFilter === "signed" || statusFilter === "active" ? "progress" : STATUS_TONE[statusFilter] || "neutral"];
         // "to invoice": what's already invoiced on a project is taken off (same as the dashboard)
-        const open = (pr: any) => (statusFilter !== "signed" ? (Number(pr.amount) || 0) : signedOpen(pr));   // money.ts
+        const open = (pr: any) => (statusFilter !== "signed" ? (Number(pr.amount) || 0) : toInvoice(pr));   // money.ts
         const sum = filteredActive.reduce((s: number, pr: any) => s + open(pr), 0);
         const what = statusFilter === "all" ? "open" : statusFilter === "signed" ? "to invoice" : (FILTERS.find(f => f[0] === statusFilter)?.[1] || "").toLowerCase();
         return (
@@ -651,7 +658,7 @@ export default function ProjectsTab({
       </div>
 
       {/* ── ACTIVE SECTION — grouped by stage ── */}
-      {active.length > 0 && <>
+      {(active.length > 0 || filteredActive.length > 0) && <>
         {!isMobile && (
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 110px 100px", padding: "8px 0 2px" }}>
             {["Client · Project", "Delivery", "Amount"].map((h, i) => (
@@ -664,13 +671,13 @@ export default function ProjectsTab({
           // (Create contract, Create invoice …) moves without being rebuilt, so the document
           // it just opened (or a question it asks) stays open.
           const out: any[] = [];
-          ["production", "contracted", "invoiced", "revised", "quoted", "lead"].forEach(st => {
+          ["production", "contracted", "invoiced", "revised", "quoted", "lead", "paid"].forEach(st => {
             const list = filteredActive.filter((pr: any) => pr.status === st);
             if (!list.length) return;
             const t = PAL[STATUS_TONE[st] || "neutral"];
             out.push(
               <SectionHead key={`h-${st}`} dot={t.mid} label={`${STATUS_NAME[st] || st} · ${list.length}`}
-                right={fmt(list.reduce((s: number, pr: any) => s + (Number(pr.amount) || 0), 0))} />
+                right={fmt(list.reduce((s: number, pr: any) => s + (statusFilter === "signed" ? toInvoice(pr) : (Number(pr.amount) || 0)), 0))} />
             );
             list.forEach((pr: any, i: number) => {
               const first = i === 0, last = i === list.length - 1;
@@ -730,11 +737,11 @@ export default function ProjectsTab({
       )}
 
       {/* ── DONE SECTION ── */}
-      {done.length > 0 && (
+      {doneShown.length > 0 && (
         <div>
-          <SectionHead dot={PAL.done.mid} label={`Done · ${done.length}`} right={`${fmt(doneTotal)} earned`} />
+          <SectionHead dot={PAL.done.mid} label={`Done · ${doneShown.length}`} right={`${fmt(doneTotal)} earned`} />
           <ListCard s={{ padding: "0 12px" }}><div style={{ marginBottom: -1 }}>
-          {done.map(pr => (
+          {doneShown.map(pr => (
             <ProjectRow
               key={pr.id}
               pr={pr}

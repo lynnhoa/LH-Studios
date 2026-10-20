@@ -164,9 +164,14 @@ export function getLineGroups(c: any, pr: any): any[] {
 }
 
 // ── Workspace items (projects in production) ──────────────────
+// One rule for open work: in production, or invoiced (not paid) with items still open.
+// The Creator's Workspace and the Manager's Production section (Projects) both use it.
+export const workOpen = (pr: any): boolean =>
+  pr?.status === "production" || (pr?.status === "invoiced" && !pr?.paid && projectItems(pr).some((it: any) => !it.done));
+
 export function getWsItems(clients: any[]): any[] {
   return (clients || []).flatMap((c: any) => (c.projects || [])
-    .filter((pr: any) => pr.status === "production" || (pr.status === "invoiced" && !pr.paid))
+    .filter(workOpen)
     // after invoicing, open items stay until they're done
     .flatMap((pr: any) => projectItems(pr, c).filter((it: any) => pr.status === "production" || !it.done)));
 }

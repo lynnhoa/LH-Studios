@@ -14,6 +14,7 @@ import { Ico, IC } from "./PlannerWindows";
 import { Chip } from "./atoms";
 import PDFModal from "./PDFModal";
 import { downloadInvoiceReport } from "./InvoiceReport";
+import { saveFile } from "./PDFExport";
 import { invoiceRows, invoicesCsv, invoiceTypeLabel, invoicePeriods, isOpenInvoice, isPaidInvoice, isOverdue, paidDateOf, MONTH_DE } from "./docs";
 import type { InvoiceRow, InvoicePeriod } from "./docs";
 
@@ -21,9 +22,7 @@ const MO_LONG = MONTH_DE;
 
 function downloadCsv(rows: InvoiceRow[], filename: string) {
   const blob = new Blob(["\uFEFF" + invoicesCsv(rows)], { type: "text/csv;charset=utf-8;" });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a"); a.href = url; a.download = `${filename}.csv`; a.click();
-  URL.revokeObjectURL(url);
+  saveFile(blob, `${filename}.csv`);           // phone: share sheet · computer: download
 }
 
 interface InvoicesProps {

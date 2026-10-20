@@ -208,8 +208,8 @@ export function usePlanner(userId: string | null, monday: string) {
   const [loadedWeek, setLoadedWeek]     = useState<string | null>(null);
   const [targetsReady, setTargetsReady] = useState(false);       // the goal history is loaded
 
-  // entries of this week, the 3 weeks before (history) and this month
-  const back = addDays(monday, -21);
+  // entries of this week, the 5 weeks before (the dashboard's 6-week bars, the history) and this month
+  const back = addDays(monday, -35);
   const ms   = monthStart(monday);
   const from = back < ms ? back : ms;
 

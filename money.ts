@@ -10,7 +10,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { docsOf, isPaidInvoice, isOpenInvoice, isOverdue, paidDateOf } from "./docs";
-import { addD } from "./formatters";
+import { addD, r2 } from "./formatters";
 import { WORDS } from "./constants";
 
 export const DORMANT_DAYS = 90;
@@ -26,6 +26,34 @@ export const isSigned   = (pr: any) => !pr.paid && (pr.status === "contracted" |
 export const isQuote    = (pr: any) => !pr.paid && (pr.status === "quoted" || pr.status === "revised");
 export const hasOpenWork = (pr: any) => !pr.paid && STATUS_ORDER.includes(pr.status);
 export const signedOpen = (pr: any): number => (isSigned(pr) ? Math.max(0, (Number(pr.amount) || 0) - billedNet(pr)) : 0);
+
+// ── TO INVOICE — agreed work that isn't invoiced yet (Dashboard, Projects, Clients) ──
+//   contracted / production  the open contract value (signed amendments are part of it)
+//   invoiced / paid          signed amendments whose invoice isn't sent yet
+// An amendment counts as invoiced once its invoice is sent or paid — a draft doesn't count.
+export const amendBilled = (pr: any, a: any): boolean => {
+  if (!a?.invoiceDocId) return false;
+  const d = docsOf(pr).find((x: any) => x.id === a.invoiceDocId);
+  return !!d && (d.status === "sent" || d.status === "paid");
+};
+export const openAmendments = (pr: any): any[] =>
+  (pr?.amendments || []).filter((a: any) => a.signed && (Number(a.amendTotal) || 0) !== 0 && !amendBilled(pr, a));
+export function toInvoice(pr: any): number {
+  if (!pr || pr.status === "lost") return 0;
+  if (isSigned(pr)) return signedOpen(pr);
+  if (pr.paid || pr.status === "invoiced" || pr.status === "paid")
+    return Math.max(0, r2(openAmendments(pr).reduce((s: number, a: any) => s + (Number(a.amendTotal) || 0), 0)));
+  return 0;
+}
+
+// "← Back one step" from Production: not while the project has invoices or amendments
+// (the contract has to stay signed for them)
+export function backStepBlock(pr: any): string | null {
+  if (!pr || pr.status !== "production") return null;
+  const invoices = docsOf(pr).some((d: any) => d.kind === "invoice" && d.subtype !== "storno" && d.status !== "cancelled");
+  const amends = (pr.amendments || []).length > 0;
+  return invoices || amends ? "Not possible while the project has invoices or amendments — the contract stays signed." : null;
+}
 
 export const daysSince = (iso: string | null | undefined, todayStr: string): number | null => {
   if (!iso) return null;
@@ -60,13 +88,13 @@ export function clientTotals(c: any, year: number, todayStr: string) {
   const idle = daysSince(last, todayStr);
   return {
     projects:  prs.length,
-    signed:    prs.reduce((s, pr) => s + signedOpen(pr), 0),
+    signed:    prs.reduce((s, pr) => s + toInvoice(pr), 0),
     owed:      open.reduce((s: number, d: any) => s + (Number(d.gross) || 0), 0),
     overdue:   open.filter((d: any) => isOverdue(d, todayStr)).length,
     paidYear:  paid.filter((d: any) => paidDateOf(d).startsWith(String(year))).reduce((s: number, d: any) => s + (Number(d.net) || 0), 0),
     paidAll:   paid.reduce((s: number, d: any) => s + (Number(d.net) || 0), 0),
     quotes:    prs.filter(isQuote).reduce((s, pr) => s + (Number(pr.amount) || 0), 0),
-    inProgress: prs.some(pr => isSigned(pr) || (pr.status === "invoiced" && !pr.paid)),
+    inProgress: prs.some(pr => isSigned(pr) || (pr.status === "invoiced" && !pr.paid) || toInvoice(pr) > 0),
     onlyQuotes: !prs.some(pr => isSigned(pr) || (pr.status === "invoiced" && !pr.paid)) && prs.some(isQuote),
     urgent,
     lastActivity: last,

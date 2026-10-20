@@ -996,11 +996,12 @@ interface ServiceCatalogProps {
   settings:   any;
   isMobile?:  boolean;
   clientNames?: string[];      // suggested in the rate card's "Prepared for"
+  ready?:     boolean;         // your cards are loaded (until then nothing is shown or saved)
 }
 
 type Win = { type: "item"; si: number; id: string; isNew?: boolean } | { type: "opt"; kind: "usage" | "exclusivity"; i: number; isNew?: boolean } | { type: "card" };
 
-export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, clientNames }: ServiceCatalogProps) {
+export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, clientNames, ready = true }: ServiceCatalogProps) {
   const [tab,         setTab]         = useState("influencer");
   const [showBuilder, setShowBuilder] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -1016,7 +1017,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, c
   // once: packages that only describe their contents in the note get real contents
   const filledOnce = useRef(false);
   useEffect(() => {
-    if (filledOnce.current || !Object.keys(rc || {}).length) return;
+    if (!ready || filledOnce.current || !Object.keys(rc || {}).length) return;
     filledOnce.current = true;
     const names: string[] = [];
     Object.entries(rc).forEach(([key, raw]: [string, any]) => {
@@ -1034,7 +1035,15 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, c
       if (changed) upsertCard(key, { ...c, sections });
     });
     if (names.length) setFilled(names);
-  }, [rc]);
+  }, [rc, ready]);
+  // until your cards are loaded (or after a failed load) the app only holds its built-in
+  // default cards — nothing is shown or saved then, so they can never replace yours
+  if (!ready) return (
+    <div style={{ fontFamily: SANS, color: C.black }}>
+      <h2 style={{ fontFamily: SERIF, fontSize: TYPE.screen.size, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Service Catalog</h2>
+      <SummaryLine dot={PAL.neutral.mid}>Your rate cards aren't loaded yet</SummaryLine>
+    </div>
+  );
 
   const setCard = (fn: (c: any) => any) => upsertCard(tab, fn(card));
   const upSec   = (si: number, fn: (s: any) => any) => setCard(c => ({ ...c, sections: c.sections.map((s: any, i: number) => (i === si ? fn(s) : s)) }));

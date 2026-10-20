@@ -19,7 +19,12 @@ interface UseRateCardsReturn {
   reload:     () => void;
   upsertCard: (key: CategoryKey, card: RateCard) => Promise<string | null>;
   deleteCard: (key: CategoryKey) => Promise<string | null>;
+  loaded:     boolean;            // rc holds your cards from the database (not the built-in defaults)
 }
+
+// Until your cards are loaded the app holds the built-in default cards — saving one of
+// those would replace your real card, so nothing is saved before then.
+const NOT_LOADED = "Your rate cards are still loading — try again in a moment.";
 
 // ── Map DB row → RateCard ────────────────────────────────────
 function rowToCard(row: any): { key: CategoryKey; card: RateCard } {
@@ -46,6 +51,8 @@ export function useRateCards(userId: string | null): UseRateCardsReturn {
   const [error,   setError]   = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tick,    setTick]    = useState(0);
+  const [loaded,  setLoaded]  = useState(false);
+  const loadedRef = useRef(false);
 
   // edits are saved 0,7 s after typing stops, one request at a time
   const pending  = useRef<Record<string, RateCard>>({});
@@ -58,6 +65,7 @@ export function useRateCards(userId: string | null): UseRateCardsReturn {
   // ── Fetch on mount / userId change ───────────────────────
   useEffect(() => {
     if (!userId) {
+      loadedRef.current = false; setLoaded(false);
       setRc(normalizeCards(RC0));
       setLoading(false);
       return;
@@ -99,7 +107,8 @@ export function useRateCards(userId: string | null): UseRateCardsReturn {
             .from("rate_cards")
             .insert(seeds);
 
-          if (seedError) setError(seedError.message);
+          if (seedError) { setError(seedError.message); setLoadError(seedError.message); }
+          else { loadedRef.current = true; setLoaded(true); }      // your cards are now these
           setRc(normalizeCards(RC0));
           setLoading(false);
           return;
@@ -112,6 +121,7 @@ export function useRateCards(userId: string | null): UseRateCardsReturn {
           built[key] = normalizeCard(card);   // section types, clean option labels (nothing is written)
         }
         setRc({ ...(built as RateCards), ...pending.current });
+        loadedRef.current = true; setLoaded(true);
         setLoading(false);
       });
     return () => { cancelled = true; };
@@ -164,6 +174,7 @@ export function useRateCards(userId: string | null): UseRateCardsReturn {
   const upsertCard = useCallback(
     async (key: CategoryKey, card: RateCard): Promise<string | null> => {
       if (!userId) return "Not authenticated";
+      if (!loadedRef.current) return NOT_LOADED;
 
       // Shown at once, saved after typing stops
       const clean = normalizeCard(card);
@@ -180,6 +191,7 @@ export function useRateCards(userId: string | null): UseRateCardsReturn {
   const deleteCard = useCallback(
     async (key: CategoryKey): Promise<string | null> => {
       if (!userId) return "Not authenticated";
+      if (!loadedRef.current) return NOT_LOADED;
 
       // Prevent deleting base categories
       const BASE = ["influencer", "ugc", "editorial", "hotels"];
@@ -209,5 +221,5 @@ export function useRateCards(userId: string | null): UseRateCardsReturn {
     [userId]
   );
 
-  return { rc, loading, error, loadError, reload, upsertCard, deleteCard };
+  return { rc, loading, error, loadError, reload, upsertCard, deleteCard, loaded };
 }

@@ -12,7 +12,7 @@
 
 import { C, TYPE, TINT, PAL, TRACK, RADIUS } from "./constants";
 import { fmtD, today } from "./formatters";
-import { getCatProgress, projectItems, statusRank, doneWord } from "./wsHelpers";
+import { getCatProgress, projectItems, statusRank, doneWord, finalStatus } from "./wsHelpers";
 import { CatPill, Tick } from "./atoms";
 
 interface ProductionSectionProps {
@@ -65,7 +65,8 @@ export default function ProductionSection({ pr, cl, upP, isMobile, clientsHook }
       {catKeys.map((cat, ci) => {
         const prog  = cats[cat];
         const msc   = ms[cat.toLowerCase()] || {};
-        const isBC  = cat === "Influencer";
+        // Brand Collab and Hotels finish when posted (the Workspace's rule): no "delivered" tick
+        const postedCat = finalStatus(cat) === "Posted";
         const catIt = items.filter(it => it.category === cat);
         const lines: { key: string; name: string; note: string; its: any[] }[] = [];
         catIt.forEach(it => {
@@ -118,7 +119,7 @@ export default function ProductionSection({ pr, cl, upP, isMobile, clientsHook }
                   {msc.reviewed && <span style={{ fontSize: TYPE.micro.size, color: C.muted, display: "block" }}>{fmtD(msc.reviewedDate)}</span>}
                 </div>
               </div>
-              {!isBC && (
+              {!postedCat && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: prog.allCreated || msc.delivered ? 1 : 0.4 }}>
                   <Tick on={!!msc.delivered} color={C.green} size={isMobile ? 22 : 18} disabled={!prog.allCreated && !msc.delivered}
                     onClick={() => (msc.delivered ? undoDelivered(cat) : markDelivered(cat))} />

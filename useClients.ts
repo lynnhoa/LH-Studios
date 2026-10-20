@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, selectAll } from "./useSupabase";
 import { uid, today, monthStart, monthEnd, r2 } from "./formatters";
 import { registerReloader } from "./saveStatus";
+import { backStepBlock } from "./money";
 import {
   quoteNo, contractNo, amendNo, invoiceNo, projectNoFrom, pnoFromQNo, yearOf,
   docMoney, docNet, linesSum, senderSnapshot, clientSnapshot, profileGaps, dueFrom,
@@ -1149,6 +1150,8 @@ export function useClients(userId: string | null): UseClientsReturn {
   // "← Back one step" for the contract stages
   const undoContract = async (clientId: string, projectId: string) => {
     const { project } = findProject(clientId, projectId);
+    const block = backStepBlock(project);            // invoices or amendments need the signed contract
+    if (block) throw new Error(block);
     const con = currentContract(project);
     if (project.status === "production") {
       if (con && con.status === "signed") await patchDoc(clientId, projectId, con.id, { status: "sent", signedAt: null });

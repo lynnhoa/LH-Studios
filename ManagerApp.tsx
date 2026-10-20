@@ -340,7 +340,8 @@ export default function ManagerApp({
             isMobile={isMobile}
             settings={settings}
             rc={rateCardsHook.rc}
-            rcReady={!rateCardsHook.loading}
+            rcReady={rateCardsHook.loaded && !rateCardsHook.loading}
+            rcLoaded={rateCardsHook.loaded}
             prefill={prefill}
             clearPrefill={() => setPrefill(null)}
             onAfterSave={(projectId: string) => {
@@ -360,6 +361,7 @@ export default function ManagerApp({
 
         {nav === NAV_CATALOG && (
           <ServiceCatalog
+            ready={rateCardsHook.loaded}
             rc={rateCardsHook.rc}
             upsertCard={rateCardsHook.upsertCard}
             deleteCard={rateCardsHook.deleteCard}

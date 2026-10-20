@@ -32,6 +32,7 @@ interface CalcProps {
   settings:    any;
   rc:          any;
   rcReady?:    boolean;          // rate cards loaded (until then rc holds the built-in cards)
+  rcLoaded?:   boolean;          // your cards came from the database (no quote is priced from the built-in cards)
   prefill:     any;
   clearPrefill:() => void;
   clientsHook: any;
@@ -88,7 +89,7 @@ const sign = (plus: boolean, on: boolean) => (
 );
 
 export default function Calculator({
-  isMobile, settings, rc: rawRc, rcReady = true, prefill, clearPrefill, clientsHook, onAfterSave, onRevise,
+  isMobile, settings, rc: rawRc, rcReady = true, rcLoaded = true, prefill, clearPrefill, clientsHook, onAfterSave, onRevise,
 }: CalcProps) {
   const rc      = useMemo(() => normalizeCards(rawRc), [rawRc]);
   const isRev   = !!prefill?.isRev;
@@ -392,6 +393,7 @@ export default function Calculator({
 
   // ── What's missing before the preview ─────────────────────
   const missing = (() => {
+    if (!rcLoaded) return "Your rate cards are still loading";
     if (!brandName) return clientSel === NEW_CLIENT ? "Add the client's name" : "Choose a client";
     if (!locked && !String(projName || leadSel?.name || "").trim()) return items.length ? "Add a project name" : "Add a project name and an item";
     if (!items.length) return isAmend ? "Add an item to the amendment" : "Add an item";

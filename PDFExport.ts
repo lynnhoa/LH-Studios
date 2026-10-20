@@ -35,6 +35,31 @@ export async function pagesToPdf(pages: HTMLElement[], orientation: "portrait" |
   return pdf;
 }
 
+// ── Hand over a file (CSV, Excel …) ──────────────────────────
+// iPhone / iPad: the share sheet (Save to Files, Mail, AirDrop), opened in the same tap.
+// Computer: a normal download — the link stays alive a few seconds (removing it at once
+// can cancel the download in Safari). Closing the share sheet changes nothing.
+export function saveFile(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const later = () => setTimeout(() => URL.revokeObjectURL(url), 60000);
+  const open = () => { window.open(url, "_blank"); later(); };
+  if (isMobileDevice()) {
+    const nav: any = navigator;
+    let file: File | null = null, can = false;
+    try { file = new File([blob], filename, { type: blob.type || "application/octet-stream" }); can = !!(nav.share && nav.canShare && nav.canShare({ files: [file] })); } catch { can = false; }
+    if (can && file) {
+      nav.share({ files: [file], title: filename }).then(later, (e: any) => { if (e?.name === "AbortError") later(); else open(); });
+      return;
+    }
+    open();                                       // no share sheet: the file opens in a new tab
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
 export function deliverPdf(pdf: any, filename: string, mw: Window | null) {
   if (mw) mw.location.href = pdf.output("bloburl") as string;
   else pdf.save(`${filename}.pdf`);

@@ -4,6 +4,8 @@
 // filter arrows, and optionally dropdown lists in some columns.
 // ─────────────────────────────────────────────────────────────
 
+import { saveFile } from "./PDFExport";
+
 export interface XlsxSheet {
   name:        string;
   rows:        (string | number)[][];     // first row = header
@@ -118,12 +120,8 @@ function zipStore(entries: [string, Uint8Array][]): Uint8Array {
   return out;
 }
 
-// Save a file: on iPhone it opens in the share/preview sheet, on a computer it downloads
+// Save a file: on iPhone / iPad the share sheet, on a computer a download (PDFExport › saveFile)
 export function saveBytes(bytes: Uint8Array, filename: string, mime: string) {
-  const blob = new Blob([bytes as BlobPart], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  saveFile(new Blob([bytes as BlobPart], { type: mime }), filename);
 }
 export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
