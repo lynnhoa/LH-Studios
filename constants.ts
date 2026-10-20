@@ -6,6 +6,8 @@
 // ─── FONTS ───────────────────────────────────────────────────
 export const SERIF = "'Playfair Display', serif";
 export const SANS  = "'Helvetica Neue', Arial, sans-serif";
+// Playfair (the logo's family) in its light cut — the profile menu. Loaded in index.html.
+export const SERIF_LIGHT = "'Playfair', 'Playfair Display', serif";
 
 // ─── TYPE SCALE ──────────────────────────────────────────────
 export const TYPE = {
@@ -209,5 +211,5 @@ export const SPACING = {
   listText: 13, listMeta: 11,              // list rows, like the dashboard's lists
   field: 40, rowField: 32,                 // fields alone · fields inside a 44 px row (6 px clear of each line)
   chip: 30, pill: 30, mainBtn: 40, tick: 22, tap: 44,
-  menuRow: 28, menuText: 13, menuWidth: 232,     // profile menu: compact 28 px rows
+  menuRow: 30, menuText: 14, menuWidth: 232,     // profile menu: 14 px Playfair Light in 30 px rows
 } as const;

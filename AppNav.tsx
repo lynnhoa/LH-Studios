@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { C, SANS, SERIF, TYPE, Z, TRACK, SHADOW, RADIUS, SPACING, PAL } from "./constants";
+import { C, SANS, SERIF, SERIF_LIGHT, TYPE, Z, TRACK, SHADOW, RADIUS, SPACING, PAL } from "./constants";
 import { initials } from "./formatters";
 import type { Role } from "./types";
 
@@ -20,15 +20,16 @@ export const APPS: { key: Role; label: string }[] = [
 export const appItems = (current: Role, switchTo: (r: Role) => void): MenuItem[] =>
   APPS.map(a => ({ key: a.key, label: a.label, active: a.key === current, onClick: () => { if (a.key !== current) switchTo(a.key); } }));
 
-// Compact rows: 13 px text in 28 px rows, the same menu in every app. No bullets and no
-// highlight bar: the app / entry you're on is black and medium, the others grey.
+// The rows: Playfair Light (the logo's family), 14 px in 30 px rows — the same menu in every
+// app, in a square box. No bullets and no highlight bar: the app / entry you're on is black
+// (regular), the others grey (light).
 const MENU_W   = SPACING.menuWidth;
 const ROW_H    = SPACING.menuRow;
 const itemStyle = (active: boolean, color: string): any => ({
-  display: "flex", alignItems: "center", width: "100%", height: ROW_H, padding: "0 12px",
-  background: "none", border: "none", cursor: "pointer", fontWeight: active ? 500 : 400,
-  textAlign: "left" as const, fontFamily: SANS, fontSize: TYPE.row.size, color: active ? C.black : color,
-  letterSpacing: TRACK.none, boxSizing: "border-box" as const,
+  display: "flex", alignItems: "center", width: "100%", height: ROW_H, padding: "0 14px",
+  background: "none", border: "none", cursor: "pointer", fontWeight: active ? 400 : 300,
+  textAlign: "left" as const, fontFamily: SERIF_LIGHT, fontSize: SPACING.menuText, color: active ? C.black : color,
+  letterSpacing: "0.01em", boxSizing: "border-box" as const,
 });
 
 export function AvatarMenu({ settings, roleLabel, items, apps, onSignOut, dropLeft = false }: {
@@ -52,9 +53,9 @@ export function AvatarMenu({ settings, roleLabel, items, apps, onSignOut, dropLe
       </button>
 
       {open && (
-        <div role="menu" style={{ position: "absolute", ...(dropLeft ? { left: 0 } : { right: 0 }), top: "calc(100% + 8px)", width: MENU_W, background: C.bg, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, overflow: "hidden", boxShadow: SHADOW.pop, zIndex: Z.menu, paddingBottom: 4 }}>
+        <div role="menu" style={{ position: "absolute", ...(dropLeft ? { left: 0 } : { right: 0 }), top: "calc(100% + 8px)", width: MENU_W, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 0, overflow: "hidden", boxShadow: SHADOW.pop, zIndex: Z.menu, paddingBottom: 4 }}>
           {/* who you are: name · role */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, padding: "10px 12px 8px", borderBottom: `1px solid ${C.hair}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, padding: "11px 14px 9px", borderBottom: `1px solid ${C.hair}` }}>
             <span style={{ fontSize: TYPE.figure.size, fontFamily: SERIF, color: C.black, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{settings?.name || settings?.company || "Lynn Hoa"}</span>
             <span style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, flexShrink: 0 }}>{roleLabel}</span>
           </div>
@@ -62,19 +63,19 @@ export function AvatarMenu({ settings, roleLabel, items, apps, onSignOut, dropLe
             const isAccount = (it: MenuItem) => /password|profile/i.test(it.label);
             const pages = items.filter(it => !isAccount(it)), account = items.filter(isAccount);
             const label = (t: string, first = false) => (
-              <div style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted, padding: "8px 12px 2px", borderTop: first ? "none" : `1px solid ${C.hair}`, marginTop: first ? 0 : 3 }}>{t}</div>
+              <div style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted, padding: "8px 14px 2px", borderTop: first ? "none" : `1px solid ${C.hair}`, marginTop: first ? 0 : 3 }}>{t}</div>
             );
             // "This app": a choice (accounts) shows the current one black, the others grey;
             // plain pages (Manager) stay black until one of them is open
             const choice = pages.some(it => it.active);
             return <>
-              {pages.length > 0 && <>{label("This app", true)}{pages.map(it => <button key={it.key} role="menuitem" onClick={() => run(it.onClick)} aria-current={it.active ? "page" : undefined} style={itemStyle(!!it.active, choice ? C.ink2 : C.black)}>{it.label}</button>)}</>}
+              {pages.length > 0 && <>{label("This app", true)}{pages.map(it => <button key={it.key} role="menuitem" onClick={() => run(it.onClick)} aria-current={it.active ? "page" : undefined} style={itemStyle(!!it.active, choice ? C.muted : C.black)}>{it.label}</button>)}</>}
               {label("Apps", pages.length === 0)}
               {apps.map(a => (
-                <button key={a.key} role="menuitem" onClick={() => run(a.onClick)} aria-current={a.active ? "page" : undefined} style={itemStyle(!!a.active, C.ink2)}>{a.label}</button>
+                <button key={a.key} role="menuitem" onClick={() => run(a.onClick)} aria-current={a.active ? "page" : undefined} style={itemStyle(!!a.active, C.muted)}>{a.label}</button>
               ))}
               {label("Account")}
-              {account.map(it => <button key={it.key} role="menuitem" onClick={() => run(it.onClick)} style={itemStyle(false, C.ink2)}>{it.label}</button>)}
+              {account.map(it => <button key={it.key} role="menuitem" onClick={() => run(it.onClick)} style={itemStyle(false, C.muted)}>{it.label}</button>)}
               <button role="menuitem" onClick={() => run(onSignOut)} style={itemStyle(false, C.red)}>Sign out</button>
             </>;
           })()}
