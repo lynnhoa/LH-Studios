@@ -58,7 +58,7 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
 
   // fee for a set of lines: each line uses its own card's % for the chosen option
   const feeFor = (kind: "usage" | "excl", opt: any, factor: number) =>
-    Math.round(selected.reduce((s: number, x: any) => s + x.base * pctOn(rc, x.l.cat || mainCat, kind, opt) / 100 * factor, 0));
+    r2(selected.reduce((s: number, x: any) => s + x.base * pctOn(rc, x.l.cat || mainCat, kind, opt) / 100 * factor, 0));   // cent-exact
   const factorOf = (opt: any, n: string, unit: "months" | "days") => {
     const v = parseInt(n) || 0;
     const refMo = Number(opt?.mo) || 1;

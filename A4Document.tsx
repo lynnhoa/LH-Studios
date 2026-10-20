@@ -6,7 +6,8 @@
 // ─────────────────────────────────────────────────────────────
 
 import { C, SANS, SERIF, CATEGORY, PDF } from "./constants";
-import { fmt, fmtD, r2 } from "./formatters";
+import { fmt, fmtD, fmtPct, r2 } from "./formatters";
+import { addonLabel } from "./pricing";
 import { SETTINGS_DEFAULT } from "./rateCards";
 import {
   docNet, retainerMonthly, linesSum, lineAmt, lineQty, vatInfo, taxNote, docTitle,
@@ -86,13 +87,19 @@ export function clauseContext(doc: DocView, lang: string, settings: any, client:
   const s = senderOf(doc, settings);
   const cl = clientOf(doc, client);
   const d = doc.data || {};
-  const net = docNet(doc.kind, d);
+  const sv: any = doc as any;
+  const net = sv.status && sv.status !== "draft" && typeof sv.net === "number" ? Number(sv.net) : docNet(doc.kind, d);   // sent: as sent
   const tax = vatInfo(s, cl);
   const lines = d.lines || [];
   const plat = [...new Set(lines.flatMap((ln: any) => ln.platforms || []))] as string[];
+  // retainer contracts (clause set 3 on): the fee also says what is invoiced each month
+  const perMonth = Number(d.clauseSet) >= 3 && d.retainer && Number(d.retMo) > 0
+    ? (de ? ` (${fmt(retainerMonthly(d))} pro Monat × ${d.retMo} Monate, monatliche Abrechnung)`
+          : ` (${fmt(retainerMonthly(d))} per month × ${d.retMo} months, invoiced monthly)`)
+    : "";
   return {
     creator: s.company || s.name || (de ? "Der/Die Auftragnehmer/in" : "The creator"),
-    fee: fmt(net) + (tax.mode === "domestic" ? (de ? ` zzgl. ${tax.rate} % USt.` : ` plus ${tax.rate} % VAT`) : ""),
+    fee: fmt(net) + perMonth + (tax.mode === "domestic" ? (de ? ` zzgl. ${tax.rate} % USt.` : ` plus ${tax.rate} % VAT`) : ""),
     deliverables: lines.length
       ? lines.map((ln: any) => `${lineQty(ln)}× ${ln.name}`).join(", ")
       : (de ? "den vereinbarten Content gemäß obiger Übersicht" : "the content specified above"),
@@ -176,14 +183,42 @@ export default function A4Document({
   );
 
   const catBadge: Record<string, string> = Object.fromEntries(Object.entries(CATEGORY).map(([k, v]) => [k, v.long]));
+  // New quotes, contracts and amendments (calcV 2): each priced item shows its content fee
+  // (qty × price per piece, after volume) and under it usage, exclusivity and every add-on with
+  // its own amount — together exactly the item's amount. Everything else keeps one row.
+  const breakdownOn = Number(d.calcV) >= 2 && (kind === "quote" || kind === "contract" || kind === "amendment");
+  const partsOf = (ln: any): { base: number; parts: { label: string; amt: number }[] } | null => {
+    if (!breakdownOn || ln?.pv !== 2 || typeof ln.base !== "number") return null;
+    const amt = lineAmt(ln), base = r2(ln.base);
+    const parts: { label: string; amt: number }[] = [];
+    const u = Number(ln.usagePct) || 0, e = Number(ln.exclPct) || 0;
+    if (u && ln.usageLabel) parts.push({ label: `${l ? "Nutzungsrechte" : "Usage rights"} · ${ln.usageLabel}`, amt: r2(base * u / 100) });
+    if (e && ln.exclLabel)  parts.push({ label: `${l ? "Exklusivität" : "Exclusivity"} · ${ln.exclLabel}`, amt: r2(base * e / 100) });
+    (Array.isArray(ln.addonDetail) ? ln.addonDetail : []).forEach((a: any) => {
+      const pct = (a.p === null || a.p === undefined) && Number(a.pct) ? ` (+${fmtPct(Number(a.pct))})` : "";
+      parts.push({ label: `${addonLabel(a)}${pct}`, amt: r2(Number(a.amt) || 0) });
+    });
+    const rest = r2(amt - base - parts.reduce((t, x) => t + x.amt, 0));   // a rounding cent goes on the last row
+    if (Math.abs(rest) > 0.004) { if (!parts.length) return null; parts[parts.length - 1].amt = r2(parts[parts.length - 1].amt + rest); }
+    return { base, parts };
+  };
   const TRow = ({ ln, prevLn, idx }: any) => {
     const showCat = !!(ln.cat && catBadge[ln.cat] && ln.cat !== prevLn?.cat);
     const includes   = ln.kind === "package" && Array.isArray(ln.includes) && ln.includes.length
       ? `${l ? "Enthält" : "Includes"} ${ln.includes.map((x: any) => `${x.qty || 1}× ${x.n}`).join(", ")}` : "";
-    const subDetails = [includes, ln.usageLabel, ln.exclLabel, ...(ln.addons || []), ...(ln.platforms || [])].filter(Boolean);
+    const bd   = partsOf(ln);
     const qty  = lineQty(ln);
     const amt  = lineAmt(ln);
-    const unit = Math.round((amt / qty) * 100) / 100;
+    const volTxt = bd && Number(ln.volPct) ? `−${fmtPct(Number(ln.volPct))} ${l ? "Mengenrabatt" : "volume"}` : "";
+    const subDetails = bd
+      ? [includes, volTxt, Number(ln.usagePct) ? "" : ln.usageLabel, Number(ln.exclPct) ? "" : ln.exclLabel, ...(ln.platforms || [])].filter(Boolean)
+      : [includes, ln.usageLabel, ln.exclLabel, ...(ln.addons || []), ...(ln.platforms || [])].filter(Boolean);
+    const rowAmt   = bd ? bd.base : amt;
+    const unit     = r2(rowAmt / qty);
+    const showUnit = Math.abs(r2(unit * qty) - rowAmt) < 0.005;   // no unit price that doesn't multiply out
+    // "Show discounts": the rate-card price per piece, struck through
+    const listPer  = d?.showDiscount && Number(ln.listAmt) > amt + 0.004
+      ? (bd && Number(ln.listPrice) ? r2(Number(ln.listPrice) * (1 - (Number(ln.volPct) || 0) / 100)) : r2(Number(ln.listAmt) / qty)) : 0;
     return (
       <div data-trow={idx} style={{ paddingTop: tRowGuards?.[idx] || 0, borderBottom: `1px solid ${PDF.rule}` }}>
         {showCat && (
@@ -199,11 +234,18 @@ export default function A4Document({
           </div>
           <span style={{ fontSize: 8, textAlign: "right" as const, color: PDF.label }}>{qty}</span>
           <span style={{ fontSize: 8, textAlign: "right" as const, color: PDF.label }}>
-            {d?.showDiscount && Number(ln.listAmt) > amt + 0.004 && <span style={{ display: "block", textDecoration: "line-through", color: PDF.faint }}>{fmt(Math.round((Number(ln.listAmt) / qty) * 100) / 100)}</span>}
-            {fmt(unit)}
+            {showUnit && listPer > unit + 0.004 && <span style={{ display: "block", textDecoration: "line-through", color: PDF.faint }}>{fmt(listPer)}</span>}
+            {showUnit ? fmt(unit) : ""}
           </span>
-          <span style={{ fontSize: 8, textAlign: "right" as const }}>{fmt(amt)}</span>
+          <span style={{ fontSize: 8, textAlign: "right" as const }}>{fmt(rowAmt)}</span>
         </div>
+        {bd && bd.parts.map((x, k) => (
+          <div key={k} style={{ padding: "0 0 3px", display: "grid", gridTemplateColumns: "1fr 26px 62px 64px", alignItems: "baseline" }}>
+            <span style={{ fontSize: 7.5, color: PDF.label, paddingLeft: 8 }}>{x.label}</span>
+            <span /><span />
+            <span style={{ fontSize: 8, textAlign: "right" as const }}>{fmt(x.amt)}</span>
+          </div>
+        ))}
       </div>
     );
   };
@@ -238,6 +280,20 @@ export default function A4Document({
   const TotalBlock = () => {
     if (kind === "amendment") {
       const orig = Number(d.origTotal) || 0;
+      if (tax.mode === "domestic") {
+        // the bottom line is what the brand pays for this amendment; the new contract value is a note
+        return (
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+            <div style={{ width: 200 }}>
+              <SumRow lb={l ? "Ursprünglicher Betrag (netto)" : "Original total (net)"} v={fmt(orig)} />
+              <SumRow lb={l ? "Nachtrag (netto)" : "Amendment (net)"} v={fmt(sum)} />
+              <VatRows base={sum} />
+              <GrandRow label={l ? "Nachtrag gesamt (brutto)" : "Amendment incl. VAT"} value={gross} />
+              <div style={{ marginTop: 5 }}><SumRow lb={l ? "Neuer Vertragswert (netto)" : "New contract value (net)"} v={fmt(orig + sum)} /></div>
+            </div>
+          </div>
+        );
+      }
       return (
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
           <div style={{ width: 200 }}>
@@ -254,7 +310,7 @@ export default function A4Document({
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
           <div style={{ width: 200 }}>
             <SumRow lb={l ? "Mtl. Zwischensumme" : "Monthly subtotal"} v={fmt(sum)} />
-            <SumRow lb={l ? `Retainer-Rabatt −${String(retDiscOf(d)).replace(".", ",")} %` : `Retainer discount −${String(retDiscOf(d)).replace(".", ",")} %`} v={`−${fmt(sum - monthly)}`} />
+            <SumRow lb={l ? `Retainer-Rabatt −${fmtPct(retDiscOf(d))}` : `Retainer discount −${fmtPct(retDiscOf(d))}`} v={`−${fmt(sum - monthly)}`} />
             <div style={{ borderTop: `1px solid ${PDF.rule}`, paddingTop: 4, marginTop: 3 }}>
               <SumRow lb={l ? "Monatliche Rate" : "Monthly fee"} v={fmt(monthly)} />
               <SumRow lb={`× ${d.retMo} ${l ? "Monate" : "months"}`} v={fmt(net)} />
@@ -277,7 +333,9 @@ export default function A4Document({
           </>}
           {kind === "invoice" && sub === "monthly" && (
             <p style={{ fontSize: 7, color: PDF.label, margin: "0 0 4px", textAlign: "right" as const }}>
-              {l ? "inkl. 20 % Retainer-Rabatt" : "incl. 20 % retainer discount"}
+              {d.retDisc !== undefined && d.retDisc !== null && d.retDisc !== ""
+                ? (l ? `Retainer-Positionen inkl. ${fmtPct(retDiscOf(d))} Retainer-Rabatt` : `Retainer lines incl. ${fmtPct(retDiscOf(d))} retainer discount`)
+                : (l ? "inkl. 20 % Retainer-Rabatt" : "incl. 20 % retainer discount")}
             </p>
           )}
           <GrandRow label={totalLabel} value={gross} />
@@ -409,8 +467,8 @@ export default function A4Document({
             <div style={{ paddingTop: 14, borderTop: `1px solid ${PDF.rule}` }}>
               <p style={{ fontSize: 8, color: PDF.label, lineHeight: 1.75, margin: "0 0 6px" }}>
                 {l
-                  ? `${d.validUntil ? `Dieses Angebot ist gültig bis ${fmtD(d.validUntil)}. ` : ""}Preise basieren auf dem vereinbarten Umfang. Produkt von der Marke gestellt. Nutzungsrechte zeitlich begrenzt. 1 Korrektur je Leistung inklusive.${isRet ? ` Retainer-Vereinbarung über ${d.retMo} Monate · monatliche Abrechnung · −20 % Retainer-Rabatt inklusive.` : ""}${tax.mode === "domestic" ? ` Alle Preise zzgl. ${tax.rate} % USt.` : ""}`
-                  : `${d.validUntil ? `This quote is valid until ${fmtD(d.validUntil)}. ` : ""}Prices based on agreed scope. Product provided by brand. Usage rights time-limited. One revision included per deliverable.${isRet ? ` Retainer agreement — ${d.retMo} months · invoiced monthly · −20 % retainer discount applied.` : ""}${tax.mode === "domestic" ? ` All prices plus ${tax.rate} % VAT.` : ""}`}
+                  ? `${d.validUntil ? `Dieses Angebot ist gültig bis ${fmtD(d.validUntil)}. ` : ""}Preise basieren auf dem vereinbarten Umfang. Produkt von der Marke gestellt. Nutzungsrechte zeitlich begrenzt. 1 Korrektur je Leistung inklusive.${isRet ? ` Retainer-Vereinbarung über ${d.retMo} Monate · monatliche Abrechnung · −${fmtPct(retDiscOf(d))} Retainer-Rabatt inklusive.` : ""}${tax.mode === "domestic" ? ` Alle Preise zzgl. ${tax.rate} % USt.` : ""}`
+                  : `${d.validUntil ? `This quote is valid until ${fmtD(d.validUntil)}. ` : ""}Prices based on agreed scope. Product provided by brand. Usage rights time-limited. One revision included per deliverable.${isRet ? ` Retainer agreement — ${d.retMo} months · invoiced monthly · −${fmtPct(retDiscOf(d))} retainer discount applied.` : ""}${tax.mode === "domestic" ? ` All prices plus ${tax.rate} % VAT.` : ""}`}
               </p>
               <p style={{ fontSize: 9, fontStyle: "italic", margin: "14px 0 0" }}>{d.footer || (l ? "Wir freuen uns auf die Zusammenarbeit." : "Looking forward to working together.")}</p>
             </div>

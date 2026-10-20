@@ -51,6 +51,30 @@ export function retDiscOf(d: any): number {
   return d?.retDisc !== undefined && d?.retDisc !== null && d?.retDisc !== "" && Number.isFinite(v) ? v : 20;
 }
 
+// The lines of one monthly retainer invoice.
+// Quotes made by the Calculator (calcV 2): every line with the retainer discount in cents and the
+// rounding rest on the largest line — the invoice is exactly the monthly fee of the quote.
+// Older quotes keep the rule their running retainer started with (skip list, whole euros per line).
+const RET_SKIP = ["usage","excl","rush","revision","whitelisting","aspect","raw footage","kill","pinned","link in bio"];
+export function retainerInvoiceLines(qd: any): any[] {
+  const lines: any[] = qd?.lines || [];
+  const pct = retDiscOf(qd);
+  if (Number(qd?.calcV) >= 2) {
+    const out = lines.map((l: any) => ({ ...l, amt: r2(lineAmt(l) * (1 - pct / 100)) }));
+    const rest = r2(retainerMonthly(qd) - linesSum(out));
+    if (out.length && Math.abs(rest) > 0.004) {
+      let k = 0;
+      out.forEach((l: any, i: number) => { if (lineAmt(l) > lineAmt(out[k])) k = i; });
+      out[k] = { ...out[k], amt: r2(lineAmt(out[k]) + rest) };
+    }
+    return out;
+  }
+  return lines.map((l: any) => {
+    const amt = parseFloat(l.amt) || 0;
+    return { ...l, amt: RET_SKIP.some(s => (l.name || "").toLowerCase().includes(s)) ? amt : Math.round(amt * (1 - pct / 100)) };
+  });
+}
+
 // ─── VAT ─────────────────────────────────────────────────────
 // mode: "ku"       → Kleinunternehmer, no VAT (§ 19 note)
 //       "domestic" → VAT is charged

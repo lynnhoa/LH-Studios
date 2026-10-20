@@ -4,8 +4,9 @@
 // Catalog, the rate-card PDF and the renewal builder.
 // ─────────────────────────────────────────────────────────────
 
-import { r2, addM, addD, today, fmt, fmtPct } from "./formatters";
+import { r2, addD, today, fmt, fmtPct } from "./formatters";
 import { RENEWAL_OPTS } from "./rateCards";
+import { projectLicenses } from "./licenses";
 
 // ─── SECTION TYPES ───────────────────────────────────────────
 export type SectionKind = "deliverables" | "packages" | "usage" | "exclusivity" | "addons" | "info";
@@ -268,7 +269,8 @@ export function requantify(ln: any, qty: number): any {
       const list = Number.isFinite(lp) && Math.abs(lp - ln.up) > 0.004 ? priceLine({ ...args, qty: q, unit: lp }) : null;
       const out: any = { ...ln, qty: calc.qty, base: calc.base, volPct: calc.volPct, addonDetail: calc.addons, addons: calc.addons.map(addonLabel), amt: calc.amt };
       if (list && list.amt > calc.amt + 0.004) out.listAmt = list.amt; else delete out.listAmt;
-      if (!calc.volPct && ln.vol) out.vol = false;   // below its first tier the volume discount switches off
+      // the agreed volume discount stays with the line: below its first tier it simply gives 0 %,
+      // back above it applies again (documents and agreed revision items have no switch)
       return out;
     }
   }
@@ -312,22 +314,11 @@ export function pctOn(rc: any, cat: string, kind: "usage" | "excl", opt: any): n
   return pctOnInfo(rc, cat, kind, opt).pct;
 }
 
-// When the current license ends (usage), across the original quote and renewals
+// When the current usage license ends — the same end the Licenses tab shows (one source):
+// paid usage incl. whitelisting, renewals and rights extensions; without paid usage, the organic end.
 export function licenseEnd(pr: any): string | null {
-  const usageMo = (() => {
-    let mo = 0;
-    (pr?.qd?.lines || []).forEach((ln: any) => {
-      const m = /(\d+)\s*month/i.exec(String(ln.usageLabel || ""));
-      if (m && /paid/i.test(String(ln.usageLabel))) mo = Math.max(mo, parseInt(m[1]));
-    });
-    return mo;
-  })();
-  let end: string | null = pr?.usageEndOverride || (pr?.deliveryDate && usageMo ? addM(pr.deliveryDate, usageMo) : null);
-  (pr?.renewals || []).forEach((r: any) => {
-    if (r.type === "excl") return;
-    if (r.endDate && (!end || r.endDate > end)) end = r.endDate;
-  });
-  return end;
+  const ls = projectLicenses(pr);
+  return ls.find(l => l.kind === "paid")?.end || ls.find(l => l.kind === "organic")?.end || null;
 }
 
 export const renewalStart = (pr: any): string => {

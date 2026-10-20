@@ -80,13 +80,22 @@ export function wsLines(pr: any): WorkLine[] {
     const qty  = parseInt(ln.qty) || 1;
     const incl = Array.isArray(ln.includes) ? ln.includes.filter((x: any) => x && x.n) : [];
     const mTag = month ? `M${pad2(month)}` : "";
+    // content add-ons (extra Story frames, images, video cuts, hooks, formats) are work too —
+    // one item per piece, own keys (lines from before have no add-on keys, so nothing changes there)
+    const addAddons = () => (Array.isArray(ln.addonDetail) ? ln.addonDetail : []).forEach((a: any) => {
+      if (!a?.work || !a?.key || !a?.n) return;
+      out.push({ key: `${prefix}_ln${li}_ad${a.key}`, li, name: a.n, note: [mTag, source, `Add-on · ${ln.name}`].filter(Boolean).join(" · "),
+        qty: Math.max(1, Math.round(Number(a.count) || 1)), cat: ln.cat, line: { ...ln, name: a.n }, month, deadline });
+    });
     if (ln.kind === "package" && incl.length) {
       incl.forEach((inc: any, k: number) => {
         out.push({ key: `${prefix}_ln${li}_p${k}`, li, name: inc.n, note: [mTag, source, ln.name].filter(Boolean).join(" · "), qty: (parseInt(inc.qty) || 1) * qty, cat: ln.cat, line: { ...ln, name: inc.n }, month, deadline });
       });
+      addAddons();
       return;
     }
     out.push({ key: `${prefix}_ln${li}`, li, name: ln.name, note: [mTag, source, ln.note || ""].filter(Boolean).join(" · "), qty, cat: ln.cat, line: ln, month, deadline });
+    addAddons();
   };
   const months = retainerMonths(pr);
   if (months.length) {

@@ -11,7 +11,7 @@ import { registerReloader } from "./saveStatus";
 import {
   quoteNo, contractNo, amendNo, invoiceNo, projectNoFrom, pnoFromQNo, yearOf,
   docMoney, docNet, linesSum, senderSnapshot, clientSnapshot, profileGaps, dueFrom,
-  currentQuote, currentContract, projectInvoice, monthlyInvoices, nextRetainerMonth, retDiscOf } from "./docs";
+  currentQuote, currentContract, projectInvoice, monthlyInvoices, nextRetainerMonth, retDiscOf, retainerInvoiceLines } from "./docs";
 import type {
   Client, Project, Amendment, Renewal, MonthlyInvoice,
   Deliverable, QuoteDoc, ProjectStatus, DocRecord,
@@ -1095,7 +1095,7 @@ export function useClients(userId: string | null): UseClientsReturn {
     const revs = (project.documents || []).filter(d => d.kind === "contract").map(d => d.revision);
     const rev  = revs.length ? Math.max(...revs) + 1 : 0;
     const { sender: _s, client: _c, ...qd } = project.qd || ({} as any);
-    const content = { ...qd, qNo: quoteNo(pno), quoteNo: quoteNo(pno), contractNo: contractNo(pno), footer: "", clauseSet: 2 };   // § 4 with the start date
+    const content = { ...qd, qNo: quoteNo(pno), quoteNo: quoteNo(pno), contractNo: contractNo(pno), footer: "", clauseSet: 3 };   // set 2: § 4 with the start date · set 3: retainer fee per month
     const d = await insertDoc(clientId, projectId, {
       kind: "contract", docNo: contractNo(pno), revision: rev, status: "draft",
       docDate: today(), lang: q?.lang || "en", data: content, ...money("contract", content, settings, client),
@@ -1113,7 +1113,7 @@ export function useClients(userId: string | null): UseClientsReturn {
     await patchDoc(clientId, projectId, cur.id, { status: "superseded" });
     const rev = cur.revision + 1;
     const { sender: _s, client: _c, ...rest } = cur.data || {};
-    const content = { ...rest, clauseSet: 2 };   // not signed yet → the new § 4 wording
+    const content = { ...rest, clauseSet: 3 };   // not signed yet → the newest clause wording
     const d = await insertDoc(clientId, projectId, {
       kind: "contract", docNo: cur.docNo, revision: rev, status: "draft",
       docDate: today(), lang: cur.lang, data: content, ...money("contract", content, settings, client),
@@ -1191,13 +1191,9 @@ export function useClients(userId: string | null): UseClientsReturn {
     const m = nextRetainerMonth(project);
     if (!m) throw new Error("All months of this retainer are invoiced.");
     const pno = await ensureProjectNo(clientId, project);
-    const skip = ["usage","excl","rush","revision","whitelisting","aspect","raw footage","kill","pinned","link in bio"];
-    const lines = (project.qd?.lines || []).map((l: any) => {
-      const amt = parseFloat(l.amt) || 0;
-      return { ...l, amt: skip.some(s => (l.name || "").toLowerCase().includes(s)) ? amt : Math.round(amt * (1 - retDiscOf(project.qd) / 100)) };
-    });
+    const lines = retainerInvoiceLines(project.qd);                  // new quotes: exactly the monthly fee
     const toBill = unbilledAmendments(project);                      // signed amendments go on the next month once
-    const content = { ...baseInvoiceContent(client, project, pno), lines: [...lines, ...toBill.flatMap(a => a.lines || [])], retainer: true, retMo: project.qd?.retMo, monthNo: m };
+    const content = { ...baseInvoiceContent(client, project, pno), lines: [...lines, ...toBill.flatMap(a => a.lines || [])], retainer: true, retMo: project.qd?.retMo, retDisc: retDiscOf(project.qd), monthNo: m };
     const dd = today();
     const d = await insertDoc(clientId, projectId, {
       kind: "invoice", subtype: "monthly", monthNo: m, docNo: "", status: "draft",

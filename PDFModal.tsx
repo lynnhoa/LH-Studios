@@ -18,6 +18,7 @@ import { openPdfWindow } from "./PDFExport";
 import DocPages, { buildDocPdf } from "./DocPages";
 import { clauseContext, clauseTemplates, fillTokens, tokenizeClause } from "./A4Document";
 import { STATUS_LABEL, docFileName, lineAmt, lineQty } from "./docs";
+import { requantify, lineBase } from "./pricing";
 import type { DocView } from "./docs";
 
 export interface DocAction {
@@ -51,6 +52,22 @@ const clone = (x: any) => JSON.parse(JSON.stringify(x));
 const DOC_TONE: Record<string, Tone> = {
   draft: "neutral", sent: "waiting", signed: "progress", paid: "done", cancelled: "late", superseded: "neutral",
 };
+
+// Quantity of a line in the edit panel: type freely; the line is priced again once you
+// leave the field (or press Enter), so in-between numbers never touch the price.
+function QtyInput({ value, onCommit }: { value: number; onCommit: (q: number) => void }) {
+  const [t, setT] = useState(String(value));
+  const [focus, setFocus] = useState(false);
+  useEffect(() => { if (!focus) setT(String(value)); }, [value, focus]);
+  const commit = () => { const n = parseInt(t); if (n >= 1 && n !== value) onCommit(n); else setT(String(value)); };
+  return (
+    <I type="text" inputMode="numeric" value={t} aria-label="Quantity"
+      onFocus={() => setFocus(true)}
+      onBlur={() => { setFocus(false); commit(); }}
+      onKeyDown={(e: any) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+      onChange={(e: any) => setT(String(e.target.value).replace(/[^\d]/g, ""))} />
+  );
+}
 
 export default function PDFModal({
   doc, settings, client, editable, isNew, justSaved, note, onSave, onPdf, pdfConfirm, sendBlock, actions = [], onClose,
@@ -218,13 +235,15 @@ export default function PDFModal({
       const lines = [...(d.lines || [])];
       const ln = { ...lines[i] };
       if (key === "qty") {
-        const oldQ = lineQty(ln);
-        const newQ = Math.max(1, parseInt(raw) || 1);
-        ln.amt = r2(lineAmt(ln) / oldQ * newQ);
-        ln.qty = newQ;
+        // priced like in the Calculator (volume tiers, add-ons, rate-card price); lines that were
+        // discounted or typed by hand are scaled per piece, as before (pricing → requantify)
+        lines[i] = requantify(ln, Math.max(1, parseInt(raw) || 1));
+        return { ...d, lines };
       } else if (key === "amt") {
         const v = parseFloat(String(raw).replace(",", "."));
         ln.amt = Number.isFinite(v) ? r2(v) : 0;
+        // keep the stored item price in step (renewals and the breakdown read it)
+        if (typeof ln.base === "number") ln.base = lineBase({ ...ln, base: undefined });
       } else {
         ln[key] = raw;
       }
@@ -373,7 +392,7 @@ export default function PDFModal({
                   </div>
                   <I value={ln.note || ""} onChange={(e: any) => updLine(i, "note", e.target.value)} s={{ marginBottom: 5, color: C.muted }} placeholder="note (optional)" />
                   <div style={{ display: "grid", gridTemplateColumns: "64px 1fr", gap: 6, alignItems: "center" }}>
-                    <I type="number" min={1} value={lineQty(ln)} onChange={(e: any) => updLine(i, "qty", e.target.value)} />
+                    <QtyInput value={lineQty(ln)} onCommit={(q) => updLine(i, "qty", String(q))} />
                     <NumField value={lineAmt(ln)} onChange={(n) => updLine(i, "amt", n === null ? "" : String(n))} placeholder="Amount €" ariaLabel="Amount" />
                   </div>
                   <p style={{ fontSize: TYPE.micro.size, color: C.muted, margin: "5px 0 0" }}>Unit price {fmt(lineAmt(ln) / lineQty(ln))}</p>

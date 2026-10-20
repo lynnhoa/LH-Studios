@@ -55,6 +55,11 @@ export function projectLicenses(pr: any, client?: any): License[] {
       const e = String(l.exclLabel || "");
       const emo = Number(l.exclMo) || monthsOf(e);
       if (e && emo) ends.excl.push(addM(start, emo));
+      // whitelisting / boosting (ads through your account) is paid usage for its months
+      (Array.isArray(l.addonDetail) ? l.addonDetail : []).forEach((a: any) => {
+        const wmo = Number(a?.months) || 0;
+        if (wmo && /whitelist|boost/i.test(String(a?.n || ""))) ends.paid.push(addM(start, wmo));
+      });
     });
   }
   // manual end date for the usage rights (project setting)
