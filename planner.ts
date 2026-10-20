@@ -189,18 +189,71 @@ export const STAGE_SHORT = ["Setup", "Sales", "Business", "Access", "Luxury"];
 
 export const ITEM_STATUSES: { key: ItemStatus; label: string }[] = [
   { key: "idea",    label: "Idea" },
-  { key: "planned", label: "Planned · to shoot" },
-  { key: "shot",    label: "Filmed" },
+  { key: "planned", label: "To shoot" },
+  { key: "shot",    label: "To post" },              // filmed, not posted yet
   { key: "posted",  label: "Posted" },
   { key: "in_kit",  label: "In kit" },
 ];
 export const itemStatusLabel = (k: ItemStatus) => ITEM_STATUSES.find(x => x.key === k)?.label || k;
+// ── Creator lists: Idea → To shoot → To post (filmed) → Posted ─────────────
+// One status per idea; the list it sits in and the ticks in its window both read it.
+export type ItemStage = "idea" | "planned" | "shot" | "posted";
+export const isPostedStatus = (s: ItemStatus) => s === "posted" || s === "in_kit";
+export const isFilmedStatus = (s: ItemStatus) => s === "shot" || isPostedStatus(s);
+// an older idea that only got a date (Plan › before) is on the shoot list too
+export const itemStageOf = (it: Item): ItemStage =>
+  isPostedStatus(it.status) ? "posted" : it.status === "shot" ? "shot" : it.status === "planned" || !!it.plannedOn ? "planned" : "idea";
+export const ITEM_STAGE_LABEL: Record<ItemStage, string> = { idea: "Idea", planned: "To shoot", shot: "To post", posted: "Posted" };
+
+// ── Types: one per idea; everything except Content counts for the portfolio ──
+export const CONTENT = "Content";
+export const BRAND_POST = "Brand post";
+export const TYPES: Record<Account, string[]> = {
+  lynnhoa:      [CONTENT, "Fashion editorial", BRAND_POST],
+  createbylynn: [CONTENT, "Product video", "Problem → solution", "Beauty editorial", BRAND_POST],
+};
+const OLD_BRAND = ["Branded content", "Brand content"];          // earlier names, shown as Brand post
+export const typeOf = (it: Item): string =>
+  it.list !== "editorial" ? CONTENT : OLD_BRAND.includes(it.format) ? BRAND_POST : (it.format || TYPES[it.account]?.[1] || BRAND_POST);
+export const typePatch = (acc: Account, type: string): Partial<Item> =>
+  type === CONTENT ? { list: "idea", format: CLASSIC, portfolio: false } : { list: "editorial", format: type, portfolio: true };
+
+// ── Reference links: the platform and a short line (handle or path) ─────────
+const LINK_PLATFORMS: [RegExp, string][] = [
+  [/(^|\.)tiktok\.com$/, "TikTok"],
+  [/(^|\.)instagram\.com$|^instagr\.am$/, "Instagram"],
+  [/(^|\.)youtube\.com$|^youtu\.be$/, "YouTube"],
+  [/(^|\.)pinterest\.[a-z.]+$|^pin\.it$/, "Pinterest"],
+];
+export function linkInfo(raw: string): { platform: string; short: string; href: string } {
+  const s = String(raw || "").trim();
+  if (!s) return { platform: "Link", short: "", href: "" };
+  const href = /^https?:\/\//i.test(s) ? s : `https://${s}`;
+  let host = "", seg: string[] = [];
+  try {
+    const u = new URL(href);
+    host = u.hostname.toLowerCase().replace(/^(www|m|vm|vt)\./, "");
+    seg = u.pathname.split("/").filter(Boolean);
+  } catch { return { platform: "Link", short: s, href: "" }; }          // not a link (a note): nothing to open
+  if (!host.includes(".")) return { platform: "Link", short: s, href: "" };
+  const platform = (LINK_PLATFORMS.find(([re]) => re.test(host)) || [null, "Link"])[1] as string;
+  const at = seg.find(x => x.startsWith("@"));
+  let short = host;
+  if (at) short = `${at} · ${host}`;
+  else if (platform === "Instagram" && seg[0]) short = ["p", "reel", "reels", "tv", "stories", "explore"].includes(seg[0]) ? `${host}/${seg[0]}` : `@${seg[0]} · ${host}`;
+  return { platform, short, href };
+}
+// Looks like a link (pasted into + Add or the links field)
+export const isUrlLike = (raw: string) => {
+  const s = String(raw || "").trim();
+  return !/\s/.test(s) && (/^(https?:\/\/|www\.)\S+\.\S+/i.test(s) || /^([a-z0-9-]+\.)*(tiktok\.com|instagram\.com|youtube\.com|youtu\.be|pinterest\.[a-z.]+|pin\.it)(\/|$)/i.test(s));
+};
 
 // Formats per account (portfolio pieces) + classic content
 export const CLASSIC = "TikTok/Reels";
 export const FORMATS: Record<Account, string[]> = {
-  lynnhoa:      ["Fashion editorial", "Branded content"],
-  createbylynn: ["Product video", "Problem → solution", "Beauty editorial", "Brand content"],
+  lynnhoa:      ["Fashion editorial", "Brand post"],
+  createbylynn: ["Product video", "Problem → solution", "Beauty editorial", "Brand post"],
 };
 const FORMAT_LOOK: Record<string, Look> = {};   // formats are categories: neutral, the word says it
 export const formatLook = (f: string): Look => FORMAT_LOOK[f] || { label: f || CLASSIC, color: PAL.neutral.ink, bg: PAL.neutral.fill, border: "#e2ddd6" };

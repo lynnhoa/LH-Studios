@@ -14,8 +14,9 @@ import { C, SANS, SERIF, TYPE, PAL, RADIUS, SHADOW, TRACK } from "./constants";
 import {
   OWNER_LOOK, TONE, accLook, stageOf, stageNumOf, gateOf, isVisible, addDays, entryKey, monthName, isoWeek, weekRange,
   fmtInt, fmtPct2, monthGoalOf, thisMonday, todayIndex, MANAGER_GOAL, CREATOR_GOAL, managerOrder, creatorOrder, rowKind, snapKey, shortName, isTotal,
+  itemStageOf, ITEM_STAGE_LABEL,
 } from "./planner";
-import type { Account, Task } from "./planner";
+import type { Account, Task, ItemStage } from "./planner";
 import { monthStart, monthEnd, today } from "./formatters";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
@@ -225,12 +226,9 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
     return tile(t.id, cLook.border, shortName(t), <>{s.actual ?? 0} {small(`/ ${s.target ?? "–"}`)}</>, goalSub(t), { ratio: 0, done: s.done, empty: s.target == null });
   });
   const mine = items.filter(i => i.account === acc);
-  const flow = [
-    { l: "Ideas",    n: mine.filter(i => i.status === "idea" && !i.plannedOn).length },
-    { l: "To shoot", n: mine.filter(i => i.status === "planned" || (i.status === "idea" && !!i.plannedOn)).length },
-    { l: "Filmed",   n: mine.filter(i => i.status === "shot").length },
-    { l: "Posted",   n: mine.filter(i => i.status === "posted" || i.status === "in_kit").length },
-  ];
+  // the Creator lists: Ideas → To shoot → To post (filmed) → Posted
+  const flow = (["idea", "planned", "shot", "posted"] as ItemStage[]).map(st => ({ l: st === "idea" ? "Ideas" : ITEM_STAGE_LABEL[st], st, n: mine.filter(i => itemStageOf(i) === st).length }));
+  const flowTone: Record<string, string | undefined> = { planned: PAL.progress.mid, shot: PAL.waiting.mid, posted: PAL.done.mid };
   const ms = monthStart(monday), me = monthEnd(monday);
   const fsT = tasks.find(t => t.source === "portfolio_total" && t.account === acc && t.active);
   const fs = fsT ? planner.stateOf(fsT, monday) : null;
@@ -240,7 +238,7 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
   const maxFlow = Math.max(1, ...flow.map(f => f.n));
   const flowCard = (
     <>
-      <div style={{ marginTop: 10 }}><BarList rows={flow.map(f => ({ key: f.l, label: f.l, value: String(f.n), pct: (f.n / maxFlow) * 100, color: f.l === "Posted" && f.n ? PAL.done.mid : undefined }))} /></div>
+      <div style={{ marginTop: 10 }}><BarList rows={flow.map(f => ({ key: f.l, label: f.l, value: String(f.n), pct: (f.n / maxFlow) * 100, color: f.n ? flowTone[f.st] : undefined }))} /></div>
       <LinkRow icon={<DashIcon tone={goal != null && doneMonth >= goal ? PAL.done : PAL.neutral}>{gl("M4 5h16v14H4zM4 15l5-5 4 4 3-3 4 4")}</DashIcon>} label={`Portfolio · ${monthName(monday).slice(0, 3)}`}
         tag={`${doneMonth} / ${goal ?? "–"}`} tone={goal != null && doneMonth >= goal ? PAL.done : PAL.waiting} tagFilled={goal != null} />
       {fs && fsT && <LinkRow icon={<DashIcon tone={fs.done ? PAL.done : PAL.neutral}>{gl("M5 12l4 4 10-10")}</DashIcon>} label="First set" tag={`${fs.actual ?? 0} / ${fsT.target ?? "–"}${fs.done ? " ✓" : ""}`} tone={fs.done ? PAL.done : PAL.waiting} />}

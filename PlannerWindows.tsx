@@ -9,13 +9,15 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE, Z } from "./constants";
+import { C, SANS, SERIF, TYPE, Z, PAL, RADIUS, TRACK, SHADOW } from "./constants";
 import { fmtD, today, monthStart, monthEnd, ymd } from "./formatters";
-import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN } from "./atoms";
+import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN, Switch, TextInline, MiniInput } from "./atoms";
+import type { ToneSet } from "./atoms";
 import {
   ACCOUNTS, PHASES, OWNERS, RHYTHMS, STATUSES, STAGE_SHORT, DAY_SHORT, accLook, phaseLabel, ownerLabel, rhythmLabel, rowKind, entryKey, periodOf, snapKey, addDays, isoWeek, weekRange, weekLabel, thisMonday, monthName, todayIndex, gateOf, stageNumOf, taskAccounts, isVisible, byOrder, fmtInt, fmtPct2, parseDec, parseIntDe, ITEM_STATUSES, FORMATS, CLASSIC, formatLook, itemStatusLabel, daysBetween, OWNER_LOOK, monthGoalOf, monthGoalPatch, loadWorkAccount, storyLines,
+  isPostedStatus, isFilmedStatus, linkInfo, isUrlLike, itemStageOf, ITEM_STAGE_LABEL, TYPES, typeOf, typePatch, CONTENT,
 } from "./planner";
-import type { Task, Stage, TaskAccount, AccountFilter, Phase, Rhythm, Item, ItemList, ItemStatus, ItemPlan, Account, NoteKind, Sprint, SprintResults, Owner } from "./planner";
+import type { Task, Stage, TaskAccount, AccountFilter, Phase, Rhythm, Item, ItemList, ItemStatus, ItemPlan, Account, NoteKind, Sprint, SprintResults, Owner, ItemStage } from "./planner";
 import { OUTREACH_CATEGORIES, OUTREACH_TIERS, catOf } from "./outreach";
 import type { PlannerHook } from "./usePlanner";
 import { showUndo, XBtn } from "./undo";
@@ -31,6 +33,8 @@ export const IC = {
   right:  "M9 6l6 6-6 6",
   more:   "M5 12h.01M12 12h.01M19 12h.01",
   link:   "M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1",
+  open:   "M10.5 6.5H8a2.5 2.5 0 0 0-2.5 2.5v7A2.5 2.5 0 0 0 8 18.5h7a2.5 2.5 0 0 0 2.5-2.5v-2.5M13.5 5.5h5v5M18.5 5.5l-7 7",
+  tag:    "M4 4h7l9 9-7 7-9-9zM8.5 8.5h.01",
   lock:   "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z",
   arrow:  "M5 12h14M13 6l6 6-6 6",
   down:   "M6 9l6 6 6-6",
@@ -277,19 +281,86 @@ export const CountChip = ({ label, n, look }: { label: string; n: number; look?:
 );
 
 // ── one-level window: full screen on the phone, centred elsewhere ─
-export function Window({ title, isMobile, onClose, children, footer }: { title: string; isMobile: boolean; onClose: () => void; children: any; footer?: any }) {
+export function Window({ title, isMobile, onClose, children, footer, head }: { title: string; isMobile: boolean; onClose: () => void; children: any; footer?: any; head?: any }) {
   return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", background: isMobile ? C.bg : "rgba(250,249,247,0.85)", fontFamily: SANS, color: C.black }}>
       <div style={{ width: "100%", maxWidth: isMobile ? "none" : 480, maxHeight: isMobile ? "none" : "88vh", background: C.bg, border: isMobile ? "none" : `1px solid ${C.rule}`, borderRadius: isMobile ? 0 : 2, boxShadow: isMobile ? "none" : "0 8px 32px rgba(0,0,0,0.12)", display: "flex", flexDirection: "column", paddingTop: isMobile ? "env(safe-area-inset-top)" : 0 }}>
         <div style={{ height: 44, display: "flex", alignItems: "center", gap: 6, padding: "0 8px 0 2px", borderBottom: `1px solid ${C.rule}`, flexShrink: 0, background: C.white }}>
           <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 20, flexShrink: 0 }}>✕</button>
-          <span style={{ fontFamily: SERIF, fontSize: 15, color: C.black, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{title}</span>
+          {head || <span style={{ fontFamily: SERIF, fontSize: 15, color: C.black, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{title}</span>}
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px 16px" }}>{children}</div>
         {footer && <div style={{ padding: `10px 14px ${isMobile ? "calc(10px + env(safe-area-inset-bottom))" : "10px"}`, borderTop: `1px solid ${C.rule}`, flexShrink: 0, background: C.white }}>{footer}</div>}
       </div>
     </div>,
     document.body
+  );
+}
+
+// ── An idea's steps: Idea → To shoot (Shot) → To post (Filmed) → Posted ─────────
+// One status per idea: the Creator list it sits in and the ticks in its window both read it.
+// A later step includes the earlier ones; going back clears the later days. The days are set
+// by the tap (they are what the week's goals count); the shoot date is the only typed one.
+export const STAGE_TONE: Record<ItemStage, ToneSet> = { idea: PAL.neutral, planned: PAL.progress, shot: PAL.waiting, posted: PAL.done };
+export const ACC_TONE: Record<Account, ToneSet> = { lynnhoa: PAL.lynnhoa, createbylynn: PAL.createbylynn };
+const stagePatch = (it: Item, st: ItemStage): Partial<Item> => {
+  const posted = st === "posted", filmed = st === "shot" || posted;
+  return {
+    status: posted ? (it.status === "in_kit" ? "in_kit" : "posted") : st,
+    postedOn: posted ? (it.postedOn || today()) : null,
+    plannedOn: st === "idea" ? null : it.plannedOn,
+    plan: { ...it.plan, filmedOn: filmed ? (it.plan.filmedOn || today()) : null },
+  };
+};
+// Move an idea to a list. With undo: "Moved to …" · Undo puts status and every day back exactly.
+export function moveTo(planner: PlannerHook, it: Item, st: ItemStage, undo = false) {
+  const before: Partial<Item> = { status: it.status, postedOn: it.postedOn, plannedOn: it.plannedOn, plan: it.plan };
+  const p = planner.updateItem(it.id, stagePatch(it, st));
+  if (undo) showUndo(`Moved to ${ITEM_STAGE_LABEL[st]}`, () => planner.updateItem(it.id, before));
+  return p;
+}
+// one tick box (44 px to tap) — the Creator list's ticks
+export const TickBox = ({ on, tone, onClick, ariaLabel, size = 20 }: { on: boolean; tone: ToneSet; onClick: () => void; ariaLabel: string; size?: number }) => (
+  <button role="checkbox" aria-checked={on} aria-label={ariaLabel} onClick={(e) => { e.stopPropagation(); onClick(); }}
+    style={{ width: 44, height: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", padding: 0, cursor: "pointer", flexShrink: 0 }}>
+    <span style={{ width: size, height: size, borderRadius: RADIUS.check, border: `1.5px solid ${on ? tone.mid : C.light}`, background: on ? tone.mid : C.white, display: "inline-flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" as const }}>
+      {on && <span style={{ fontSize: Math.round(size * 0.55), color: C.white, lineHeight: 1, fontWeight: 500 }}>✓</span>}
+    </span>
+  </button>
+);
+const WD3 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+// "Mon 20.10."
+export const dayShort = (d?: string | null) => {
+  if (!d) return "";
+  const dt = new Date(`${String(d).slice(0, 10)}T12:00:00`);
+  return isNaN(+dt) ? "" : `${WD3[dt.getDay()]} ${String(d).slice(8, 10)}.${String(d).slice(5, 7)}.`;
+};
+// a section of the idea window: a small coloured circle with its icon + the label (+ something on the right)
+const WinHead = ({ icon, label, tone, right }: { icon: string; label: string; tone: ToneSet; right?: any }) => (
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, margin: "16px 2px 7px" }}>
+    <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted }}>
+      <span style={{ width: 22, height: 22, borderRadius: "50%", background: tone.wash, color: tone.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={icon} size={12} /></span>
+      {label}
+    </span>
+    {right}
+  </div>
+);
+const winCard: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden" };
+// the title: shown at 22 px (typed at 16 px underneath, so the iPhone doesn't zoom)
+function TitleField({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [t, setT] = useState(value);
+  const [focus, setFocus] = useState(false);
+  useEffect(() => { if (!focus) setT(value); }, [value, focus]);
+  const k = 22 / 16, H = 34;
+  return (
+    <span style={{ position: "relative", display: "block", height: H, margin: "2px 0 10px" }}>
+      <input value={t} aria-label="Title" onFocus={() => setFocus(true)} onChange={(e) => setT(e.target.value)}
+        onBlur={() => { setFocus(false); if (t.trim() && t !== value) onSave(t.trim()); else setT(value); }}
+        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        style={{ position: "absolute", left: -6, top: 0, width: `calc((100% + 12px) / ${k})`, height: H / k, transform: `scale(${k})`, transformOrigin: "left top",
+          fontFamily: SERIF, fontSize: 16, color: C.black, background: focus ? C.white : "transparent", border: `1px solid ${focus ? C.edge : "transparent"}`,
+          borderRadius: 8 / k, padding: `0 ${6 / k}px`, outline: "none", boxSizing: "border-box" as const, margin: 0, WebkitAppearance: "none" as const }} />
+    </span>
   );
 }
 
@@ -622,7 +693,7 @@ function IdeasCard({ task, planner, period }: { task: Task; planner: PlannerHook
   };
   return (
     <Card title="Added this week" right={list.length}>
-      {list.length === 0 ? emptyLine("No ideas yet this week.") : list.map((i, k) => itemLine(i.id, i.title, tagText(`${itemStatusLabel(i.status)} · ${dm(ymd(new Date(i.createdAt)))}`), k === list.length - 1))}
+      {list.length === 0 ? emptyLine("No ideas yet this week.") : list.map((i, k) => itemLine(i.id, i.title, tagText(`${ITEM_STAGE_LABEL[itemStageOf(i)]} · ${dm(ymd(new Date(i.createdAt)))}`), k === list.length - 1))}
       {period === thisMonday() && (
         <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
           <I value={t} onChange={(e: any) => setT(e.target.value)} placeholder="New idea" aria-label="New idea"
@@ -634,19 +705,20 @@ function IdeasCard({ task, planner, period }: { task: Task; planner: PlannerHook
   );
 }
 
-// Posts (or portfolio pieces) this week: posted ones, and planned ones with one tap to Posted
+// Posts (or portfolio pieces) this week: filmed ones waiting to be posted (one tap to Posted),
+// and the ones posted this week
 function PostsCard({ task, planner, monday, portfolioOnly }: { task: Task; planner: PlannerHook; monday: string; portfolioOnly: boolean }) {
   const accs = taskAccounts(task);
   const end = addDays(monday, 6);
   const mine = planner.items.filter(i => accs.includes(i.account) && (!portfolioOnly || i.portfolio));
   const posted  = mine.filter(i => (i.status === "posted" || i.status === "in_kit") && !!i.postedOn && i.postedOn >= monday && i.postedOn <= end);
-  const planned = mine.filter(i => i.status !== "posted" && i.status !== "in_kit" && !!i.plannedOn && i.plannedOn >= monday && i.plannedOn <= end);
-  const all = [...planned.map(i => ({ i, posted: false })), ...posted.map(i => ({ i, posted: true }))];
+  const ready   = mine.filter(i => i.status === "shot").sort((x, y) => String(y.plan.filmedOn || "").localeCompare(String(x.plan.filmedOn || "")));
+  const all = [...ready.map(i => ({ i, posted: false })), ...posted.map(i => ({ i, posted: true }))];
   return (
     <Card title={portfolioOnly ? "Portfolio pieces this week" : "Posts this week"} right={`${posted.length} posted`}>
-      {all.length === 0 ? emptyLine("Nothing planned or posted this week. Plan it in Creator.") : all.map(({ i, posted: p }, k) => itemLine(i.id, i.title,
+      {all.length === 0 ? emptyLine("Nothing to post and nothing posted this week.") : all.map(({ i, posted: p }, k) => itemLine(i.id, i.title,
         p ? tagText(`Posted ${dm(i.postedOn)}`, C.green)
-          : <>{tagText(`Planned ${dm(i.plannedOn)}`)}<B v="sec" onClick={() => quietP(planner.setItemStatus(i, "posted"))} s={{ ...BAR_BTN, height: 28, minHeight: 28, color: C.black }}>Posted</B></>,
+          : <>{tagText(i.plan.filmedOn ? `To post · filmed ${dm(i.plan.filmedOn)}` : "To post")}<B v="sec" onClick={() => quietP(moveTo(planner, i, "posted"))} s={{ ...BAR_BTN, height: 28, minHeight: 28, color: C.black }}>Posted</B></>,
         k === all.length - 1))}
     </Card>
   );
@@ -869,7 +941,8 @@ export const FormatChip = ({ f }: { f: string }) => {
 
 // ═════════════════════════════════════════════════════════════
 // ITEM WINDOW — an idea or an editorial (portfolio piece)
-// Status by dropdown right in the read view; Edit → Save → read view
+// Top bar ✕ · Content | Editorial. Title, the Filmed / Posted ticks (the same as in the
+// Creator list), format, shoot date (optional), storyline, clips, links. Saves by itself.
 // ═════════════════════════════════════════════════════════════
 export function ItemWindow({ planner, itemId, isMobile, onClose }: {
   planner: PlannerHook; itemId?: string; draft?: Partial<Item>; isMobile: boolean; onClose: () => void;
@@ -879,104 +952,151 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
   useEffect(() => { if (itemId && !it && !planner.loading) onClose(); }, [itemId, it, planner.loading]);
   if (!it) return null;
 
-  const isEd   = it.list === "editorial";
-  const posted = it.status === "posted" || it.status === "in_kit";
+  const stage  = itemStageOf(it);
+  const shot   = stage !== "idea";
+  const filmed = isFilmedStatus(it.status);
+  const posted = isPostedStatus(it.status);
+  const accT   = ACC_TONE[it.account] || PAL.neutral;
+  const type   = typeOf(it);
+  const types  = TYPES[it.account] || [CONTENT];
   const save   = (patch: Partial<Item>) => quietP(planner.updateItem(it.id, patch));
   const savePlan = (p: Partial<ItemPlan>) => save({ plan: { ...it.plan, ...p } });
-  const formats = Array.from(new Set([...(isEd ? FORMATS[it.account] : [CLASSIC, ...FORMATS[it.account]]), it.format].filter(Boolean)));
-  const shot = it.plan.clips.filter(c => c.done).length;
-  const move = isEd
-    ? { label: "Move to ideas", onClick: () => save({ list: "idea", portfolio: false }) }
-    : { label: "Move to editorial list", onClick: () => save({ list: "editorial", portfolio: true, format: FORMATS[it.account].includes(it.format) ? it.format : FORMATS[it.account][0] }) };
+  const go = (st: ItemStage) => quietP(moveTo(planner, it, st));
   const del = async () => {
     const copy = it;
     onClose();
     try { await planner.deleteItem(copy.id); showUndo(`${copy.list === "editorial" ? "Editorial" : "Idea"} deleted`, () => planner.restoreItem(copy)); }
     catch { /* the save toast reports it */ }
   };
-  const styleBtn = (k: "bullets" | "numbers", label: string) => (
-    <button onClick={() => savePlan({ style: k })} aria-pressed={it.plan.style === k} title={k === "bullets" ? "Bullets" : "Numbers"}
-      style={{ height: 24, minWidth: 30, padding: "0 7px", border: `1px solid ${it.plan.style === k ? C.black : C.rule}`, background: it.plan.style === k ? C.black : C.white, color: it.plan.style === k ? C.white : C.black, borderRadius: 2, cursor: "pointer", fontFamily: SANS, fontSize: 12 }}>{label}</button>
+  const st = STAGE_TONE[stage];
+  const badge = (
+    <span style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: st.ink, background: st.fill, height: 22, padding: "0 8px", display: "inline-flex", alignItems: "center", borderRadius: RADIUS.tag, whiteSpace: "nowrap" as const, flexShrink: 0 }}>
+      {ITEM_STAGE_LABEL[stage]}
+    </span>
   );
+  const accPill = (
+    <span style={{ marginLeft: "auto", height: 24, padding: "0 10px", borderRadius: 12, background: accT.wash, border: `1px solid ${accT.fill}`, color: accT.ink, fontSize: TYPE.subtext.size, display: "inline-flex", alignItems: "center", whiteSpace: "nowrap" as const, flexShrink: 0 }}>
+      @{it.account}
+    </span>
+  );
+
+  // one step: tap to tick / untick · tinted in its colour once ticked · its day underneath
+  const step = (label: string, on: boolean, tone: ToneSet, sub: string, run: () => void, date?: boolean) => (
+    <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 7, minHeight: 46, padding: "0 8px", borderRadius: RADIUS.field, background: on ? tone.wash : C.bg, minWidth: 0 }}>
+      <button role="checkbox" aria-checked={on} aria-label={label} onClick={run}
+        style={{ position: "absolute", inset: 0, background: "none", border: "none", padding: 0, cursor: "pointer", borderRadius: RADIUS.field }} />
+      <span aria-hidden="true" style={{ width: 20, height: 20, borderRadius: RADIUS.check, border: `1.5px solid ${on ? tone.mid : C.light}`, background: on ? tone.mid : C.white, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxSizing: "border-box" as const, pointerEvents: "none" as const }}>
+        {on && <span style={{ fontSize: 11, color: C.white, lineHeight: 1, fontWeight: 500 }}>✓</span>}
+      </span>
+      <span style={{ minWidth: 0, lineHeight: 1.25, pointerEvents: "none" as const }}>
+        <span style={{ display: "block", fontSize: TYPE.row.size, fontWeight: 500, color: on ? tone.ink : C.black }}>{label}</span>
+        <span style={{ display: "block", fontSize: TYPE.label.size, color: on ? tone.ink : C.light, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</span>
+      </span>
+      {/* the shoot date: tap the day under "Shot" = the iPhone's date picker */}
+      {date && on && (
+        <input type="date" aria-label="Shoot date" value={it.plannedOn || ""} onChange={(e) => save({ plannedOn: e.target.value || null })}
+          style={{ position: "absolute", left: 30, right: 0, bottom: 2, height: 20, opacity: 0, cursor: "pointer", fontSize: 16, border: "none", padding: 0 }} />
+      )}
+    </div>
+  );
+  const typeChip = (t: string) => {
+    const on = t === type;
+    return (
+      <button key={t} onClick={() => { if (!on) save(typePatch(it.account, t)); }} aria-pressed={on}
+        style={{ display: "inline-flex", alignItems: "center", height: 30, padding: "0 11px", borderRadius: RADIUS.pill, border: `1px solid ${on ? accT.fill : C.rule}`,
+          background: on ? accT.wash : C.white, color: on ? accT.ink : C.ink2, fontFamily: SANS, fontSize: TYPE.subtext.size, cursor: "pointer", whiteSpace: "nowrap" as const }}>
+        {t}
+      </button>
+    );
+  };
+  const styleBtn = (k: "bullets" | "numbers", label: string) => (
+    <button key={k} onClick={() => savePlan({ style: k })} aria-pressed={it.plan.style === k} title={k === "bullets" ? "Bullets" : "Numbers"}
+      style={{ height: "100%", padding: "0 8px", border: "none", borderRadius: 10, background: it.plan.style === k ? PAL.neutral.fill : "transparent", color: it.plan.style === k ? C.black : C.muted, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size }}>{label}</button>
+  );
+  const mini: any = { fontSize: TYPE.label.size, color: C.muted };
 
   return (
     <>
-      <Window title={isEd ? "Editorial" : "Content idea"} isMobile={isMobile} onClose={onClose}
-        footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
-            <MoreMenu items={[move, { label: "Delete", danger: true, onClick: del }]} />
-            <B onClick={onClose}>Close</B>
-          </div>
-        }>
-        {/* title + the basics */}
-        <InlineText value={it.title} ariaLabel="Title" onSave={v => { if (v.trim()) save({ title: v.trim() }); }} s={{ fontFamily: SERIF, fontSize: 20, height: 38 }} />
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
-          <div><Lbl>Status</Lbl>
-            <S value={it.status === "in_kit" ? "posted" : it.status} aria-label="Status" onChange={(e: any) => quietP(planner.setItemStatus(it, e.target.value))}>
-              {ITEM_STATUSES.filter(x => x.key !== "in_kit").map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
-            </S>
-          </div>
-          <div><Lbl>Date</Lbl>
-            <I type="date" aria-label="Date" value={it.plannedOn || ""} onChange={(e: any) => save({ plannedOn: e.target.value || null, ...(e.target.value && it.status === "idea" ? { status: "planned" as ItemStatus } : {}) })} />
-          </div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: isEd ? "minmax(0,1fr) auto" : "minmax(0,1fr)", gap: 8, alignItems: "end" }}>
-          <div><Lbl>Format</Lbl>
-            <S value={it.format} aria-label="Format" onChange={(e: any) => save({ format: e.target.value })}>
-              {formats.map(f => <option key={f} value={f}>{f}</option>)}
-            </S>
-          </div>
-          {isEd && <div style={{ height: 36, display: "flex", alignItems: "center" }}><Tick on={it.portfolio} color={C.green} size={18} label="Portfolio" onClick={() => save({ portfolio: !it.portfolio })} /></div>}
-        </div>
+      <Window title={type} isMobile={isMobile} onClose={onClose}
+        head={<span style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>{badge}{accPill}</span>}
+        footer={<div style={{ display: "flex" }}><B onClick={onClose} s={{ flex: 1, height: 38, minHeight: 38 }}>Done</B></div>}>
+        <TitleField value={it.title} onSave={v => save({ title: v })} />
 
-        {/* storyline: bullets or numbers */}
-        <Card title="Storyline" right={<span style={{ display: "inline-flex", gap: 4 }}>{styleBtn("bullets", "•")}{styleBtn("numbers", "1.")}</span>}>
+        {/* Shot · Filmed · Posted — the same status as the Creator list */}
+        <div style={{ ...winCard, display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 6, padding: 6 }}>
+          {step("Shot", shot, PAL.progress, shot ? (it.plannedOn ? dayShort(it.plannedOn) : "add date") : "to shoot", () => go(shot ? "idea" : "planned"), true)}
+          {step("Filmed", filmed, PAL.waiting, filmed ? (dayShort(it.plan.filmedOn) || "filmed") : "on the day", () => go(filmed ? "planned" : "shot"))}
+          {step("Posted", posted, PAL.done, posted ? (dayShort(it.postedOn) || "posted") : "when live", () => go(posted ? "shot" : "posted"))}
+        </div>
+        {posted && (
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr)", gap: 8, marginTop: 4 }}>
+            <div><Lbl>Post link</Lbl>
+              <MiniInput key={`pl-${it.link}`} defaultValue={it.link} placeholder="https://" aria-label="Post link" inputMode="url"
+                onBlur={(e: any) => { const v = String(e.target.value || "").trim(); if (v !== it.link) save({ link: v }); }} />
+            </div>
+            <div><Lbl>Views</Lbl>
+              <MiniInput key={`vw-${it.views}`} defaultValue={it.views == null ? "" : it.views.toLocaleString("de-DE")} placeholder="–" aria-label="Views" inputMode="numeric"
+                onBlur={(e: any) => { const raw = String(e.target.value || "").trim(); const v = raw === "" ? null : parseIntDe(raw); if (v !== it.views) save({ views: v }); }} />
+            </div>
+          </div>
+        )}
+
+        <WinHead icon={IC.tag} label="Type" tone={accT} right={type !== CONTENT ? <span style={mini}>counts for your portfolio</span> : undefined} />
+        <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 5 }}>{types.map(typeChip)}</div>
+
+        <WinHead icon={IC.sign} label="Storyline" tone={accT}
+          right={<span style={{ display: "inline-flex", height: 24, border: `1px solid ${C.rule}`, borderRadius: 12, background: C.white, padding: 2, boxSizing: "border-box" as const }}>{styleBtn("bullets", "•")}{styleBtn("numbers", "1.")}</span>} />
+        <div style={winCard}>
           <LineList key={`s-${it.id}`} initial={storyLines(it.direction)} marker={it.plan.style === "numbers" ? "numbers" : "bullets"}
             placeholder="First beat of the story" addLabel="Add a point" onSave={lines => save({ direction: lines.join("\n") })} />
-        </Card>
+        </div>
 
-        {/* clips to shoot */}
-        <Card title="Clips to shoot" right={it.plan.clips.length ? `${shot} of ${it.plan.clips.length} shot` : undefined}>
-          <LineList key={`c-${it.id}`} initial={it.plan.clips.map(c => c.t)} checks={it.plan.clips.map(c => c.done)} marker="check"
+        <WinHead icon={IC.camera} label={`Clips${(it.plan.clips || []).length ? ` · ${it.plan.clips.length}` : ""}`} tone={accT} />
+        <div style={winCard}>
+          <LineList key={`c-${it.id}`} initial={(it.plan.clips || []).map(c => c.t)} marker="numbers"
             placeholder="Close-up, product in hand" addLabel="Add a clip"
-            onSave={(lines, checks) => savePlan({ clips: lines.map((t, k) => ({ t, done: !!checks?.[k] })) })} />
-        </Card>
+            onSave={lines => savePlan({ clips: lines.map(t => ({ t, done: false })) })} />
+        </div>
 
-        {/* reference links */}
-        <Card title="References" right={it.plan.refs.length || undefined}>
-          <RefTable key={`r-${it.id}`} initial={it.plan.refs} onSave={refs => savePlan({ refs })} />
-        </Card>
+        <WinHead icon={IC.link} label={`Links${(it.plan.refs || []).length ? ` · ${it.plan.refs.length}` : ""}`} tone={accT} />
+        <div style={winCard}>
+          <LinkList key={`r-${it.id}`} initial={it.plan.refs || []} onSave={refs => savePlan({ refs })} />
+        </div>
 
-        {/* once posted */}
-        {posted && (
-          <Card title="Posted" right={it.postedOn ? fmtD(it.postedOn) : undefined}>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr)", gap: 8, marginTop: -8 }}>
-              <div><Lbl>Post link</Lbl><InlineText value={it.link} placeholder="https://" ariaLabel="Post link" onSave={v => save({ link: v.trim() })} s={{ border: `1px solid ${C.rule}`, background: C.white, height: 36 }} /></div>
-              <NumField label="Views" value={it.views} onSave={v => save({ views: v })} />
-            </div>
-          </Card>
-        )}
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
+          <B v="danger" onClick={del} s={{ minHeight: 30, height: 30, padding: "0 12px", fontSize: TYPE.subtext.size }}>Delete idea</B>
+        </div>
       </Window>
     </>
   );
 }
 
 // A list you write like notes: Enter adds the next line, Backspace on an
-// empty line removes it. Bullets, numbers, or a tick box per line.
-// Saves (without empty lines) when you leave a line or tick a box.
+// empty line removes it. Bullets or numbers (or a tick box per line).
+// Saves (without empty lines) when you leave a line. Shown at the app's 13 px
+// row size, typed at 16 px underneath (so the iPhone doesn't zoom); one line per row.
+const LK = TYPE.row.size / 16;
 function LineList({ initial, checks: initialChecks, marker, placeholder, addLabel, onSave }: {
   initial: string[]; checks?: boolean[]; marker: "bullets" | "numbers" | "check"; placeholder: string; addLabel: string;
   onSave: (lines: string[], checks?: boolean[]) => void;
 }) {
-  // an empty storyline starts with one line ready to type (clips start with the add button)
+  // an empty list starts with one line ready to type
   const [lines, setLines]   = useState<string[]>(initial.length || marker === "check" ? initial : [""]);
   const [checks, setChecks] = useState<boolean[]>(initialChecks || initial.map(() => false));
   const [focusAt, setFocusAt] = useState<number | null>(null);
   const refs = useRef<(HTMLTextAreaElement | null)[]>([]);
   useEffect(() => { if (focusAt != null) { refs.current[focusAt]?.focus(); setFocusAt(null); } }, [focusAt, lines.length]);
-  // long points wrap: each line grows with its text
-  const fit = (el: HTMLTextAreaElement | null) => { if (el) { el.style.height = "auto"; el.style.height = `${Math.max(34, el.scrollHeight)}px`; } };
+  // long points wrap: each line grows with its text (the box around it follows at row size)
+  const fit = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = "auto";
+    const h = Math.max(38 / LK, el.scrollHeight);
+    el.style.height = `${h}px`;
+    if (el.parentElement) el.parentElement.style.height = `${h * LK}px`;
+  };
   useEffect(() => { refs.current.forEach(fit); }, [lines]);
+  const noun = addLabel.replace(/^Add an? /, "");
+  const Noun = noun.charAt(0).toUpperCase() + noun.slice(1);
   const commit = (ls = lines, cs = checks) => {
     const keep = ls.map((t, k) => ({ t: t.trim(), c: !!cs[k] })).filter(x => x.t);
     onSave(keep.map(x => x.t), marker === "check" ? keep.map(x => x.c) : undefined);
@@ -995,79 +1115,96 @@ function LineList({ initial, checks: initialChecks, marker, placeholder, addLabe
     const t = lines[k], before = lines, beforeC = checks;
     if (!t.trim()) { remove(k, false); return; }
     remove(k, false);
-    showUndo(`${marker === "check" ? "Clip" : "Point"} deleted`, () => {
+    showUndo(`${Noun} deleted`, () => {
       const ls = [...before], cs = [...beforeC];
       setLines(ls); setChecks(cs); commit(ls, cs);
     });
   };
   const tick = (k: number) => { const cs = [...checks]; cs[k] = !cs[k]; setChecks(cs); commit(lines, cs); };
   return (
-    <div style={{ marginTop: -4 }}>
+    <div>
       {lines.map((t, k) => {
+        const done = marker === "check" && !!checks[k];
         return (
-          <div key={k} style={{ display: "flex", alignItems: "flex-start", gap: 8, minHeight: 36 }}>
+          <div key={k} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "0 4px 0 12px", borderTop: k ? `1px solid ${ROW_LINE}` : "none" }}>
             {marker === "check"
-              ? <span style={{ paddingTop: 8 }}><Tick on={!!checks[k]} color={C.green} size={18} onClick={() => tick(k)} /></span>
-              : <span style={{ width: 18, flexShrink: 0, textAlign: "right" as const, fontSize: 14, color: C.muted, paddingTop: 8 }}>{marker === "numbers" ? `${k + 1}.` : "•"}</span>}
-            <textarea ref={el => { refs.current[k] = el; fit(el); }} rows={1} value={t} placeholder={k === 0 ? placeholder : ""} aria-label={`${addLabel.replace(/^Add an? /, "")} ${k + 1}`}
-              onChange={(e) => { fit(e.target); setLines(ls => ls.map((x, i) => (i === k ? e.target.value.replace(/\n/g, " ") : x))); }}
-              onBlur={() => commit()}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); insertAfter(k); }
-                if (e.key === "Backspace" && t === "" && lines.length > 1) { e.preventDefault(); remove(k); }
-              }}
-              style={{ flex: 1, minWidth: 0, minHeight: 34, border: "none", borderBottom: `1px solid ${ROW_LINE}`, outline: "none", background: "transparent", fontFamily: SANS, fontSize: 14, lineHeight: 1.45, color: marker === "check" && checks[k] ? C.light : C.black, textDecoration: marker === "check" && checks[k] ? "line-through" : "none", padding: "7px 0", resize: "none" as const, overflow: "hidden", boxSizing: "border-box" as const, display: "block" }} />
-            {(t.trim() || lines.length > 1) && <span style={{ paddingTop: 3 }}><XBtn label={`Delete ${addLabel.replace(/^Add an? /, "")} ${k + 1}`} onClick={() => removeX(k)} /></span>}
+              ? <span style={{ paddingTop: 10 }}><Tick on={done} color={C.green} size={18} onClick={() => tick(k)} /></span>
+              : <span style={{ width: 14, flexShrink: 0, textAlign: "right" as const, fontSize: TYPE.subtext.size, color: C.muted, paddingTop: 11 }}>{marker === "numbers" ? `${k + 1}.` : "•"}</span>}
+            <div style={{ position: "relative", flex: 1, minWidth: 0, height: 38 }}>
+              <textarea ref={el => { refs.current[k] = el; fit(el); }} rows={1} value={t} placeholder={k === 0 ? placeholder : ""} aria-label={`${Noun} ${k + 1}`}
+                onChange={(e) => { fit(e.target); setLines(ls => ls.map((x, i) => (i === k ? e.target.value.replace(/\n/g, " ") : x))); }}
+                onBlur={() => commit()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); insertAfter(k); }
+                  if (e.key === "Backspace" && t === "" && lines.length > 1) { e.preventDefault(); remove(k); }
+                }}
+                style={{ position: "absolute", left: 0, top: 0, width: `${100 / LK}%`, transform: `scale(${LK})`, transformOrigin: "left top",
+                  border: "none", outline: "none", background: "transparent", fontFamily: SANS, fontSize: 16, lineHeight: 1.4, color: done ? C.light : C.black,
+                  textDecoration: done ? "line-through" : "none", padding: `${10 / LK}px 0`, resize: "none" as const, overflow: "hidden", boxSizing: "border-box" as const, display: "block", margin: 0 }} />
+            </div>
+            {(t.trim() || lines.length > 1) && <span style={{ paddingTop: 5 }}><XBtn label={`Delete ${noun} ${k + 1}`} size={26} onClick={() => removeX(k)} /></span>}
           </div>
         );
       })}
       <button onClick={() => insertAfter(lines.length - 1)}
-        style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 6, background: "none", border: "none", padding: "6px 0", cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.muted }}>
-        <Ico d={IC.plus} size={13} />{addLabel}
+        style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", background: "none", border: "none", borderTop: `1px solid ${ROW_LINE}`, padding: "10px 12px 12px", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.muted, textAlign: "left" as const }}>
+        <Ico d={IC.plus} size={12} />{addLabel}
       </button>
     </div>
   );
 }
 const ROW_LINE = "#f0ece7";
 
-// Reference links as a small table: link · what it shows · open · delete
-function RefTable({ initial, onSave }: { initial: { url: string; note: string }[]; onSave: (refs: { url: string; note: string }[]) => void }) {
+// Links: the platform (read from the link) · what it shows · open · delete.
+// As many as needed; paste one (or several) into the field at the bottom.
+function LinkList({ initial, onSave }: { initial: { url: string; note: string }[]; onSave: (refs: { url: string; note: string }[]) => void }) {
   const [rows, setRows] = useState(initial.length ? initial : []);
-  const [focusNew, setFocusNew] = useState(false);
-  const lastRef = useRef<HTMLInputElement | null>(null);
-  useEffect(() => { if (focusNew) { lastRef.current?.focus(); setFocusNew(false); } }, [focusNew, rows.length]);
-  const commit = (rs = rows) => onSave(rs.map(r => ({ url: r.url.trim(), note: r.note.trim() })).filter(r => r.url || r.note));
-  const set = (k: number, patch: Partial<{ url: string; note: string }>) => setRows(rs => rs.map((r, i) => (i === k ? { ...r, ...patch } : r)));
-  const cell: any = { height: 34, width: "100%", border: `1px solid ${C.rule}`, borderRadius: 2, padding: "0 8px", fontFamily: SANS, fontSize: 13, outline: "none", boxSizing: "border-box" as const, background: C.white, color: C.black };
-  const href = (u: string) => (/^https?:\/\//i.test(u) ? u : `https://${u}`);
+  const [paste, setPaste] = useState("");
+  const [fresh, setFresh] = useState<number | null>(null);     // the row just pasted: ready for "what it shows"
+  const clean = (rs: { url: string; note: string }[]) => rs.map(r => ({ url: r.url.trim(), note: r.note.trim() })).filter(r => r.url || r.note);
+  const commit = (rs: { url: string; note: string }[]) => onSave(clean(rs));
+  // links pasted together become one row each; text that isn't a link is kept as a note
+  const add = (raw: string) => {
+    const text = String(raw || "").trim();
+    if (!text) return;
+    const links = text.split(/\s+/).filter(isUrlLike);
+    const added = links.length ? links.map(url => ({ url, note: "" })) : [{ url: "", note: text }];
+    const rs = [...rows, ...added];
+    setRows(rs); commit(rs); setPaste("");
+    setFresh(links.length ? rows.length : null);
+  };
+  const pill: any = { display: "inline-block", fontSize: TYPE.micro.size, letterSpacing: TRACK.tag, padding: "2px 8px", borderRadius: RADIUS.tag, background: PAL.neutral.fill, color: PAL.neutral.ink, whiteSpace: "nowrap", flexShrink: 0 };
   return (
-    <div style={{ marginTop: -4 }}>
-      {rows.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.2fr) 56px", gap: 6, ...microLabel, marginBottom: 4 }}>
-          <span>Link</span><span>What it shows</span><span />
-        </div>
-      )}
-      {rows.map((r, k) => (
-        <div key={k} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.2fr) 56px", gap: 6, alignItems: "center", marginBottom: 6 }}>
-          <input ref={k === rows.length - 1 ? lastRef : undefined} value={r.url} placeholder="https://" inputMode="url" aria-label={`Link ${k + 1}`} onChange={(e) => set(k, { url: e.target.value })} onBlur={() => commit()} style={cell} />
-          <input value={r.note} placeholder="Lighting, hook, pacing…" aria-label={`What link ${k + 1} shows`} onChange={(e) => set(k, { note: e.target.value })} onBlur={() => commit()}
-            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} style={cell} />
-          <span style={{ display: "inline-flex", justifyContent: "flex-end", gap: 2 }}>
-            {r.url.trim()
-              ? <a href={href(r.url.trim())} target="_blank" rel="noreferrer" aria-label={`Open link ${k + 1}`} style={{ width: 26, height: 30, display: "inline-flex", alignItems: "center", justifyContent: "center", color: C.black }}><Ico d={IC.link} size={14} /></a>
-              : <span style={{ width: 26 }} />}
+    <div>
+      {rows.map((r, k) => {
+        const li = linkInfo(r.url);
+        return (
+          <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 50, padding: "4px 4px 4px 12px", borderTop: k ? `1px solid ${ROW_LINE}` : "none" }}>
+            <span style={pill}>{r.url.trim() ? li.platform : "Note"}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <TextInline value={r.note} placeholder="What it shows" ariaLabel={`What link ${k + 1} shows`} autoFocus={fresh === k}
+                onSave={v => { const rs = rows.map((x, i) => (i === k ? { ...x, note: v } : x)); setRows(rs); commit(rs); if (fresh === k) setFresh(null); }} />
+              {li.short && <div style={{ fontSize: TYPE.label.size, color: C.muted, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis", marginTop: -2 }}>{li.short}</div>}
+            </div>
+            {li.href
+              ? <a href={li.href} target="_blank" rel="noreferrer" aria-label={`Open link ${k + 1}`} title="Open"
+                  style={{ width: 28, height: 28, borderRadius: "50%", background: PAL.neutral.fill, color: PAL.neutral.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={IC.open} size={14} /></a>
+              : <span style={{ width: 28, flexShrink: 0 }} />}
             <XBtn label={`Delete link ${k + 1}`} size={26} onClick={() => {
               const before = rows, rs = rows.filter((_, i) => i !== k);
               setRows(rs); commit(rs);
               if (r.url.trim() || r.note.trim()) showUndo("Link deleted", () => { setRows(before); commit(before); });
             }} />
-          </span>
-        </div>
-      ))}
-      <button onClick={() => { setRows(rs => [...rs, { url: "", note: "" }]); setFocusNew(true); }}
-        style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: "6px 0", cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.muted }}>
-        <Ico d={IC.plus} size={13} />Add a link
-      </button>
+          </div>
+        );
+      })}
+      <div style={{ padding: "8px 12px 12px", borderTop: rows.length ? `1px solid ${ROW_LINE}` : "none" }}>
+        <MiniInput h={34} value={paste} placeholder="Paste a TikTok or Instagram link" inputMode="url" aria-label="Paste a link"
+          onChange={(e: any) => setPaste(e.target.value)}
+          onPaste={(e: any) => { const t = e.clipboardData?.getData("text"); if (t && t.trim()) { e.preventDefault(); add(t); } }}
+          onBlur={() => add(paste)}
+          onKeyDown={(e: any) => { if (e.key === "Enter") { e.preventDefault(); add(paste); } }} />
+      </div>
     </div>
   );
 }
