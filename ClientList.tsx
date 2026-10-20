@@ -8,7 +8,7 @@
 //   Work on a project happens in Projects: the detail links there.
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { C, SANS, SERIF, TYPE, PAL, STATUS_TONE, STATUS_NAME, TRACK, RADIUS } from "./constants";
 import { fmt, addM, today } from "./formatters";
 import { I, S, Lbl, Tag, TSel, TSelWrap, SummaryLine, Strong, Chip, ChipRow, PillBtn, SearchField, ListCard, Row, TonedTag } from "./atoms";
@@ -31,7 +31,9 @@ interface ClientListProps {
   onAmend:          (pr: any, cl: any) => void;
   goTo:             (n: number) => void;
   clientsHook:      any;
-  onOpenProject?:   (projectId: string) => void;
+  initialSel?:      string | null;   // the client you had open (coming back to the tab)
+  backTo?:          { clientId: string; projectId: string } | null;   // came from Projects
+  onBackToProjects?:(projectId: string) => void;
 }
 
 // a client saved without a name (old quotes) — shown as "Needs a name"
@@ -56,10 +58,11 @@ function usageEnd(pr: any): string | null {
 export default function ClientList({
   clients, isMobile, settings, rc, selReset, onSelChange,
   pendingClientName, pendingProjectQNo, onPendingClear,
-  onGoToCalc, onRevise, onAmend, goTo, clientsHook, onOpenProject,
+  onGoToCalc, onRevise, onAmend, goTo, clientsHook, initialSel, backTo, onBackToProjects,
 }: ClientListProps) {
 
-  const [sel,            setSel_]          = useState<string | null>(null);
+  // coming back to Clients: the client you had open (a deleted one → the list)
+  const [sel,            setSel_]          = useState<string | null>(initialSel ?? null);
   const [highlightedQNo, setHighlightedQNo]= useState<string | null>(null);
   const [search,         setSearch]        = useState("");
   const [chip,           setChip]          = useState<"all" | "progress" | "quoted" | "dormant">("all");
@@ -75,7 +78,9 @@ export default function ClientList({
 
   const setSel = (v: string | null) => { setSel_(v); onSelChange(v); };
 
-  useEffect(() => { setSel(null); }, [selReset]);
+  // tapping Clients while you're on it → the list (not on arriving from another tab)
+  const firstReset = useRef(true);
+  useEffect(() => { if (firstReset.current) { firstReset.current = false; return; } setSel(null); }, [selReset]);
 
   useEffect(() => {
     if (!pendingClientName) return;
@@ -148,7 +153,8 @@ export default function ClientList({
       setSel={setSel}
       highlightedQNo={highlightedQNo}
       onClearHighlight={() => setHighlightedQNo(null)}
-      onOpenProject={onOpenProject}
+      backLabel={backTo && cl && backTo.clientId === cl.id && onBackToProjects ? "Projects" : undefined}
+      onBack={backTo && cl && backTo.clientId === cl.id && onBackToProjects ? () => onBackToProjects(backTo.projectId) : undefined}
     />
   );
 

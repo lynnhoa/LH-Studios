@@ -5,10 +5,11 @@
 // bottom (blocked while issued invoices exist — they must be kept).
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { ProjectRow, DeliveryAsk } from "./ProjectsTab";
 import { C, SANS, SERIF, PAL, STATUS_TONE, STATUS_NAME, WORDS, TYPE, TRACK, RADIUS } from "./constants";
 import { fmt, fmtD, today } from "./formatters";
-import { I, S, Lbl, Tag, ConfirmDialog, PillBtn, SectionHead, ListCard, Row, TonedTag, IconCircle } from "./atoms";
+import { I, S, Lbl, Tag, ConfirmDialog, PillBtn, SectionHead, ListCard, Row, TonedTag, IconCircle, listSeg } from "./atoms";
 import type { ToneSet } from "./atoms";
 import { projectLicenses, ACTION_LABEL } from "./licenses";
 import type { License } from "./licenses";
@@ -27,14 +28,34 @@ interface ClientDetailProps {
   onRevise:         (pr: any, cl: any) => void;
   onAmend:          (pr: any, cl: any) => void;
   setSel:           (id: string | null) => void;
-  highlightedQNo:   string | null;
+  highlightedQNo:   string | null;     // a project (id or quote no.) to open on arrival
   onClearHighlight: () => void;
-  onOpenProject?:   (projectId: string) => void;
+  backLabel?:       string;            // "Projects" when you came from there
+  onBack?:          () => void;
 }
 
 export default function ClientDetail({
-  cl, isMobile, clientsHook, onGoToCalc, setSel, highlightedQNo, onClearHighlight, onOpenProject,
+  cl, clients, isMobile, settings, rc, clientsHook, onGoToCalc, onRevise, onAmend, setSel, highlightedQNo, onClearHighlight, backLabel, onBack,
 }: ClientDetailProps) {
+  // projects open in place, one at a time — the same card as in Projects (no jump to the Projects tab)
+  const [openPid,  setOpenPid]  = useState<string | null>(null);
+  const [scrollTick, setScrollTick] = useState(0);
+  const [askDeliv,   setAskDeliv]   = useState<null | { cid: string; pid: string; name: string }>(null);
+  // another client → nothing open; arriving with a project (from Projects) → that one open,
+  // also when this client page was already showing
+  const lastCl = useRef(cl.id);
+  useEffect(() => { if (lastCl.current !== cl.id) { lastCl.current = cl.id; setOpenPid(null); } }, [cl.id]);
+  useEffect(() => {
+    if (!highlightedQNo) return;
+    const hit = (cl.projects || []).find((p: any) => p.id === highlightedQNo || p.qd?.qNo === highlightedQNo);
+    if (hit) setOpenPid(hit.id);
+    onClearHighlight();
+  }, [highlightedQNo, cl.id]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!openPid) return;
+    const el = document.querySelector(`[data-prid="${openPid}"]`);
+    if (el) setTimeout(() => (el as any).scrollIntoView?.({ behavior: "smooth", block: "center" }), 80);
+  }, [openPid, scrollTick]);
 
   const [editMode,  setEditMode]  = useState(false);
   const [ed,        setEd]        = useState<any>({ ...cl });
@@ -94,25 +115,6 @@ export default function ClientDetail({
   // projects: open work first (most urgent), then paid, then lost
   const rank = (pr: any) => (pr.paid ? 50 : pr.status === "lost" ? 60 : Math.max(0, STATUS_ORDER.indexOf(pr.status)));
   const prs = [...(cl.projects || [])].sort((a: any, b: any) => rank(a) - rank(b) || String(b.date || "").localeCompare(String(a.date || "")));
-  const projMeta = (pr: any) => {
-    const tone = PAL[STATUS_TONE[pr.paid ? "paid" : pr.status] || "neutral"];
-    const word = <span style={{ color: tone.ink }}>{STATUS_NAME[pr.paid ? "paid" : pr.status] || pr.status}</span>;
-    if (pr.paid) return <>{word}{pr.deliveryDate ? ` · delivered ${fmtD(pr.deliveryDate)}` : ""}</>;
-    const fu = followUp(pr, todayStr);
-    const fuText = fu && <span style={{ color: PAL[fu.tone].ink }}> · {fu.label.toLowerCase()}, {fu.text}</span>;
-    if (pr.status === "production")
-      return <>{word} · {pr.deliveryDate ? `delivery ${fmtD(pr.deliveryDate)}` : <span style={{ color: PAL.waiting.ink }}>No delivery date</span>}</>;
-    if (pr.status === "contracted") {
-      const c = currentContractOf(pr);
-      return <>{word}{fuText || (c?.status === "sent" ? ` · sent ${daysSince(c.sentAt || c.docDate, todayStr) ?? 0} days ago` : c ? " · contract draft" : "")}</>;
-    }
-    if (pr.status === "quoted" || pr.status === "revised") {
-      const v = validUntil(pr);
-      return <>{word}{fuText || (v ? ` · valid until ${fmtD(v)}` : "")}</>;
-    }
-    if (pr.status === "invoiced") return <>{word}{fuText}</>;
-    return word;
-  };
 
   const lics: License[] = (cl.projects || []).flatMap((pr: any) => projectLicenses(pr, cl));
   const licTone = (l: License): ToneSet => l.action || l.state === "done" || l.state === "info" ? PAL.neutral : l.state === "expired" ? PAL.late : l.state === "expiring" ? PAL.waiting : PAL.done;
@@ -141,8 +143,8 @@ export default function ClientDetail({
         : <ConfirmDialog title={`Delete "${cl.name}"?`} text={askDelete.text} okLabel="Delete" danger onOk={confirmDelete} onCancel={() => setAskDelete(null)} />
       )}
 
-      <button onClick={() => { setSel(null); setEditMode(false); }}
-        style={{ background: "none", border: "none", padding: "0 8px 0 0", minHeight: 44, display: "inline-flex", alignItems: "center", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.muted }}>‹ Clients</button>
+      <button onClick={onBack || (() => { setSel(null); setEditMode(false); })}
+        style={{ background: "none", border: "none", padding: "0 8px 0 0", minHeight: 44, display: "inline-flex", alignItems: "center", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.muted }}>‹ {backLabel || "Clients"}</button>
 
       {/* ── HEADER ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginTop: 0 }}>
@@ -172,17 +174,37 @@ export default function ClientDetail({
       </div>
 
       {/* ── PROJECTS ── */}
-      <SectionHead label={`Projects · ${prs.length}`} right={prs.length && onOpenProject ? "tap to open in Projects" : undefined} />
+      <SectionHead label={`Projects · ${prs.length}`} />
       {prs.length > 0 ? (
-        <ListCard>
-          {prs.map((pr: any, i: number) => (
-            <Row key={pr.id} first={i === 0} highlight={!!highlightedQNo && pr.qd?.qNo === highlightedQNo}
-              onClick={onOpenProject ? () => { onClearHighlight(); onOpenProject(pr.id); } : undefined}
-              title={pr.name || "Untitled"} meta={projMeta(pr)}
-              right={<div style={{ fontSize: TYPE.body.size, color: pr.status === "lost" ? C.muted : C.black }}>{fmt(pr.amount)}</div>} />
-          ))}
-        </ListCard>
+        <div>
+          {prs.map((pr: any, i: number) => {
+            const first = i === 0, last = i === prs.length - 1;
+            return (
+              <div key={pr.id} style={{ ...listSeg(first, last), overflow: "hidden", padding: "0 12px" }}>
+                <div style={{ marginBottom: last ? -1 : 0 }}>
+                  <ProjectRow
+                    pr={{ ...pr, _cid: cl.id, _cname: cl.name }}
+                    clients={clients}
+                    isMobile={isMobile}
+                    isExpanded={openPid === pr.id}
+                    onToggle={() => setOpenPid(openPid === pr.id ? null : pr.id)}
+                    clientsHook={clientsHook}
+                    onRevise={onRevise}
+                    onAmend={onAmend}
+                    onGoToCalc={onGoToCalc}
+                    rc={rc}
+                    settings={settings}
+                    onModalClosed={() => setScrollTick(t => t + 1)}
+                    onAskDelivery={setAskDeliv}
+                    showStatus
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
       ) : <p style={{ fontSize: TYPE.row.size, color: C.muted, margin: "4px 4px 0" }}>No projects yet.</p>}
+      {askDeliv && <DeliveryAsk ask={askDeliv} clientsHook={clientsHook} onDone={() => setAskDeliv(null)} />}
       <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
         {showAddP ? <>
           <I value={newPN} onChange={(e: any) => setNewPN(e.target.value)} placeholder="Project name" onKeyDown={(e: any) => e.key === "Enter" && addProject()} />

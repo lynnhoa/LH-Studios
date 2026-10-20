@@ -67,10 +67,13 @@ const sinceDays = (pr: any): number | null => {
 };
 
 // ── Single expandable project row ─────────────────────────────
-function ProjectRow({
-  pr, clients, isMobile, isExpanded, onToggle, clientsHook, onRevise, onAmend, onGoToCalc, settings, onModalClosed, rc, onOpenClient, onAskDelivery,
+// One project card — Projects and the client page use this same card (one source).
+// showStatus: on the client page the grey line starts with the status word, not the client.
+export function ProjectRow({
+  pr, clients, isMobile, isExpanded, onToggle, clientsHook, onRevise, onAmend, onGoToCalc, settings, onModalClosed, rc, onOpenClient, onAskDelivery, showStatus,
 }: {
-  onOpenClient?: (name: string) => void;
+  onOpenClient?: (name: string, projectId?: string) => void;
+  showStatus?: boolean;
   onAskDelivery?: (p: { cid: string; pid: string; name: string }) => void;
   pr: any; clients: any[]; isMobile: boolean; isExpanded: boolean;
   onToggle: () => void; clientsHook: any;
@@ -277,7 +280,10 @@ function ProjectRow({
         const fuMeta = fu ? <span style={{ color: PAL[fu.tone].ink }}> · {fu.text}</span> : null;
         const ct = pr.status === "contracted" ? currentContractOf(pr) : null;
         const vu = quote ? validUntil(pr) : null;
-        const meta = pr.paid ? <> · <span style={{ color: PAL.done.ink }}>paid</span></>
+        const meta = showStatus && pr.paid ? <>{pr.deliveryDate ? ` · delivered ${fmtD(pr.deliveryDate)}` : ""}</>
+          : showStatus && (pr.status === "lost" || pr.status === "lead") ? null
+          : showStatus && pr.status === "invoiced" ? fuMeta
+          : pr.paid ? <> · <span style={{ color: PAL.done.ink }}>paid</span></>
           : pr.status === "lost" ? <> · lost</>
           : pr.status === "production"
             ? <> · {pr.deliveryDate ? `delivery ${fmtD(pr.deliveryDate)}` : <span style={{ color: PAL.waiting.ink }}>No delivery date</span>}{since != null ? ` · ${since} d` : ""}</>
@@ -294,8 +300,10 @@ function ProjectRow({
                 {/^untitled project$/i.test(String(pr.name || "")) && <TonedTag tone={PAL.waiting}>Needs a name</TonedTag>}
               </div>
               <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 2, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>
-                {onOpenClient
-                  ? <button onClick={(e) => { e.stopPropagation(); onOpenClient(pr._cname); }} aria-label={`Open client ${pr._cname}`}
+                {showStatus
+                  ? (() => { const st = pr.paid ? "paid" : pr.status; return <span style={{ color: PAL[STATUS_TONE[st] || "neutral"].ink }}>{STATUS_NAME[st] || st}</span>; })()
+                  : onOpenClient
+                  ? <button onClick={(e) => { e.stopPropagation(); onOpenClient(pr._cname, pr.id); }} aria-label={`Open client ${pr._cname}`}
                       style={{ background: "none", border: "none", padding: "9px 2px", margin: "-9px -2px", font: "inherit", color: "inherit", cursor: "pointer", textDecoration: "underline", textDecorationColor: C.pillOn, textUnderlineOffset: 2 }}>{pr._cname}</button>
                   : pr._cname}
                 {meta}
@@ -521,13 +529,23 @@ function ProjectRow({
 }
 
 // ── Main component ────────────────────────────────────────────
+// After "Mark signed" without a delivery date: asked once (Projects and the client page)
+export function DeliveryAsk({ ask, clientsHook, onDone }: { ask: { cid: string; pid: string; name: string }; clientsHook: any; onDone: () => void }) {
+  return (
+    <ConfirmDialog title="Delivery date" text={`When will you deliver "${ask.name}"? Invoices and licenses need it. You can also set it later.`}
+      dateLabel="Delivery date" okLabel="Set delivery date" cancelLabel="Later"
+      onCancel={onDone}
+      onOk={(dt: string) => { onDone(); clientsHook.updateProject(ask.cid, ask.pid, { deliveryDate: dt }).catch(() => { /* the save toast reports it */ }); }} />
+  );
+}
+
 interface ProjectsTabProps {
   clients:          any[];
   isMobile:         boolean;
   settings:         any;
   rc:               any;
   initialFilter?:   string | null;    // from a dashboard tile: "quoted" | "active" | status
-  onOpenClient?:    (name: string) => void;   // client name in a row → Clients
+  onOpenClient?:    (name: string, projectId?: string) => void;   // client name in a row → Clients ("‹ Projects" brings you back)
   clientsHook:      any;
   onRevise:         (pr: any, cl: any) => void;
   onAmend:          (pr: any, cl: any) => void;
@@ -686,12 +704,7 @@ export default function ProjectsTab({
         )}
       </>}
 
-      {askDeliv && (
-        <ConfirmDialog title="Delivery date" text={`When will you deliver "${askDeliv.name}"? Invoices and licenses need it. You can also set it later.`}
-          dateLabel="Delivery date" okLabel="Set delivery date" cancelLabel="Later"
-          onCancel={() => setAskDeliv(null)}
-          onOk={(dt: string) => { const a = askDeliv; setAskDeliv(null); clientsHook.updateProject(a.cid, a.pid, { deliveryDate: dt }).catch(() => { /* the save toast reports it */ }); }} />
-      )}
+      {askDeliv && <DeliveryAsk ask={askDeliv} clientsHook={clientsHook} onDone={() => setAskDeliv(null)} />}
 
       {/* ── LOST (folded) — closed quotes, out of the pipeline ── */}
       {lost.length > 0 && (

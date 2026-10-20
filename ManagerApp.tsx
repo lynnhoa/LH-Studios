@@ -71,7 +71,8 @@ export default function ManagerApp({
   const [prefill,         setPrefill]         = useState<any>(null);
   const [pendingClientName, setPendingClientName] = useState<string | null>(null);
   const [pendingProjectQNo, setPendingProjectQNo] = useState<string | null>(null);
-  const [clientSel,       setClientSel]       = useState<string | null>(null);
+  const [clientSel,       setClientSel]       = useState<string | null>(null);   // the open client, kept while you're in other tabs
+  const [clientBack,      setClientBack]      = useState<{ clientId: string; projectId: string } | null>(null);   // came from Projects
   const [clientSelReset,  setClientSelReset]  = useState(0);
   const [fromDrill,       setFromDrill]       = useState<string | null>(null);
   const [dashDrill,       setDashDrill]       = useState<any>(null);
@@ -91,13 +92,14 @@ export default function ManagerApp({
 
   // ── Navigation helpers ────────────────────────────────────
   const goTo = (n: number) => {
-    if (n === NAV_CLIENTS) setClientSelReset(p => p + 1);
+    // Clients while you're on it → the list; from another tab → the client you had open
+    if (n === NAV_CLIENTS && nav === NAV_CLIENTS) setClientSelReset(p => p + 1);
     if (n !== NAV_CALCULATOR) setPrefill(null);   // leaving the Calculator ends Revise / Amend mode
     setNav(n);
   };
 
   // Navigation by the user (tabs, menu) also ends a dashboard drill context
-  const navTo = (n: number) => { setFromDrill(null); setInvoiceFilter(null); setInvoiceMonth(null); setLicenseFilter(null); setProjectFilter(null); goTo(n); };
+  const navTo = (n: number) => { setFromDrill(null); setClientBack(null); setInvoiceFilter(null); setInvoiceMonth(null); setLicenseFilter(null); setProjectFilter(null); goTo(n); };
 
   const goToDash = () => {
     setFromDrill(null);
@@ -287,8 +289,10 @@ export default function ManagerApp({
 
         {nav === NAV_CLIENTS && (
           <ClientList
-            onOpenProject={(pid: string) => goToProjects(pid)}
             clients={clientsHook.clients}
+            initialSel={clientSel}
+            backTo={clientBack}
+            onBackToProjects={(pid: string) => { setClientBack(null); goToProjects(pid); }}
             isMobile={isMobile}
             settings={settings}
             rc={rateCardsHook.rc}
@@ -310,7 +314,12 @@ export default function ManagerApp({
 
         {nav === NAV_PROJECTS && (
           <ProjectsTab
-            onOpenClient={(name: string) => goToClients(name)}
+            onOpenClient={(name: string, projectId?: string) => {
+              // the client page then shows "‹ Projects", back to this project (still open)
+              const c = (clientsHook.clients || []).find((x: any) => x.name.toLowerCase() === String(name || "").toLowerCase());
+              setClientBack(c && projectId ? { clientId: c.id, projectId } : null);
+              goToClients(name, projectId);
+            }}
             clients={clientsHook.clients}
             isMobile={isMobile}
             settings={settings}
