@@ -11,8 +11,8 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { C, SANS, SERIF, TYPE, SPACING, RADIUS, PAL } from "./constants";
-import { B, Tick, ConfirmDialog } from "./atoms";
+import { C, SANS, SERIF, TYPE, SPACING, RADIUS, PAL, TRACK } from "./constants";
+import { B, Tick, ConfirmDialog, SectionHead, SummaryLine, Strong, TonedTag, Sheet, PillBtn, I, S, DashCard } from "./atoms";
 import { fmtD } from "./formatters";
 import { OWNER_LOOK, accLook, rowKind, stageOf, gateOf, byOrder, STAGE_SHORT, thisMonday } from "./planner";
 import type { Task, AccountFilter, Owner, Phase, Account, Look, Stage } from "./planner";
@@ -88,164 +88,167 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
   };
 
   // ── pieces ──────────────────────────────────────────────────
-  const card: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, marginTop: 12, overflow: "hidden" };
-  const tag = (t: string, color: string = C.muted) => <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color, whiteSpace: "nowrap" as const }}>{t}</span>;
-  const band = (look: Look, title: string, right?: any) => (
-    <div style={{ minHeight: 34, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", background: C.white, color: PAL.neutral.ink, ...microLabel }}>
-      <span style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: look.color, flexShrink: 0 }} />{title}
-      </span>
-      {right}
-    </div>
-  );
-  const whoTag = (t: Task, clickable: boolean) => {
-    const l = OWNER_LOOK[t.owner];
-    return clickable
-      ? <button onClick={(e) => { e.stopPropagation(); quiet(planner.updateTask(t.id, { owner: NEXT_OWNER[t.owner] })); }} title="Tap to switch who" aria-label={`Who: ${l.label} (tap to switch)`}
-          style={{ background: "none", border: "none", padding: "6px 2px", cursor: "pointer", fontFamily: SANS }}>{tag(l.label, l.color)}</button>
-      : tag(l.label, l.color);
+  // ── like the mockup: master parts only ───────────────────────
+  const [win, setWin] = useState<null | { id?: string }>(null);
+  const [askDel, setAskDel] = useState<Task | null>(null);
+  const ownerLabel = (o: Owner) => OWNER_LOOK[o].label;
+  const addTask = async (title: string, owner: Owner) => {
+    if (!title.trim() || !st) return;
+    await quiet(planner.createTask({ title: title.trim(), account: acc, owner, phase: "setup", rhythm: "once", stageNum: st.num, measure: null, how: "", doneWhen: "" } as any));
   };
-
-  // one note row
-  const noteRow = (t: Task) => {
+  const row = (t: Task, k: number) => {
     const s = planner.stateOf(t, thisMonday());
     const isDone = done(t);
     const auto = rowKind(t) === "auto";            // first portfolio set counts itself
     const url = (t.title.match(URL_RE) || [])[1];
     return (
-      <div key={t.id} style={{ minHeight: 44, display: "flex", alignItems: "center", gap: 8, padding: "0 6px 0 12px", borderTop: `1px solid ${ROW_RULE}` }}>
-        {auto ? <span style={{ width: 20, flexShrink: 0 }} />
-              : <Tick on={isDone} color={C.green} size={20} onClick={() => quiet(planner.setTaskStatus(t, isDone ? "open" : "done"))} />}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {auto
-            ? <span style={{ fontSize: SPACING.listText, color: isDone ? C.light : C.black }}>{t.title}</span>
-            : <InlineText value={t.title} muted={isDone} ariaLabel={t.title}
-                onSave={v => { if (!v.trim()) removeTask(t); else quiet(planner.updateTask(t.id, { title: v.trim() })); }}
-                onEnter={() => setNewRow(n => n + 1)} />}
-        </div>
-        {url && <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} aria-label="Open link" style={{ color: C.muted, display: "inline-flex", padding: 4 }}><Ico d={IC.link} size={14} /></a>}
-        {auto && <span style={{ fontSize: 13, color: isDone ? C.green : C.black }}>{s.actual ?? 0} / {s.target ?? "–"}</span>}
-        {whoTag(t, !auto)}
-        {!auto ? <XBtn label={`Delete ${t.title}`} onClick={() => removeTask(t)} /> : <span style={{ width: 28, flexShrink: 0 }} />}
+      <div key={t.id} role={auto ? undefined : "button"} tabIndex={auto ? undefined : 0}
+        onClick={auto ? undefined : () => setWin({ id: t.id })} onKeyDown={auto ? undefined : (e: any) => { if (e.key === "Enter") setWin({ id: t.id }); }}
+        style={{ minHeight: SPACING.row1, display: "flex", alignItems: "center", gap: 2, padding: `0 ${SPACING.rowSide}px 0 0`, borderTop: k ? `1px solid ${C.hair}` : "none", cursor: auto ? "default" : "pointer", boxSizing: "border-box" as const }}>
+        <span style={{ width: SPACING.tap, height: SPACING.tap, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+          {auto ? null : <Tick on={isDone} color={PAL.done.mid} size={20} onClick={() => quiet(planner.setTaskStatus(t, isDone ? "open" : "done"))} />}
+        </span>
+        <span style={{ flex: 1, minWidth: 0, fontSize: SPACING.listText, color: isDone ? C.light : C.black, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis", textDecoration: isDone ? "line-through" : "none" }}>{t.title}</span>
+        {url && <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} aria-label="Open link" style={{ color: C.muted, display: "inline-flex", padding: 8 }}><Ico d={IC.link} size={13} /></a>}
+        {auto && <span style={{ fontSize: SPACING.listMeta, color: isDone ? PAL.done.ink : C.muted, marginRight: 6 }}>{s.actual ?? 0} / {s.target ?? "–"}</span>}
+        <TonedTag tone={PAL.neutral}>{ownerLabel(t.owner)}</TonedTag>
       </div>
     );
   };
+  const listCard = (list: Task[]) => (
+    <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, overflow: "hidden" }}>{list.map(row)}</div>
+  );
 
-  // ── stage card ──────────────────────────────────────────────
+  // stage card: the dashboard's white card with the 5-step bar
   const stageCard = st && (() => {
     const g = gateOf(st, tasks, planner.doneOf);
     return (
-      <div style={card}>
-        {band(aLook, `Stage ${st.num} · ${st.name}`, <span style={{ color: g.ready && g.total ? C.green : C.black, flexShrink: 0 }}>{g.done} / {g.total}{g.ready && g.total ? " ✓" : ""}</span>)}
-        <div style={{ padding: "8px 12px 10px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0,1fr))", gap: 3 }}>
+      <DashCard>
+        <div style={{ padding: SPACING.dashCardPad }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>Stage {st.num} · {st.name}</span>
+            <span style={{ fontSize: TYPE.label.size, color: g.ready && g.total ? PAL.done.ink : PAL.neutral.ink, flexShrink: 0 }}>{g.done} / {g.total}</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0,1fr))", gap: 4, marginTop: 10 }}>
             {[1, 2, 3, 4, 5].map(n => {
               const s2 = mine.find(x => x.num === n);
               const fill = s2?.status === "done" ? 100 : n === st.num ? (g.total ? Math.round((g.done / g.total) * 100) : 0) : 0;
-              return <div key={n} style={{ height: 4, background: C.rule }}><div style={{ height: 4, width: `${fill}%`, background: aLook.color }} /></div>;
+              return <div key={n} style={{ height: 4, background: C.line, borderRadius: RADIUS.bar }}><div style={{ height: 4, width: `${Math.max(fill, n === st.num ? 6 : 0)}%`, background: s2?.status === "done" ? PAL.done.mid : PAL.progress.mid, borderRadius: RADIUS.bar }} /></div>;
             })}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0,1fr))", gap: 3, marginTop: 5 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0,1fr))", gap: 4, marginTop: 4 }}>
             {[1, 2, 3, 4, 5].map(n => {
               const s2 = mine.find(x => x.num === n);
-              const cur = n === st.num || s2?.status === "done";
-              return <span key={n} style={{ fontSize: TYPE.micro.size, letterSpacing: "0.06em", textTransform: "uppercase" as const, color: cur ? aLook.color : C.light, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{s2?.shortName || STAGE_SHORT[n - 1]}</span>;
+              return <span key={n} style={{ fontSize: TYPE.micro.size, color: n === st.num ? PAL.progress.ink : s2?.status === "done" ? PAL.done.ink : C.light, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{s2?.shortName || STAGE_SHORT[n - 1]}</span>;
             })}
           </div>
-          {st.goal && <p style={{ fontSize: 12, color: C.muted, margin: "8px 0 0", lineHeight: 1.4 }}>{st.goal}</p>}
+          {st.goal && <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: "7px 0 0", lineHeight: 1.45 }}>{st.goal}</p>}
         </div>
-      </div>
+      </DashCard>
     );
   })();
 
-  // ── the list ────────────────────────────────────────────────
-  const listCard = st && (
-    <div style={card}>
-      {band(aLook, `Stage ${st.num} · to do`, <span style={{ color: C.black }}>{doneOnes.length} of {list.length}</span>)}
-      {openOnes.map(noteRow)}
-      <div style={{ minHeight: 44, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", borderTop: `1px solid ${ROW_RULE}` }}>
-        <Ico d={IC.plus} size={14} color={C.muted} />
-        <div style={{ flex: 1 }}><AddField key={newRow} autoFocus={newRow > 0} placeholder="Add a row" onAdd={addNote} /></div>
-      </div>
-      {doneOnes.length > 0 && (
-        <>
-          <button onClick={() => setShowDone(o => !o)} aria-expanded={showDone}
-            style={{ width: "100%", minHeight: SPACING.row1, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", border: "none", borderTop: `1px solid ${ROW_RULE}`, background: C.bg, cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.muted }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ color: C.green }}>✓</span>Done · {doneOnes.length}</span>
-            <Ico d={showDone ? IC.up : IC.down} size={14} />
-          </button>
-          {showDone && doneOnes.map(noteRow)}
-        </>
-      )}
-      {next && (
-        <div style={{ padding: "10px 12px", borderTop: `1px solid ${ROW_RULE}`, background: C.bg }}>
-          <B onClick={() => setAskNext(true)} s={{ width: "100%" }}>Stage {st.num} done → start Stage {next.num}</B>
-        </div>
-      )}
-    </div>
-  );
-
-  // ── finished stages ─────────────────────────────────────────
+  const openCount = openOnes.length;
   const finishedCards = finished.map((s: Stage) => {
     const l = oneOffs(s.num);
     const open = openStage === s.id;
     return (
-      <div key={s.id} style={card}>
-        <button onClick={() => setOpenStage(open ? null : s.id)} aria-expanded={open}
-          style={{ width: "100%", minHeight: SPACING.row1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 12px", border: "none", background: C.bg, cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.muted, textAlign: "left" as const }}>
-          <span><span style={{ color: C.green }}>✓</span> Stage {s.num} · {s.name}{s.doneOn ? ` · done ${fmtD(s.doneOn)}` : ""}</span>
-          <Ico d={open ? IC.up : IC.down} size={13} />
+      <div key={s.id}>
+        <button onClick={() => setOpenStage(open ? null : s.id)} aria-expanded={open} style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SANS }}>
+          <SectionHead dot={PAL.done.mid} label={`Stage ${s.num} · ${s.name}${s.doneOn ? ` · done ${fmtD(s.doneOn)}` : ""}`} right={open ? "▴" : "▾"} />
         </button>
-        {open && (l.length ? l.map(noteRow) : <p style={{ fontSize: 13, color: C.muted, margin: 0, padding: "10px 12px", borderTop: `1px solid ${ROW_RULE}` }}>No tasks.</p>)}
+        {open && (l.length ? listCard(l) : <p style={{ fontSize: SPACING.listText, color: C.muted, margin: 0, padding: "4px 2px" }}>No tasks.</p>)}
         {open && s.num === Math.max(...finished.map(x => x.num)) && (
-          <div style={{ padding: "8px 12px", borderTop: `1px solid ${ROW_RULE}`, background: C.bg, display: "flex", justifyContent: "flex-end" }}>
-            <B v="sec" onClick={() => setAskReopen(s)} s={{ height: 28, minHeight: 28, fontSize: TYPE.micro.size, letterSpacing: "0.1em" }}>Reopen Stage {s.num}</B>
-          </div>
+          <PillBtn onClick={() => setAskReopen(s)} s={{ marginTop: 8, height: 30 }}>Reopen Stage {s.num}</PillBtn>
         )}
       </div>
     );
   });
 
+  const winTask = win?.id ? list.find(t => t.id === win.id) || tasks.find(t => t.id === win.id) : undefined;
   return (
     <div>
       {askNext && st && next && (
         <ConfirmDialog title={`Stage ${st.num} done → start Stage ${next.num}?`}
-          text={openOnes.filter(t => rowKind(t) !== "auto").length
-            ? `${openOnes.filter(t => rowKind(t) !== "auto").length} open ${openOnes.filter(t => rowKind(t) !== "auto").length === 1 ? "task moves" : "tasks move"} to Stage ${next.num} · ${next.name}. The weekly goals keep running.`
-            : `Stage ${next.num} · ${next.name} starts with its prefilled list. The weekly goals keep running.`}
+          text={`Stage ${next.num} · ${next.name} starts with its prefilled list. The weekly goals keep running.`}
           okLabel={`Start Stage ${next.num}`} onOk={finishStage} onCancel={() => setAskNext(false)} />
       )}
       {askReopen && (
         <ConfirmDialog title={`Reopen Stage ${askReopen.num} · ${askReopen.name}?`}
-          text={`Stage ${askReopen.num} is active again and the later stages go back to upcoming. ${askReopen.moved?.length ? `The ${askReopen.moved.length} ${askReopen.moved.length === 1 ? "task" : "tasks"} that moved on come back. ` : ""}Nothing is lost.`}
+          text={`Stage ${askReopen.num} is active again and the later stages go back to upcoming.`}
           okLabel={`Reopen Stage ${askReopen.num}`} onOk={reopen} onCancel={() => setAskReopen(null)} />
       )}
+      {askDel && (
+        <ConfirmDialog title={`Delete “${askDel.title}”?`} text="You can undo it right after." okLabel="Delete" danger
+          onOk={() => { const t = askDel; setAskDel(null); setWin(null); removeTask(t); }} onCancel={() => setAskDel(null)} />
+      )}
+      {win && <TodoWindow task={winTask} ownerLabel={ownerLabel}
+        onClose={() => setWin(null)}
+        onSave={async (title: string, owner: Owner) => { if (winTask) { await quiet(planner.updateTask(winTask.id, { title: title.trim() || winTask.title, owner })); } else { await addTask(title, owner); setWin(null); } }}
+        onDelete={winTask ? () => setAskDel(winTask) : undefined} />}
       <TabTitle title="To-do" acc={acc} onAccount={onAccount} isMobile={isMobile} />
-      <Subtitle text={st ? `Stage ${st.num} of 5` : "Stages"} />
+      <SummaryLine dot={PAL.progress.mid}>{st ? <>Stage {st.num} of 5 · <Strong>{doneOnes.length} of {list.length} done</Strong></> : "Stages"}</SummaryLine>
       {loading ? (
-        <p style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 16 }}>Loading…</p>
+        <p style={{ fontSize: SPACING.listText, color: C.muted, marginTop: 16 }}>Loading…</p>
       ) : loadError ? (
-        <p style={{ fontSize: TYPE.label.size, color: C.red, marginTop: 16, lineHeight: 1.5 }}>{loadError}</p>
+        <p style={{ fontSize: SPACING.listText, color: C.red, marginTop: 16 }}>{loadError}</p>
       ) : (
         <>
           {stageCard}
-          {listCard}
+          {st && (
+            <>
+              <SectionHead label={`To do · ${openCount}`} right={<button onClick={() => setWin({})} style={{ background: "none", border: "none", padding: "8px 0", margin: "-8px 0", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: PAL.neutral.ink }}>+ Add</button>} />
+              {openOnes.length ? listCard(openOnes) : <p style={{ fontSize: SPACING.listText, color: C.muted, margin: 0, padding: "4px 2px" }}>All done for this stage.</p>}
+              {doneOnes.length > 0 && (
+                <>
+                  <button onClick={() => setShowDone(o => !o)} aria-expanded={showDone} style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SANS }}>
+                    <SectionHead dot={PAL.done.mid} label={`Done · ${doneOnes.length}`} right={showDone ? "▴" : "▾"} />
+                  </button>
+                  {showDone && listCard(doneOnes)}
+                </>
+              )}
+              {next && (openCount > 0
+                ? <div style={{ marginTop: SPACING.cardGap, height: SPACING.mainBtn, borderRadius: RADIUS.button, border: `1px solid ${C.edge}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: TYPE.row.size, color: C.muted }}>{openCount} to go before Stage {next.num}</div>
+                : <PillBtn dark onClick={() => setAskNext(true)} s={{ width: "100%", height: SPACING.mainBtn, marginTop: SPACING.cardGap, justifyContent: "center" }}>Stage {st.num} done → start Stage {next.num}</PillBtn>)}
+            </>
+          )}
           {finishedCards}
-          <p style={{ fontSize: 12, color: C.light, margin: "10px 0 0", lineHeight: 1.5 }}>Tick · tap text to edit · Enter adds a row · tap the tag to switch who</p>
         </>
       )}
     </div>
   );
 }
 
-// "Add a row" field: Enter adds and stays ready for the next one
-function AddField({ placeholder, onAdd, autoFocus }: { placeholder: string; onAdd: (v: string) => void | Promise<void>; autoFocus?: boolean }) {
-  const [t, setT] = useState("");
-  const add = async () => { const v = t.trim(); if (!v) return; setT(""); await onAdd(v); };
+// ── item window for one task: read view → Edit → Save back to the read view ──
+function TodoWindow({ task, ownerLabel, onClose, onSave, onDelete }: { task?: Task; ownerLabel: (o: Owner) => string; onClose: () => void; onSave: (title: string, owner: Owner) => Promise<void>; onDelete?: () => void }) {
+  const [mode, setMode] = useState<"read" | "edit">(task ? "read" : "edit");
+  const [title, setTitle] = useState(task?.title || "");
+  const [owner, setOwner] = useState<Owner>(task?.owner || "both");
+  const LBL: any = { fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase", color: C.muted, margin: "12px 0 5px" };
+  const save = async () => { await onSave(title, owner); if (task) setMode("read"); };
   return (
-    <input value={t} placeholder={placeholder} aria-label={placeholder} autoFocus={autoFocus}
-      onChange={(e) => setT(e.target.value)} onBlur={() => { if (t.trim()) add(); }}
-      onKeyDown={(e) => { if (e.key === "Enter") add(); }}
-      style={{ width: "100%", height: 32, border: "none", outline: "none", background: "transparent", fontFamily: SANS, fontSize: SPACING.listText, color: C.black, padding: 0 }} />
+    <Sheet title={task ? "Task" : "New task"} onClose={mode === "edit" && task ? () => { setTitle(task.title); setOwner(task.owner); setMode("read"); } : onClose}
+      right={mode === "read" ? <PillBtn onClick={() => setMode("edit")}>Edit</PillBtn> : null}
+      footer={mode === "edit" ? <>
+        {task && onDelete && <PillBtn onClick={onDelete} s={{ height: 40, color: PAL.late.ink }}>Delete</PillBtn>}
+        <PillBtn onClick={() => (task ? (setTitle(task.title), setOwner(task.owner), setMode("read")) : onClose())} s={{ flex: 1, height: 40, justifyContent: "center" }}>Cancel</PillBtn>
+        <PillBtn dark onClick={save} s={{ flex: 1.4, height: 40, justifyContent: "center" }}>Save</PillBtn>
+      </> : undefined}>
+      {mode === "read" && task ? (
+        <>
+          <div style={{ fontFamily: SERIF, fontSize: TYPE.tile.size }}>{task.title}</div>
+          <div style={{ marginTop: 8 }}><TonedTag tone={PAL.neutral}>{ownerLabel(task.owner)}</TonedTag></div>
+        </>
+      ) : (
+        <>
+          <div style={{ ...LBL, marginTop: 0 }}>Task</div>
+          <I value={title} onChange={(e: any) => setTitle(e.target.value)} aria-label="Task" autoFocus={!task} />
+          <div style={LBL}>Who</div>
+          <S value={owner} onChange={(e: any) => setOwner(e.target.value)} aria-label="Who">
+            {(["manager", "creator", "both"] as Owner[]).map(o => <option key={o} value={o}>{ownerLabel(o)}</option>)}
+          </S>
+        </>
+      )}
+    </Sheet>
   );
 }
