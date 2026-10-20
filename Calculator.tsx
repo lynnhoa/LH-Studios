@@ -77,9 +77,15 @@ const ROWLBL: any = { width: 56, flexShrink: 0, fontSize: TYPE.subtext.size, col
 const PANEL: any = { background: C.bg, borderRadius: RADIUS.field, padding: "10px 10px 4px", marginBottom: 10 };
 const GRID2: any = { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 };
 const linkBtn = (color: string): any => ({ background: "none", border: "none", padding: "0 2px", minHeight: 32, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color });
-// − and + on a tile: the same white circle (− faint while nothing is added)
+// − and + on a tile: the same white circle (− faint while nothing is added).
+// The sign is drawn (not a text glyph), so it sits exactly in the middle on every phone.
 const circle = (on: boolean): any => ({ width: 24, height: 24, borderRadius: 12, border: `1px solid ${on ? C.edge : C.line}`, background: C.white, boxSizing: "border-box",
-  display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 14, lineHeight: 1, color: on ? C.black : C.faint, flexShrink: 0 });
+  display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 });
+const sign = (plus: boolean, on: boolean) => (
+  <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" style={{ display: "block" }}>
+    <path d={plus ? "M5 1v8M1 5h8" : "M1 5h8"} stroke={on ? C.black : C.faint} strokeWidth="1.3" strokeLinecap="round" fill="none" />
+  </svg>
+);
 
 export default function Calculator({
   isMobile, settings, rc: rawRc, rcReady = true, prefill, clearPrefill, clientsHook, onAfterSave,
@@ -702,10 +708,10 @@ export default function Calculator({
                     <span style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
                       <button aria-label={`Remove one ${ch.item.n}`} onClick={(e) => { e.stopPropagation(); subTile(ch); }} onKeyDown={(e) => e.stopPropagation()}
                         style={{ width: 30, height: 30, margin: -3, padding: 0, background: "none", border: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: n ? "pointer" : "default" }}>
-                        <span style={circle(n > 0)}>−</span>
+                        <span style={circle(n > 0)}>{sign(false, n > 0)}</span>
                       </button>
                       <span style={{ minWidth: 16, textAlign: "center" as const, fontSize: TYPE.row.size, fontWeight: 500 }}>{n || ""}</span>
-                      <span aria-hidden="true" style={circle(true)}>+</span>
+                      <span aria-hidden="true" style={circle(true)}>{sign(true, true)}</span>
                     </span>
                   </div>
                 </div>
