@@ -7,10 +7,11 @@
 // and the renewal builder. Edits save automatically.
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal, flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
 import { C, SANS, SERIF, TYPE, Z, catInfo, PDF, PAL, DENSITY, RADIUS, SHADOW, TRACK, ICON, cardTone } from "./constants";
-import { uid, fmt, pctSpace } from "./formatters";
+import { uid, fmt, pctSpace, fmtD, today } from "./formatters";
 import { I, S, B, Lbl, Pill, Tick, ConfirmDialog, LangSwitch, BAR_BTN, NumField, PillBtn, Chip, ChipRow, SummaryLine, Strong, SectionHead, ListCard, Row, Switch, Stepper, Sheet } from "./atoms";
 import { SETTINGS_DEFAULT } from "./rateCards";
 import { pagesToPdf, isMobileDevice } from "./PDFExport";
@@ -64,7 +65,7 @@ function sectionRows(card: any, sec: any, cardKey?: string, lang?: string): { ke
 }
 
 // ── Rate card A4 content ──────────────────────────────────────
-function RCContent({ card, lang, guards, cardKey }: any) {
+function RCContent({ card, lang, guards, cardKey, prepared }: any) {
   const l = lang === "de";
   const g = guards || {};
   const pct = retainerPctOf(card);
@@ -75,6 +76,7 @@ function RCContent({ card, lang, guards, cardKey }: any) {
       <div data-rcb="title" style={{ marginBottom: 22 }}>
         <h1 style={{ fontFamily: SERIF, fontSize: 19, fontWeight: "normal", margin: "0 0 4px" }}>{l ? "Preisliste" : "Rate Card"}</h1>
         <p style={{ fontSize: 7.5, color: PDF.label, margin: 0 }}>{pctSpace(card.sub)}</p>
+        {prepared && <p style={{ fontSize: 7.5, color: PDF.ink, margin: "3px 0 0" }}>{prepared}</p>}
       </div>
       {(card.sections || []).map((sec: any, si: number) => {
         const rows = sectionRows(card, sec, cardKey, lang);
@@ -111,7 +113,7 @@ function RCContent({ card, lang, guards, cardKey }: any) {
 //    first row and repeats when its section continues. Measured on an untouched copy.
 const RC_PAGE_H = 841, RC_TOP_N = 52, RC_FOOT = 59, RC_FREE = 28;
 const RC_LIMIT = RC_PAGE_H - RC_FOOT - RC_FREE;
-function RCPages({ card, lang, settings, scale = 1, onPages, cardKey }: any) {
+function RCPages({ card, lang, settings, scale = 1, onPages, cardKey, prepared }: any) {
   const measureRef = useRef<HTMLDivElement>(null);
   const [guards, setGuards] = useState<Record<string, any>>({});
   const [numPages, setNumPages] = useState(1);
@@ -154,19 +156,19 @@ function RCPages({ card, lang, settings, scale = 1, onPages, cardKey }: any) {
     const ro = new ResizeObserver(calc);
     ro.observe(root);
     return () => ro.disconnect();
-  }, [card, lang]);
+  }, [card, lang, prepared]);
   useEffect(() => { if (onPages) onPages(numPages); }, [numPages]);
 
   return (
     <>
       <div ref={measureRef} style={{ position: "fixed", top: 0, left: -9999, width: 595, visibility: "hidden", pointerEvents: "none", zIndex: -1 }}>
-        <RCContent card={card} lang={lang} cardKey={cardKey} />
+        <RCContent card={card} lang={lang} cardKey={cardKey} prepared={prepared} />
       </div>
       {Array.from({ length: numPages }, (_, i) => (
         <div key={i} data-rcpage={i} style={{ width: 595 * scale, height: RC_PAGE_H * scale, overflow: "hidden", flexShrink: 0, boxShadow: SHADOW.page }}>
           <div data-pdf-page="true" style={{ width: 595, height: RC_PAGE_H, overflow: "hidden", background: PDF.page, position: "relative", transform: scale < 1 ? `scale(${scale})` : "none", transformOrigin: "top left" }}>
             <div style={{ position: "absolute", top: -i * RC_PAGE_H, left: 0, width: 595 }}>
-              <RCContent card={card} lang={lang} guards={guards} cardKey={cardKey} />
+              <RCContent card={card} lang={lang} guards={guards} cardKey={cardKey} prepared={prepared} />
             </div>
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, background: PDF.page, zIndex: 3, borderBottom: `1px solid ${PDF.rule}` }}>
               <div style={{ padding: "13px 62px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -273,63 +275,283 @@ function CardShell({ title, card, settings, panel, footer, onClose }: any) {
   );
 }
 
-// ── Rate card window: two slim bars above the original A4 pages ─────
-//   ✕ · "Rate card · <card>" + "A4 · n pages" · Share PDF (→ Open / Share, same place)
-//   EN / DE · Edit texts › (opens Card settings — the one place for the texts)
-function RateCardWindow({ card, cardKey, cardName, settings, onClose, onEditTexts }: any) {
+// ── Rate card window — the same layout as the document window ─────────
+//   Top bar: ✕ · EN/DE · status (Standard / For <client> / Adjusted).
+//   Bottom bar: the main button right, at most one more left. Rare actions under the page.
+//     standard         For a client · Share PDF        under the page: Card settings
+//     for a client     Cancel · Done                   (edit view in the same window)
+//     client version   Adjust · Share PDF              under the page: Back to standard · Card settings
+//   "For a client" only changes this PDF: who it's for (a "Prepared for" line) and what's
+//   shown. Prices and texts are changed for good in the Service Catalog / Card settings.
+//   Share PDF opens the phone's share sheet in the same tap — the PDF is made in the
+//   background while the window is open. On a computer: download. Closing resets to standard.
+interface RCAdjust { forName: string; hideSec: number[]; hideItem: string[] }
+const RC_STANDARD: RCAdjust = { forName: "", hideSec: [], hideItem: [] };
+const rcItemKey = (si: number, it: any, ii: number) => `${si}:${it?.id || ii}`;
+const rcPicks = (sec: any) => { const k = sectionKind(sec); return k === "deliverables" || k === "packages"; };
+const rcAdjusted = (a: RCAdjust) => !!(a.forName.trim() || a.hideSec.length || a.hideItem.length);
+
+// the card as this PDF shows it: hidden sections and items left out (a section without items goes too)
+function adjustCard(card: any, a: RCAdjust) {
+  if (!rcAdjusted(a)) return card;
+  const sections = (card.sections || []).map((sec: any, si: number) => {
+    if (a.hideSec.includes(si)) return null;
+    if (!rcPicks(sec)) return sec;
+    const items = (sec.items || []).filter((it: any, ii: number) => !a.hideItem.includes(rcItemKey(si, it, ii)));
+    return items.length ? { ...sec, items } : null;
+  }).filter(Boolean);
+  return { ...card, sections };
+}
+
+// A PDF made for the share sheet (or the download on a computer) — as in the document window
+interface RCBuilt { key: string; name: string; file: File; url: string }
+type RCOutcome = "shared" | "closed" | "blocked" | "saved";
+function deliverRC(b: RCBuilt): Promise<RCOutcome> {
+  const nav: any = navigator;
+  let can = false;
+  try { can = !!(nav.canShare && nav.share && nav.canShare({ files: [b.file] })); } catch { can = false; }
+  if (can) {
+    return nav.share({ files: [b.file], title: b.name }).then(
+      () => "shared" as RCOutcome,
+      (e: any) => e?.name === "AbortError" ? "closed" as RCOutcome : e?.name === "NotAllowedError" ? "blocked" as RCOutcome : Promise.reject(e),
+    );
+  }
+  if (isMobileDevice()) { window.open(b.url, "_blank"); return Promise.resolve("saved" as RCOutcome); }
+  const el = document.createElement("a");
+  el.href = b.url; el.download = `${b.name}.pdf`;
+  document.body.appendChild(el); el.click(); el.remove();
+  return Promise.resolve("saved" as RCOutcome);
+}
+
+// draws the rate card off-screen (full size) and returns the PDF — the preview never moves
+const rcPause = (ms: number) => new Promise(r => setTimeout(r, ms));
+async function rcWaitStable(el: HTMLElement) {
+  let last = -1, stable = 0;
+  for (let t = 0; t < 30 && stable < 3; t++) {
+    await rcPause(t === 0 ? 30 : 80);
+    const h = el.scrollHeight * 1000 + el.querySelectorAll("[data-pdf-page]").length;
+    if (h === last) stable++; else { stable = 0; last = h; }
+  }
+  try { await (document as any).fonts?.ready; } catch { /* fonts are optional */ }
+}
+async function buildRateCardPdf(card: any, lang: string, settings: any, cardKey: string, prepared: string): Promise<any> {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "position:fixed;left:-20000px;top:0;width:595px;pointer-events:none;";
+  document.body.appendChild(wrap);
+  const root = createRoot(wrap);
+  try {
+    flushSync(() => root.render(<RCPages card={card} lang={lang} settings={settings} scale={1} cardKey={cardKey} prepared={prepared} />));
+    await rcWaitStable(wrap);
+    const pages = Array.from(wrap.querySelectorAll("[data-pdf-page]")) as HTMLElement[];
+    if (!pages.length) throw new Error("The PDF couldn't be prepared.");
+    return await pagesToPdf(pages, "portrait");
+  } finally {
+    root.unmount();
+    wrap.remove();
+  }
+}
+const rcFileSafe = (t: string) => String(t || "").replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
+
+function RateCardWindow({ card, cardKey, cardName, settings, clientNames, onClose, onEditTexts }: any) {
   useEffect(() => editLock.acquire(), []);
-  const [lang, setLang] = useState<"en" | "de">("en");
-  const [winW, setWinW] = useState(() => window.innerWidth);
-  const [pages, setPages] = useState(1);
-  const [busy, setBusy] = useState(false);
-  const [ready, setReady] = useState<null | { file: File; url: string; canShare: boolean }>(null);
-  const previewRef = useRef<HTMLDivElement>(null);
+  const [lang, setLang]       = useState<"en" | "de">("en");
+  const [winW, setWinW]       = useState(() => window.innerWidth);
+  const [applied, setApplied] = useState<RCAdjust>(RC_STANDARD);
+  const [staged, setStaged]   = useState<RCAdjust | null>(null);      // not null = the "For a client" view
+  const [busy, setBusy]       = useState(false);
+  const [msg, setMsg]         = useState<{ text: string; err?: boolean } | null>(null);
+  const cache = useRef(new Map<string, Promise<RCBuilt>>());
+  const done  = useRef(new Map<string, RCBuilt>());
+  const alive = useRef(true);
   useEffect(() => { const fn = () => setWinW(window.innerWidth); window.addEventListener("resize", fn); return () => window.removeEventListener("resize", fn); }, []);
-  useEffect(() => setReady(null), [lang, card]);
-  const scale = Math.min(1, (winW - 30) / 595);
-  const make = async () => {
-    if (busy) return;
-    const pagesEl = previewRef.current ? (Array.from(previewRef.current.querySelectorAll("[data-pdf-page]")) as HTMLElement[]) : [];
-    if (!pagesEl.length) return;
-    setBusy(true);
-    const kept = pagesEl.map(p => p.style.transform);
-    pagesEl.forEach(p => { p.style.transform = "none"; });
-    try {
-      const pdf = await pagesToPdf(pagesEl, "portrait");
-      const name = `Rate Card – ${card.label || cardName}`;
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; done.current.forEach(b => URL.revokeObjectURL(b.url)); done.current.clear(); cache.current.clear(); };
+  }, []);
+  useEffect(() => {                                     // a hint fades; an error stays until the next tap
+    if (!msg || msg.err) return;
+    const t = setTimeout(() => setMsg(null), 6000);
+    return () => clearTimeout(t);
+  }, [msg]);
+  const say  = (text: string, err = false) => { if (alive.current) setMsg({ text, err }); };
+  const fail = (e: any) => say(e?.message || "Something went wrong", true);
+
+  const isMobile  = winW < 768;
+  const scale     = isMobile ? Math.min(1, (winW - 32) / 595) : 1;
+  const editing   = staged !== null;
+  const forName   = applied.forName.trim();
+  const adjusted  = rcAdjusted(applied);
+  const shownCard = useMemo(() => adjustCard(card, applied), [card, applied]);
+  const stagedCard = useMemo(() => (staged ? adjustCard(card, staged) : null), [card, staged]);
+  const preparedFor = (name: string) => (name.trim() ? `${lang === "de" ? "Erstellt für" : "Prepared for"} ${name.trim()} · ${fmtD(today())}` : "");
+  const prepared  = preparedFor(forName);
+  const fileName  = `Rate Card – ${rcFileSafe(card.label || cardName)}${forName ? ` – ${rcFileSafe(forName)}` : ""}`;
+  const settingsReady = !(settings && settings.__ready === false);
+  const key = JSON.stringify({ lang, prepared, fileName, card: shownCard, settings });
+
+  // ── The PDF, made in the background ─────────────────────────
+  const propsRef = useRef({ shownCard, lang, settings, cardKey, prepared, fileName, key });
+  propsRef.current = { shownCard, lang, settings, cardKey, prepared, fileName, key };
+  const buildNow = (): Promise<RCBuilt> => {
+    const pr = propsRef.current;
+    const hit = cache.current.get(pr.key);
+    if (hit) return hit;
+    if (pr.settings && pr.settings.__ready === false) return Promise.reject(new Error("Your profile is still loading — try again in a moment."));
+    const p = buildRateCardPdf(pr.shownCard, pr.lang, pr.settings, pr.cardKey, pr.prepared).then((pdf: any) => {
       const blob: Blob = pdf.output("blob");
-      const file = new File([blob], `${name}.pdf`, { type: "application/pdf" });
-      const nav: any = navigator;
-      const canShare = !!(nav.canShare && nav.canShare({ files: [file] }));
-      if (canShare || isMobileDevice()) setReady({ file, url: URL.createObjectURL(blob), canShare });
-      else pdf.save(`${name}.pdf`);
-    } finally {
-      pagesEl.forEach((p, i) => { p.style.transform = kept[i]; });
-      setBusy(false);
+      const b: RCBuilt = { key: pr.key, name: pr.fileName, file: new File([blob], `${pr.fileName}.pdf`, { type: "application/pdf" }), url: URL.createObjectURL(blob) };
+      done.current.set(pr.key, b);
+      return b;
+    });
+    p.catch(() => { cache.current.delete(pr.key); });
+    cache.current.set(pr.key, p);
+    while (cache.current.size > 4) {                   // keep only the last few versions
+      const old = cache.current.keys().next().value as string;
+      cache.current.delete(old);
+      const ob = done.current.get(old);
+      if (ob) { URL.revokeObjectURL(ob.url); done.current.delete(old); }
     }
+    return p;
   };
-  const share = async () => { if (!ready) return; try { await (navigator as any).share({ files: [ready.file], title: card.label || cardName }); } catch { /* closed */ } };
-  return createPortal(
-    <div style={{ position: "fixed", inset: 0, background: C.rule, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS, color: C.black }}>
-      <div style={{ background: C.bg, borderBottom: `1px solid ${C.field}`, flexShrink: 0 }}>
-        <div style={{ height: DENSITY.sheetHeader, display: "flex", alignItems: "center", gap: 6, padding: "0 10px 0 4px" }}>
-          <button onClick={onClose} aria-label="Close" style={{ width: DENSITY.tap, height: DENSITY.tap, background: "none", border: "none", fontSize: ICON.close, color: C.muted, cursor: "pointer", flexShrink: 0 }}>✕</button>
-          <span style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ display: "block", fontSize: TYPE.body.size, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>Rate card · {cardName}</span>
-            <span style={{ display: "block", fontSize: TYPE.micro.size, color: ready ? PAL.done.ink : C.muted, marginTop: 1 }}>{ready ? "PDF ready" : `A4 · ${pages} ${pages === 1 ? "page" : "pages"}`}</span>
-          </span>
-          {ready ? <>
-            <PillBtn onClick={() => window.open(ready.url, "_blank")} s={{ height: 34 }}>Open</PillBtn>
-            {ready.canShare && <PillBtn dark onClick={share} s={{ height: 34 }}>Share</PillBtn>}
-          </> : <PillBtn dark onClick={make} s={{ height: 34 }}>{busy ? "Preparing…" : "Share PDF"}</PillBtn>}
-        </div>
-        <div style={{ height: DENSITY.tap, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 14px" }}>
-          <span style={{ display: "flex", gap: 6 }}>{(["en", "de"] as const).map(x => <Chip key={x} on={lang === x} tone={PAL.neutral} dot={false} label={x.toUpperCase()} onClick={() => setLang(x)} />)}</span>
-          <button onClick={onEditTexts} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: PAL.progress.ink, minHeight: DENSITY.tap, padding: "0 2px" }}>Edit texts ›</button>
-        </div>
+  // ready as soon as the window shows the rate card (and again after EN/DE or an adjustment)
+  useEffect(() => {
+    if (editing || !settingsReady) return;
+    const t = setTimeout(() => { buildNow().catch(() => {}); }, 300);
+    return () => clearTimeout(t);
+  }, [key, editing, settingsReady]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const sharePdf = () => {
+    if (busy) return;
+    setMsg(null);
+    const again = "The PDF is ready. Tap Share PDF again.";
+    const b = done.current.get(key);
+    if (b) { deliverRC(b).then(o => { if (o === "blocked") say(again); }).catch(fail); return; }   // the share sheet opens in this tap
+    (async () => {
+      setBusy(true);
+      try {
+        const bb = await buildNow();
+        if (alive.current) setBusy(false);
+        const o = await deliverRC(bb);
+        if (o === "blocked") say(again);
+      } catch (e: any) { fail(e); }
+      finally { if (alive.current) setBusy(false); }
+    })();
+  };
+
+  // ── For a client ────────────────────────────────────────────
+  const openAdjust = () => { setMsg(null); setStaged({ ...applied, hideSec: [...applied.hideSec], hideItem: [...applied.hideItem] }); };
+  const done_      = () => { if (staged) setApplied({ ...staged, forName: staged.forName.trim() }); setStaged(null); };
+  const toggle = (list: "hideSec" | "hideItem", v: any) => setStaged(st => {
+    if (!st) return st;
+    const cur = st[list] as any[];
+    return { ...st, [list]: cur.includes(v) ? cur.filter(x => x !== v) : [...cur, v] };
+  });
+  const names = useMemo(() => Array.from(new Set((clientNames || []).map((n: any) => String(n || "").trim()).filter(Boolean))).sort((a: any, b: any) => a.localeCompare(b)), [clientNames]);
+
+  const badgeText = forName ? `For ${forName}` : adjusted ? "Adjusted" : "Standard";
+  const badge = (
+    <span style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: PAL.neutral.ink, background: PAL.neutral.fill, height: 22, padding: "0 8px", display: "inline-flex", alignItems: "center", borderRadius: RADIUS.tag, whiteSpace: "nowrap" as const, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, minWidth: 0 }}>{badgeText}</span>
+    </span>
+  );
+
+  type Btn = { key: string; label: string; run: () => void; dim?: boolean };
+  const side: Btn = editing ? { key: "cancel", label: "Cancel", run: () => setStaged(null) }
+    : { key: "adjust", label: adjusted ? "Adjust" : "For a client", run: openAdjust };
+  const main: Btn = editing ? { key: "done", label: "Done", run: done_ }
+    : { key: "share", label: busy ? "Preparing…" : "Share PDF", run: sharePdf, dim: busy };
+  const barBtn = (b: Btn, dark: boolean) => (
+    <PillBtn key={b.key} dark={dark} dim={b.dim} onClick={b.run}
+      s={{ height: 38, padding: "0 16px", fontSize: TYPE.row.size, justifyContent: "center", flex: isMobile ? 1 : "0 0 auto", minWidth: isMobile ? 0 : 150 }}>
+      {b.label}
+    </PillBtn>
+  );
+  const moreBtn = (label: string, run: () => void) => (
+    <B key={label} v="sec" onClick={run} s={{ minHeight: 30, height: 30, padding: "0 12px", fontSize: TYPE.subtext.size }}>{label}</B>
+  );
+
+  // ── The "For a client" view: who it's for · what's shown ────
+  const ROW: any = { display: "flex", alignItems: "center", gap: 10, minHeight: 40, padding: "0 12px 0 22px", width: "100%", background: "none", border: "none", cursor: "pointer", fontFamily: SANS, textAlign: "left" as const, color: C.black };
+  const panel = staged && (
+    <div style={{ flex: 1, overflowY: "auto", padding: "4px 14px 14px", WebkitOverflowScrolling: "touch" as any }}>
+      <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: "10px 0 0", lineHeight: 1.4 }}>Only for this PDF. Your Service Catalog stays as it is.</p>
+      <Lbl>Prepared for</Lbl>
+      <I value={staged.forName} list="rc-client-names" placeholder="Brand name" aria-label="Prepared for"
+        onChange={(e: any) => { const v = e.target.value; setStaged(st => (st ? { ...st, forName: v } : st)); }} />
+      <datalist id="rc-client-names">{names.map((n: any) => <option key={n} value={n} />)}</datalist>
+      <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "5px 0 0" }}>Optional · shown under the title with today's date</p>
+      <Lbl>Show on the PDF</Lbl>
+      <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, overflow: "hidden" }}>
+        {(card.sections || []).map((sec: any, si: number) => {
+          if (!sectionRows(card, sec, cardKey, lang).length) return null;      // not on the PDF anyway
+          const on = !staged.hideSec.includes(si);
+          const title = secName(sec.t) || KIND_LABEL[sectionKind(sec)];
+          return (
+            <div key={si}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 44, padding: "0 4px 0 12px", borderTop: si ? `1px solid ${C.hair}` : "none" }}>
+                <span style={{ fontSize: TYPE.row.size, color: on ? C.black : C.light, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{title}</span>
+                <Switch on={on} onChange={() => toggle("hideSec", si)} label={`Show ${title}`} />
+              </div>
+              {on && rcPicks(sec) && (sec.items || []).map((it: any, ii: number) => {
+                if (!it?.n) return null;
+                const k = rcItemKey(si, it, ii);
+                const shown = !staged.hideItem.includes(k);
+                const price = it.p !== null && it.p !== undefined ? money(it.p) : pctSpace(it.m || "");
+                return (
+                  <button key={k} onClick={() => toggle("hideItem", k)} aria-pressed={shown} aria-label={`${shown ? "Hide" : "Show"} ${it.n}`} style={{ ...ROW, borderTop: `1px solid ${C.hair}` }}>
+                    <span style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", background: shown ? C.black : C.white, border: shown ? "none" : `1.5px solid ${C.faint}`, color: C.white, fontSize: 11, boxSizing: "border-box" as const }}>{shown ? "✓" : ""}</span>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: TYPE.row.size, color: shown ? C.black : C.light, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pctSpace(it.n)}</span>
+                    <span style={{ fontSize: TYPE.subtext.size, color: shown ? C.muted : C.faint, whiteSpace: "nowrap" as const }}>{price}</span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
-      <div ref={previewRef} style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 14, padding: 15, WebkitOverflowScrolling: "touch" as any }}>
-        <RCPages card={card} lang={lang} settings={settings} scale={scale} onPages={setPages} cardKey={cardKey} />
+    </div>
+  );
+
+  const showPreview = !isMobile || !editing;
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS, color: C.black }}>
+
+      {/* ── TOP BAR: close · language · status ── */}
+      <div style={{ height: 44, borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", padding: "0 8px 0 2px", gap: 6, flexShrink: 0 }}>
+        <button onClick={onClose} aria-label="Close" title="Close"
+          style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: ICON.close, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        <LangSwitch lang={lang} onChange={setLang} />
+        {badge}
+      </div>
+
+      {/* ── BODY: the "For a client" view (phone: instead of the pages) · the pages ── */}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden", flexDirection: isMobile ? "column" : "row" }}>
+        {editing && (
+          <div style={{ width: isMobile ? "100%" : 360, flexShrink: 0, display: "flex", flexDirection: "column", borderRight: isMobile ? "none" : `1px solid ${C.rule}`, flex: isMobile ? 1 : undefined, minHeight: 0 }}>
+            {panel}
+          </div>
+        )}
+        {showPreview && (
+          <div style={{ flex: 1, background: C.muted, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isMobile ? "16px 0" : "32px 28px", gap: isMobile ? 16 : 28, WebkitOverflowScrolling: "touch" as any }}>
+            <RCPages card={stagedCard || shownCard} lang={lang} settings={settings} scale={scale} cardKey={cardKey}
+              prepared={staged ? preparedFor(staged.forName) : prepared} />
+            {!editing && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, justifyContent: "center", padding: "0 16px 8px" }}>
+                {adjusted && moreBtn("Back to standard", () => { setApplied(RC_STANDARD); setMsg(null); })}
+                {moreBtn("Card settings", onEditTexts)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── BOTTOM BAR: one main button (right) · one more (left) ── */}
+      <div style={{ flexShrink: 0, background: C.white, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar, padding: "11px 14px calc(14px + env(safe-area-inset-bottom, 0px))", fontFamily: SANS }}>
+        {msg && <div role="status" style={{ fontSize: TYPE.subtext.size, color: msg.err ? C.red : C.muted, lineHeight: 1.4, margin: "0 2px 9px" }}>{msg.text}</div>}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          {barBtn(side, false)}
+          {barBtn(main, true)}
+        </div>
       </div>
     </div>,
     document.body
@@ -750,11 +972,12 @@ interface ServiceCatalogProps {
   deleteCard: (key: string) => Promise<string | null>;
   settings:   any;
   isMobile?:  boolean;
+  clientNames?: string[];      // suggested in the rate card's "Prepared for"
 }
 
 type Win = { type: "item"; si: number; id: string; isNew?: boolean } | { type: "opt"; kind: "usage" | "exclusivity"; i: number; isNew?: boolean } | { type: "card" };
 
-export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings }: ServiceCatalogProps) {
+export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, clientNames }: ServiceCatalogProps) {
   const [tab,         setTab]         = useState("influencer");
   const [showBuilder, setShowBuilder] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -871,7 +1094,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings }:
     <div style={{ fontFamily: SANS, color: C.black }}>
       {windowEl}
       {showBuilder && <AddCardModal rc={rc} settings={settings} onSave={(key: string, built: any) => { upsertCard(key, built); setTab(key); setShowBuilder(false); }} onClose={() => setShowBuilder(false)} />}
-      {showPreview && <RateCardWindow card={card} cardKey={tab} cardName={cardName} settings={settings} onClose={() => setShowPreview(false)} onEditTexts={() => { setShowPreview(false); setWin({ type: "card" }); }} />}
+      {showPreview && <RateCardWindow card={card} cardKey={tab} cardName={cardName} settings={settings} clientNames={clientNames} onClose={() => setShowPreview(false)} onEditTexts={() => { setShowPreview(false); setWin({ type: "card" }); }} />}
 
       {/* ── TITLE ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>

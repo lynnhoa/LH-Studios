@@ -365,6 +365,7 @@ export default function ManagerApp({
             deleteCard={rateCardsHook.deleteCard}
             settings={settings}
             isMobile={isMobile}
+            clientNames={(clientsHook.clients || []).map((c: any) => c?.name).filter(Boolean)}
           />
         )}
 
