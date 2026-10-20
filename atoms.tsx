@@ -826,7 +826,8 @@ export const Sheet = ({ title, onClose, right, children, footer }: { title: stri
 // ── ValuePill: a number shown as a small value (14 px in a 28 px pill); tap = edit in place.
 //    The field types at 16 px (no iPhone zoom) and is drawn at 14 px (scale .875).
 //    Enter or tapping away saves, Escape keeps the old value.
-export function ValuePill({ text, label, onCommit, width = 72 }: { text: string; label: string; onCommit: (t: string) => void; width?: number }) {
+// white: a white field with a thin border — for fields sitting on a coloured tile (Creator goals)
+export function ValuePill({ text, label, onCommit, width = 72, white }: { text: string; label: string; onCommit: (t: string) => void; width?: number; white?: boolean }) {
   const [focus, setFocus] = useState(false);
   const k = 0.875;
   return (
@@ -837,7 +838,7 @@ export function ValuePill({ text, label, onCommit, width = 72 }: { text: string;
         onKeyDown={(e) => { const el = e.target as HTMLInputElement; if (e.key === "Enter") el.blur(); if (e.key === "Escape") { el.value = text; el.blur(); } }}
         style={{ position: "absolute", top: 0, right: 0, width: width / k, height: 28 / k, transform: `scale(${k})`, transformOrigin: "top right",
           fontSize: 16, fontFamily: SANS, textAlign: "right" as const, padding: "0 11px", boxSizing: "border-box" as const, borderRadius: 8 / k,
-          border: `1px solid ${focus ? C.edge : "transparent"}`, background: focus ? C.white : PAL.neutral.wash, color: C.black, outline: "none", margin: 0 }} />
+          border: `1px solid ${focus || white ? C.edge : "transparent"}`, background: focus || white ? C.white : PAL.neutral.wash, color: C.black, outline: "none", margin: 0 }} />
     </span>
   );
 }

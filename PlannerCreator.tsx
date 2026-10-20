@@ -100,22 +100,30 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
   const monthTarget = goal;
   const tone = (d: number, t: number | null) => (t == null ? PAL.neutral : d >= t ? PAL.done : PAL.waiting);
   const subOf = (d: number, t: number | null) => (t == null ? "no goal" : d >= t ? "✓ reached" : `${t - d} to go`);
+  // one line per goal (slim, so the lists below stay in view): name left · "done / goal" right;
+  // the colour says it (grey no goal · yellow to go · green reached). Edit goals: a white field on the right.
+  const sr: any = { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" };
   const tile = (key: string, name: string, d: number, t: number | null, onGoal: (v: number | null) => void) => {
     const tn = tone(d, t);
     return (
-      <div key={key} style={{ background: tn.wash, borderRadius: RADIUS.tile, padding: SPACING.tilePad, minWidth: 0 }}>
-        <div style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: tn.ink, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
-        <div style={{ fontFamily: SERIF, fontSize: TYPE.tile.size, marginTop: 7, whiteSpace: "nowrap" as const }}>{d}{t != null && !editGoals && <span style={{ fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.muted }}> / {t}</span>}</div>
+      <div key={key} title={`${name}: ${d}${t != null ? ` of ${t}` : ""} · ${subOf(d, t)}`}
+        style={{ position: "relative", background: tn.wash, borderRadius: RADIUS.tile, height: 36, padding: editGoals ? "0 4px 0 11px" : "0 11px", minWidth: 0,
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, boxSizing: "border-box" as const }}>
+        <span style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: tn.ink, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{name}</span>
         {editGoals
-          ? <div style={{ marginTop: 3 }}><ValuePill width={56} text={t == null ? "" : String(t)} label={`Goal for ${name}`} onCommit={(x) => { const v = x.trim() === "" ? null : parseIntDe(x); if (v !== t) onGoal(v); }} /></div>
-          : <div style={{ fontSize: TYPE.label.size, color: tn.ink, marginTop: 1 }}>{subOf(d, t)}</div>}
+          ? <ValuePill white width={44} text={t == null ? "" : String(t)} label={`Goal for ${name}`} onCommit={(x) => { const v = x.trim() === "" ? null : parseIntDe(x); if (v !== t) onGoal(v); }} />
+          : <span style={{ fontFamily: SERIF, fontSize: TYPE.figure.size, color: C.black, whiteSpace: "nowrap" as const, flexShrink: 0 }}>
+              {d}{t != null && <span style={{ fontFamily: SANS, fontSize: TYPE.label.size, color: C.muted }}> / {t}</span>}
+              <span style={sr}> · {subOf(d, t)}</span>
+            </span>}
       </div>
     );
   };
   const goalTiles = [
     ...weekGoals.map(t => { const s0 = planner.stateOf(t, now); return tile(t.id, shortName(t), s0.actual ?? 0, s0.target, v => quiet(planner.saveEntry(t.id, now, { target: v }))); }),
-    ...(monthTask ? [tile("month", monthName(now), doneMonth, monthTarget, v => quiet(planner.saveEntry(monthTask.id, ms, monthTask.account === "both" ? monthGoalPatch(monthTask, monthEntry, acc, v) : { target: v })))] : []),
-    ...(fsT && fs ? [tile("firstset", "First set", fs.actual ?? 0, fsT.target ?? null, v => quiet(planner.updateTask(fsT.id, { target: v })))] : []),
+    // short labels so every name fits next to the number / the field: "Oct", "1st set"
+    ...(monthTask ? [tile("month", monthName(now).slice(0, 3), doneMonth, monthTarget, v => quiet(planner.saveEntry(monthTask.id, ms, monthTask.account === "both" ? monthGoalPatch(monthTask, monthEntry, acc, v) : { target: v })))] : []),
+    ...(fsT && fs ? [tile("firstset", "1st set", fs.actual ?? 0, fsT.target ?? null, v => quiet(planner.updateTask(fsT.id, { target: v })))] : []),
   ];
   const head = (label: string, right?: any, dot?: string) => <SectionHead dot={dot} label={label} right={right} />;
   const linkBtn = (label: string, fn: () => void) => (
