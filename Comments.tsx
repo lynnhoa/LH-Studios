@@ -2,8 +2,9 @@
 // Comments — Outreach › Comments (third tab). Instagram comments to
 // copy, one line each. Copy only: nothing is posted from here.
 //   Title · summary line (● n comments · k used today · tap to copy)
-//   Chips (All · groups) when there's more than one group
-//   One section per group: GROUP · n ……… Edit · + Add
+//   One collapsible section per group: ▾ GROUP · n ……… (open: Edit · + Add)
+//     tap the header = open / close; first time all closed (every topic on
+//     one screen); which are open is remembered on this device
 //     rows of 44 px: tap = copied ("Copied ✓") and used today →
 //     grey with a "used" tag; it stays in its place.
 //     Fresh again the next day by itself.
@@ -16,7 +17,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { C, SANS, SERIF, TYPE, PAL, RADIUS, TRACK, SPACING } from "./constants";
-import { I, S, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Chip, ChipRow, Sheet } from "./atoms";
+import { I, S, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Sheet } from "./atoms";
 import { copyText } from "./outreach";
 import { showNote, showUndo } from "./undo";
 import { DEFAULT_GROUP, parseLines, usedToday } from "./useComments";
@@ -31,6 +32,10 @@ const linkBtn: any = {
   fontSize: TYPE.label.size, color: PAL.neutral.ink, WebkitTapHighlightColor: "transparent",
 };
 const NEW_GROUP = "__new__";
+
+// the open groups, remembered on this device (none the first time)
+const OPEN_KEY = "lh_comments_open";
+const loadOpen = (): string[] => { try { const v = JSON.parse(localStorage.getItem(OPEN_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
 
 const TA = (p: any) => (
   <textarea {...p} style={{ width: "100%", minHeight: 150, padding: "9px 10px", border: `1px solid ${C.field}`, borderRadius: RADIUS.field, background: C.white,
@@ -58,7 +63,12 @@ interface CommentsProps { hook: CommentsHook; isMobile: boolean; }
 
 export default function Comments({ hook, isMobile }: CommentsProps) {
   const { comments, loading, loadError } = hook;
-  const [group, setGroup]     = useState<string>("all");
+  const [open, setOpenList]   = useState<string[]>(loadOpen);
+  const toggle = (g: string) => {
+    const next = open.includes(g) ? open.filter(x => x !== g) : [...open, g];
+    setOpenList(next);
+    try { localStorage.setItem(OPEN_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  };
   const [editing, setEditing] = useState(false);
   const [adding, setAdding]   = useState<string | null>(null);      // the group "+ Add" was tapped in
 
@@ -67,9 +77,7 @@ export default function Comments({ hook, isMobile }: CommentsProps) {
     comments.forEach(c => { if (!seen.includes(c.group)) seen.push(c.group); });   // in the order they were first added
     return seen;
   }, [comments]);
-  useEffect(() => { if (group !== "all" && !groups.includes(group)) setGroup("all"); }, [groups, group]);
   const nUsed = comments.filter(usedToday).length;
-  const shownGroups = group === "all" ? groups : [group];
 
   const tap = async (c: Comment) => {
     if (editing) return;
@@ -129,23 +137,29 @@ export default function Comments({ hook, isMobile }: CommentsProps) {
 
       {!loadError && comments.length > 0 && (
         <>
-          {groups.length > 1 && (
-            <ChipRow s={{ marginTop: 12 }}>
-              <Chip on={group === "all"} tone={PAL.neutral} dot={false} label="All" count={comments.length} onClick={() => setGroup("all")} />
-              {groups.map(g => <Chip key={g} on={group === g} tone={PAL.neutral} dot={false} label={g} count={comments.filter(c => c.group === g).length} onClick={() => setGroup(g)} />)}
-            </ChipRow>
-          )}
-          {shownGroups.map(g => {
+          {groups.map(g => {
             const list = ordered(g);
+            const isOpen = open.includes(g);
+            const nUsedG = list.filter(usedToday).length;
             return (
               <div key={g}>
-                <SectionHead label={`${g} · ${list.length}`} right={
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-                    <button onClick={() => setEditing(e => !e)} style={{ ...linkBtn, textDecoration: "underline", textUnderlineOffset: 2, color: editing ? C.black : PAL.neutral.ink }}>{editing ? "Done" : "Edit"}</button>
-                    <span style={{ color: C.faint }}>·</span>
-                    <button onClick={() => setAdding(g)} style={linkBtn}>+ Add</button>
-                  </span>} />
-                <ListCard>{list.map((c, i) => row(c, i === 0))}</ListCard>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, margin: `${SPACING.sectionTop}px 2px ${SPACING.sectionBottom}px`, fontFamily: SANS }}>
+                  <button onClick={() => toggle(g)} aria-expanded={isOpen}
+                    style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 7, background: "none", border: "none", padding: "10px 0", margin: "-10px 0", cursor: "pointer",
+                      fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: PAL.neutral.ink, textAlign: "left" as const, WebkitTapHighlightColor: "transparent" }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: nUsedG ? PAL.done.mid : PAL.neutral.mid, flexShrink: 0 }} />
+                    <span style={{ whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{g} · {list.length}</span>
+                    <span aria-hidden="true" style={{ fontSize: 10, color: C.faint, letterSpacing: 0 }}>{isOpen ? "▴" : "▾"}</span>
+                  </button>
+                  {isOpen && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                      <button onClick={() => setEditing(e => !e)} style={{ ...linkBtn, textDecoration: "underline", textUnderlineOffset: 2, color: editing ? C.black : PAL.neutral.ink }}>{editing ? "Done" : "Edit"}</button>
+                      <span style={{ color: C.faint, fontSize: TYPE.label.size }}>·</span>
+                      <button onClick={() => setAdding(g)} style={linkBtn}>+ Add</button>
+                    </span>
+                  )}
+                </div>
+                {isOpen && <ListCard>{list.map((c, i) => row(c, i === 0))}</ListCard>}
               </div>
             );
           })}
