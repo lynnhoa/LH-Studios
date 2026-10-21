@@ -86,6 +86,27 @@ export function useOutreach(userId: string | null) {
     setContacts(prev => prev.map(c => c.id === id ? { ...c, ...patch, email: row.email ?? c.email } : c));
   }, [userId]);
 
+  // One contact typed in by hand. The email is cleaned like the import (no spaces, lowercase);
+  // an email already on the list is refused (here first, the database as a safety net) and
+  // the error carries that contact's id, so the window can offer to open it.
+  const addContact = useCallback(async (f: Partial<OutreachContact>): Promise<OutreachContact> => {
+    const email = String(f.email || "").trim().toLowerCase();
+    const dup = contacts.find(c => String(c.email || "").trim().toLowerCase() === email);
+    const who = dup ? (dup.company || dup.contactName ? `${dup.company || dup.contactName} (${dup.email})` : dup.email) : "";
+    if (dup) throw Object.assign(new Error(`Already on your list: ${who}`), { existingId: dup.id });
+    const row = {
+      user_id: userId, email,
+      company: String(f.company || "").trim(), contact_name: String(f.contactName || "").trim(),
+      category: f.category || "others", tier: f.tier || "now",
+      web: String(f.web || "").trim(), city: String(f.city || "").trim(), notes: f.notes || "", source: "Added by hand",
+    };
+    const { data, error } = await supabase.from("outreach_contacts").insert(row).select().single();
+    if (error) throw new Error(/unique|duplicate/i.test(error.message) ? "This email is already on your list." : error.message);
+    const c = rowToContact(data);
+    setContacts(prev => [c, ...prev]);
+    return c;
+  }, [userId, contacts]);
+
   const deleteContact = useCallback(async (id: string) => {
     const { error } = await supabase.from("outreach_contacts").delete().eq("id", id).eq("user_id", userId);
     if (error) throw new Error(error.message);
@@ -152,5 +173,5 @@ export function useOutreach(userId: string | null) {
     setContacts(prev => prev.map(x => (x.id === p.contactId ? { ...x, lastContact: before.lastContact, status: before.status || x.status } : x)));
   }, [userId]);
 
-  return { contacts, pitches, pitchError, loading, loadError, loginEmail, reload: load, updateContact, deleteContact, setStatus, logPitches, deletePitch, restorePitch };
+  return { contacts, pitches, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, logPitches, deletePitch, restorePitch };
 }

@@ -70,6 +70,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
   const [open, setOpen]       = useState<null | "filter" | "sort" | "download">(null);
   const [showCols, setShowCols] = useState(false);
   const [openId, setOpenId]   = useState<string | null>(null);
+  const [adding, setAdding]   = useState(false);                 // "+ Add": the contact window, empty
   const setToast = (t: string | null) => { if (t) showNote(t); };   // the app-wide message (same look as the save message)
   const [busy, setBusy]       = useState(false);
   const [showLog, setShowLog] = useState(false);
@@ -287,6 +288,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
         <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? TYPE.screen.size : TYPE.pageTitle.size, fontWeight: "normal", margin: 0, lineHeight: 1.1, whiteSpace: "nowrap" as const }}>Email list</h2>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+          <PillBtn onClick={() => setAdding(true)} title="Add one contact">+ Add</PillBtn>
           <PillBtn onClick={() => setShowCols(true)}>Import</PillBtn>
           {shown.length > 0 && !outreach.pitchError && <PillBtn dark onClick={() => setShowLog(true)} title="Log a pitch for the contacts in view">Log pitch</PillBtn>}
         </div>
@@ -309,7 +311,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
       ) : contacts.length === 0 ? (
         <ListCard s={{ marginTop: 12, padding: "14px 14px 16px" }}>
           <p style={{ fontFamily: SERIF, fontSize: 15, color: C.black, margin: "0 0 6px" }}>No contacts yet</p>
-          <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: 0, lineHeight: 1.6 }}>Tap <strong style={{ fontWeight: 500, color: C.black }}>Import</strong>: build your Excel with the columns, copy the prompt for Claude, run Claude's SQL in Supabase.</p>
+          <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: 0, lineHeight: 1.6 }}>Tap <strong style={{ fontWeight: 500, color: C.black }}>+ Add</strong> for one contact, or <strong style={{ fontWeight: 500, color: C.black }}>Import</strong> for a list: build your Excel with the columns, copy the prompt for Claude, run Claude's SQL in Supabase.</p>
         </ListCard>
       ) : shown.length === 0 ? (
         <p style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 16 }}>No contacts match. <button onClick={() => set({ q: "", cat: "all", tier: "all", status: "all", city: "all", added: "any" })} style={{ background: "none", border: "none", padding: 0, color: C.black, textDecoration: "underline", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size }}>Clear search and filters</button></p>
@@ -327,6 +329,8 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
 
       {/* ── CONTACT WINDOW ── */}
       {current && <ContactWindow c={current} outreach={outreach} isMobile={isMobile} onClose={() => setOpenId(null)} onCopy={(t) => copy(t, "Email copied ✓")} />}
+      {adding && !current && <ContactWindow c={NEW_CONTACT} isNew outreach={outreach} isMobile={isMobile} onClose={() => setAdding(false)} onCopy={(t) => copy(t, "Email copied ✓")}
+        onOpen={(id) => { setAdding(false); setOpenId(id); }} />}
 
       {/* ── LOG A PITCH FOR THE CONTACTS IN VIEW ── */}
       {showLog && <LogWindow ids={shown.map((c: OutreachContact) => c.id)} followUp={view.status === "followup"} outreach={outreach} isMobile={isMobile}
@@ -385,8 +389,13 @@ function Window({ title, isMobile, onClose, children, footer }: { title: string;
 }
 
 // ── Contact: read view, Edit → Save returns to the read view ─────
-function ContactWindow({ c, outreach, isMobile, onClose, onCopy }: { c: OutreachContact; outreach: any; isMobile: boolean; onClose: () => void; onCopy: (t: string) => void }) {
-  const [edit, setEdit] = useState(false);
+// a new contact: the window opens empty, ready to type (Save → its read view)
+const NEW_CONTACT: OutreachContact = { id: "", company: "", contactName: "", email: "", category: "others" as any, tier: "now" as any, status: "new" as any,
+  lastContact: null, web: "", city: "", notes: "", source: "", createdAt: "" };
+
+function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }: { c: OutreachContact; outreach: any; isMobile: boolean; onClose: () => void; onCopy: (t: string) => void; isNew?: boolean; onOpen?: (id: string) => void }) {
+  const [edit, setEdit] = useState(!!isNew);
+  const [dupId, setDupId] = useState<string | null>(null);     // the contact that already has this email
   const [f, setF] = useState(c);
   const [err, setErr] = useState<string | null>(null);
   const [askDelete, setAskDelete] = useState(false);
@@ -401,8 +410,13 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy }: { c: Outreach
   };
 
   const save = async () => {
-    setErr(null);
+    setErr(null); setDupId(null);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) { setErr("Please enter a valid email."); return; }
+    if (isNew) {                                     // saved → the window shows its read view
+      try { const n = await outreach.addContact(f); onOpen?.(n.id); }
+      catch (e: any) { setErr(e?.message || "Couldn't save."); if (e?.existingId) setDupId(e.existingId); }
+      return;
+    }
     try { await outreach.updateContact(c.id, f); setEdit(false); }
     catch (e: any) { setErr(e?.message || "Couldn't save."); }
   };
@@ -424,10 +438,10 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy }: { c: Outreach
   return (
     <>
       {askDelete && <ConfirmDialog title={`Delete ${c.company || c.email}?`} text="The contact is removed from your email list." okLabel="Delete" danger onOk={del} onCancel={() => setAskDelete(false)} />}
-      <Window title={c.company || c.email} isMobile={isMobile} onClose={onClose}
+      <Window title={isNew ? "New contact" : c.company || c.email} isMobile={isMobile} onClose={onClose}
         footer={edit ? (
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <B v="sec" onClick={() => { setEdit(false); setErr(null); }}>Cancel</B>
+            <B v="sec" onClick={() => { if (isNew) { onClose(); return; } setEdit(false); setErr(null); }}>Cancel</B>
             <B onClick={save}>Save</B>
           </div>
         ) : (
@@ -439,7 +453,8 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy }: { c: Outreach
             </div>
           </div>
         )}>
-        {err && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
+        {err && <p role="alert" style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
+        {dupId && onOpen && <B v="sec" onClick={() => onOpen(dupId)} s={{ marginBottom: 10 }}>Open that contact</B>}
         {!edit && !outreach.pitchError && (
           <div style={{ marginBottom: 6 }}>
             <Lbl>Status</Lbl>
