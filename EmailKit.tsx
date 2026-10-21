@@ -10,9 +10,13 @@
 //     grouped by purpose (chips when there's more than one purpose);
 //     each row: name · its media kit · copy icon (copies the text with
 //     that kit's link). Tap a row = the template window.
-// Windows (one level, the app's sheet): Edit links (all 4 kits) and a
-// template (read view: kit choice · subject · text · Done | Copy text;
-// Edit → Cancel | Save → back to the read view).
+// Windows (one level, the app's sheet): Edit links (all 4 kits: link,
+// Canva file, focus, PDF) and a template (read view: kit choice · Share
+// PDF · subject · text · Done | Copy text; Edit → Cancel | Save → back
+// to the read view).
+// PDF per kit: uploaded / replaced / deleted in Edit links (saved right
+// away); Share = the phone's share sheet to attach it (computer: the
+// file opens). A small dot on a tile = this kit has a PDF.
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useMemo } from "react";
@@ -21,7 +25,7 @@ import { fmtD } from "./formatters";
 import { I, S, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Row, Chip, ChipRow, Sheet, ConfirmDialog } from "./atoms";
 import { copyText } from "./outreach";
 import { showNote } from "./undo";
-import { KITS, KIT_TOKEN, kitInfo, fillText } from "./useEmailKit";
+import { KITS, KIT_TOKEN, kitInfo, fillText, fmtSize } from "./useEmailKit";
 import type { EmailKitHook, EmailTemplate, KitKey, MediaKit } from "./useEmailKit";
 
 const Ico = ({ d, size = 14, color = "currentColor" }: { d: string; size?: number; color?: string }) => (
@@ -34,6 +38,7 @@ const IC: Record<string, string> = {
   editorial:  "M4 8h3l2-2h6l2 2h3v11H4zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z",
   hotels:     "M5 20V4h10v16M15 9h4v11M8 8h4M8 12h4M8 16h4M3 20h18",
   ugc:        "M4 7h11v10H4zM15 10l5-3v10l-5-3",
+  share:      "M12 15V3M8 7l4-4 4 4M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7",
 };
 const toneOf = (k: KitKey) => PAL[CARD_TONE[k] || "neutral"];
 const NO_PURPOSE = "Other";
@@ -90,6 +95,9 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
     if (!url) { showNote(`Add the ${kitInfo(k)!.short} link first · Edit links`); return; }
     copy(url, `${kitInfo(k)!.short} link copied ✓`);
   };
+  const sharePdf = (k: KitKey) => {
+    kit.sharePdf(k).then(r => { if (r === "shared") showNote("PDF shared ✓"); }).catch((e: any) => showNote(e?.message || "The PDF couldn't be opened."));
+  };
   const copyTemplate = (t: EmailTemplate, k: KitKey | null) => {
     if (k && !urlOf(k)) { showNote(`Add the ${kitInfo(k)!.short} link first · Edit links`); return; }
     if (!t.body.trim()) { showNote("This template has no text yet"); return; }
@@ -118,11 +126,13 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
             {KITS.map(d => {
               const t = toneOf(d.key);
               const has = !!urlOf(d.key);
+              const hasPdf = !!kits.find(x => x.key === d.key)?.pdf;
               return (
                 <button key={d.key} onClick={() => copyKit(d.key)} aria-label={`Copy the ${d.label} link`} title={has ? `Copy the ${d.label} link` : "No link yet"}
                   style={{ height: 40, minWidth: 0, boxSizing: "border-box" as const, padding: "0 6px", borderRadius: RADIUS.tile, cursor: "copy",
                     border: has ? `1px solid ${C.line}` : `1px dashed ${t.mid}`, background: t.wash, color: t.ink, fontFamily: SANS, fontSize: TYPE.subtext.size,
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 5, WebkitTapHighlightColor: "transparent" }}>
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 5, WebkitTapHighlightColor: "transparent", position: "relative" as const }}>
+                  {hasPdf && <span aria-label="Has a PDF" title="Has a PDF" style={{ position: "absolute", top: 5, right: 5, width: 5, height: 5, borderRadius: "50%", background: t.mid }} />}
                   <span style={{ width: 18, height: 18, borderRadius: "50%", background: C.white, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={IC[d.key]} size={11} /></span>
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{d.short}</span>
                 </button>
@@ -166,11 +176,11 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
         </>
       )}
 
-      {editLinks && <LinksWindow kits={kits} save={kit.saveKits} onClose={() => setEditLinks(false)} />}
-      {current && <TemplateWindow t={current} kit={kit} purposes={purposes} urlOf={urlOf} onCopy={copyTemplate} onCopySubject={(s) => copy(s, "Subject copied ✓")} onClose={() => setOpenId(null)} />}
+      {editLinks && <LinksWindow kit={kit} onShare={sharePdf} onClose={() => setEditLinks(false)} />}
+      {current && <TemplateWindow t={current} kit={kit} purposes={purposes} urlOf={urlOf} onCopy={copyTemplate} onShare={sharePdf} onCopySubject={(s) => copy(s, "Subject copied ✓")} onClose={() => setOpenId(null)} />}
       {adding && !current && (
         <TemplateWindow isNew t={{ id: "", name: "", purpose: purpose !== "all" && purpose !== NO_PURPOSE ? purpose : "", subject: "", body: "", kit: null, createdAt: "" }}
-          kit={kit} purposes={purposes} urlOf={urlOf} onCopy={copyTemplate} onCopySubject={(s) => copy(s, "Subject copied ✓")}
+          kit={kit} purposes={purposes} urlOf={urlOf} onCopy={copyTemplate} onShare={sharePdf} onCopySubject={(s) => copy(s, "Subject copied ✓")}
           onClose={() => setAdding(false)} onCreated={(id) => { setAdding(false); setOpenId(id); }} />
       )}
     </div>
@@ -178,11 +188,31 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
 }
 
 // ── Edit links: the 4 kits in one window ──────────────────────
-function LinksWindow({ kits, save, onClose }: { kits: MediaKit[]; save: (k: MediaKit[]) => Promise<void>; onClose: () => void }) {
+function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k: KitKey) => void; onClose: () => void }) {
+  const kits = kit.kits;
+  const save = kit.saveKits;
   const [edit, setEdit] = useState(false);
+  const [busyKey, setBusyKey] = useState<KitKey | null>(null);           // a PDF being uploaded / deleted
+  const [askDel, setAskDel]   = useState<KitKey | null>(null);
+  useEffect(() => { kit.preloadPdfs(); }, [kit.kits]);                    // ready for Share in the same tap
+  const upload = (key: KitKey) => {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "application/pdf,.pdf";
+    inp.onchange = () => {
+      const file = inp.files?.[0];
+      if (!file) return;
+      setErr(null); setBusyKey(key);
+      kit.uploadPdf(key, file).then(() => showNote("PDF saved ✓")).catch((e: any) => setErr(e?.message || "The PDF couldn't be saved.")).finally(() => setBusyKey(null));
+    };
+    inp.click();
+  };
+  const removePdf = (key: KitKey) => {
+    setAskDel(null); setErr(null); setBusyKey(key);
+    kit.deletePdf(key).then(() => showNote("PDF deleted")).catch((e: any) => setErr(e?.message || "Couldn't delete.")).finally(() => setBusyKey(null));
+  };
   const [f, setF]       = useState<MediaKit[]>(kits);
   const [err, setErr]   = useState<string | null>(null);
-  useEffect(() => { if (!edit) setF(kits); }, [kits, edit]);
+  useEffect(() => { if (!edit) setF(kits); else setF(prev => prev.map(p => ({ ...p, pdf: kits.find(k => k.key === p.key)?.pdf ?? null }))); }, [kits, edit]);
   const set = (key: KitKey, patch: Partial<MediaKit>) => setF(prev => prev.map(k => (k.key === key ? { ...k, ...patch } : k)));
   const doSave = async () => {
     setErr(null);
@@ -198,7 +228,17 @@ function LinksWindow({ kits, save, onClose }: { kits: MediaKit[]; save: (k: Medi
     </div>
   );
 
+  const pdfOf = (key: KitKey) => kits.find(k => k.key === key)?.pdf ?? null;
+  const pdfLine = (key: KitKey) => {
+    const p = pdfOf(key);
+    if (busyKey === key) return <span style={{ color: C.muted }}>Saving…</span>;
+    return p ? <span style={{ color: C.black }}>{p.name} <span style={{ color: C.muted }}>· {fmtSize(p.size)}{p.updatedAt ? ` · ${fmtD(p.updatedAt.slice(0, 10))}` : ""}</span></span> : "";
+  };
+  const smallBtn: any = { height: 28, flexShrink: 0 };
+
   return (
+    <>
+    {askDel && <ConfirmDialog title={`Delete the ${kitInfo(askDel)!.short} PDF?`} text="The PDF is removed from this media kit. The Canva link stays." okLabel="Delete" danger onOk={() => removePdf(askDel)} onCancel={() => setAskDel(null)} />}
     <Sheet title="Media kits" onClose={edit ? () => { setEdit(false); setErr(null); } : onClose}
       right={!edit ? <PillBtn onClick={() => setEdit(true)}>Edit</PillBtn> : null}
       footer={edit ? <>
@@ -223,6 +263,11 @@ function LinksWindow({ kits, save, onClose }: { kits: MediaKit[]; save: (k: Medi
                 {row("Canva file", k.file)}
                 {row("View link", k.url ? <a href={k.url} target="_blank" rel="noreferrer" style={{ color: C.blue, textDecoration: "none" }}>{k.url.replace(/^https?:\/\/(www\.)?/, "")}</a> : "")}
                 {row("Updated", k.url && k.updatedAt ? fmtD(k.updatedAt.slice(0, 10)) : "")}
+                <div style={{ display: "grid", gridTemplateColumns: "84px minmax(0,1fr) auto", gap: 8, alignItems: "center", minHeight: 36, borderTop: `1px solid ${C.hair}`, fontSize: SPACING.listText }}>
+                  <span style={{ fontSize: TYPE.subtext.size, color: C.muted }}>PDF</span>
+                  <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pdfLine(k.key) || <span style={{ color: C.light }}>—</span>}</span>
+                  {pdfOf(k.key) && busyKey !== k.key && <PillBtn onClick={() => onShare(k.key)} s={smallBtn}><Ico d={IC.share} size={13} />Share</PillBtn>}
+                </div>
               </>
             ) : (
               <>
@@ -233,19 +278,26 @@ function LinksWindow({ kits, save, onClose }: { kits: MediaKit[]; save: (k: Medi
                   <div><Lbl>Canva file</Lbl><I value={k.file} aria-label={`${d.label} Canva file`} onChange={(e: any) => set(k.key, { file: e.target.value })} /></div>
                   <div><Lbl>Focus</Lbl><I value={k.focus} aria-label={`${d.label} focus`} onChange={(e: any) => set(k.key, { focus: e.target.value })} /></div>
                 </div>
+                <Lbl>PDF · saved right away</Lbl>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 36 }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: SPACING.listText, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pdfLine(k.key) || <span style={{ color: C.light }}>No PDF yet</span>}</span>
+                  <PillBtn dim={busyKey !== null} onClick={() => { if (busyKey === null) upload(k.key); }} s={smallBtn}>{pdfOf(k.key) ? "Replace" : "Upload PDF"}</PillBtn>
+                  {pdfOf(k.key) && <PillBtn dim={busyKey !== null} onClick={() => { if (busyKey === null) setAskDel(k.key); }} s={{ ...smallBtn, color: C.red }}>Delete</PillBtn>}
+                </div>
               </>
             )}
           </div>
         );
       })}
     </Sheet>
+    </>
   );
 }
 
 // ── one template: read view (kit choice, subject, text) · edit ─
-function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onCopySubject, onClose, onCreated, isNew }: {
+function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubject, onClose, onCreated, isNew }: {
   t: EmailTemplate; kit: EmailKitHook; purposes: string[]; urlOf: (k: KitKey | null) => string;
-  onCopy: (t: EmailTemplate, k: KitKey | null) => void; onCopySubject: (s: string) => void;
+  onCopy: (t: EmailTemplate, k: KitKey | null) => void; onShare: (k: KitKey) => void; onCopySubject: (s: string) => void;
   onClose: () => void; onCreated?: (id: string) => void; isNew?: boolean;
 }) {
   const [edit, setEdit] = useState(!!isNew);
@@ -255,6 +307,8 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onCopySubject, onClos
   const [askDelete, setAskDelete] = useState(false);
   useEffect(() => { if (!edit) setF(t); }, [t, edit]);
   useEffect(() => { setPick(t.kit); }, [t.kit]);
+  useEffect(() => { kit.preloadPdfs(); }, [kit.kits]);                    // ready for Share PDF in the same tap
+  const pickPdf = pick ? kit.kits.find(k => k.key === pick)?.pdf ?? null : null;
 
   const save = async () => {
     setErr(null);
@@ -294,7 +348,10 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onCopySubject, onClos
         {!edit ? (
           <>
             <div style={{ fontFamily: SERIF, fontSize: TYPE.tile.size, lineHeight: 1.2 }}>{t.name || "Untitled"}</div>
-            {head("Media kit")}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "12px 2px 5px" }}>
+              <span style={caps}>Media kit</span>
+              {pickPdf && <button onClick={() => onShare(pick!)} style={{ ...linkBtn, display: "inline-flex", alignItems: "center", gap: 4 }}><Ico d={IC.share} size={12} />Share PDF</button>}
+            </div>
             <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
               {KITS.map(d => <KitChip key={d.key} k={d.key} on={pick === d.key} onClick={() => setPick(d.key)} />)}
               <KitChip k={null} on={pick === null} onClick={() => setPick(null)} />

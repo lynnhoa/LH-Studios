@@ -4,11 +4,17 @@
 //   email_templates  email texts to copy (purpose, subject, text, kit)
 // The 4 kits are added by the app itself the first time (empty links).
 // Nothing is sent from here: everything is only copied.
+// Each kit can also hold ONE PDF (private file store, bucket media-kits,
+// <your id>/<kit>/<time>.pdf) — to attach, never as a public link.
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./useSupabase";
 import { registerReloader } from "./saveStatus";
+import { isMobileDevice } from "./PDFExport";
+
+export const KIT_BUCKET = "media-kits";
+export const KIT_PDF_MAX = 20 * 1024 * 1024;   // 20 MB, the same limit as the signed contracts
 
 // key = the rate-card key, so each kit has the same colour as in the Service Catalog
 export type KitKey = "influencer" | "editorial" | "hotels" | "ugc";
@@ -24,20 +30,30 @@ export const kitInfo = (k?: string | null) => KITS.find(x => x.key === k);
 // where the link goes inside a template text
 export const KIT_TOKEN = "{kit}";
 
-export interface MediaKit { key: KitKey; url: string; file: string; focus: string; updatedAt: string; }
+export interface KitPdf { path: string; name: string; size: number; updatedAt: string; }
+export interface MediaKit { key: KitKey; url: string; file: string; focus: string; updatedAt: string; pdf: KitPdf | null; }
 export interface EmailTemplate {
   id: string; name: string; purpose: string; subject: string; body: string; kit: KitKey | null; createdAt: string;
 }
 
 const rowToKit = (r: any): MediaKit => {
   const d = kitInfo(r.key)!;
-  return { key: r.key, url: r.url ?? "", file: r.canva_file ?? d.file, focus: r.focus ?? d.focus, updatedAt: r.updated_at ?? "" };
+  return { key: r.key, url: r.url ?? "", file: r.canva_file ?? d.file, focus: r.focus ?? d.focus, updatedAt: r.updated_at ?? "",
+    pdf: r.pdf_path ? { path: r.pdf_path, name: r.pdf_name || "Media kit.pdf", size: Number(r.pdf_size) || 0, updatedAt: r.pdf_updated_at ?? "" } : null };
 };
 const rowToTpl = (r: any): EmailTemplate => ({
   id: r.id, name: r.name ?? "", purpose: r.purpose ?? "", subject: r.subject ?? "", body: r.body ?? "",
   kit: kitInfo(r.kit_key) ? r.kit_key : null, createdAt: r.created_at ?? "",
 });
 const fail = (error: any) => { if (error) throw new Error(error.message || "Couldn't save."); };
+
+// "2,4 MB" · "380 KB" (German format)
+export const fmtSize = (b: number) => b >= 1024 * 1024
+  ? `${(b / 1024 / 1024).toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`
+  : `${Math.max(1, Math.round(b / 1024)).toLocaleString("de-DE")} KB`;
+
+// the PDFs, fetched once while a window is open, so Share works in the same tap (iPhone)
+const pdfCache = new Map<string, File>();
 
 // the text to copy: the kit's link goes where {kit} is; no {kit} → the link goes at the end
 export function fillText(body: string, url: string | null): string {
@@ -95,8 +111,66 @@ export function useEmailKit(userId: string | null) {
         .eq("user_id", userId).eq("key", n.key);
       fail(error);
     }
-    if (changed.length) setKits(prev => prev.map(p => { const c = changed.find(x => x.key === p.key); return c ? { ...c, url: c.url.trim(), file: c.file.trim(), focus: c.focus.trim(), updatedAt: now } : p; }));
+    if (changed.length) setKits(prev => prev.map(p => { const c = changed.find(x => x.key === p.key); return c ? { ...p, url: c.url.trim(), file: c.file.trim(), focus: c.focus.trim(), updatedAt: now } : p; }));
   }, [kits, userId]);
+
+  // ── PDFs ─────────────────────────────────────────────────────
+  // upload (or replace): saved right away; the old file is removed afterwards
+  const uploadPdf = useCallback(async (key: KitKey, f: File) => {
+    if (!(f.type === "application/pdf" || /\.pdf$/i.test(f.name))) throw new Error("Please choose a PDF.");
+    if (f.size > KIT_PDF_MAX) throw new Error("The PDF is bigger than 20 MB.");
+    const old = kits.find(k => k.key === key)?.pdf;
+    const path = `${userId}/${key}/${Date.now()}.pdf`;
+    const up = await supabase.storage.from(KIT_BUCKET).upload(path, f, { contentType: "application/pdf", upsert: false });
+    if (up.error) throw new Error(/bucket/i.test(up.error.message || "") ? "The PDF folder doesn't exist yet — run the media kit PDF SQL in Supabase once." : up.error.message);
+    const now = new Date().toISOString();
+    const pdf: KitPdf = { path, name: f.name, size: f.size, updatedAt: now };
+    const { error } = await supabase.from("email_kits")
+      .update({ pdf_path: path, pdf_name: f.name, pdf_size: f.size, pdf_updated_at: now }).eq("user_id", userId).eq("key", key);
+    if (error) { await supabase.storage.from(KIT_BUCKET).remove([path]); fail(error); }
+    if (old?.path) { pdfCache.delete(old.path); await supabase.storage.from(KIT_BUCKET).remove([old.path]); }
+    pdfCache.set(path, new File([f], f.name, { type: "application/pdf" }));
+    setKits(prev => prev.map(k => (k.key === key ? { ...k, pdf } : k)));
+  }, [kits, userId]);
+
+  const deletePdf = useCallback(async (key: KitKey) => {
+    const old = kits.find(k => k.key === key)?.pdf;
+    if (!old) return;
+    const { error } = await supabase.from("email_kits")
+      .update({ pdf_path: null, pdf_name: null, pdf_size: null, pdf_updated_at: null }).eq("user_id", userId).eq("key", key);
+    fail(error);
+    pdfCache.delete(old.path);
+    await supabase.storage.from(KIT_BUCKET).remove([old.path]);
+    setKits(prev => prev.map(k => (k.key === key ? { ...k, pdf: null } : k)));
+  }, [kits, userId]);
+
+  // fetch the PDFs in the background (call when a window opens)
+  const preloadPdfs = useCallback((keys?: KitKey[]) => {
+    kits.filter(k => k.pdf && (!keys || keys.includes(k.key)) && !pdfCache.has(k.pdf.path)).forEach(k => {
+      const p = k.pdf!;
+      supabase.storage.from(KIT_BUCKET).download(p.path).then((r: any) => {
+        if (r?.data) pdfCache.set(p.path, new File([r.data], p.name, { type: "application/pdf" }));
+      }).catch(() => { /* Share falls back to opening the file */ });
+    });
+  }, [kits]);
+
+  // Share: phone → the share sheet with the PDF (attach in Mail, WhatsApp …);
+  // computer, or not loaded yet → the file opens / downloads (10-minute link)
+  const sharePdf = useCallback(async (key: KitKey): Promise<"shared" | "opened" | "cancelled"> => {
+    const pdf = kits.find(k => k.key === key)?.pdf;
+    if (!pdf) throw new Error("There's no PDF for this kit yet.");
+    const file = pdfCache.get(pdf.path);
+    const nav: any = navigator;
+    if (file && isMobileDevice() && nav.canShare?.({ files: [file] })) {
+      try { await nav.share({ files: [file] }); return "shared"; }
+      catch (e: any) { if (e?.name === "AbortError") return "cancelled"; /* else: open it instead */ }
+    }
+    const win = window.open("", "_blank");               // in the same tap (the iPhone allows nothing later)
+    const r: any = await supabase.storage.from(KIT_BUCKET).createSignedUrl(pdf.path, 600, { download: pdf.name });
+    if (r?.error || !r?.data?.signedUrl) { try { win?.close(); } catch { /* ignore */ } throw new Error(r?.error?.message || "The PDF couldn't be opened."); }
+    if (win) win.location.href = r.data.signedUrl; else window.location.href = r.data.signedUrl;
+    return "opened";
+  }, [kits]);
 
   const tplRow = (f: Partial<EmailTemplate>) => {
     const row: any = { updated_at: new Date().toISOString() };
@@ -125,7 +199,7 @@ export function useEmailKit(userId: string | null) {
     setTemplates(prev => prev.filter(t => t.id !== id));
   }, [userId]);
 
-  return { kits, templates, loading, loadError, saveKits, addTemplate, updateTemplate, deleteTemplate };
+  return { kits, templates, loading, loadError, saveKits, addTemplate, updateTemplate, deleteTemplate, uploadPdf, deletePdf, preloadPdfs, sharePdf };
 }
 
 export type EmailKitHook = ReturnType<typeof useEmailKit>;
