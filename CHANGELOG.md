@@ -117,10 +117,11 @@ Goal: make the Supabase app functionally identical to the old reference
   title, sits above the iPhone keyboard; 560 px wide and centred on iPad /
   computer.
 - Idea window: "Idea" as the title, the account and ⋯ on the right.
+- Done is back at the bottom of the Idea and concept Texts / Links sheets.
 - Concept: Arc and Format as two small dropdowns side by side. Format lists
   only that arc's formats; a new arc keeps the format if it has one of the
   same name; "Pick an arc" clears both.
-- Changed: `PlannerWindows.tsx`.
+- Changed: `PlannerWindows.tsx`, `PlannerConcept.tsx`.
 
 ## Known open items
 1. Multi-device: data fetched once per load, last-write-wins — consider

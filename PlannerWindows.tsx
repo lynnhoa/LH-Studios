@@ -506,7 +506,8 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
   return (
     <>
       <Window title={it.list === "editorial" ? "Editorial" : "Idea"} isMobile={isMobile} onClose={onClose}
-        right={<>{accPill}<MoreMenu bare items={[{ label: `Delete ${it.list === "editorial" ? "editorial" : "idea"}`, danger: true, onClick: del }]} /></>}>
+        right={<>{accPill}<MoreMenu bare items={[{ label: `Delete ${it.list === "editorial" ? "editorial" : "idea"}`, danger: true, onClick: del }]} /></>}
+        footer={<div style={{ display: "flex", width: "100%" }}><B onClick={onClose} s={{ flex: 1, height: 38, minHeight: 38 }}>Done</B></div>}>
         <TitleField value={it.title} onSave={v => save({ title: v })} />
 
         {/* Shot · Filmed · Posted — the same status as the Creator list */}
