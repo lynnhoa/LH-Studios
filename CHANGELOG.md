@@ -110,6 +110,18 @@ Goal: make the Supabase app functionally identical to the old reference
 - Concept Texts / Links windows: no Done bar.
 - Changed: `PlannerWindows.tsx`, `planner.ts`, `PlannerConcept.tsx`.
 
+## Planner · windows as bottom sheets + Arc / Format split (21.10.2026)
+- Every Planner window (Idea, Sprint, concept Texts / Links) is now a bottom
+  sheet like the Manager and Creator sheets: only as tall as its content (up
+  to 88 %), the page dimmed behind, tap outside or ✕ to close, small-caps
+  title, sits above the iPhone keyboard; 560 px wide and centred on iPad /
+  computer.
+- Idea window: "Idea" as the title, the account and ⋯ on the right.
+- Concept: Arc and Format as two small dropdowns side by side. Format lists
+  only that arc's formats; a new arc keeps the format if it has one of the
+  same name; "Pick an arc" clears both.
+- Changed: `PlannerWindows.tsx`.
+
 ## Known open items
 1. Multi-device: data fetched once per load, last-write-wins — consider
    refetch-on-focus (~20 lines).

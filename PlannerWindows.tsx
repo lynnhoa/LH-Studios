@@ -6,15 +6,17 @@
 // The text list, link list and window heads are shared with the
 // concept page (PlannerConcept: an arc's texts and links).
 // Extra actions (Delete …) sit in the ⋯ menu; one main button.
-// Compact: 40 px top bar, 10 px between sections, 32 px rows and fields
-// with 13 px text (typed at 16 px underneath, so the iPhone doesn't zoom).
+// Every window is a bottom sheet like the Manager and Creator sheets: only as
+// tall as its content, the page dimmed behind. Compact inside: 10 px between
+// sections, 32 px rows and fields with 13 px text (typed at 16 px underneath,
+// so the iPhone doesn't zoom).
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE, Z, PAL, RADIUS, TRACK, SHADOW } from "./constants";
+import { C, SANS, SERIF, TYPE, Z, PAL, RADIUS, TRACK, SHADOW, DENSITY, ICON } from "./constants";
 import { fmtD, today, monthStart, monthEnd, ymd } from "./formatters";
-import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN, Switch, TextInline, MiniInput, MiniSelect } from "./atoms";
+import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN, Switch, TextInline, MiniInput, MiniSelect, useKeyboardInset } from "./atoms";
 import type { ToneSet } from "./atoms";
 import {
   ACCOUNTS, PHASES, OWNERS, RHYTHMS, STATUSES, STAGE_SHORT, DAY_SHORT, accLook, phaseLabel, ownerLabel, rhythmLabel, rowKind, entryKey, periodOf, snapKey, addDays, isoWeek, weekRange, weekLabel, thisMonday, monthName, todayIndex, gateOf, stageNumOf, taskAccounts, isVisible, byOrder, fmtInt, fmtPct2, parseDec, parseIntDe, ITEM_STATUSES, FORMATS, CLASSIC, formatLook, itemStatusLabel, daysBetween, OWNER_LOOK, monthGoalOf, monthGoalPatch, loadWorkAccount, storyLines,
@@ -284,17 +286,26 @@ export const CountChip = ({ label, n, look }: { label: string; n: number; look?:
   <span style={{ fontSize: TYPE.micro.size, padding: "1px 7px", borderRadius: 10, border: `1px solid ${look?.border || C.rule}`, background: look?.bg || "transparent", color: look?.color || C.muted, whiteSpace: "nowrap" as const }}>{label} {n}</span>
 );
 
-// ── one-level window: full screen on the phone, centred elsewhere ─
-export function Window({ title, isMobile, onClose, children, footer, head }: { title: string; isMobile: boolean; onClose: () => void; children: any; footer?: any; head?: any }) {
+// ── one-level window: a bottom sheet, like the Manager and Creator sheets ─
+// Only as tall as its content (up to 88 % of the screen), the page dimmed behind;
+// tap outside or ✕ to close. The title in small caps, extras (right) on the right.
+// With the iPhone keyboard open, the sheet sits on top of it.
+export function Window({ title, isMobile, onClose, children, footer, right, head }: { title: string; isMobile: boolean; onClose: () => void; children: any; footer?: any; right?: any; head?: any }) {
+  const kb = useKeyboardInset();
+  const extra = right ?? head;
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", background: isMobile ? C.bg : "rgba(250,249,247,0.85)", fontFamily: SANS, color: C.black }}>
-      <div style={{ width: "100%", maxWidth: isMobile ? "none" : 480, maxHeight: isMobile ? "none" : "88vh", background: C.bg, border: isMobile ? "none" : `1px solid ${C.rule}`, borderRadius: isMobile ? 0 : 2, boxShadow: isMobile ? "none" : "0 8px 32px rgba(0,0,0,0.12)", display: "flex", flexDirection: "column", paddingTop: isMobile ? "env(safe-area-inset-top)" : 0 }}>
-        <div style={{ height: 40, display: "flex", alignItems: "center", gap: 4, padding: "0 2px", borderBottom: `1px solid ${C.rule}`, flexShrink: 0, background: C.white }}>
-          <button onClick={onClose} aria-label="Close" style={{ width: 40, height: 40, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 18, flexShrink: 0 }}>✕</button>
-          {head || <span style={{ fontFamily: SERIF, fontSize: 15, color: C.black, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{title}</span>}
+    <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", flexDirection: "column", justifyContent: "flex-end", fontFamily: SANS, color: C.black, paddingBottom: kb }}>
+      <div onClick={onClose} aria-hidden="true" style={{ position: "absolute", inset: 0, background: "rgba(26,26,26,0.28)" }} />
+      <div role="dialog" aria-modal="true" aria-label={title}
+        style={{ position: "relative", background: C.white, borderRadius: `${RADIUS.button}px ${RADIUS.button}px 0 0`, boxShadow: SHADOW.pop,
+          maxHeight: kb ? `calc(100vh - ${kb + 12}px)` : "88vh", display: "flex", flexDirection: "column", width: "100%", maxWidth: 560, margin: "0 auto" }}>
+        <div style={{ height: DENSITY.sheetHeader, display: "flex", alignItems: "center", gap: 4, padding: "0 6px 0 4px", flexShrink: 0 }}>
+          <button onClick={onClose} aria-label="Close" style={{ width: DENSITY.tap, height: DENSITY.tap, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: ICON.close, flexShrink: 0 }}>✕</button>
+          <span style={{ flex: 1, minWidth: 0, textAlign: "center" as const, fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, padding: "0 6px" }}>{title}</span>
+          <span style={{ minWidth: DENSITY.tap, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2, flexShrink: 0 }}>{extra}</span>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "10px 12px 14px" }}>{children}</div>
-        {footer && <div style={{ padding: `10px 14px ${isMobile ? "calc(10px + env(safe-area-inset-bottom))" : "10px"}`, borderTop: `1px solid ${C.rule}`, flexShrink: 0, background: C.white }}>{footer}</div>}
+        <div style={{ overflowY: "auto", padding: footer ? "2px 16px 14px" : "2px 16px calc(14px + env(safe-area-inset-bottom, 0px))", WebkitOverflowScrolling: "touch" as any }}>{children}</div>
+        {footer && <div style={{ padding: kb ? "10px 16px" : "10px 16px calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: `1px solid ${C.line}`, flexShrink: 0, background: C.white }}>{footer}</div>}
       </div>
     </div>,
     document.body
@@ -494,8 +505,8 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
 
   return (
     <>
-      <Window title={it.title || "Idea"} isMobile={isMobile} onClose={onClose}
-        head={<span style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 2 }}>{accPill}<MoreMenu bare items={[{ label: `Delete ${it.list === "editorial" ? "editorial" : "idea"}`, danger: true, onClick: del }]} /></span>}>
+      <Window title={it.list === "editorial" ? "Editorial" : "Idea"} isMobile={isMobile} onClose={onClose}
+        right={<>{accPill}<MoreMenu bare items={[{ label: `Delete ${it.list === "editorial" ? "editorial" : "idea"}`, danger: true, onClick: del }]} /></>}>
         <TitleField value={it.title} onSave={v => save({ title: v })} />
 
         {/* Shot · Filmed · Posted — the same status as the Creator list */}
@@ -517,28 +528,35 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
           </div>
         )}
 
-        {/* the content concept: one dropdown, grouped by arc — picking a format sets its arc */}
+        {/* the content concept: Arc, then Format (that arc's formats) side by side */}
         <WinHead icon={IC.bulb} label="Concept" tone={accT} />
         {(() => {
           const arcs = planner.arcs.filter(a => a.account === it.account).sort((a, b) => a.num - b.num);
-          const cur  = it.plan.arc && it.plan.arcFormat ? `${it.plan.arc}|${it.plan.arcFormat}` : "";
           const arc  = arcs.find(a => a.id === it.plan.arc);
           const fmt  = arc?.formats.find(f => f.name === it.plan.arcFormat);
+          // a new arc keeps the format if it has one of the same name
+          const pickArc = (id: string) => {
+            if (!id) { savePlan({ arc: null, arcFormat: null }); return; }
+            const next = arcs.find(a => a.id === id);
+            const keep = !!next && !!it.plan.arcFormat && next.formats.some(f => f.name === it.plan.arcFormat);
+            savePlan({ arc: id, arcFormat: keep ? it.plan.arcFormat : null });
+          };
           return (
             <>
-              <MiniSelect value={cur} muted={!cur} disabled={!arcs.length && !cur} aria-label="Arc and format"
-                onChange={(e: any) => {
-                  const v = String(e.target.value || ""), i = v.indexOf("|");
-                  savePlan(i < 0 ? { arc: null, arcFormat: null } : { arc: v.slice(0, i), arcFormat: v.slice(i + 1) });
-                }}>
-                <option value="">{arcs.length ? "Pick arc and format" : `No arcs for @${it.account} yet`}</option>
-                {cur && !fmt && <option value={cur}>{it.plan.arcFormat} (not in the concept any more)</option>}
-                {arcs.map(a => (
-                  <optgroup key={a.id} label={`${a.num}. ${a.name}`}>
-                    {a.formats.map(f => <option key={f.name} value={`${a.id}|${f.name}`}>{`${a.num}. ${a.name} · ${f.name}${f.main ? " (main)" : ""}`}</option>)}
-                  </optgroup>
-                ))}
-              </MiniSelect>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 6 }}>
+                <MiniSelect value={it.plan.arc || ""} muted={!it.plan.arc} disabled={!arcs.length && !it.plan.arc} aria-label="Arc"
+                  onChange={(e: any) => pickArc(String(e.target.value || ""))}>
+                  <option value="">{arcs.length ? "Pick an arc" : `No arcs for @${it.account} yet`}</option>
+                  {it.plan.arc && !arc && <option value={it.plan.arc}>Not in the concept any more</option>}
+                  {arcs.map(a => <option key={a.id} value={a.id}>{`${a.num}. ${a.name}`}</option>)}
+                </MiniSelect>
+                <MiniSelect value={it.plan.arcFormat || ""} muted={!it.plan.arcFormat} disabled={!arc} aria-label="Format"
+                  onChange={(e: any) => savePlan({ arcFormat: String(e.target.value || "") || null })}>
+                  <option value="">{arc ? "Pick a format" : "Format"}</option>
+                  {arc && it.plan.arcFormat && !fmt && <option value={it.plan.arcFormat}>{`${it.plan.arcFormat} (not in this arc any more)`}</option>}
+                  {(arc?.formats || []).map(f => <option key={f.name} value={f.name}>{`${f.name}${f.main ? " (main)" : ""}`}</option>)}
+                </MiniSelect>
+              </div>
               <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap" as const, gap: "4px 10px", fontSize: TYPE.label.size, color: C.muted, margin: "5px 2px 0", minHeight: 14 }}>
                 <span>{fmt ? "Posts on" : "Posts on —"}</span>
                 {fmt?.tt && <PlatformMark platform="TikTok" />}
