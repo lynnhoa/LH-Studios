@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// OutreachApp — Outreach (tab: Email list). Same frame as the
+// OutreachApp — Outreach (tabs: Contacts · Email kit). Same frame as the
 // other apps: logo header, nav tab, account menu with all apps.
 // The menu also holds the account you're working on (as in the
 // Planner); the email list itself stays one shared list.
@@ -13,7 +13,9 @@ import AppLogo from "./AppLogo";
 import { AvatarMenu, NavTab, appItems, AppHeader, APP_HEADER_H } from "./AppNav";
 import { UndoBar } from "./undo";
 import EmailList from "./EmailList";
+import EmailKit from "./EmailKit";
 import { useOutreach } from "./useOutreach";
+import { useEmailKit } from "./useEmailKit";
 import { ACCOUNTS, loadWorkAccount, saveWorkAccount } from "./planner";
 import type { Account } from "./planner";
 import type { Role } from "./types";
@@ -28,6 +30,11 @@ interface OutreachAppProps {
 
 export default function OutreachApp({ userId, settings, signOut, switchTo, banners }: OutreachAppProps) {
   const outreach = useOutreach(userId);
+  const emailKit = useEmailKit(userId);
+  // the open tab: Contacts (the email list) or Email kit — kept while the app is open
+  const TAB_KEY = "lh_outreach_tab";
+  const [tab, setTab] = useState<"contacts" | "kit">(() => { try { return sessionStorage.getItem(TAB_KEY) === "kit" ? "kit" : "contacts"; } catch { return "contacts"; } });
+  const pickTab = (t: "contacts" | "kit") => { setTab(t); try { sessionStorage.setItem(TAB_KEY, t); } catch { /* ignore */ } window.scrollTo(0, 0); };
   // the account you're working on (same choice as in the Planner): the default when you log a pitch
   const [work, setWork] = useState<Account>(loadWorkAccount);
   const pickAccount = (a: Account) => { saveWorkAccount(a); setWork(a); };
@@ -50,10 +57,15 @@ export default function OutreachApp({ userId, settings, signOut, switchTo, banne
 
   return (
     <div style={{ minHeight: "100dvh", background: C.bg, fontFamily: SANS, color: C.black }}>
-      <AppHeader isMobile={isMobile} avatar={avatar(false)} tabs={(h, px) => <NavTab label="Email list" active={true} onClick={() => {}} height={h} px={px} />} />
+      <AppHeader isMobile={isMobile} avatar={avatar(false)} tabs={(h, px) => <>
+        <NavTab label="Contacts"  active={tab === "contacts"} onClick={() => pickTab("contacts")} height={h} px={px} />
+        <NavTab label="Email kit" active={tab === "kit"}      onClick={() => pickTab("kit")}      height={h} px={px} />
+      </>} />
       <div style={{ maxWidth: isWide ? 1200 : 960, margin: "0 auto", padding: isMobile ? "14px 14px 28px" : "24px 20px 40px" }}>
         {banners}
-        <EmailList outreach={outreach} settings={settings} isMobile={isMobile} isWide={isWide} stickyTop={headerH} />
+        {tab === "contacts"
+          ? <EmailList outreach={outreach} settings={settings} isMobile={isMobile} isWide={isWide} stickyTop={headerH} />
+          : <EmailKit kit={emailKit} isMobile={isMobile} />}
       </div>
       <UndoBar />
     </div>

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// EmailList — Outreach › Email list (the same parts as the other apps' list screens)
+// EmailList — Outreach › Contacts (the email list) (the same parts as the other apps' list screens)
 // Title · Import (light) · Log pitch (dark)
 // Summary line: ● n contacts · to follow up · Copy emails
 // Toolbar (38 px): Search · Filter (category, tier, city, added) · Sort · Download
@@ -288,7 +288,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
 
       {/* ── HEADER: title · Import · Log pitch ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? TYPE.screen.size : TYPE.pageTitle.size, fontWeight: "normal", margin: 0, lineHeight: 1.1, whiteSpace: "nowrap" as const }}>Email list</h2>
+        <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? TYPE.screen.size : TYPE.pageTitle.size, fontWeight: "normal", margin: 0, lineHeight: 1.1, whiteSpace: "nowrap" as const }}>Contacts</h2>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
           <PillBtn onClick={() => setAdding(true)} title="Add one contact">+ Add</PillBtn>
           <PillBtn onClick={() => setShowCols(true)}>Import</PillBtn>
