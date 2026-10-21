@@ -5,11 +5,13 @@
 //   Chips (All · groups) when there's more than one group
 //   One section per group: GROUP · n ……… Edit · + Add
 //     rows of 44 px: tap = copied ("Copied ✓") and used today →
-//     grey with a "used" tag, at the bottom of its group.
+//     grey with a "used" tag; it stays in its place.
 //     Fresh again the next day by itself.
-//   Edit: rows open the comment window (text, group · Delete with Undo).
-// Windows (one level, the app's sheet): Add comments (paste many, one per
-// line · or type one) and one comment (edit).
+//   Edit: every row becomes a text field in place, with ✕ on the right.
+//     Typing saves when you leave the field or press Enter (empty → the
+//     old text comes back). ✕ deletes at once, with Undo. Done → copying.
+// Window (one level, the app's sheet): Add comments (paste many, one per
+// line · or type one).
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useMemo } from "react";
@@ -59,7 +61,6 @@ export default function Comments({ hook, isMobile }: CommentsProps) {
   const [group, setGroup]     = useState<string>("all");
   const [editing, setEditing] = useState(false);
   const [adding, setAdding]   = useState<string | null>(null);      // the group "+ Add" was tapped in
-  const [openId, setOpenId]   = useState<string | null>(null);
 
   const groups = useMemo(() => {
     const seen: string[] = [];
@@ -69,31 +70,36 @@ export default function Comments({ hook, isMobile }: CommentsProps) {
   useEffect(() => { if (group !== "all" && !groups.includes(group)) setGroup("all"); }, [groups, group]);
   const nUsed = comments.filter(usedToday).length;
   const shownGroups = group === "all" ? groups : [group];
-  const current = comments.find(c => c.id === openId);
 
   const tap = async (c: Comment) => {
-    if (editing) { setOpenId(c.id); return; }
+    if (editing) return;
     const ok = await copyText(c.text);
     showNote(ok ? "Copied ✓" : "Couldn't copy");
     if (ok) hook.markUsed(c.id);
   };
 
-  // fresh ones first (in the order added), today's used ones at the bottom
-  const ordered = (g: string) => {
-    const list = comments.filter(c => c.group === g);
-    return [...list.filter(c => !usedToday(c)), ...list.filter(usedToday)];
+  // every comment stays in its place (the order it was added)
+  const ordered = (g: string) => comments.filter(c => c.group === g);
+  const del = (c: Comment) => {
+    hook.remove(c).then(() => showUndo("Comment deleted", () => hook.restore(c))).catch((e: any) => showNote(e?.message || "Couldn't delete."));
   };
 
   const row = (c: Comment, first: boolean) => {
     const used = usedToday(c);
+    if (editing) return (
+      <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 6, minHeight: SPACING.row1, padding: "0 4px 0 8px", boxSizing: "border-box" as const,
+        borderTop: first ? "none" : `1px solid ${C.hair}`, fontFamily: SANS }}>
+        <InlineField c={c} hook={hook} />
+        <button onClick={() => del(c)} aria-label={`Delete ${c.text}`} title="Delete"
+          style={{ width: 36, height: 36, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 14, WebkitTapHighlightColor: "transparent" }}>✕</button>
+      </div>
+    );
     return (
       <div key={c.id} role="button" tabIndex={0} onClick={() => tap(c)} onKeyDown={(e: any) => { if (e.key === "Enter") tap(c); }}
         style={{ display: "flex", alignItems: "center", gap: 10, minHeight: SPACING.row1, padding: "8px 12px", boxSizing: "border-box" as const,
           borderTop: first ? "none" : `1px solid ${C.hair}`, cursor: editing ? "pointer" : "copy", fontFamily: SANS, WebkitTapHighlightColor: "transparent" }}>
         <span style={{ flex: 1, minWidth: 0, fontSize: SPACING.listText, lineHeight: 1.35, color: used ? C.light : C.black, overflowWrap: "anywhere" as const }}>{c.text}</span>
-        {editing
-          ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d="M9 6l6 6-6 6" /></svg>
-          : used
+        {used
             ? <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: PAL.done.ink, background: PAL.done.wash, padding: "2px 7px", borderRadius: RADIUS.tag, flexShrink: 0 }}>used</span>
             : <Ico d={COPY} size={14} color={C.faint} />}
       </div>
@@ -147,7 +153,6 @@ export default function Comments({ hook, isMobile }: CommentsProps) {
       )}
 
       {adding !== null && <AddWindow hook={hook} groups={groups.length ? groups : [DEFAULT_GROUP]} start={adding} onClose={() => setAdding(null)} />}
-      {current && <CommentWindow hook={hook} c={current} groups={groups} onClose={() => setOpenId(null)} />}
     </div>
   );
 }
@@ -187,36 +192,28 @@ function AddWindow({ hook, groups, start, onClose }: { hook: CommentsHook; group
   );
 }
 
-// ── one comment: change the text or group · delete (Undo) ────
-function CommentWindow({ hook, c, groups, onClose }: { hook: CommentsHook; c: Comment; groups: string[]; onClose: () => void }) {
-  const [text, setText]   = useState(c.text);
-  const [group, setGroup] = useState(c.group);
-  const [err, setErr]     = useState<string | null>(null);
-
-  const save = async () => {
-    setErr(null);
-    if (!text.trim()) { setErr("Please enter a comment."); return; }
-    if (!group.trim()) { setErr("Please name the new group."); return; }
-    try { await hook.update(c.id, { text, group }); onClose(); }
-    catch (e: any) { setErr(e?.message || "Couldn't save."); }
+// ── a comment as a field in its row (Edit) ───────────────────
+// Shown at the row's 13 px, typed at 16 px underneath (no iPhone zoom).
+function InlineField({ c, hook }: { c: Comment; hook: CommentsHook }) {
+  const [t, setT]         = useState(c.text);
+  const [focus, setFocus] = useState(false);
+  useEffect(() => { if (!focus) setT(c.text); }, [c.text, focus]);
+  const k = SPACING.listText / 16, H = 32;
+  const commit = () => {
+    const v = t.trim().replace(/\s+/g, " ");
+    if (!v) { setT(c.text); return; }                    // empty → the old text comes back
+    if (v === c.text) return;
+    hook.update(c.id, { text: v }).catch((e: any) => { setT(c.text); showNote(e?.message || "Couldn't save."); });
   };
-  const del = async () => {
-    try { await hook.remove(c); onClose(); showUndo("Comment deleted", () => hook.restore(c)); }
-    catch (e: any) { setErr(e?.message || "Couldn't delete."); }
-  };
-
   return (
-    <Sheet title="Comment" onClose={onClose}
-      footer={<>
-        <PillBtn onClick={onClose} s={{ flex: 1, height: 40, justifyContent: "center" }}>Cancel</PillBtn>
-        <PillBtn dark onClick={save} s={{ flex: 1.4, height: 40, justifyContent: "center" }}>Save</PillBtn>
-      </>}>
-      {err && <p role="alert" style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
-      <Lbl>Comment</Lbl>
-      <TA value={text} aria-label="Comment" onChange={(e: any) => setText(e.target.value.replace(/\r?\n/g, " "))} s={{ minHeight: 76 }} />
-      <Lbl>Group</Lbl>
-      <GroupPick groups={groups} value={group} onChange={setGroup} />
-      <button onClick={del} style={{ ...linkBtn, color: C.red, textDecoration: "underline", textUnderlineOffset: 2, display: "block", margin: "16px auto 0", padding: 8, letterSpacing: TRACK.none }}>Delete comment</button>
-    </Sheet>
+    <span style={{ position: "relative", display: "block", flex: 1, minWidth: 0, height: H }}>
+      <input value={t} aria-label="Comment" enterKeyHint="done"
+        onFocus={() => setFocus(true)} onChange={(e) => setT(e.target.value)}
+        onBlur={() => { setFocus(false); commit(); }}
+        onKeyDown={(e) => { const el = e.target as HTMLInputElement; if (e.key === "Enter") el.blur(); if (e.key === "Escape") { setT(c.text); setTimeout(() => el.blur()); } }}
+        style={{ position: "absolute", top: 0, left: 0, width: `${100 / k}%`, height: H / k, transform: `scale(${k})`, transformOrigin: "top left",
+          fontSize: 16, fontFamily: SANS, color: C.black, padding: "0 10px", boxSizing: "border-box" as const, margin: 0, outline: "none",
+          border: `1px solid ${focus ? C.edge : C.field}`, borderRadius: RADIUS.field / k, background: focus ? C.white : PAL.neutral.wash, WebkitAppearance: "none" as const }} />
+    </span>
   );
 }
