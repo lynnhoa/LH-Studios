@@ -71,6 +71,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
   const [showCols, setShowCols] = useState(false);
   const [openId, setOpenId]   = useState<string | null>(null);
   const [adding, setAdding]   = useState(false);                 // "+ Add": the contact window, empty
+  const newC = useMemo(() => (adding ? newContact() : null), [adding]);
   const setToast = (t: string | null) => { if (t) showNote(t); };   // the app-wide message (same look as the save message)
   const [busy, setBusy]       = useState(false);
   const [showLog, setShowLog] = useState(false);
@@ -195,14 +196,15 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
   );
 
   const tagStyle = (c?: any): any => ({ height: 30, padding: "0 11px", border: `1px solid ${c ? c.border : C.pillOn}`, background: c ? c.bg : PAL.neutral.fill, color: c ? c.color : C.black, borderRadius: RADIUS.pill, fontSize: TYPE.subtext.size, display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", fontFamily: SANS, whiteSpace: "nowrap" as const });
-  const tags = (
+  // the active filters as chips (each with ✕) — only while a filter is on; the sort lives in the ↑↓ button
+  const hasTags = view.cat !== "all" || view.tier !== "all" || (!!view.status && view.status !== "all") || view.city !== "all" || view.added !== "any";
+  const tags = hasTags && (
     <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const, marginTop: 10 }}>
       {view.cat !== "all" && <button onClick={() => set({ cat: "all" })} style={tagStyle(catOf(view.cat))}>{catOf(view.cat).label} ✕</button>}
       {view.tier !== "all" && <button onClick={() => set({ tier: "all" })} style={tagStyle()}>{tierOf(view.tier).label} ✕</button>}
       {view.status && view.status !== "all" && <button onClick={() => set({ status: "all" })} style={tagStyle()}>{STATUS_FILTERS.find(x => x.key === view.status)?.label} ✕</button>}
       {view.city !== "all" && <button onClick={() => set({ city: "all" })} style={tagStyle()}>{view.city} ✕</button>}
       {view.added !== "any" && <button onClick={() => set({ added: "any" })} style={tagStyle()}>{ADDED.find(a => a.key === view.added)?.label} ✕</button>}
-      <button onClick={() => setOpen("sort")} style={{ ...tagStyle(), background: C.white, borderColor: C.rule, color: C.ink2 }}>{SORTS.find(s => s.key === view.sort)?.short}</button>
     </div>
   );
 
@@ -329,7 +331,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
 
       {/* ── CONTACT WINDOW ── */}
       {current && <ContactWindow c={current} outreach={outreach} isMobile={isMobile} onClose={() => setOpenId(null)} onCopy={(t) => copy(t, "Email copied ✓")} />}
-      {adding && !current && <ContactWindow c={NEW_CONTACT} isNew outreach={outreach} isMobile={isMobile} onClose={() => setAdding(false)} onCopy={(t) => copy(t, "Email copied ✓")}
+      {adding && !current && newC && <ContactWindow c={newC} isNew outreach={outreach} isMobile={isMobile} onClose={() => setAdding(false)} onCopy={(t) => copy(t, "Email copied ✓")}
         onOpen={(id) => { setAdding(false); setOpenId(id); }} />}
 
       {/* ── LOG A PITCH FOR THE CONTACTS IN VIEW ── */}
@@ -389,9 +391,28 @@ function Window({ title, isMobile, onClose, children, footer }: { title: string;
 }
 
 // ── Contact: read view, Edit → Save returns to the read view ─────
-// a new contact: the window opens empty, ready to type (Save → its read view)
-const NEW_CONTACT: OutreachContact = { id: "", company: "", contactName: "", email: "", category: "others" as any, tier: "now" as any, status: "new" as any,
-  lastContact: null, web: "", city: "", notes: "", source: "", createdAt: "" };
+// a new contact: the window opens empty, ready to type (Save → its read view);
+// category and tier start with the last ones used for a new contact
+const DEFAULTS_KEY = "lh_new_contact_defaults";
+const newContact = (): OutreachContact => {
+  let d: any = {};
+  try { d = JSON.parse(localStorage.getItem(DEFAULTS_KEY) || "{}") || {}; } catch { d = {}; }
+  return { id: "", company: "", contactName: "", email: "", category: (d.category || "others") as any, tier: (d.tier || "now") as any, status: "new" as any,
+    lastContact: null, web: "", city: "", notes: "", source: "", createdAt: "" };
+};
+// pr@chanel.com → { company: "Chanel", web: "chanel.com" } · nothing for gmail, gmx, web.de, icloud …
+const FREE_MAIL = /^(gmail|googlemail|gmx|web|icloud|me|mac|outlook|hotmail|live|msn|yahoo|ymail|t-online|aol|proton|protonmail|mail|freenet|posteo|arcor)\./i;
+export const fromEmail = (email: string): { company: string; web: string } | null => {
+  const m = String(email || "").trim().toLowerCase().match(/^[^\s@]+@([^\s@]+\.[^\s@]+)$/);
+  if (!m) return null;
+  const parts = m[1].split(".");
+  const three = parts.length >= 3 && ["co", "com", "org", "net", "gov", "ac"].includes(parts[parts.length - 2]);
+  const base = parts.slice(three ? -3 : -2).join(".");            // chanel.com · brand.co.uk
+  if (FREE_MAIL.test(base)) return null;
+  const company = base.split(".")[0].split(/[-_]+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  return company ? { company, web: base } : null;
+};
+const TWO: any = { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 };
 
 function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }: { c: OutreachContact; outreach: any; isMobile: boolean; onClose: () => void; onCopy: (t: string) => void; isNew?: boolean; onOpen?: (id: string) => void }) {
   const [edit, setEdit] = useState(!!isNew);
@@ -409,11 +430,32 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
     catch (e: any) { setErr(e?.message || "Couldn't log it."); }
   };
 
+  // compact form: Enter goes to the next field, the last one saves; the email fills Company and
+  // Website by itself (only when they're still empty, not for gmail & co)
+  const [showNote, setShowNote] = useState(false);
+  const fillFromEmail = () => {
+    const fill = fromEmail(f.email);
+    if (fill) setF(x => ({ ...x, company: x.company || fill.company, web: x.web || fill.web }));
+  };
+  const onEnter = (e: any) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    if (e.currentTarget.dataset.k === "email") fillFromEmail();
+    const form = e.currentTarget.closest("[data-cform]");
+    const list = (form ? Array.from(form.querySelectorAll("input[data-k]")) : []) as HTMLInputElement[];
+    const i = list.indexOf(e.currentTarget);
+    if (i >= 0 && i < list.length - 1) list[i + 1].focus(); else { (e.currentTarget as HTMLInputElement).blur(); save(); }
+  };
+
   const save = async () => {
     setErr(null); setDupId(null);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) { setErr("Please enter a valid email."); return; }
     if (isNew) {                                     // saved → the window shows its read view
-      try { const n = await outreach.addContact(f); onOpen?.(n.id); }
+      try {
+        const n = await outreach.addContact(f);
+        try { localStorage.setItem(DEFAULTS_KEY, JSON.stringify({ category: f.category, tier: f.tier })); } catch { /* ignore */ }
+        onOpen?.(n.id);
+      }
       catch (e: any) { setErr(e?.message || "Couldn't save."); if (e?.existingId) setDupId(e.existingId); }
       return;
     }
@@ -510,24 +552,39 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
           </>
         ) : (
           <>
-            {field("Company", "company")}
-            {field("Email", "email", "email")}
-            {field("Contact name", "contactName")}
-            <div><Lbl>Category</Lbl>
-              <S value={f.category} onChange={(e: any) => setF({ ...f, category: e.target.value })}>
-                {OUTREACH_CATEGORIES.map(k => <option key={k.key} value={k.key}>{k.label}</option>)}
-              </S>
-            </div>
-            <div><Lbl>Tier</Lbl>
-              <S value={f.tier || "now"} onChange={(e: any) => setF({ ...f, tier: e.target.value })}>
-                {OUTREACH_TIERS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </S>
-            </div>
-            {field("Website / Instagram", "web")}
-            {field("City", "city")}
-            <div><Lbl>Notes</Lbl>
-              <textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })}
-                style={{ width: "100%", minHeight: 72, padding: "8px 10px", border: `1px solid ${C.rule}`, background: C.bg, fontFamily: SANS, fontSize: 16, color: C.black, borderRadius: 2, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const }} />
+            <div data-cform="">
+              <Lbl>Email</Lbl>
+              <I data-k="email" type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} enterKeyHint="next"
+                autoFocus={!!isNew} placeholder="name@brand.com" value={f.email} aria-label="Email"
+                onChange={(e: any) => setF({ ...f, email: e.target.value })} onBlur={fillFromEmail} onKeyDown={onEnter} />
+              {isNew && <p style={{ fontSize: TYPE.micro.size, color: C.light, margin: "4px 2px 0" }}>Only the email is needed.</p>}
+              <div style={TWO}>
+                <div><Lbl>Company</Lbl><I data-k="company" enterKeyHint="next" value={f.company} aria-label="Company" onChange={(e: any) => setF({ ...f, company: e.target.value })} onKeyDown={onEnter} /></div>
+                <div><Lbl>Contact name</Lbl><I data-k="contactName" enterKeyHint="next" value={f.contactName} aria-label="Contact name" onChange={(e: any) => setF({ ...f, contactName: e.target.value })} onKeyDown={onEnter} /></div>
+              </div>
+              <div style={TWO}>
+                <div><Lbl>Category</Lbl>
+                  <S value={f.category} aria-label="Category" onChange={(e: any) => setF({ ...f, category: e.target.value })}>
+                    {OUTREACH_CATEGORIES.map(k => <option key={k.key} value={k.key}>{k.label}</option>)}
+                  </S>
+                </div>
+                <div><Lbl>Tier</Lbl>
+                  <S value={f.tier || "now"} aria-label="Tier" onChange={(e: any) => setF({ ...f, tier: e.target.value })}>
+                    {OUTREACH_TIERS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+                  </S>
+                </div>
+              </div>
+              <div style={TWO}>
+                <div><Lbl>Website / IG</Lbl><I data-k="web" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="next" value={f.web} aria-label="Website or Instagram" onChange={(e: any) => setF({ ...f, web: e.target.value })} onKeyDown={onEnter} /></div>
+                <div><Lbl>City</Lbl><I data-k="city" enterKeyHint="done" value={f.city} aria-label="City" onChange={(e: any) => setF({ ...f, city: e.target.value })} onKeyDown={onEnter} /></div>
+              </div>
+              {showNote || f.notes ? (
+                <><Lbl>Notes</Lbl>
+                  <textarea rows={2} value={f.notes} autoFocus={showNote && !f.notes} aria-label="Notes" onChange={(e) => setF({ ...f, notes: e.target.value })}
+                    style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.field}`, background: C.white, fontFamily: SANS, fontSize: 16, color: C.black, borderRadius: RADIUS.field, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const }} /></>
+              ) : (
+                <button onClick={() => setShowNote(true)} style={{ marginTop: 12, background: "none", border: "none", padding: "0 2px", minHeight: 36, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: C.ink2 }}>+ Note</button>
+              )}
             </div>
           </>
         )}

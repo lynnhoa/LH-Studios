@@ -57,6 +57,15 @@ const tileStyle = (active: boolean): any => ({
 });
 const check = <span aria-hidden="true" style={{ fontSize: TYPE.subtext.size, color: C.black }}>✓</span>;
 
+// "Version 21.10.2026 · 02:15" — when the app on screen was built (Vercel builds at each upload)
+const appVersion = () => {
+  const iso = typeof __BUILD_TIME__ !== "undefined" ? __BUILD_TIME__ : "";
+  const d = iso ? new Date(iso) : null;
+  if (!d || isNaN(+d)) return "Version —";
+  const t = (o: Intl.DateTimeFormatOptions) => d.toLocaleString("de-DE", { timeZone: "Europe/Berlin", ...o });
+  return `Version ${t({ day: "2-digit", month: "2-digit", year: "numeric" })} · ${t({ hour: "2-digit", minute: "2-digit" })}`;
+};
+
 export function AvatarMenu({ settings, roleLabel, items, apps, onSignOut, dropLeft = false }: {
   settings: any; roleLabel: string; items: MenuItem[];
   apps: MenuItem[]; onSignOut: () => void; dropLeft?: boolean;
@@ -119,6 +128,8 @@ export function AvatarMenu({ settings, roleLabel, items, apps, onSignOut, dropLe
             {sep}{label("Account")}
             {account.map(it => <button key={it.key} role="menuitem" onClick={() => run(it.onClick)} style={rowStyle(false, C.ink2)}><span>{it.label}</span></button>)}
             <button role="menuitem" onClick={() => run(onSignOut)} style={rowStyle(false, C.red)}><span>Sign out</span></button>
+            {/* which version is live: the time of the last build (German time) */}
+            <div style={{ padding: "6px 14px 10px", fontSize: TYPE.micro.size, color: C.light, letterSpacing: "0.02em" }}>{appVersion()}</div>
           </div>
         );
       })()}

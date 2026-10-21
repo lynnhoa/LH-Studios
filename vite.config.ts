@@ -27,6 +27,8 @@ export default defineConfig({
       },
     },
   ],
+  // the time of this build — shown as "Version …" at the bottom of the profile menu
+  define: { __BUILD_TIME__: JSON.stringify(new Date().toISOString()) },
   build: {
     outDir:      "dist",
     emptyOutDir: true,
