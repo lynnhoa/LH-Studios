@@ -804,23 +804,40 @@ export const SwitchPill = ({ children, s }: { children: any; s?: any }) => (
 
 // item window: one level above the screen — 48 px header (✕ · title · action),
 // content, optional bottom bar (Cancel / Save). Read view first.
-export const Sheet = ({ title, onClose, right, children, footer }: { title: string; onClose: () => void; right?: any; children: any; footer?: any }) =>
-  createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", flexDirection: "column", justifyContent: "flex-end", fontFamily: SANS }}>
+// How much of the screen the on-screen keyboard covers (iPhone / iPad), so a bottom sheet can sit on top
+// of it — its buttons stay visible while typing. 0 on a computer or with the keyboard closed.
+export function useKeyboardInset(): number {
+  const [kb, setKb] = useState(0);
+  useEffect(() => {
+    const vv: any = (window as any).visualViewport;
+    if (!vv) return;
+    const calc = () => setKb(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)));
+    calc();
+    vv.addEventListener("resize", calc); vv.addEventListener("scroll", calc);
+    return () => { vv.removeEventListener("resize", calc); vv.removeEventListener("scroll", calc); };
+  }, []);
+  return kb > 60 ? kb : 0;                         // small differences (browser bars) aren't a keyboard
+}
+
+export const Sheet = ({ title, onClose, right, children, footer }: { title: string; onClose: () => void; right?: any; children: any; footer?: any }) => {
+  const kb = useKeyboardInset();
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", flexDirection: "column", justifyContent: "flex-end", fontFamily: SANS, paddingBottom: kb }}>
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(26,26,26,0.28)" }} />
       <div role="dialog" aria-modal="true" aria-label={title}
-        style={{ position: "relative", background: C.white, borderRadius: `${RADIUS.button}px ${RADIUS.button}px 0 0`, boxShadow: SHADOW.pop, maxHeight: "88vh", display: "flex", flexDirection: "column", width: "100%", maxWidth: 560, margin: "0 auto", color: C.black }}>
+        style={{ position: "relative", background: C.white, borderRadius: `${RADIUS.button}px ${RADIUS.button}px 0 0`, boxShadow: SHADOW.pop, maxHeight: kb ? `calc(100vh - ${kb + 12}px)` : "88vh", display: "flex", flexDirection: "column", width: "100%", maxWidth: 560, margin: "0 auto", color: C.black }}>
         <div style={{ height: DENSITY.sheetHeader, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px 0 4px", flexShrink: 0 }}>
           <button onClick={onClose} aria-label="Close" style={{ width: DENSITY.tap, height: DENSITY.tap, background: "none", border: "none", fontSize: ICON.close, color: C.muted, cursor: "pointer" }}>✕</button>
           <span style={{ ...CAPS, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, padding: "0 6px" }}>{title}</span>
           <span style={{ minWidth: DENSITY.tap, display: "flex", justifyContent: "flex-end" }}>{right}</span>
         </div>
         <div style={{ overflowY: "auto", padding: "2px 16px 16px", WebkitOverflowScrolling: "touch" as any }}>{children}</div>
-        {footer && <div style={{ padding: "12px 16px calc(16px + env(safe-area-inset-bottom, 0px))", borderTop: `1px solid ${C.line}`, display: "flex", gap: 8, flexShrink: 0 }}>{footer}</div>}
+        {footer && <div style={{ padding: kb ? "10px 16px 10px" : "12px 16px calc(16px + env(safe-area-inset-bottom, 0px))", borderTop: `1px solid ${C.line}`, display: "flex", gap: 8, flexShrink: 0 }}>{footer}</div>}
       </div>
     </div>,
     document.body
   );
+};
 
 
 // ── ValuePill: a number shown as a small value (14 px in a 28 px pill); tap = edit in place.

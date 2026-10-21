@@ -12,7 +12,7 @@ import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE, Z, PAL, RADIUS, SHADOW } from "./constants";
 import { fmtD } from "./formatters";
-import { B, I, S, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard } from "./atoms";
+import { B, I, S, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet } from "./atoms";
 import {
   OUTREACH_CATEGORIES, OUTREACH_TIERS, OUTREACH_COLUMNS, OUTREACH_STATUSES, STATUS_FILTERS, PITCH_ACCOUNTS, SORTS, ADDED, DEFAULT_VIEW,
   catOf, tierOf, statusOf, followUpDue, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt,
@@ -480,21 +480,14 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
   return (
     <>
       {askDelete && <ConfirmDialog title={`Delete ${c.company || c.email}?`} text="The contact is removed from your email list." okLabel="Delete" danger onOk={del} onCancel={() => setAskDelete(false)} />}
-      <Window title={isNew ? "New contact" : c.company || c.email} isMobile={isMobile} onClose={onClose}
-        footer={edit ? (
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <B v="sec" onClick={() => { if (isNew) { onClose(); return; } setEdit(false); setErr(null); }}>Cancel</B>
-            <B onClick={save}>Save</B>
-          </div>
-        ) : (
-          <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
-            <B v="danger" onClick={() => setAskDelete(true)}>Delete</B>
-            <div style={{ display: "flex", gap: 8 }}>
-              <B v="sec" onClick={() => onCopy(c.email)}>Copy email</B>
-              <B onClick={() => setEdit(true)}>Edit</B>
-            </div>
-          </div>
-        )}>
+      {/* the app's sheet (as in the Service Catalog): ✕ · title · Edit; Cancel | Save right under the fields */}
+      <Sheet title={isNew ? "New contact" : c.company || c.email}
+        onClose={edit && !isNew ? () => { setEdit(false); setErr(null); } : onClose}
+        right={!edit ? <PillBtn onClick={() => setEdit(true)}>Edit</PillBtn> : null}
+        footer={edit ? <>
+          <PillBtn onClick={() => { if (isNew) { onClose(); return; } setEdit(false); setErr(null); }} s={{ flex: 1, height: 40, justifyContent: "center" }}>Cancel</PillBtn>
+          <PillBtn dark onClick={save} s={{ flex: 1.4, height: 40, justifyContent: "center" }}>Save</PillBtn>
+        </> : undefined}>
         {err && <p role="alert" style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
         {dupId && onOpen && <B v="sec" onClick={() => onOpen(dupId)} s={{ marginBottom: 10 }}>Open that contact</B>}
         {!edit && !outreach.pitchError && (
@@ -517,7 +510,7 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
         {!edit ? (
           <>
             {row("Company", c.company)}
-            {row("Email", c.email)}
+            {row("Email", <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}><span style={{ minWidth: 0, overflowWrap: "anywhere" as const }}>{c.email}</span><PillBtn onClick={() => onCopy(c.email)} s={{ height: 28, flexShrink: 0 }}>Copy</PillBtn></span>)}
             {row("Contact", c.contactName)}
             {row("Category", <CatPill k={c.category} />)}
             {row("Tier", tierOf(c.tier).label)}
@@ -585,10 +578,11 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
               ) : (
                 <button onClick={() => setShowNote(true)} style={{ marginTop: 12, background: "none", border: "none", padding: "0 2px", minHeight: 36, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: C.ink2 }}>+ Note</button>
               )}
+              {!isNew && <div style={{ marginTop: 14 }}><button onClick={() => setAskDelete(true)} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.red, minHeight: 36, padding: "0 2px" }}>Delete contact…</button></div>}
             </div>
           </>
         )}
-      </Window>
+      </Sheet>
     </>
   );
 }
