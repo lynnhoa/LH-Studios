@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 import { editLock } from "./saveStatus";
 import { C, SANS, SERIF, TYPE, Z, TRACK, RADIUS, ICON } from "./constants";
 import { fmt, fmtD, addM, addD, today, r2 } from "./formatters";
-import { I, S, B, Lbl, Pill, CatPill, LangSwitch, BAR_BTN, NumField, ConfirmDialog } from "./atoms";
+import { I, S, B, Lbl, Pill, CatPill, LangSwitch, BAR_BTN, NumField, ConfirmDialog, MiniInput, MiniSelect, PillBtn } from "./atoms";
 import { currentContractOf } from "./money";
 import { retainerMonths } from "./wsHelpers";
 import DocPages from "./DocPages";
@@ -134,107 +134,123 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
   };
 
   // plain render helpers (not components) so inputs keep focus while typing
-  const section = (n: string, title: string, children: any) => (
-    <div style={{ border: `1px solid ${C.rule}`, borderRadius: RADIUS.field, padding: "10px 12px", marginBottom: 10, background: C.white }}>
-      <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: "0 0 10px", paddingBottom: 6, borderBottom: `1px solid ${C.rule}` }}>{n} — {title}</p>
+  // ── the Calculator's look: section heads, list cards, steppers, one-tap chips ──
+  const CAPS: any = { fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted };
+  const CARD: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, overflow: "hidden" };
+  const ROWS: any = { display: "flex", alignItems: "center", gap: 10, padding: "0 12px", borderTop: `1px solid ${C.line}` };
+  const section = (title: string, right: any, children: any) => (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, margin: "14px 2px 7px" }}>
+        <span style={CAPS}>{title}</span>{right != null && <span style={CAPS}>{right}</span>}
+      </div>
       {children}
     </div>
   );
-  const modeToggle = (val: Mode, set: (v: Mode) => void) => (
-    <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-      <Pill on={val === "none"} onClick={() => set("none")}>None</Pill>
-      <Pill on={val === "predefined"} onClick={() => set("predefined")}>From rate card</Pill>
-      <Pill on={val === "custom"} onClick={() => set("custom")}>Custom</Pill>
+  const chip = (label: string, on: boolean, run: () => void, attrs: any = {}) => (
+    <button key={label} onClick={run} aria-pressed={on} {...attrs}
+      style={{ height: 30, padding: "0 12px", borderRadius: RADIUS.pill, fontFamily: SANS, fontSize: TYPE.subtext.size, whiteSpace: "nowrap" as const, cursor: "pointer",
+        border: `1px solid ${on ? C.black : C.rule}`, background: on ? C.black : C.white, color: on ? C.white : C.black }}>{label}</button>
+  );
+  const optText = (o: any) => `${optName(o.l)} · ${Number(o.pct) > 0 ? `+${pctText(o.pct)}` : "included"}`;
+  // one row of chips: None · the rate card's options · Custom
+  const optionChips = (kind: string, mode: Mode, setMode: (m: Mode) => void, opts: any[], idx: number, setIdx: (i: number) => void, setFeeIn: (v: string | null) => void) => (
+    <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
+      {chip("None", mode === "none", () => setMode("none"), { "data-opt": kind })}
+      {opts.map((o: any, i: number) => chip(optText(o), mode === "predefined" && idx === i, () => { setMode("predefined"); setIdx(i); setFeeIn(null); }, { "data-opt": kind }))}
+      {chip("Custom", mode === "custom", () => setMode("custom"), { "data-opt": kind })}
     </div>
   );
-  const optText = (o: any) => `${optName(o.l)}${Number(o.pct) > 0 ? ` (+${pctText(o.pct)})` : " (included)"}`;
   const customBlock = ({ opt, opts, idx, setIdx, n, setN, unit, setUnit, calc, feeIn, setFeeIn }: any) => (
-    <>
-      <Lbl>Reference option <span style={{ fontWeight: "normal", color: C.light }}>(for the pro-rata fee)</span></Lbl>
-      <S value={idx} onChange={(e: any) => { setIdx(parseInt(e.target.value)); setFeeIn(null); }} s={{ marginBottom: 8 }}>
-        {opts.map((o: any, i: number) => <option key={i} value={i}>{optText(o)}</option>)}
-      </S>
-      <div style={{ display: "flex", gap: 7, marginBottom: 6 }}>
-        <I type="number" min={1} placeholder="Duration" value={n} onChange={(e: any) => { setN(e.target.value); setFeeIn(null); }} s={{ flex: 1 }} />
-        <S value={unit} onChange={(e: any) => { setUnit(e.target.value); setFeeIn(null); }} s={{ flex: 1 }}>
-          <option value="months">Months</option>
-          <option value="days">Days</option>
-        </S>
+    <div style={{ ...CARD, marginTop: 8 }}>
+      <div style={{ ...ROWS, borderTop: "none", minHeight: 44 }}>
+        <span style={{ width: 84, flexShrink: 0, fontSize: TYPE.subtext.size, color: C.muted }}>Like</span>
+        <MiniSelect value={idx} onChange={(e: any) => { setIdx(parseInt(e.target.value)); setFeeIn(null); }} aria-label="Reference option" s={{ flex: 1 }}>
+          {opts.map((o: any, i: number) => <option key={i} value={i}>{optText(o)}</option>)}
+        </MiniSelect>
+      </div>
+      <div style={{ ...ROWS, minHeight: 44 }}>
+        <span style={{ width: 84, flexShrink: 0, fontSize: TYPE.subtext.size, color: C.muted }}>Duration</span>
+        <MiniInput type="number" min={1} inputMode="numeric" placeholder="2" value={n} aria-label="Duration" onChange={(e: any) => { setN(e.target.value); setFeeIn(null); }} s={{ flex: 1 }} />
+        <MiniSelect value={unit} onChange={(e: any) => { setUnit(e.target.value); setFeeIn(null); }} aria-label="Unit" s={{ flex: 1 }}>
+          <option value="months">Months</option><option value="days">Days</option>
+        </MiniSelect>
+      </div>
+      <div style={{ ...ROWS, minHeight: 44 }}>
+        <span style={{ width: 84, flexShrink: 0, fontSize: TYPE.subtext.size, color: C.muted }}>Fee</span>
+        <span style={{ flex: 1 }}><NumField mini value={feeIn !== null ? (parseFloat(feeIn) || 0) : calc} onChange={(v) => setFeeIn(String(v === null ? 0 : Math.max(0, v)))} ariaLabel="Fee" /></span>
       </div>
       {(parseInt(n) || 0) > 0 && base > 0 && (
-        <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 6px" }}>
+        <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: 0, padding: "0 12px 10px" }}>
           Pro rata: {n} {unit} of {Number(opt?.mo) || 1} {Number(opt?.mo) === 1 ? "month" : "months"} → {fmt(calc)}
         </p>
       )}
-      <Lbl>Fee (€)</Lbl>
-      <NumField value={feeIn !== null ? (parseFloat(feeIn) || 0) : calc} onChange={(n) => setFeeIn(String(n === null ? 0 : Math.max(0, n)))} ariaLabel="Fee" />
-    </>
+    </div>
   );
+  const durOf = (m: Mode, opt: any, n: string, unit: string) => {
+    if (m === "predefined") { const mo = Number(opt?.mo) || 0; return mo ? `${mo} ${mo === 1 ? "month" : "months"}` : ""; }
+    if (m === "custom") { const v = parseInt(n) || 0; return v ? `${v} ${unit === "months" ? (v === 1 ? "month" : "months") : (v === 1 ? "day" : "days")}` : ""; }
+    return "";
+  };
+  const endDur = uEnd && (!eEnd || uEnd >= eEnd) ? durOf(uMode, uOpt, uN, uUnit) : durOf(eMode, eOpt, eN, eUnit);
 
   const panel = (
     <>
-      <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 12px" }}>Project: <strong style={{ color: C.black }}>{p.name}</strong></p>
       {isAmendMode && (
-        <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 12px", lineHeight: 1.5 }}>
+        <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: "2px 2px 0", lineHeight: 1.5 }}>
           Extend usage rights or exclusivity on items already delivered — the items are not charged again.{" "}
-          {onCalc && <button onClick={onCalc} style={{ background: "none", border: "none", cursor: "pointer", color: C.black, fontSize: TYPE.label.size, padding: 0, textDecoration: "underline", fontFamily: SANS }}>Adding new deliverables? Open Calculator →</button>}
+          {onCalc && <button onClick={onCalc} style={{ background: "none", border: "none", cursor: "pointer", color: C.black, fontSize: TYPE.subtext.size, padding: 0, textDecoration: "underline", fontFamily: SANS }}>Adding new deliverables? Open Calculator</button>}
         </p>
       )}
 
-      {section("01", "Which deliverables", <>
-        <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 0 8px" }}>The % is taken from each item's base price (without earlier usage, exclusivity or add-ons).</p>
-        {allLines.map((l: any) => {
-          // a retainer delivers its quantity every month: the maximum covers all its months
-          const max = Math.max(1, parseInt(l.qty) || 1) * (p?.qd?.retainer ? Math.max(1, retainerMonths(p).length) : 1);
-          const qty = selQty[l._key] || 0;
-          return (
-            <div key={l._key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.rule}` }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const }}>
-                  <span style={{ fontSize: TYPE.label.size, color: C.black }}>{l.name}</span>
-                  {l.cat && <CatPill cat={l.cat} label={l.catLabel} />}
-                  {l._src !== "quote" && <span style={{ fontSize: TYPE.micro.size, color: C.amber }}>{l._src}</span>}
+      {section("Which deliverables", `${selected.length} of ${allLines.length}`, (
+        <div style={CARD}>
+          {allLines.map((l: any, i: number) => {
+            // a retainer delivers its quantity every month: the maximum covers all its months
+            const max = Math.max(1, parseInt(l.qty) || 1) * (p?.qd?.retainer ? Math.max(1, retainerMonths(p).length) : 1);
+            const qty = selQty[l._key] || 0;
+            const stepBtn = (label: string, to: number, ok: boolean) => (
+              <button onClick={() => setQty(l._key, max, to)} aria-label={`${label === "+" ? "More" : "Fewer"}: ${l.name}`}
+                style={{ width: 30, height: 28, border: "none", background: "none", cursor: ok ? "pointer" : "default", fontSize: TYPE.body.size, color: ok ? C.black : C.faint, fontFamily: SANS, padding: 0 }}>{label}</button>
+            );
+            return (
+              <div key={l._key} style={{ ...ROWS, borderTop: i ? `1px solid ${C.line}` : "none", minHeight: 54 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: TYPE.row.size, color: qty ? C.black : C.muted, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{l.name}</div>
+                  <div style={{ fontSize: TYPE.subtext.size, color: qty ? C.muted : C.light }}>{l._src !== "quote" ? `${l._src} · ` : ""}base {fmt(l._unitBase)}{max > 1 ? ` · max ${max}` : ""}</div>
                 </div>
-                <span style={{ fontSize: TYPE.micro.size, color: C.light }}>base {fmt(l._unitBase)} each · max {max}</span>
+                <span style={{ display: "flex", alignItems: "center", height: 30, border: `1px solid ${C.rule}`, borderRadius: RADIUS.pill, background: C.white, flexShrink: 0 }}>
+                  {stepBtn("−", qty - 1, qty > 0)}
+                  <span style={{ minWidth: 18, textAlign: "center" as const, fontFamily: SERIF, fontSize: TYPE.figure.size, color: qty ? C.black : C.light }}>{qty}</span>
+                  {stepBtn("+", qty + 1, qty < max)}
+                </span>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                <button onClick={() => setQty(l._key, max, qty - 1)} style={{ width: 32, height: 32, border: `1px solid ${C.rule}`, borderRadius: RADIUS.field, background: "none", cursor: "pointer", fontSize: TYPE.body.size, color: qty > 0 ? C.black : C.light }}>−</button>
-                <span style={{ fontSize: TYPE.label.size, fontFamily: SERIF, minWidth: 18, textAlign: "center" as const }}>{qty}</span>
-                <button onClick={() => setQty(l._key, max, qty + 1)} style={{ width: 32, height: 32, border: `1px solid ${C.rule}`, borderRadius: RADIUS.field, background: "none", cursor: "pointer", fontSize: TYPE.body.size, color: qty < max ? C.black : C.light }}>+</button>
-              </div>
-            </div>
-          );
-        })}
-        {base > 0 && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "8px 0 0", textAlign: "right" as const }}>Base: <strong style={{ color: C.black, fontFamily: SERIF }}>{fmt(base)}</strong></p>}
-      </>)}
+            );
+          })}
+        </div>
+      ))}
 
-      {section("02", "Usage rights", <>
-        {modeToggle(uMode, setUMode)}
-        {uMode === "predefined" && <>
-          <S value={uIdx} onChange={(e: any) => setUIdx(parseInt(e.target.value))} s={{ marginBottom: 6 }}>
-            {uOpts.map((o: any, i: number) => <option key={i} value={i}>{optText(o)}</option>)}
-          </S>
-          {base > 0 && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: 0 }}>Fee: <strong style={{ color: C.black, fontFamily: SERIF }}>{fmt(uFee)}</strong></p>}
-        </>}
+      {section("Usage rights", uMode !== "none" && uFee > 0 ? fmt(uFee) : "from the rate card", <>
+        {optionChips("usage", uMode, setUMode, uOpts, uIdx, setUIdx, setUFeeIn)}
         {uMode === "custom" && customBlock({ opt: uOpt, opts: uOpts, idx: uIdx, setIdx: setUIdx, n: uN, setN: setUN, unit: uUnit, setUnit: setUUnit, calc: uCalc, feeIn: uFeeIn, setFeeIn: setUFeeIn })}
       </>)}
 
-      {section("03", "Exclusivity", <>
-        {modeToggle(eMode, setEMode)}
-        {eMode === "predefined" && <>
-          <S value={eIdx} onChange={(e: any) => setEIdx(parseInt(e.target.value))} s={{ marginBottom: 6 }}>
-            {eOpts.map((o: any, i: number) => <option key={i} value={i}>{optText(o)}</option>)}
-          </S>
-          {base > 0 && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: 0 }}>Fee: <strong style={{ color: C.black, fontFamily: SERIF }}>{fmt(eFee)}</strong></p>}
-        </>}
+      {section("Exclusivity", eMode !== "none" && eFee > 0 ? fmt(eFee) : null, <>
+        {optionChips("excl", eMode, setEMode, eOpts, eIdx, setEIdx, setEFeeIn)}
         {eMode === "custom" && customBlock({ opt: eOpt, opts: eOpts, idx: eIdx, setIdx: setEIdx, n: eN, setN: setEN, unit: eUnit, setUnit: setEUnit, calc: eCalc, feeIn: eFeeIn, setFeeIn: setEFeeIn })}
       </>)}
 
-      {section("04", "Dates", <>
-        <Lbl>Start date <span style={{ fontWeight: "normal", color: C.light }}>(day after the current license ends)</span></Lbl>
-        <I type="date" value={startD} onChange={(e: any) => setStartD(e.target.value)} s={{ marginBottom: 6 }} />
-        {endD && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: 0 }}>End date: <strong style={{ color: C.black }}>{fmtD(endD)}</strong></p>}
-      </>)}
+      {section("Dates", null, (
+        <div style={CARD}>
+          <div style={{ ...ROWS, borderTop: "none", minHeight: 44 }}>
+            <span style={{ flex: 1, fontSize: TYPE.row.size }}>Start</span>
+            <MiniInput type="date" value={startD} onChange={(e: any) => setStartD(e.target.value)} aria-label="Start date" s={{ width: 150 }} />
+          </div>
+          <div style={{ ...ROWS, minHeight: 44 }}>
+            <span style={{ flex: 1, fontSize: TYPE.row.size }}>End</span>
+            <span style={{ fontSize: TYPE.row.size, color: C.muted }}>{endD ? `${fmtD(endD)}${endDur ? ` · ${endDur}` : ""}` : "—"}</span>
+          </div>
+        </div>
+      ))}
     </>
   );
 
@@ -245,14 +261,12 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
     <>
       {err && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const }}>{isAmendMode ? "Amendment total" : "Renewal total"}</span>
-        <span style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size }}>{fmt(totalFee)}</span>
-        <div style={{ flex: 1 }} />
-        <B onClick={save} s={{ opacity: canSave && !saving ? 1 : 0.4 }}>{saving ? "Saving…" : isAmendMode ? "Save amendment" : "Save renewal"}</B>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted }}>{isAmendMode ? "Amendment total" : "Renewal total"}</div>
+          <div style={{ fontFamily: SERIF, fontSize: TYPE.tile.size }}>{fmt(totalFee)}</div>
+        </div>
+        <PillBtn dark onClick={save} dim={!canSave || saving} s={{ height: 40, padding: "0 22px", justifyContent: "center" }}>{saving ? "Saving…" : isAmendMode ? "Save amendment" : "Save renewal"}</PillBtn>
       </div>
-      <p style={{ fontSize: TYPE.micro.size, color: C.light, margin: "6px 0 0" }}>
-        {isAmendMode ? "Saved as a draft amendment — the number is assigned when you save." : "Saved as a draft invoice — the number is assigned when you finalize it."}
-      </p>
     </>
   );
 
@@ -261,8 +275,7 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
       <div style={{ borderBottom: `1px solid ${C.rule}`, flexShrink: 0 }}>
         <div style={{ height: 48, display: "flex", alignItems: "center", padding: "0 8px 0 2px", gap: 6 }}>
           <button onClick={tryClose} aria-label="Close" style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: ICON.close }}>✕</button>
-          <span style={{ fontFamily: SERIF, fontSize: TYPE.body.size, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{isAmendMode ? "Amendment — Rights Extension" : "Add Renewal"}</span>
-          <div style={{ flex: 1 }} />
+          <span style={{ flex: 1, minWidth: 0, textAlign: "center" as const, fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{isAmendMode ? `Rights extension · ${p.name}` : `Renewal · ${p.name}`}</span>
           <LangSwitch lang={lang} onChange={setLang as any} />
         </div>
         {isM && (
@@ -275,8 +288,8 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {(!isM || view === "edit") && (
           <div style={{ width: isM ? "100%" : 400, flexShrink: 0, display: "flex", flexDirection: "column", borderRight: isM ? "none" : `1px solid ${C.rule}` }}>
-            <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px 14px" }}>{panel}</div>
-            {!isM && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>{footer}</div>}
+            <div style={{ flex: 1, overflowY: "auto", padding: "0 14px 16px", background: C.bg }}>{panel}</div>
+            {!isM && <div style={{ padding: "11px 14px 14px", borderTop: `1px solid ${C.line}`, flexShrink: 0, background: C.white }}>{footer}</div>}
           </div>
         )}
         {(!isM || view === "preview") && (
@@ -286,7 +299,7 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
         )}
       </div>
       {/* phone: the total and Save stay at the bottom in Edit and in Preview */}
-      {isM && <div style={{ padding: "10px 14px calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${C.rule}`, flexShrink: 0, background: C.bg }}>{footer}</div>}
+      {isM && <div style={{ padding: "11px 14px calc(14px + env(safe-area-inset-bottom))", borderTop: `1px solid ${C.line}`, flexShrink: 0, background: C.white }}>{footer}</div>}
       {askClose && <ConfirmDialog title={isAmendMode ? "Discard this amendment?" : "Discard this renewal?"} text="What you chose here isn't saved." okLabel="Discard" danger
         onOk={() => { setAskClose(false); onClose(); }} onCancel={() => setAskClose(false)} />}
     </div>,

@@ -10,10 +10,12 @@
 //   all posted / all delivered — automatic, read only, with its date.
 // ─────────────────────────────────────────────────────────────
 
-import { C, TYPE, TINT, PAL, TRACK, RADIUS } from "./constants";
+import { C, SANS, TYPE, PAL, TRACK } from "./constants";
 import { fmtD, today } from "./formatters";
-import { getCatProgress, projectItems, statusRank, doneWord, finalStatus } from "./wsHelpers";
-import { CatPill, Tick } from "./atoms";
+import { getCatProgress, projectItems, statusRank, doneWord, finalStatus, shownStatus, WS_CAT_LABEL } from "./wsHelpers";
+import { ListCard, TonedTag } from "./atoms";
+import { catTone, statusTone, Tick2 } from "./CreatorShared";
+import { showUndo } from "./undo";
 
 interface ProductionSectionProps {
   pr:           any;
@@ -24,13 +26,17 @@ interface ProductionSectionProps {
   clientsHook?: any;
 }
 
-export default function ProductionSection({ pr, cl, upP, isMobile, clientsHook }: ProductionSectionProps) {
+// Projects › Production in the Workspace's look: per card a line with its pastel tag, how many
+// are done and the Manager's toggles (Reviewed · Delivered), then one row per item with the
+// same two ticks (Created · Done) and status tag as in the Creator's Workspace.
+export default function ProductionSection({ pr, cl, upP, clientsHook }: ProductionSectionProps) {
   const removed = projectItems(pr, cl, true).filter((it: any) => it.status === "Removed");
   const cats    = getCatProgress(pr);
   const catKeys = Object.keys(cats).filter(k => cats[k].total > 0);
   if (catKeys.length === 0 && removed.length === 0) return null;     // (removed items stay restorable)
   const ms    = pr.managerStatus || {};
   const items = projectItems(pr, cl);
+  const nDone = items.filter((it: any) => it.done).length;
 
   const setFlag = (cat: string, field: string, on: boolean) => {
     const k = cat.toLowerCase();
@@ -38,120 +44,88 @@ export default function ProductionSection({ pr, cl, upP, isMobile, clientsHook }
     if (on) { cur[field] = true; cur[field + "Date"] = today(); } else { delete cur[field]; delete cur[field + "Date"]; }
     upP({ managerStatus: { ...ms, [k]: cur } });
   };
-
   const markDelivered = async (cat: string) => {
-    const todo = items.filter(it => it.category === cat && statusRank(it.status) < statusRank("Delivered"));
-    if (clientsHook?.setWsStatus) await clientsHook.setWsStatus(cl.id, pr.id, todo.map(it => ({ id: it.id, status: "Delivered" })), "manager");
+    const todo = items.filter((it: any) => it.category === cat && statusRank(it.status) < statusRank("Delivered"));
+    if (clientsHook?.setWsStatus) await clientsHook.setWsStatus(cl.id, pr.id, todo.map((it: any) => ({ id: it.id, status: "Delivered" })), "manager");
     setFlag(cat, "delivered", true);
   };
   const undoDelivered = async (cat: string) => {
     // only the items whose last step was this manager tick go back
-    const mine = items.filter(it => it.category === cat && it.status === "Delivered" &&
+    const mine = items.filter((it: any) => it.category === cat && it.status === "Delivered" &&
       (((pr.workspaceStatusHistory || {})[it.id] || []).slice(-1)[0]?.by === "manager"));
-    if (clientsHook?.revertWsStatus) await clientsHook.revertWsStatus(cl.id, pr.id, mine.map(it => it.id));
+    if (clientsHook?.revertWsStatus) await clientsHook.revertWsStatus(cl.id, pr.id, mine.map((it: any) => it.id));
     setFlag(cat, "delivered", false);
   };
 
-  const col1W = isMobile ? 0 : 72;
-  const col3W = isMobile ? 112 : 140;
+  // one tick = one step, as in the Workspace; Undo takes exactly that step back
+  const setStatus = async (it: any, status: string, label: string) => {
+    if (!clientsHook?.setWsStatus) return;
+    try {
+      await clientsHook.setWsStatus(cl.id, pr.id, [{ id: it.id, status }], "manager");
+      showUndo(label, () => clientsHook.revertWsStatus(cl.id, pr.id, [it.id], status));
+    } catch { /* the save message reports it */ }
+  };
+  const toggleCreated = (it: any) => setStatus(it, statusRank(it.status) >= 1 ? "Not started" : "Created", statusRank(it.status) >= 1 ? "Back to not started" : "Marked created");
+  const toggleDone = (it: any) => setStatus(it, it.done ? "Created" : finalStatus(it.category), it.done ? "Back to created" : `Marked ${finalStatus(it.category).toLowerCase()}`);
+
+  const dm = (d?: string | null) => (d ? `${d.slice(8, 10)}.${d.slice(5, 7)}.` : "");
+  const CAPS: any = { fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted };
+  const toggle = (label: string, on: boolean, enabled: boolean, run: () => void, aria: string) => (
+    <button onClick={enabled ? run : undefined} aria-pressed={on} aria-label={aria} aria-disabled={!enabled}
+      style={{ height: 26, padding: "0 10px", borderRadius: 13, fontFamily: SANS, fontSize: TYPE.label.size, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" as const,
+        border: `1px solid ${on ? PAL.done.mid : C.rule}`, background: on ? PAL.done.wash : C.white, color: on ? PAL.done.ink : C.ink2, cursor: enabled ? "pointer" : "default", opacity: enabled ? 1 : 0.45 }}>
+      {on ? "✓ " : ""}{label}
+    </button>
+  );
 
   return (
-    <div style={{ marginBottom: isMobile ? 12 : 8, border: `1px solid ${C.rule}`, borderRadius: RADIUS.field, overflow: "hidden" }}>
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? `1fr ${col3W}px` : `${col1W}px 1fr ${col3W}px`, background: PAL.neutral.wash, borderBottom: `1px solid ${C.hair}` }}>
-        {!isMobile && <div style={{ padding: "4px 8px", fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const }}>Cat.</div>}
-        <div style={{ padding: isMobile ? "5px 8px" : "4px 8px", fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, borderLeft: isMobile ? "none" : `1px solid ${C.rule}` }}>Deliverable · progress</div>
-        <div style={{ padding: isMobile ? "5px 8px" : "4px 8px", fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, borderLeft: `1px solid ${C.rule}` }}>Manager</div>
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "0 2px" }}>
+        <span style={CAPS}>Production</span><span style={CAPS}>{nDone} of {items.length} done</span>
       </div>
 
-      {catKeys.map((cat, ci) => {
+      {catKeys.map(cat => {
         const prog  = cats[cat];
         const msc   = ms[cat.toLowerCase()] || {};
-        // Brand Collab and Hotels finish when posted (the Workspace's rule): no "delivered" tick
+        const name  = WS_CAT_LABEL[cat] || cat;
+        // Brand Collab and Hotels finish when posted (the Workspace's rule): no "Delivered" toggle
         const postedCat = finalStatus(cat) === "Posted";
-        const catIt = items.filter(it => it.category === cat);
-        const lines: { key: string; name: string; note: string; its: any[] }[] = [];
-        catIt.forEach(it => {
-          let g = lines.find(x => x.key === it.lineKey);
-          if (!g) { g = { key: it.lineKey, name: it.lineName + (it.month ? ` · M${String(it.month).padStart(2, "0")}` : ""), note: it.lineNote, its: [] }; lines.push(g); }
-          g.its.push(it);
-        });
-
+        const catIt = items.filter((it: any) => it.category === cat);
+        const nd    = catIt.filter((it: any) => it.done).length;
         return (
-          <div key={cat} style={{ display: "grid", gridTemplateColumns: isMobile ? `1fr ${col3W}px` : `${col1W}px 1fr ${col3W}px`, borderBottom: ci < catKeys.length - 1 ? `1px solid ${C.rule}` : "none" }}>
-            {!isMobile && <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "8px 6px", borderRight: `1px solid ${C.rule}` }}>
-              <CatPill cat={cat} />
-            </div>}
-
-            <div style={{ borderRight: `1px solid ${C.rule}`, display: "flex", flexDirection: "column" as const }}>
-              {lines.map((ln, lii) => {
-                const created = ln.its.filter(it => statusRank(it.status) >= 1).length;
-                const done = ln.its.filter(it => it.done).length;
-                return (
-                  <div key={ln.key} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6, padding: isMobile ? "8px 10px" : "6px 10px", borderTop: lii > 0 ? `1px solid ${C.rule}` : "none" }}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      {isMobile && <span style={{ display: "inline-block", marginBottom: 3 }}><CatPill cat={cat} /></span>}
-                      <p style={{ fontSize: isMobile ? TYPE.subtext.size : TYPE.label.size, color: C.black, margin: 0, fontWeight: 500, lineHeight: 1.3 }}>{ln.name}</p>
-                      {ln.note && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "2px 0 0" }}>{ln.note}</p>}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 3, flexShrink: 0, flexWrap: "wrap" as const, justifyContent: "flex-end" }}>
-                      {!isMobile && ln.its.map(it => (
-                        <div key={it.id} title={`${it.name}: ${it.status}`} style={{ width: 8, height: 8, borderRadius: "50%", background: it.done ? C.green : statusRank(it.status) >= 1 ? C.black : "transparent", border: `1.5px solid ${it.done ? C.green : statusRank(it.status) >= 1 ? C.black : C.light}` }} />
-                      ))}
-                      <span style={{ fontSize: TYPE.micro.size, color: done === ln.its.length ? C.green : C.muted, marginLeft: 2, whiteSpace: "nowrap" as const }}>
-                        {created}/{ln.its.length}{done ? ` · ${done} ${doneWord(cat)}` : ""}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-              {prog.allCreated && !prog.allDone && (
-                <div style={{ display: "flex", justifyContent: "flex-end", padding: "3px 10px 5px" }}>
-                  <span style={{ fontSize: TYPE.micro.size, padding: "1px 7px", borderRadius: RADIUS.button, background: TINT.green, border: `1px solid ${C.green}`, color: C.green }}>ready</span>
-                </div>
-              )}
+          <div key={cat}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const, margin: "12px 2px 7px" }}>
+              <TonedTag tone={catTone(cat)}>{name}</TonedTag>
+              <span style={{ flex: 1, minWidth: 70, fontSize: TYPE.subtext.size, color: C.muted }}>{nd} of {catIt.length} {doneWord(cat)}</span>
+              {toggle("Reviewed", !!msc.reviewed, prog.allCreated || !!msc.reviewed, () => setFlag(cat, "reviewed", !msc.reviewed), `Reviewed: ${name}`)}
+              {!postedCat && toggle("Delivered", !!msc.delivered, prog.allCreated || !!msc.delivered, () => (msc.delivered ? undoDelivered(cat) : markDelivered(cat)), `Delivered: ${name}`)}
             </div>
-
-            <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column" as const, gap: isMobile ? 7 : 5 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: prog.allCreated || msc.reviewed ? 1 : 0.4 }}>
-                <Tick on={!!msc.reviewed} color={C.amber} size={isMobile ? 22 : 18} disabled={!prog.allCreated && !msc.reviewed}
-                  onClick={() => setFlag(cat, "reviewed", !msc.reviewed)} />
-                <div>
-                  <span style={{ fontSize: TYPE.label.size, color: msc.reviewed ? C.amber : C.muted, display: "block" }}>reviewed</span>
-                  {msc.reviewed && <span style={{ fontSize: TYPE.micro.size, color: C.muted, display: "block" }}>{fmtD(msc.reviewedDate)}</span>}
-                </div>
-              </div>
-              {!postedCat && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: prog.allCreated || msc.delivered ? 1 : 0.4 }}>
-                  <Tick on={!!msc.delivered} color={C.green} size={isMobile ? 22 : 18} disabled={!prog.allCreated && !msc.delivered}
-                    onClick={() => (msc.delivered ? undoDelivered(cat) : markDelivered(cat))} />
-                  <div>
-                    <span style={{ fontSize: TYPE.label.size, color: msc.delivered ? C.green : C.muted, display: "block" }}>delivered</span>
-                    {msc.delivered && <span style={{ fontSize: TYPE.micro.size, color: C.muted, display: "block" }}>{fmtD(msc.deliveredDate)}</span>}
+            <ListCard>
+              {catIt.map((it: any, i: number) => (
+                <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 2, minHeight: 54, padding: "0 10px 0 0", borderTop: i ? `1px solid ${C.line}` : "none" }}>
+                  <Tick2 on={statusRank(it.status) >= 1} tone={PAL.progress} label={`Created: ${it.name}`} onClick={() => toggleCreated(it)} />
+                  <span style={{ marginLeft: -10 }}><Tick2 on={it.done} tone={PAL.done} label={`Done: ${it.name}`} onClick={() => toggleDone(it)} /></span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: TYPE.row.size, color: C.black, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{it.name}</div>
+                    <div style={{ fontSize: TYPE.subtext.size, color: C.muted }}>{it.done ? `${doneWord(cat)} ${dm(it.doneDate)}`.trim() : it.deadline ? `due ${dm(it.deadline)}` : ""}</div>
                   </div>
+                  <TonedTag tone={statusTone(it.status, it.done)}>{shownStatus(it.status)}</TonedTag>
                 </div>
-              )}
-              <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: prog.allDone ? 1 : 0.4 }}>
-                <Tick on={prog.allDone} color={C.green} size={isMobile ? 22 : 18} disabled />
-                <div>
-                  <span style={{ fontSize: TYPE.label.size, color: prog.allDone ? C.green : C.muted, display: "block" }}>
-                    {prog.allDone ? `all ${doneWord(cat)}` : `${prog.done}/${prog.total} ${doneWord(cat)}`}
-                  </span>
-                  {prog.allDone && prog.doneDate && <span style={{ fontSize: TYPE.micro.size, color: C.muted, display: "block" }}>{fmtD(prog.doneDate)}</span>}
-                </div>
-              </div>
-            </div>
+              ))}
+            </ListCard>
           </div>
         );
       })}
+
       {/* items removed in the Creator's Workspace: listed here, one tap brings each back */}
       {removed.length > 0 && (
-        <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.rule}` }}>
-          <div style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, marginBottom: 4 }}>Removed · {removed.length}</div>
-          {removed.map((it: any) => (
-            <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 36, fontSize: TYPE.label.size, color: C.muted }}>
+        <div style={{ marginTop: 12 }}>
+          {removed.map((it: any, i: number) => (
+            <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 36, padding: "0 2px", fontSize: TYPE.subtext.size, color: C.muted }}>
+              {i === 0 ? <span style={CAPS}>Removed · {removed.length}</span> : <span style={{ ...CAPS, visibility: "hidden" as const }}>Removed · {removed.length}</span>}
               <span style={{ flex: 1, minWidth: 0, textDecoration: "line-through", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{it.name}</span>
               <button onClick={() => clientsHook?.revertWsStatus?.(cl.id, pr.id, [it.id], "Removed")}
-                style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: TYPE.label.size, color: C.black, textDecoration: "underline", minHeight: 36, padding: "0 4px" }}>Restore</button>
+                style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.black, textDecoration: "underline", minHeight: 36, padding: "0 4px" }}>Restore</button>
             </div>
           ))}
         </div>

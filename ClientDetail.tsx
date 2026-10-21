@@ -16,6 +16,7 @@ import type { License } from "./licenses";
 import { clientTotals, STATUS_ORDER, followUp, validUntil, currentContractOf, daysSince } from "./money";
 import { editLock } from "./saveStatus";
 import { countryKnown } from "./docs";
+import ClientForm from "./ClientForm";
 import { Ico, IC } from "./PlannerWindows";
 
 interface ClientDetailProps {
@@ -135,6 +136,19 @@ export default function ClientDetail({
       <span style={{ fontSize: TYPE.subtext.size, color: C.muted }}>{lbl}</span>
       <span style={{ fontSize: TYPE.subtext.size, color: C.black, textAlign: "right" as const, maxWidth: "62%", overflowWrap: "anywhere" as const }}>{val || "—"}</span>
     </div>
+  );
+
+  // editing: the same rows as a new client (ClientForm) — Save returns to the read view
+  if (editMode) return (
+    <ClientForm initial={cl} isNew={false} isMobile={isMobile}
+      onCancel={() => { setNameErr(null); setEditMode(false); }}
+      onSave={async (v) => {
+        if (clients.some((c: any) => c.id !== cl.id && String(c.name || "").trim().toLowerCase() === v.name.toLowerCase())) return "A client with this name already exists.";
+        const e = await clientsHook.updateClient(cl.id, v);
+        if (e) return e;
+        setEditMode(false);
+        return null;
+      }} />
   );
 
   return (

@@ -13,6 +13,7 @@ import { currentQuote, contractNo, docNet, retainerMonthly, retDiscOf } from "./
 import AppLogo from "./AppLogo";
 import { PillBtn } from "./atoms";
 import { AvatarMenu, NavTab, appItems, AppHeader } from "./AppNav";
+import { UndoBar } from "./undo";
 import type { Role } from "./types";
 
 // ── Page imports (placeholders until built) ───────────────────
@@ -365,6 +366,8 @@ export default function ManagerApp({
         )}
       </div>
 
+      {/* the app's Undo bar (Production ticks), above the save message */}
+      <UndoBar />
     </div>
   );
 }

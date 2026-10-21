@@ -15,6 +15,7 @@ import { I, S, Lbl, Tag, TSel, TSelWrap, SummaryLine, Strong, Chip, ChipRow, Pil
 import { clientTotals, followUp } from "./money";
 import { projectLicenses } from "./licenses";
 import ClientDetail from "./ClientDetail";
+import ClientForm from "./ClientForm";
 
 interface ClientListProps {
   clients:          any[];
@@ -159,6 +160,18 @@ export default function ClientList({
     />
   );
 
+  // ── New client: the same rows as editing a client (ClientForm), on its own page ──
+  if (showAdd) return (
+    <ClientForm isNew isMobile={isMobile} onCancel={() => setShowAdd(false)}
+      onSave={async (v) => {
+        if ((clientsHook.clients || []).some((c: any) => String(c.name || "").trim().toLowerCase() === v.name.toLowerCase())) return "A client with this name already exists.";
+        const e = await clientsHook.addClient(v);
+        if (e) return e;
+        setShowAdd(false);
+        return null;
+      }} />
+  );
+
   // ── Mobile: show detail only ──────────────────────────────
   if (cl && isMobile) return detail(true);
 
@@ -179,50 +192,6 @@ export default function ClientList({
         {clients.length} client{clients.length === 1 ? "" : "s"} · <Strong>{count.progress} with work in progress</Strong>
       </SummaryLine>
 
-      {/* New client form */}
-      {showAdd && (
-        <div style={{ border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, padding: 14, marginTop: 12, background: C.white }}>
-          <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: "0 0 10px" }}>New Client</p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
-            <div><Lbl>Brand Name *</Lbl><I value={nb.name} onChange={(e: any) => { setAddErr(null); setNb(p => ({ ...p, name: e.target.value })); }} placeholder="Sephora" />
-              {addErr && !nb.name.trim() && <p role="alert" style={{ fontSize: TYPE.label.size, color: C.red, margin: "5px 0 0" }}>{addErr}</p>}
-              {nb.name.trim() && (clientsHook.clients || []).some((c: any) => c.name.trim().toLowerCase() === nb.name.trim().toLowerCase()) && (
-                <p style={{ fontSize: TYPE.label.size, color: C.amber, margin: "5px 0 0" }}>A client with this name already exists.</p>
-              )}
-            </div>
-            <div><Lbl>Contact</Lbl><I value={nb.contact} onChange={(e: any) => setNb(p => ({ ...p, contact: e.target.value }))} placeholder="Anna Müller" /></div>
-            <div><Lbl>Email</Lbl><I value={nb.email} onChange={(e: any) => setNb(p => ({ ...p, email: e.target.value }))} type="email" placeholder="anna@brand.com" /></div>
-            <div>
-              <Lbl>Agency / Direct</Lbl>
-              <S value={nb.agency} onChange={(e: any) => setNb(p => ({ ...p, agency: e.target.value }))}><option>Direct</option><option>Agency</option></S>
-            </div>
-            <div style={{ gridColumn: "1 / -1" }}><Lbl>Street & Number</Lbl><I value={nb.street} onChange={(e: any) => setNb(p => ({ ...p, street: e.target.value }))} placeholder="Musterstraße 12" /></div>
-            <div><Lbl>PLZ</Lbl><I value={nb.plz} onChange={(e: any) => setNb(p => ({ ...p, plz: e.target.value }))} placeholder="10115" /></div>
-            <div><Lbl>City</Lbl><I value={nb.city} onChange={(e: any) => setNb(p => ({ ...p, city: e.target.value }))} placeholder="Berlin" /></div>
-            <div><Lbl>Country</Lbl><I value={nb.country} onChange={(e: any) => setNb(p => ({ ...p, country: e.target.value }))} placeholder="Germany" /></div>
-            <div><Lbl>VAT ID (optional)</Lbl><I value={nb.vatId} onChange={(e: any) => setNb(p => ({ ...p, vatId: e.target.value }))} placeholder="DE123456789" /></div>
-            <div>
-              <Lbl>Tags</Lbl>
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const, marginBottom: 4 }}>
-                {nb.tags.map(t => <Tag key={t} onRemove={() => setNb(p => ({ ...p, tags: p.tags.filter(x => x !== t) }))}>{t}</Tag>)}
-              </div>
-              <div style={{ display: "flex", gap: 5 }}>
-                <I value={tagI} onChange={(e: any) => setTagI(e.target.value)} placeholder="Beauty, Fashion…"
-                  onKeyDown={(e: any) => { if (e.key === "Enter" && tagI.trim()) { setNb(p => ({ ...p, tags: [...p.tags, tagI.trim()] })); setTagI(""); } }} />
-                <PillBtn onClick={() => { if (tagI.trim()) { setNb(p => ({ ...p, tags: [...p.tags, tagI.trim()] })); setTagI(""); } }}>+</PillBtn>
-              </div>
-            </div>
-          </div>
-          <div style={{ marginTop: 9 }}>
-            <Lbl>Relationship Notes</Lbl>
-            <I value={nb.notes} onChange={(e: any) => setNb(p => ({ ...p, notes: e.target.value }))} placeholder="Fast payer, luxury aesthetic…" />
-          </div>
-          <div style={{ display: "flex", gap: 7, marginTop: 10 }}>
-            <PillBtn dark onClick={addCl}>Save client</PillBtn>
-            <PillBtn onClick={() => setShowAdd(false)}>Cancel</PillBtn>
-          </div>
-        </div>
-      )}
 
       <SearchField value={search} onChange={setSearch} placeholder="Search clients, contacts, tags" s={{ marginTop: 12 }} />
       <ChipRow s={{ marginTop: 10 }}>

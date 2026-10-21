@@ -419,10 +419,7 @@ export function ProjectRow({
 
           {/* 5. PRODUCTION SECTION — in production, or invoiced with items still open (the Workspace's rule) */}
           {workOpen(pr) && (
-            <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, margin: "0 0 6px", fontWeight: "500" }}>Production</p>
-              <ProductionSection pr={pr} clients={clients} cl={cl} upP={upP} isMobile={isMobile} clientsHook={clientsHook} />
-            </div>
+            <ProductionSection pr={pr} clients={clients} cl={cl} upP={upP} isMobile={isMobile} clientsHook={clientsHook} />
           )}
 
           {/* 6. LICENSE TRACKER */}
