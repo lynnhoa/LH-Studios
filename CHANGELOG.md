@@ -94,6 +94,22 @@ Goal: make the Supabase app functionally identical to the old reference
 - Changed: `PlannerApp.tsx`, `PlannerWindows.tsx` (shares the text list,
   link list and window head), `usePlanner.ts`, `planner.ts`.
 
+## Planner · compact windows + Concept in the idea window (21.10.2026)
+- All Planner windows: 40 px top bar, 10 px between sections, smaller
+  section icons, 32 px rows and fields with 13 px text (typed at 16 px
+  underneath, so the iPhone doesn't zoom). Sprint window fields use the
+  same small fields.
+- Idea window: Type removed (ideas keep the type they have); stage badge
+  removed; Delete moved into ⋯ (with Undo); no Done bar (✕ closes,
+  everything saves on its own); slimmer Shot / Filmed / Posted; 20 px title.
+- New Concept dropdown: the account's arcs as groups, picking a format sets
+  its arc (saved in the idea's plan: `arc`, `arcFormat`, no SQL). Under it:
+  "Posts on" TikTok / Instagram from the concept's ticks.
+- Lists (storyline, clips, concept texts): an empty list shows only
+  "+ Add …"; a line left empty disappears again. Storyline is always bullets.
+- Concept Texts / Links windows: no Done bar.
+- Changed: `PlannerWindows.tsx`, `planner.ts`, `PlannerConcept.tsx`.
+
 ## Known open items
 1. Multi-device: data fetched once per load, last-write-wins — consider
    refetch-on-focus (~20 lines).

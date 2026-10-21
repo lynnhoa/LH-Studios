@@ -101,6 +101,8 @@ export interface ItemPlan {
   clips: { t: string; done: boolean }[];     // clips to shoot (tick when shot)
   refs:  { url: string; note: string }[];    // reference links + what they show
   filmedOn?: string | null;                  // the day it was ticked "Filmed"
+  arc?: string | null;                       // content concept: the arc (its id) …
+  arcFormat?: string | null;                 // … and its format (by name)
 }
 export const EMPTY_PLAN: ItemPlan = { style: "bullets", clips: [], refs: [] };
 export function planOf(v: any): ItemPlan {
@@ -110,6 +112,8 @@ export function planOf(v: any): ItemPlan {
     clips: Array.isArray(o.clips) ? o.clips.filter((c: any) => c && typeof c.t === "string").map((c: any) => ({ t: c.t, done: !!c.done })) : [],
     refs:  Array.isArray(o.refs) ? o.refs.filter((r: any) => r && (r.url || r.note)).map((r: any) => ({ url: String(r.url || ""), note: String(r.note || "") })) : [],
     filmedOn: typeof o.filmedOn === "string" ? o.filmedOn : null,
+    arc:       typeof o.arc === "string" && o.arc ? o.arc : null,
+    arcFormat: typeof o.arcFormat === "string" && o.arcFormat ? o.arcFormat : null,
   };
 }
 // storyline text → points (strips "- ", "• ", "1. " the way people type them)

@@ -181,8 +181,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
       )}
 
       {win && winArc && (
-        <Window title={`${winArc.num}. ${winArc.name}`} isMobile={isMobile} onClose={close}
-          footer={<div style={{ display: "flex" }}><B onClick={close} s={{ flex: 1, height: 38, minHeight: 38 }}>Done</B></div>}>
+        <Window title={`${winArc.num}. ${winArc.name}`} isMobile={isMobile} onClose={close}>
           <WinHead first icon={win.kind === "texts" ? IC.list : IC.link} tone={ACC_TONE[winArc.account]}
             label={win.kind === "texts" ? count("Texts", winArc.texts.length) : count("Links", winArc.links.length)} />
           <div style={winCard}>
