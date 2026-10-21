@@ -4,8 +4,11 @@
 // with all apps. Phone, iPad and desktop layouts.
 // All four tabs are live: Dashboard (read-only scoreboard), To-do,
 // Manager and Creator. One account at a time: @lynnhoa or
-// @createbylynn, chosen with the switch next to each tab title (or in
-// the profile menu — same choice) and remembered on this device.
+// @createbylynn, chosen with the switch next to each tab title and
+// remembered on this device.
+// Profile menu › This app: "@lynnhoa concept" / "@createbylynn concept"
+// open the Content concept page (under the tabs, no tab underlined;
+// tap any tab to leave it).
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
@@ -20,6 +23,7 @@ import PlannerTodo, { DEFAULT_VIEW } from "./PlannerTodo";
 import PlannerManager from "./PlannerManager";
 import PlannerCreator from "./PlannerCreator";
 import PlannerOverview from "./PlannerOverview";
+import PlannerConcept from "./PlannerConcept";
 import { UndoBar } from "./undo";
 import type { PlannerView } from "./PlannerTodo";
 import type { Role } from "./types";
@@ -63,6 +67,7 @@ export default function PlannerApp({ userId, settings, signOut, switchTo, banner
 
   const isMobile = winW < BREAKPOINT;
   const isWide   = winW >= WIDE;
+  const isConcept = view.tab === "concept";                      // the Content concept page (profile menu)
   const tab      = TABS.find(t => t.key === view.tab) || TABS[1];
   // switch tab; with an anchor, scroll to that card (e.g. To-do → Manager › Following)
   const goTab    = (key: string, anchor?: string) => {
@@ -73,6 +78,8 @@ export default function PlannerApp({ userId, settings, signOut, switchTo, banner
       if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - (winW < BREAKPOINT ? 100 : 72), behavior: "smooth" });
     }, 80);
   };
+  // the profile menu's "@… concept": that account's Content concept page
+  const openConcept = (a: Account) => { saveWorkAccount(a); setView(v => ({ ...v, acc: a, tab: "concept" })); window.scrollTo(0, 0); };
   const openOutreach = () => switchTo("outreach");
   // the Manager app opens straight on Service Catalog (rate cards inside)
   const openCatalog = () => { try { sessionStorage.setItem("lh_manager_open", "catalog"); } catch { /* ignore */ } switchTo("manager"); };
@@ -80,11 +87,11 @@ export default function PlannerApp({ userId, settings, signOut, switchTo, banner
   // phone: avatar on the right, the menu opens to the left · iPad / computer: avatar on the left, the menu opens to the right
   const avatar = (dropLeft: boolean) => (
     <AvatarMenu settings={settings} roleLabel="Planner" dropLeft={dropLeft}
-      items={ACCOUNTS.map(a => ({ key: a.key, label: a.label, active: view.acc === a.key, onClick: () => setAccount(a.key) }))}
+      items={ACCOUNTS.map(a => ({ key: `concept-${a.key}`, label: `${a.label} concept`, active: isConcept && view.acc === a.key, onClick: () => openConcept(a.key) }))}
       apps={appItems("planner", switchTo)} onSignOut={() => { signOut(); }} />
   );
   const tabs = (height: number, px: number) => TABS.map(t => (
-    <NavTab key={t.key} label={t.label} active={tab.key === t.key} onClick={() => goTab(t.key)} height={height} px={px} />
+    <NavTab key={t.key} label={t.label} active={!isConcept && tab.key === t.key} onClick={() => goTab(t.key)} height={height} px={px} />
   ));
 
   return (
@@ -92,7 +99,9 @@ export default function PlannerApp({ userId, settings, signOut, switchTo, banner
       <AppHeader isMobile={isMobile} avatar={avatar(false)} tabs={tabs} />
       <div style={{ maxWidth: isWide ? 1200 : 960, margin: "0 auto", padding: isMobile ? "14px 14px 28px" : "24px 20px 40px" }}>
         {banners}
-        {tab.key === "overview" ? (
+        {isConcept ? (
+          <PlannerConcept planner={planner} view={view} onAccount={setAccount} isMobile={isMobile} />
+        ) : tab.key === "overview" ? (
           <PlannerOverview planner={planner} view={view} setView={setView} onAccount={setAccount} monday={monday} setMonday={setMonday} isMobile={isMobile} />
         ) : tab.key === "todo" ? (
           <PlannerTodo planner={planner} view={view} setView={setView} onAccount={setAccount} monday={monday} setMonday={setMonday} isMobile={isMobile} openOutreach={openOutreach} openTab={goTab} />

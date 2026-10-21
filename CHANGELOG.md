@@ -77,6 +77,23 @@ Goal: make the Supabase app functionally identical to the old reference
   icon-192/512); site.webmanifest + robots.txt moved into `public/` so
   Vite ships them; index.html links manifest + icons. Verified in dist/.
 
+## Planner · Content concept (21.10.2026)
+- Profile menu › This app: "@lynnhoa concept" / "@createbylynn concept"
+  (replace the account rows; the switch next to each tab title stays).
+- `PlannerConcept.tsx` (new): the page under the tabs. One card per arc,
+  numbered; tap to open / close, "collapse all / expand all" (remembered
+  on this device, all closed the first time). Open: purpose, formats with
+  TikTok (pistachio) / Instagram (pink) ticks, "texts · links" small and
+  underlined top right. Phone one column, iPad / computer two columns.
+- texts / links open one window each: the idea window's text list and
+  link list (add, change, delete with Undo, saved right away); the link
+  pill is coloured by platform on this page only.
+- Data: table `planner_concept_arcs` (SQL `LH-Studio-planner-concept.sql`,
+  safe to rerun). Arcs, purpose, formats and ticks are fixed by the SQL;
+  texts and links are written in the app. Only a real change is saved.
+- Changed: `PlannerApp.tsx`, `PlannerWindows.tsx` (shares the text list,
+  link list and window head), `usePlanner.ts`, `planner.ts`.
+
 ## Known open items
 1. Multi-device: data fetched once per load, last-write-wins — consider
    refetch-on-focus (~20 lines).

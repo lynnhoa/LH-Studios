@@ -3,6 +3,8 @@
 // Outreach contact window) and the small pieces they share.
 //   Idea window    an idea or an editorial: ticks, type, storyline, clips, links
 //   Sprint window  focus, goals, results and the review (Stage 2)
+// The text list, link list and window heads are shared with the
+// concept page (PlannerConcept: an arc's texts and links).
 // Extra actions (Delete …) sit in the ⋯ menu; one main button.
 // ─────────────────────────────────────────────────────────────
 
@@ -32,6 +34,7 @@ export const IC = {
   right:  "M9 6l6 6-6 6",
   more:   "M5 12h.01M12 12h.01M19 12h.01",
   link:   "M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1",
+  list:   "M9 6h11M9 12h11M9 18h11M5 6h.01M5 12h.01M5 18h.01",
   open:   "M10.5 6.5H8a2.5 2.5 0 0 0-2.5 2.5v7A2.5 2.5 0 0 0 8 18.5h7a2.5 2.5 0 0 0 2.5-2.5v-2.5M13.5 5.5h5v5M18.5 5.5l-7 7",
   tag:    "M4 4h7l9 9-7 7-9-9zM8.5 8.5h.01",
   lock:   "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z",
@@ -233,8 +236,8 @@ export const Subtitle = ({ text }: { text: string }) => (
 );
 
 // ── the account switch: @lynnhoa · @createbylynn, next to every tab title ─
-// One tap switches the whole Planner (remembered on this device, same as the
-// profile menu). A number still being typed is saved first, to the account it
+// One tap switches the whole Planner (remembered on this device; the profile
+// menu's "@… concept" sets it too). A number still being typed is saved first, to the account it
 // was typed for — the field is left (blur) before the account changes.
 export const AccSwitch = ({ acc, onPick }: { acc: Account; onPick?: (a: Account) => void }) => (
   <span role="group" aria-label="Account" style={{ display: "inline-flex", alignItems: "center", gap: 2, height: 28, padding: 2, boxSizing: "border-box" as const, border: `1px solid ${C.rule}`, borderRadius: 14, background: C.white, flexShrink: 0 }}>
@@ -335,8 +338,8 @@ export const dayShort = (d?: string | null) => {
   return isNaN(+dt) ? "" : `${WD3[dt.getDay()]} ${String(d).slice(8, 10)}.${String(d).slice(5, 7)}.`;
 };
 // a section of the idea window: a small coloured circle with its icon + the label (+ something on the right)
-const WinHead = ({ icon, label, tone, right }: { icon: string; label: string; tone: ToneSet; right?: any }) => (
-  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, margin: "16px 2px 7px" }}>
+export const WinHead = ({ icon, label, tone, right, first }: { icon: string; label: string; tone: ToneSet; right?: any; first?: boolean }) => (
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, margin: `${first ? 4 : 16}px 2px 7px` }}>
     <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted }}>
       <span style={{ width: 22, height: 22, borderRadius: "50%", background: tone.wash, color: tone.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={icon} size={12} /></span>
       {label}
@@ -344,7 +347,7 @@ const WinHead = ({ icon, label, tone, right }: { icon: string; label: string; to
     {right}
   </div>
 );
-const winCard: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden" };
+export const winCard: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden" };
 // the title: shown at 22 px (typed at 16 px underneath, so the iPhone doesn't zoom)
 function TitleField({ value, onSave }: { value: string; onSave: (v: string) => void }) {
   const [t, setT] = useState(value);
@@ -538,7 +541,7 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
 // Saves (without empty lines) when you leave a line. Shown at the app's 13 px
 // row size, typed at 16 px underneath (so the iPhone doesn't zoom); one line per row.
 const LK = TYPE.row.size / 16;
-function LineList({ initial, checks: initialChecks, marker, placeholder, addLabel, onSave }: {
+export function LineList({ initial, checks: initialChecks, marker, placeholder, addLabel, onSave }: {
   initial: string[]; checks?: boolean[]; marker: "bullets" | "numbers" | "check"; placeholder: string; addLabel: string;
   onSave: (lines: string[], checks?: boolean[]) => void;
 }) {
@@ -619,7 +622,8 @@ const ROW_LINE = "#f0ece7";
 
 // Links: the platform (read from the link) · what it shows · open · delete.
 // As many as needed; paste one (or several) into the field at the bottom.
-function LinkList({ initial, onSave }: { initial: { url: string; note: string }[]; onSave: (refs: { url: string; note: string }[]) => void }) {
+// pillTone (concept page): the platform pill in that platform's colour; grey otherwise.
+export function LinkList({ initial, onSave, pillTone }: { initial: { url: string; note: string }[]; onSave: (refs: { url: string; note: string }[]) => void; pillTone?: (platform: string) => ToneSet | null }) {
   const [rows, setRows] = useState(initial.length ? initial : []);
   const [paste, setPaste] = useState("");
   const [fresh, setFresh] = useState<number | null>(null);     // the row just pasted: ready for "what it shows"
@@ -642,7 +646,10 @@ function LinkList({ initial, onSave }: { initial: { url: string; note: string }[
         const li = linkInfo(r.url);
         return (
           <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 50, padding: "4px 4px 4px 12px", borderTop: k ? `1px solid ${ROW_LINE}` : "none" }}>
-            <span style={pill}>{r.url.trim() ? li.platform : "Note"}</span>
+            {(() => {
+              const pl = r.url.trim() ? li.platform : "Note", tn = pillTone ? pillTone(pl) : null;
+              return <span style={tn ? { ...pill, background: tn.fill, color: tn.ink } : pill}>{pl}</span>;
+            })()}
             <div style={{ flex: 1, minWidth: 0 }}>
               <TextInline value={r.note} placeholder="What it shows" ariaLabel={`What link ${k + 1} shows`} autoFocus={fresh === k}
                 onSave={v => { const rs = rows.map((x, i) => (i === k ? { ...x, note: v } : x)); setRows(rs); commit(rs); if (fresh === k) setFresh(null); }} />

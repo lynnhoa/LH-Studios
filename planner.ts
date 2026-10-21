@@ -218,6 +218,27 @@ export const typeOf = (it: Item): string =>
 export const typePatch = (acc: Account, type: string): Partial<Item> =>
   type === CONTENT ? { list: "idea", format: CLASSIC, portfolio: false } : { list: "editorial", format: type, portfolio: true };
 
+// ── Content concept (profile menu › @… concept): one row per arc ─────────────
+// Arcs, purpose, formats and their platform ticks come from the SQL (fixed);
+// the texts and links of each arc are written in the app.
+export interface ConceptFormat { name: string; main: boolean; tt: boolean; ig: boolean; }
+export interface ConceptLink   { url: string; note: string; }
+export interface ConceptArc {
+  id:      string;
+  account: Account;
+  num:     number;            // 1, 2, 3 … top to bottom
+  name:    string;
+  purpose: string;
+  formats: ConceptFormat[];   // in order; main = the arc's main format(s)
+  texts:   string[];          // example lines
+  links:   ConceptLink[];     // reference posts: link + what it shows
+}
+// the two platforms on the concept page (ticks and link pills): TikTok pistachio, Instagram pink
+type PlatformTone = { fill: string; wash: string; mid: string; ink: string };
+export const PLATFORM_TONE: Record<"TikTok" | "Instagram", PlatformTone> = { TikTok: PAL.done, Instagram: PAL.late };
+export const platformTone = (platform: string): PlatformTone | null =>
+  platform === "TikTok" || platform === "Instagram" ? PLATFORM_TONE[platform] : null;
+
 // ── Reference links: the platform and a short line (handle or path) ─────────
 const LINK_PLATFORMS: [RegExp, string][] = [
   [/(^|\.)tiktok\.com$/, "TikTok"],

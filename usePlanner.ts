@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // usePlanner — the Planner's data (tables planner_stages,
 // planner_tasks, planner_entries, planner_snapshots, planner_items,
-// planner_notes, planner_sprints) plus Outreach: contacts (new per
+// planner_notes, planner_sprints, planner_concept_arcs) plus Outreach: contacts (new per
 // week, status) and the pitch log. Rows that count themselves
 // (contacts, pitches, ideas, posts, pieces, first set, kit
 // handover) read from here.
@@ -17,7 +17,7 @@ import {
   addDays, entryKey, snapKey, mondayOf, periodOf, rowState, taskAccounts, NO_DAYS, planOf,
 } from "./planner";
 import { daysBetween } from "./planner";
-import type { Stage, Task, Entry, TaskStatus, Snapshot, Account, Item, ItemStatus, Note, NoteKind, Auto, Sprint, SprintStats } from "./planner";
+import type { Stage, Task, Entry, TaskStatus, Snapshot, Account, Item, ItemStatus, Note, NoteKind, Auto, Sprint, SprintStats, ConceptArc } from "./planner";
 import { FOLLOW_UP_DAYS } from "./outreach";
 import type { Pitch } from "./outreach";
 
@@ -49,6 +49,23 @@ const sprintToRow = (p: Partial<Sprint>) => {
   if (p.results       !== undefined) row.results        = p.results;
   return row;
 };
+
+// one concept arc (formats, texts and links are lists in the row)
+const rowToArc = (r: any): ConceptArc => ({
+  id:      r.id,
+  account: r.account === "createbylynn" ? "createbylynn" : "lynnhoa",
+  num:     Number(r.num) || 0,
+  name:    r.name ?? "",
+  purpose: r.purpose ?? "",
+  formats: (Array.isArray(r.formats) ? r.formats : [])
+    .map((f: any) => ({ name: String(f?.name ?? "").trim(), main: !!f?.main, tt: !!f?.tt, ig: !!f?.ig }))
+    .filter((f: { name: string }) => f.name),
+  texts:   (Array.isArray(r.texts) ? r.texts : []).map((t: any) => String(t ?? "").trim()).filter((t: string) => t),
+  links:   (Array.isArray(r.links) ? r.links : [])
+    .map((l: any) => ({ url: String(l?.url ?? "").trim(), note: String(l?.note ?? "").trim() }))
+    .filter((l: { url: string; note: string }) => l.url || l.note),
+});
+const CONCEPT_MISSING = "The concept table doesn't exist yet — run the concept SQL in Supabase once.";
 
 const rowToStage = (r: any): Stage => ({
   id:          r.id,
@@ -192,6 +209,8 @@ export function usePlanner(userId: string | null, monday: string) {
   const [pitches,   setPitches]   = useState<Pitch[]>([]);
   const [sprints,   setSprints]   = useState<Sprint[]>([]);
   const [stage2Error, setStage2Error] = useState<string | null>(null);
+  const [arcs,      setArcs]      = useState<ConceptArc[]>([]);
+  const [conceptError, setConceptError] = useState<string | null>(null);
   // every target ever set (they carry over to the following weeks / months)
   const [targetLog, setTargetLog] = useState<Record<string, { p: string; v: number }[]>>({});
   const [loginEmail, setLoginEmail] = useState("");
@@ -272,14 +291,16 @@ export function usePlanner(userId: string | null, monday: string) {
 
   // Creator lists and notes, Outreach contacts and (Stage 2) the pitch log and sprints
   const loadOutside = useCallback(async () => {
-    if (!userId) { setContacts([]); setItems([]); setNotes([]); setPitches([]); setSprints([]); return; }
-    const [oc, it, nt, pl, sp]: any[] = await Promise.all([
+    if (!userId) { setContacts([]); setItems([]); setNotes([]); setPitches([]); setSprints([]); setArcs([]); return; }
+    const [oc, it, nt, pl, sp, ca]: any[] = await Promise.all([
       // lists that grow: every row, page by page (more than 1,000 is fine)
       selectAll("outreach_contacts", "id, company, category, tier, status, last_contact, created_at", q => q.eq("user_id", userId).order("id")),
       selectAll("planner_items", "*", q => q.eq("user_id", userId).order("created_at").order("id")),
       selectAll("planner_notes", "*", q => q.eq("user_id", userId).order("id")),
       selectAll("outreach_pitches", "id, contact_id, account, kind, sent_on", q => q.eq("user_id", userId).order("id")),
       supabase.from("planner_sprints").select("*").eq("user_id", userId).order("start_on"),
+      // the content concept (its own SQL); without it the rest of the Planner still works
+      supabase.from("planner_concept_arcs").select("*").eq("user_id", userId).order("account").order("num"),
     ]);
     if (oc?.error) setOutreachError(oc.error.message);
     else {
@@ -294,6 +315,8 @@ export function usePlanner(userId: string | null, monday: string) {
     setStage2Error(e2 ? (/outreach_pitches|planner_sprints/.test(e2.message || "") ? "The sprint and pitch log tables don't exist yet — run the Phase 6 SQL in Supabase once." : e2.message) : null);
     if (!pl?.error) setPitches((pl?.data || []).map((r: any) => ({ id: r.id, contactId: r.contact_id, account: r.account, kind: r.kind === "follow_up" ? "follow_up" : "pitch", sentOn: String(r.sent_on).slice(0, 10) })));
     if (!sp?.error) setSprints((sp?.data || []).map(rowToSprint));
+    if (ca?.error) setConceptError(/planner_concept_arcs/.test(ca.error.message || "") ? CONCEPT_MISSING : ca.error.message);
+    else { setConceptError(null); setArcs((ca?.data || []).map(rowToArc)); }
     const err = it?.error || nt?.error;
     if (err) setLoadError(isMissing(err.message) ? MISSING : err.message);
     else {
@@ -489,6 +512,23 @@ export function usePlanner(userId: string | null, monday: string) {
     setItems(prev => [...prev.filter(x => x.id !== it.id), rowToItem(data)]);
   }, []);
 
+  // ── content concept: an arc's texts and links (arcs, formats and ticks are fixed) ─
+  // Only a real change is saved (leaving a line untouched writes nothing); compared with
+  // what is on screen right now, so Undo (which puts the old list back) is saved too.
+  const arcsRef = useRef(arcs); arcsRef.current = arcs;
+  const updateArc = useCallback(async (id: string, patch: Partial<Pick<ConceptArc, "texts" | "links">>) => {
+    const cur = arcsRef.current.find(a => a.id === id);
+    if (cur && (patch.texts === undefined || JSON.stringify(patch.texts) === JSON.stringify(cur.texts))
+            && (patch.links === undefined || JSON.stringify(patch.links) === JSON.stringify(cur.links))) return;
+    arcsRef.current = arcsRef.current.map(a => (a.id === id ? { ...a, ...patch } : a));
+    setArcs(prev => prev.map(a => (a.id === id ? { ...a, ...patch } : a)));
+    const row: any = { updated_at: new Date().toISOString() };
+    if (patch.texts !== undefined) row.texts = patch.texts;
+    if (patch.links !== undefined) row.links = patch.links;
+    const { error } = await supabase.from("planner_concept_arcs").update(row).eq("id", id).eq("user_id", userId);
+    fail(error);
+  }, [userId]);
+
   // ── notes: concept, offer, weekly learning (one per account / week) ─
   const notesRef = useRef(notes); notesRef.current = notes;
   const noteOf = useCallback((acc: Account, kind: NoteKind, period: string | null = null) =>
@@ -651,6 +691,7 @@ export function usePlanner(userId: string | null, monday: string) {
     createItem, updateItem, setItemStatus, deleteItem, noteOf, saveNote,
     pitches, sprints, stage2Error, createSprint, updateSprint, deleteSprint, activeSprint, sprintStats, followUpsDue, pitchesInWeek, contactName,
     restoreItem, deletePitch, restorePitch,
+    arcs, conceptError, updateArc,
   };
 }
 
