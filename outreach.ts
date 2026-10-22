@@ -44,7 +44,7 @@ export const NO_TIER = "No tier";
 
 // ── Status (one per contact) ─────────────────────────────────
 // "new" = not contacted yet (empty in the database). Follow up is not a status:
-// it shows by itself on Pitched contacts 7 days after the last pitch or follow-up.
+// it shows by itself on Pitched contacts when a follow-up is due (see CADENCE below).
 export type OutreachStatus = "new" | "pitched" | "replied" | "gifted" | "invited" | "lead" | "client" | "declined" | "no_reply";
 export const OUTREACH_STATUSES: { key: OutreachStatus; label: string }[] = [
   { key: "new",      label: "New" },
@@ -83,9 +83,10 @@ export const statusAfterReply = (s: OutreachStatus): OutreachStatus =>
   s === "new" || s === "pitched" ? "replied" : s;
 
 // ── Follow-up timing — ONE place (the daily No reply on the server uses the same numbers) ──
-// pitch → Follow-up 1 after 5 days → Follow-up 2 after 7 more → No reply 14 days after that
-// (set by the server once a day) → Re-pitch 90 days after No reply / Declined. A reply stops it all.
-export const CADENCE = { fu1: 5, fu2: 7, close: 14, repitch: 90 } as const;
+// pitch → Follow-up 1 after 7 days (same weekday, one week later) → Follow-up 2 after 10 more →
+// No reply 14 days after that (set by the server once a day) → Re-pitch 90 days after No reply / Declined.
+// A reply stops it all. The server only uses the 14 (outreach_close_no_reply), so 7 / 10 / 90 can change here alone.
+export const CADENCE = { fu1: 7, fu2: 10, close: 14, repitch: 90 } as const;
 export const FOLLOW_UP_DAYS = CADENCE.fu1;   // older callers: days until the first follow-up
 const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 export const todayYmd = (now = new Date()) => ymdLocal(now);

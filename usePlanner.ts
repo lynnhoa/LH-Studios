@@ -636,7 +636,7 @@ export function usePlanner(userId: string | null, monday: string) {
   }, []);
 
   // pitched contacts of this account with a follow-up due — the same timing as Outreach (outreach.ts › CADENCE:
-  // follow-up 1 after 5 days, follow-up 2 after 7 more)
+  // follow-up 1 after 7 days, follow-up 2 after 10 more)
   const followUpsDue = useCallback((acc: Account, on: string = today()) => {
     const mine = new Map<string, { kind: string; sentOn: string }[]>();
     pitches.forEach(p => { const l = mine.get(p.contactId); if (l) l.push(p); else mine.set(p.contactId, [p]); });
