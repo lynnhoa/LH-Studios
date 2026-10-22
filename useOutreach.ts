@@ -9,7 +9,7 @@
 // the contact's category (UGC → @createbylynn, else @lynnhoa).
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, selectAll } from "./useSupabase";
 import { registerReloader } from "./saveStatus";
 import { today, uid } from "./formatters";
@@ -45,6 +45,9 @@ const rowToEvent = (r: any): OutreachEvent => ({
 });
 const chunks = <T,>(a: T[], n = 400): T[][] => { const out: T[][] = []; for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n)); return out; };
 
+// The reply check (Phase 5): the mailbox it reads and how the last check went
+export interface MailStatus { address: string; lastCheckAt: string | null; lastError: string | null; repliesFound: number; }
+
 export function useOutreach(userId: string | null) {
   const [contacts,   setContacts]   = useState<OutreachContact[]>([]);
   const [pitches,    setPitches]    = useState<Pitch[]>([]);
@@ -78,6 +81,38 @@ export function useOutreach(userId: string | null) {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => registerReloader(() => { load(); }), [load]);
+
+  // ── reply check (server function "outreach-mail-check", read-only) ──
+  // It also runs every 5 minutes on the server; here it runs when Outreach opens and when
+  // you come back to it (at most once a minute), and the list reloads when replies came in.
+  const [mail, setMail] = useState<MailStatus | null>(null);
+  const loadMail = useCallback(async (): Promise<MailStatus | null> => {
+    if (!userId) { setMail(null); return null; }
+    try {
+      const { data, error } = await supabase.from("outreach_mail").select("*").eq("user_id", userId).maybeSingle();
+      if (error || !data) { setMail(null); return null; }               // not set up (yet)
+      const m: MailStatus = { address: data.address || "", lastCheckAt: data.last_check_at ?? null, lastError: data.last_error ?? null, repliesFound: Number(data.replies_found) || 0 };
+      setMail(m);
+      return m;
+    } catch { setMail(null); return null; }
+  }, [userId]);
+  const lastCheck = useRef(0);
+  const checkReplies = useCallback(async () => {
+    if (!userId || Date.now() - lastCheck.current < 60_000) return;
+    lastCheck.current = Date.now();
+    if (!(await loadMail())) return;
+    try {
+      const { data } = await supabase.functions.invoke("outreach-mail-check", { body: {} });
+      if (Number(data?.found) > 0) await load();
+    } catch { /* the 5-minute check on the server runs anyway */ }
+    await loadMail();
+  }, [userId, load, loadMail]);
+  useEffect(() => { checkReplies(); }, [checkReplies]);
+  useEffect(() => {
+    const back = () => { if (document.visibilityState === "visible") checkReplies(); };
+    document.addEventListener("visibilitychange", back);
+    return () => document.removeEventListener("visibilitychange", back);
+  }, [checkReplies]);
   useEffect(() => {
     let cancelled = false;
     try {
@@ -271,5 +306,5 @@ export function useOutreach(userId: string | null) {
     setContacts(prev => prev.map(x => (x.id === p.contactId ? { ...x, lastContact: before.lastContact, status: before.status || x.status } : x)));
   }, [userId]);
 
-  return { contacts, pitches, events, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, markSeen, makeClient, logPitches, undoLog, deletePitch, restorePitch };
+  return { contacts, pitches, events, mail, checkReplies, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, markSeen, makeClient, logPitches, undoLog, deletePitch, restorePitch };
 }

@@ -382,7 +382,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
   return (
     <div>
       {/* hover: row tint + show the copy icon (desktop / iPad) */}
-      <style>{`.lh-row:hover > div { background: rgba(0,0,0,0.025); } .lh-row:hover .lh-copy-ico, .lh-copy-email:focus .lh-copy-ico { opacity: 1 !important; }`}</style>
+      <style>{`.lh-row:hover > div { background: rgba(0,0,0,0.025); } .lh-row:hover .lh-copy-ico, .lh-copy-email:focus .lh-copy-ico { opacity: 1 !important; } .lh-chips > div { scrollbar-width: none; } .lh-chips > div::-webkit-scrollbar { display: none; }`}</style>
 
       {/* ── HEADER: title · Import · Log pitch ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
@@ -399,15 +399,24 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
         {shown.length > 0 && <> · <button onClick={() => copy(emailsText(shown), `${shown.length} ${shown.length === 1 ? "email" : "emails"} copied ✓`)} aria-label="Copy the emails in view" title="Copy the emails in view"
           style={{ background: "none", border: "none", padding: "4px 0", margin: "-4px 0", cursor: "pointer", color: C.black, display: "inline-flex", alignItems: "center", gap: 4, fontFamily: SANS, fontSize: TYPE.subtext.size }}>Copy emails <Ico d={IC.copy} size={12} color={C.muted} /></button></>}
       </SummaryLine>
+      {/* the reply check couldn't read the mailbox (e.g. a changed password) */}
+      {outreach.mail?.lastError && (
+        <p role="status" style={{ fontSize: TYPE.label.size, color: PAL.waiting.ink, margin: "6px 0 0", lineHeight: 1.5 }}>
+          Reply check paused — {/auth|login|password|credential/i.test(outreach.mail.lastError) ? "the mailbox login failed" : outreach.mail.lastError}.{" "}
+          <span style={{ color: C.muted }}>Check the mailbox password in Supabase → Edge Functions → Secrets.</span>
+        </p>
+      )}
 
       {/* chips: quick views; a search always looks through every contact */}
       {contacts.length > 0 && (
-        <ChipRow s={{ marginTop: 10 }}>
+        <div className="lh-chips">
+        <ChipRow s={{ marginTop: 4, paddingTop: 6, gap: 5 }}>
           {CHIPS.map(ch => (
             <Chip key={ch.key} on={view.chip === ch.key} tone={PAL.neutral} dot={false} label={ch.label} count={chipN[ch.key]}
               badge={ch.key === "active" ? nNew : 0} onClick={() => setChip(ch.key)} />
           ))}
         </ChipRow>
+        </div>
       )}
 
       {/* search · filter · sort · download stay under the top bar while you scroll */}

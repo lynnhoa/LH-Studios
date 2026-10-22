@@ -77,6 +77,7 @@ export const supabase: any = {
   rpc:  (fn: string, args?: any) => track((raw as any).rpc(fn, args), true),
   auth: raw.auth,
   storage: (raw as any).storage,          // the private file store (signed copies)
+  functions: (raw as any).functions,      // server functions (Outreach reply check)
 };
 
 // Export a flag so App.tsx can show a setup screen
