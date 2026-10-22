@@ -22,7 +22,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { C, SANS, SERIF, TYPE, PAL, RADIUS, TRACK, SPACING, CARD_TONE } from "./constants";
 import { fmtD } from "./formatters";
-import { I, S, MenuSelect, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Row, Chip, ChipRow, Sheet, ConfirmDialog, ColGroups } from "./atoms";
+import { I, S, MenuSelect, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Row, Chip, ChipRow, Sheet, SHEET_CARD, ConfirmDialog, ColGroups } from "./atoms";
 import { copyText, OUTREACH_CATEGORIES, catOf } from "./outreach";
 import { showNote } from "./undo";
 import { KITS, KIT_TOKEN, kitInfo, fillText, fmtSize, TEMPLATE_PIPELINES, TEMPLATE_KINDS, TEMPLATE_CHANNELS, kindLabel } from "./useEmailKit";
@@ -260,8 +260,8 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
     try { await save(f); setEdit(false); }
     catch (e: any) { setErr(e?.message || "Couldn't save."); }
   };
-  const row = (label: string, value: any) => (
-    <div style={{ display: "grid", gridTemplateColumns: "84px minmax(0,1fr)", gap: 8, alignItems: "center", minHeight: 36, borderTop: `1px solid ${C.hair}`, fontSize: SPACING.listText }}>
+  const row = (label: string, value: any, first = false) => (
+    <div style={{ display: "grid", gridTemplateColumns: "84px minmax(0,1fr)", gap: 8, alignItems: "center", minHeight: 36, borderTop: first ? "none" : `1px solid ${C.hair}`, fontSize: SPACING.listText }}>
       <span style={{ fontSize: TYPE.subtext.size, color: C.muted }}>{label}</span>
       <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{value || <span style={{ color: C.light }}>—</span>}</span>
     </div>
@@ -292,13 +292,13 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
         return (
           <div key={k.key} style={{ marginTop: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
-              <span style={{ width: 18, height: 18, borderRadius: "50%", background: t.wash, color: t.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={IC[k.key]} size={11} /></span>
+              <span style={{ width: 18, height: 18, borderRadius: "50%", background: t.fill, color: t.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={IC[k.key]} size={11} /></span>
               <span style={{ fontSize: SPACING.listText, fontWeight: 500 }}>{d.label}</span>
               <span style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.tag, padding: "2px 8px", borderRadius: RADIUS.tag, background: d.account === "@lynnhoa" ? PAL.lynnhoa.fill : PAL.neutral.fill, color: d.account === "@lynnhoa" ? PAL.lynnhoa.ink : PAL.neutral.ink }}>{d.account}</span>
             </div>
             {!edit ? (
-              <>
-                {row("Focus", k.focus)}
+              <div style={{ ...SHEET_CARD, padding: "0 12px" }}>
+                {row("Focus", k.focus, true)}
                 {row("Canva file", k.file)}
                 {row("View link", k.url ? <a href={k.url} target="_blank" rel="noreferrer" style={{ color: C.blue, textDecoration: "none" }}>{k.url.replace(/^https?:\/\/(www\.)?/, "")}</a> : "")}
                 {row("Updated", k.url && k.updatedAt ? fmtD(k.updatedAt.slice(0, 10)) : "")}
@@ -307,7 +307,7 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
                   <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{pdfLine(k.key) || <span style={{ color: C.light }}>—</span>}</span>
                   {pdfOf(k.key) && busyKey !== k.key && <PillBtn onClick={() => onShare(k.key)} s={smallBtn}><Ico d={IC.share} size={13} />Share</PillBtn>}
                 </div>
-              </>
+              </div>
             ) : (
               <>
                 <Lbl>View link</Lbl>

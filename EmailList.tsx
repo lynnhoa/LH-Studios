@@ -6,14 +6,13 @@
 // Toolbar (40 px): Search · Filter (category, tier, status, account, place, added) · Sort · Download
 // Active filters as tags (✕) · the contacts in one white card
 // Phone: two lines per contact, status pill on the right · iPad/desktop: one-line table, Status 2nd
-// Windows (one level): Filter (sheet on phone), contact, Import (the three steps)
+// Windows (one level, the app's one Sheet): Filter (phone), contact, Log pitch, Import (the three steps)
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE, Z, PAL, RADIUS, SHADOW } from "./constants";
 import { fmtD } from "./formatters";
-import { B, I, MenuSelect, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet, useEscape, Chip, ChipRow, MiniInput } from "./atoms";
+import { B, I, MenuSelect, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet, SheetHead, SheetButton, SHEET_CARD, SHEET_CAPS, useEscape, Chip, ChipRow, MiniInput } from "./atoms";
 import { MoreMenu } from "./PlannerWindows";
 import {
   OUTREACH_CATEGORIES, OUTREACH_TIERS, OUTREACH_COLUMNS, STATUS_FILTERS, SORTS, ADDED, DEFAULT_VIEW, CHIPS, PIPELINES, NO_TIER,
@@ -236,14 +235,12 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
   const menuBox: any = { position: "absolute", top: "calc(100% + 6px)", right: 0, background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.pop, zIndex: Z.menu, padding: "4px 0", overflow: "hidden" };
   const opt = (on: boolean): any => ({ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", height: 34, padding: "0 12px", border: "none", background: on ? "rgba(0,0,0,0.035)" : "none", color: on ? C.black : C.muted, fontFamily: SANS, fontSize: 13, cursor: "pointer", textAlign: "left" as const });
 
-  const filterBody = (
+  const resetBtn = <button onClick={() => set(NO_FILTERS)} style={{ background: "none", border: "none", color: C.muted, textDecoration: "underline", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, padding: "6px 4px" }}>Reset</button>;
+  const showLabel = `Show ${shown.length} ${shown.length === 1 ? "contact" : "contacts"}`;
+  const filterFields = (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontFamily: SERIF, fontSize: 17 }}>Filter</span>
-        <button onClick={() => set(NO_FILTERS)} style={{ background: "none", border: "none", color: C.muted, textDecoration: "underline", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size }}>Reset</button>
-      </div>
       <Lbl>Category</Lbl>
-      <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, maxHeight: isMobile ? 260 : 300, overflowY: "auto" }}>
+      <div style={{ border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, background: C.white, maxHeight: isMobile ? 260 : 300, overflowY: "auto" }}>
         <button onClick={() => set({ cat: "all" })} style={opt(view.cat === "all")}><span>All</span><span>{contacts.length}{view.cat === "all" ? " ✓" : ""}</span></button>
         {OUTREACH_CATEGORIES.map(c => (
           <button key={c.key} onClick={() => set({ cat: c.key })} style={opt(view.cat === c.key)}><span>{c.label}</span><span>{counts[c.key] || 0}{view.cat === c.key ? " ✓" : ""}</span></button>
@@ -292,7 +289,16 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
           </MenuSelect>
         </div>
       </div>
-      <B onClick={() => setOpen(null)} s={{ width: "100%", marginTop: 14 }}>Show {shown.length} {shown.length === 1 ? "contact" : "contacts"}</B>
+    </>
+  );
+  const filterBody = (
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontFamily: SERIF, fontSize: 17 }}>Filter</span>
+        {resetBtn}
+      </div>
+      {filterFields}
+      <B onClick={() => setOpen(null)} s={{ width: "100%", marginTop: 14 }}>{showLabel}</B>
     </>
   );
 
@@ -505,12 +511,13 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
         </button>
       )}
 
-      {/* ── FILTER SHEET (phone) ── */}
-      {open === "filter" && isMobile && createPortal(
-        <div style={{ position: "fixed", inset: 0, zIndex: Z.modal }}>
-          <div onClick={() => setOpen(null)} style={{ position: "absolute", inset: 0, background: "rgba(26,26,26,0.25)" }} />
-          <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, background: C.bg, borderTop: `1px solid ${C.rule}`, padding: "12px 14px calc(16px + env(safe-area-inset-bottom))", fontFamily: SANS }}>{filterBody}</div>
-        </div>, document.body)}
+      {/* ── FILTER (phone): the same sheet as every window ── */}
+      {open === "filter" && isMobile && (
+        <Sheet title="Filter" onClose={() => setOpen(null)} right={resetBtn}
+          footer={<SheetButton dark onClick={() => setOpen(null)}>{showLabel}</SheetButton>}>
+          {filterFields}
+        </Sheet>
+      )}
 
       {/* ── CONTACT WINDOW ── */}
       {current && <ContactWindow c={current} outreach={outreach} kit={kit} onWritten={written} isMobile={isMobile} onClose={() => setOpenId(null)} onCopy={(t) => copy(t, "Email copied ✓")} />}
@@ -523,7 +530,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
 
       {/* ── IMPORT WINDOW: the three steps ── */}
       {showCols && (
-        <Window title="Import contacts" isMobile={isMobile} onClose={() => setShowCols(false)}>
+        <Sheet title="Import contacts" onClose={() => setShowCols(false)} footer={<SheetButton onClick={() => setShowCols(false)}>Done</SheetButton>}>
           <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: "0 0 10px", lineHeight: 1.6 }}>
             1 · Build your Excel with these columns (first row).<br />
             2 · Copy the prompt, paste it into Claude and attach the Excel.<br />
@@ -549,28 +556,10 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
             <PillBtn onClick={() => downloadTemplate(`${brand} – Email list template`)} s={{ flex: 1, height: 36, justifyContent: "center" }}>Excel template</PillBtn>
           </div>
           <PillBtn dark onClick={() => copy(buildPrompt(loginEmail), "Prompt copied ✓ — paste it into Claude")} s={{ width: "100%", height: 38, justifyContent: "center", marginTop: 8, fontSize: TYPE.row.size }}>Copy prompt for Claude</PillBtn>
-        </Window>
+        </Sheet>
       )}
 
     </div>
-  );
-}
-
-// ── One-level window: full screen on the phone, centred elsewhere ─
-function Window({ title, isMobile, onClose, children, footer }: { title: string; isMobile: boolean; onClose: () => void; children: any; footer?: any }) {
-  useEscape(true, onClose);
-  return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", background: isMobile ? C.bg : "rgba(250,249,247,0.85)", fontFamily: SANS }}>
-      <div style={{ width: "100%", maxWidth: isMobile ? "none" : 480, maxHeight: isMobile ? "none" : "88vh", background: C.bg, border: isMobile ? "none" : `1px solid ${C.rule}`, borderRadius: isMobile ? 0 : 2, boxShadow: isMobile ? "none" : "0 8px 32px rgba(0,0,0,0.12)", display: "flex", flexDirection: "column" }}>
-        <div style={{ height: 44, display: "flex", alignItems: "center", gap: 6, padding: "0 8px 0 2px", borderBottom: `1px solid ${C.rule}`, flexShrink: 0 }}>
-          <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 20 }}>✕</button>
-          <span style={{ fontFamily: SERIF, fontSize: 15, color: C.black, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{title}</span>
-        </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px 16px" }}>{children}</div>
-        {footer && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>{footer}</div>}
-      </div>
-    </div>,
-    document.body
   );
 }
 
@@ -608,17 +597,27 @@ const pickFields = (x: OutreachContact) => { const o: any = {}; EDIT_KEYS.forEac
 // yyyy-mm-dd of a timestamp, in local time
 const ymdLocal = (iso: string) => { const d = new Date(iso); return isNaN(d.getTime()) ? "" : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
-// ── the compact window's parts (like the Planner windows: cards, 13 px, 32 px fields, 36 px rows) ──
-const CAPS: any = { fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted };
-const WCARD: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, boxShadow: SHADOW.card, overflow: "hidden" };
+// ── the window's parts: the shared sheet parts (atoms) — small caps, white cards, section heads ──
+const CAPS = SHEET_CAPS;
+const WCARD = SHEET_CARD;
 const USER  = "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 20a8 8 0 0 1 16 0";
 const CLOCK = "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2";
-const SecHead = ({ icon, label, tone }: { icon: string; label: string; tone: { wash: string; ink: string } }) => (
-  <div style={{ display: "flex", alignItems: "center", gap: 7, margin: "9px 2px 4px" }}>
-    <span style={{ width: 18, height: 18, borderRadius: "50%", background: tone.wash, color: tone.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={icon} size={11} /></span>
-    <span style={CAPS}>{label}</span>
-  </div>
-);
+// colour where it means something: the status field in its status colour (the same as the list's pill),
+// an account in its colour (@lynnhoa lavender · @createbylynn peach), a dot per timeline line
+const statusField = (st: string) => {
+  switch (st) {
+    case "pitched":  return { bg: PAL.neutral.fill, border: C.edge, color: PAL.neutral.ink };
+    case "replied":  return { bg: PAL.progress.wash, border: PAL.progress.mid, color: PAL.progress.ink };
+    case "gifted": case "invited": case "lead": case "client":
+                     return { bg: PAL.done.wash, border: PAL.done.mid, color: PAL.done.ink };
+    case "declined": case "no_reply":
+                     return { bg: PAL.neutral.wash, border: C.rule, color: C.muted };
+    default:         return undefined;                          // New: the plain white field
+  }
+};
+const statusDot = (st: string) => (st === "replied" ? PAL.progress.mid : st === "pitched" ? PAL.waiting.mid
+  : st === "gifted" || st === "invited" || st === "lead" || st === "client" ? PAL.done.mid : PAL.neutral.mid);
+const accInk = (acc: string) => (acc === "createbylynn" ? PAL.createbylynn.ink : PAL.lynnhoa.ink);
 const linkBtn: any = { background: "none", border: "none", padding: "4px 2px", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: C.black, textDecoration: "underline" };
 
 // ── Contact: one level, compact — header ✕ · company · ⋯ (Delete contact) ──────
@@ -698,11 +697,12 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
   const timeline = useMemo(() => {
     if (isNew) return [];
     const ps = (outreach.pitches || []).filter((p: Pitch) => p.contactId === c.id).map((p: Pitch) => ({
-      key: "p" + p.id, day: p.sentOn, ts: p.createdAt || "", pitch: p as Pitch | null, event: null as OutreachEvent | null,
-      text: <>{p.kind === "follow_up" ? "Follow-up" : "Pitch"}{p.channel === "dm" ? " · DM" : ""} · <span style={{ color: C.muted }}>{p.account === "createbylynn" ? "@createbylynn" : "@lynnhoa"}</span></>,
+      key: "p" + p.id, day: p.sentOn, ts: p.createdAt || "", pitch: p as Pitch | null, event: null as OutreachEvent | null, dot: PAL.waiting.mid,
+      text: <>{p.kind === "follow_up" ? "Follow-up" : "Pitch"}{p.channel === "dm" ? " · DM" : ""} · <span style={{ color: accInk(p.account) }}>{p.account === "createbylynn" ? "@createbylynn" : "@lynnhoa"}</span></>,
     }));
     const es = (outreach.events || []).filter((e: OutreachEvent) => e.contactId === c.id).map((e: OutreachEvent) => ({
       key: "e" + e.id, day: ymdLocal(e.at), ts: e.at, pitch: null as Pitch | null, event: e as OutreachEvent | null,
+      dot: e.kind === "reply" ? PAL.progress.mid : statusDot(e.status || "new"),
       text: e.kind === "reply" ? <span style={{ color: PAL.progress.ink }}>Reply received</span> : <>Status · <span style={{ color: C.muted }}>{statusOf(e.status || "new").label}{e.note ? ` · ${e.note}` : ""}</span></>,
     }));
     return [...ps, ...es].sort((a, b) => b.day.localeCompare(a.day) || b.ts.localeCompare(a.ts));
@@ -723,7 +723,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
   };
 
   const due = !isNew && followUpDue(c);
-  const accLabel = c.category === "ugc" ? "@createbylynn" : "@lynnhoa";
+  const accKey = c.category === "ugc" ? "createbylynn" : "lynnhoa";
 
   // ── Lead → Client in Manager (also for a Client that isn't linked yet)
   const [clientBusy, setClientBusy] = useState(false);
@@ -754,6 +754,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
   const tpl = tpls.find(t => t.id === tplId) || null;
   const kitUrl = (k: string | null) => kitUrlOf(kit?.kits, k);
   const willPitch = tpl?.kind === "pitch" && statusAfterPitch(c.status) !== c.status;
+  const tplAcc = tpl ? accountOfTemplate(tpl) : accKey;            // the account this pitch counts for
 
   const write = () => {
     setErr(null);
@@ -787,7 +788,6 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
       </div>
     </div>
   );
-  const foot: any = { flex: 1, height: 38, justifyContent: "center", fontSize: TYPE.row.size };
 
   return (
     <>
@@ -795,9 +795,9 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
       {askDiscard && <ConfirmDialog title="Discard your changes?" text="What you typed isn't saved yet." okLabel="Discard" cancelLabel="Keep editing" onOk={() => { setAskDiscard(false); onClose(); }} onCancel={() => setAskDiscard(false)} />}
       <Sheet title={isNew ? "New contact" : c.company || c.email} onClose={close}
         right={isNew ? null : <MoreMenu bare items={[{ label: "Delete contact", danger: true, onClick: () => setAskDelete(true) }]} />}
-        footer={isNew ? <PillBtn dark onClick={save} s={{ ...foot, opacity: busy ? 0.5 : 1 }}>{busy ? "Saving…" : "Add contact"}</PillBtn>
-          : changed ? <PillBtn dark onClick={save} s={{ ...foot, opacity: busy ? 0.5 : 1 }}>{busy ? "Saving…" : "Save"}</PillBtn>
-          : <PillBtn onClick={onClose} s={foot}>Done</PillBtn>}>
+        footer={isNew ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Add contact"}</SheetButton>
+          : changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton>
+          : <SheetButton onClick={onClose}>Done</SheetButton>}>
         {err && <p role="alert" style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 2px 8px" }}>{err}</p>}
         {dupId && onOpen && <B v="sec" onClick={() => onOpen(dupId)} s={{ marginBottom: 10 }}>Open that contact</B>}
 
@@ -806,7 +806,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
           <div style={{ ...WCARD, padding: "8px 10px 10px" }}>
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
               <div><div style={{ ...CAPS, margin: "0 2px 4px" }}>Status</div>
-                <MenuSelect value={c.status || "new"} aria-label="Status" onChange={(e: any) => outreach.setStatus(c.id, e.target.value).catch((x: any) => setErr(x?.message || "Couldn't save."))}>
+                <MenuSelect value={c.status || "new"} look={statusField(c.status || "new")} aria-label="Status" onChange={(e: any) => outreach.setStatus(c.id, e.target.value).catch((x: any) => setErr(x?.message || "Couldn't save."))}>
                   {statusesFor(c.category).map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
                 </MenuSelect>
               </div>
@@ -825,7 +825,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
               <p style={{ fontSize: TYPE.label.size, color: PAL.done.ink, margin: "8px 2px 0", lineHeight: 1.4 }}>✓ Client in Manager — quote, contract and invoice happen there.</p>
             )}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, margin: "6px 2px 4px" }}>
-              <span style={{ ...CAPS }}>Template{isDm ? " · DM" : ""} · {tpl ? (accountOfTemplate(tpl) === "createbylynn" ? "@createbylynn" : "@lynnhoa") : accLabel}</span>
+              <span style={{ ...CAPS }}>Template{isDm ? " · DM" : ""} · <span style={{ color: accInk(tplAcc) }}>{tplAcc === "createbylynn" ? "@createbylynn" : "@lynnhoa"}</span></span>
               {/* the channel: Email (default) or Instagram DM — saved at once, like the status */}
               <span role="group" aria-label="Channel" style={{ display: "inline-flex", border: `1px solid ${C.rule}`, borderRadius: RADIUS.card, overflow: "hidden", flexShrink: 0 }}>
                 {(["email", "dm"] as const).map(k => {
@@ -865,7 +865,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
         )}
 
         {/* ── the contact: tap a value to type ── */}
-        {!isNew && <SecHead icon={USER} label="Contact" tone={PAL.neutral} />}
+        {!isNew && <SheetHead icon={<Ico d={USER} size={11} />} label="Contact" tone={PAL.neutral} />}
         <div data-cform="" style={{ ...WCARD, marginTop: isNew ? 2 : 0 }}>
           <div className="lh-cfrow" style={rowS(true)}>
             {lbl("Email")}
@@ -929,10 +929,11 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
         {/* ── timeline: pitches, follow-ups, status changes, replies ── */}
         {!isNew && !outreach.pitchError && (
           <>
-            <SecHead icon={CLOCK} label={`Timeline · ${timeline.length}`} tone={PAL.progress} />
+            <SheetHead icon={<Ico d={CLOCK} size={11} />} label={`Timeline · ${timeline.length}`} tone={PAL.progress} />
             <div style={WCARD}>
               {timeline.length === 0 ? <div style={{ ...rowS(true), fontSize: TYPE.subtext.size, color: C.light }}>Nothing sent yet.</div> : timeline.map((t, i) => (
                 <div key={t.key} style={{ ...rowS(i === 0), fontSize: TYPE.row.size }}>
+                  <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: t.dot, flexShrink: 0 }} />
                   <span style={{ width: 80, flexShrink: 0 }}>{t.day ? fmtD(t.day) : ""}</span>
                   <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{t.text}</span>
                   {/* ✕ on every line: always visible, the text is cut with "…" before it */}
@@ -969,13 +970,8 @@ function LogWindow({ ids, followUp, outreach, isMobile, onClose, onDone }: { ids
     finally { setBusy(false); }
   };
   return (
-    <Window title="Log pitch" isMobile={isMobile} onClose={onClose}
-      footer={
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <B v="sec" onClick={onClose}>Cancel</B>
-          <B onClick={go} s={{ opacity: busy ? 0.5 : 1 }}>{busy ? "Logging…" : `Log ${n}`}</B>
-        </div>
-      }>
+    <Sheet title="Log pitch" onClose={onClose}
+      footer={<SheetButton dark dim={busy} onClick={go}>{busy ? "Logging…" : `Log ${n}`}</SheetButton>}>
       {err && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
       <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>For the {n} {n === 1 ? "contact" : "contacts"} in view — one entry each in the pitch log. UGC contacts count for @createbylynn, all others for @lynnhoa.</p>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
@@ -988,7 +984,7 @@ function LogWindow({ ids, followUp, outreach, isMobile, onClose, onDone }: { ids
         <div><Lbl>Sent on</Lbl><I type="date" value={date} onChange={(e: any) => setDate(e.target.value)} /></div>
       </div>
       <p style={{ fontSize: 12, color: C.muted, margin: "10px 0 0", lineHeight: 1.5 }}>New → Pitched. Every other status stays as it is.</p>
-    </Window>
+    </Sheet>
   );
 }
 // today as yyyy-mm-dd in local time

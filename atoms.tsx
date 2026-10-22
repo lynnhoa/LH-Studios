@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, Z, SIZE, PAL, STATUS_TONE, TRACK, RADIUS, SHADOW, ICON, expiryTone, DENSITY, SPACING, BREAKPOINT, WIDE } from "./constants";
+import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, Z, SIZE, PAL, STATUS_TONE, TRACK, RADIUS, SHADOW, ICON, expiryTone, DENSITY, SPACING, BREAKPOINT, WIDE, SHEET } from "./constants";
 import { fmtD, dLeft, today, parseDE, fmtNumDE } from "./formatters";
 import { saveStatus } from "./saveStatus";
 
@@ -467,8 +467,9 @@ export const ConfirmDialog = ({ title, text, dateLabel, okLabel, cancelLabel = "
   const [date, setDate] = useState(today());
   useEscape(true, onCancel);
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: Z.dialog, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(250,249,247,0.88)", padding: 16 }}>
-      <div style={{ background: C.bg, border: `1px solid ${C.rule}`, borderRadius: RADIUS.card, padding: "20px 22px 18px", boxShadow: SHADOW.pop, width: "100%", maxWidth: 340 }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: Z.dialog, display: "flex", alignItems: "center", justifyContent: "center", background: SHEET.dim, padding: 16 }}>
+      <div role="alertdialog" aria-modal="true" aria-label={title}
+        style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, padding: "20px 22px 18px", boxShadow: SHADOW.pop, width: "100%", maxWidth: 340 }}>
         <p style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black, margin: "0 0 8px" }}>{title}</p>
         {text && <p style={{ fontSize: TYPE.label.size, fontFamily: SANS, color: C.muted, margin: "0 0 12px", lineHeight: 1.5 }}>{text}</p>}
         {error && <p style={{ fontSize: TYPE.label.size, fontFamily: SANS, color: C.red, margin: "0 0 12px", lineHeight: 1.5 }}>{error}</p>}
@@ -838,8 +839,6 @@ export const SwitchPill = ({ children, s }: { children: any; s?: any }) => (
   <span style={{ display: "inline-flex", alignItems: "center", border: `1px solid ${C.rule}`, borderRadius: RADIUS.card, background: C.white, height: 28, fontSize: TYPE.subtext.size, ...s }}>{children}</span>
 );
 
-// item window: one level above the screen — 48 px header (✕ · title · action),
-// content, optional bottom bar (Cancel / Save). Read view first.
 // How much of the screen the on-screen keyboard covers (iPhone / iPad), so a bottom sheet can sit on top
 // of it — its buttons stay visible while typing. 0 on a computer or with the keyboard closed.
 export function useKeyboardInset(): number {
@@ -855,26 +854,56 @@ export function useKeyboardInset(): number {
   return kb > 60 ? kb : 0;                         // small differences (browser bars) aren't a keyboard
 }
 
+// ─── SHEET — every item window, one build, one look (SHEET in constants) ─
+// A bottom sheet, one level above the screen: only as tall as its content (up to 88 %),
+// the page dimmed behind; ✕, tap outside or Escape closes; sits above the iPhone keyboard;
+// centred and at most 560 px wide on iPad / computer.
+//   header   48 px on the cream: ✕ · TITLE (small caps) · right (⋯, a pill …)
+//   content  the cream, with white cards (SHEET_CARD) under section heads (SheetHead)
+//   footer   white bar with the bottom-bar shadow: one SheetButton — Done, or the main action
 export const Sheet = ({ title, onClose, right, children, footer }: { title: string; onClose: () => void; right?: any; children: any; footer?: any }) => {
   const kb = useKeyboardInset();
   useEscape(true, onClose);
+  const pad = SHEET.pad;
   return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", flexDirection: "column", justifyContent: "flex-end", fontFamily: SANS, paddingBottom: kb }}>
-      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(26,26,26,0.28)" }} />
+      <div onClick={onClose} aria-hidden="true" style={{ position: "absolute", inset: 0, background: SHEET.dim }} />
       <div role="dialog" aria-modal="true" aria-label={title}
-        style={{ position: "relative", background: C.white, borderRadius: `${RADIUS.button}px ${RADIUS.button}px 0 0`, boxShadow: SHADOW.pop, maxHeight: kb ? `calc(100vh - ${kb + 12}px)` : "88vh", display: "flex", flexDirection: "column", width: "100%", maxWidth: 560, margin: "0 auto", color: C.black }}>
-        <div style={{ height: DENSITY.sheetHeader, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px 0 4px", flexShrink: 0 }}>
-          <button onClick={onClose} aria-label="Close" style={{ width: DENSITY.tap, height: DENSITY.tap, background: "none", border: "none", fontSize: ICON.close, color: C.muted, cursor: "pointer" }}>✕</button>
-          <span style={{ ...CAPS, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, padding: "0 6px" }}>{title}</span>
-          <span style={{ minWidth: DENSITY.tap, display: "flex", justifyContent: "flex-end" }}>{right}</span>
+        style={{ position: "relative", background: SHEET.surface, borderRadius: `${RADIUS.button}px ${RADIUS.button}px 0 0`, boxShadow: SHADOW.sheet,
+          maxHeight: kb ? `calc(100vh - ${kb + 12}px)` : "88vh", display: "flex", flexDirection: "column", width: "100%", maxWidth: SHEET.width, margin: "0 auto", color: C.black }}>
+        <div style={{ height: SHEET.head, display: "flex", alignItems: "center", gap: 4, padding: "0 10px 0 4px", flexShrink: 0 }}>
+          <button onClick={onClose} aria-label="Close" style={{ width: DENSITY.tap, height: DENSITY.tap, background: "none", border: "none", fontSize: ICON.close, color: C.muted, cursor: "pointer", flexShrink: 0 }}>✕</button>
+          <span style={{ ...SHEET_CAPS, flex: 1, minWidth: 0, textAlign: "center" as const, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, padding: "0 6px" }}>{title}</span>
+          <span style={{ minWidth: DENSITY.tap, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2, flexShrink: 0 }}>{right}</span>
         </div>
-        <div style={{ overflowY: "auto", padding: "2px 16px 16px", WebkitOverflowScrolling: "touch" as any }}>{children}</div>
-        {footer && <div style={{ padding: kb ? "10px 16px 10px" : "12px 16px calc(16px + env(safe-area-inset-bottom, 0px))", borderTop: `1px solid ${C.line}`, display: "flex", gap: 8, flexShrink: 0 }}>{footer}</div>}
+        <div style={{ overflowY: "auto", padding: footer ? `2px ${pad}px ${pad}px` : `2px ${pad}px calc(${pad}px + env(safe-area-inset-bottom, 0px))`, WebkitOverflowScrolling: "touch" as any }}>{children}</div>
+        {footer && (
+          <div style={{ padding: kb ? `10px ${pad}px` : `12px ${pad}px calc(16px + env(safe-area-inset-bottom, 0px))`, background: SHEET.bar, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {footer}
+          </div>
+        )}
       </div>
     </div>,
     document.body
   );
 };
+// the parts inside a sheet — every window uses these, none defines its own
+export const SHEET_CAPS: any = { fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase", color: C.muted };
+export const SHEET_CARD: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, boxShadow: SHADOW.card, overflow: "hidden" };
+// a section: a coloured circle with its icon (the tone's fill) + the small-caps label · something on the right
+export const SheetHead = ({ icon, label, tone, right, first }: { icon: any; label: any; tone: ToneSet; right?: any; first?: boolean }) => (
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, margin: `${first ? 2 : 9}px 2px 4px` }}>
+    <span style={{ ...SHEET_CAPS, display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+      <span aria-hidden="true" style={{ width: SHEET.icon, height: SHEET.icon, borderRadius: "50%", background: tone.fill, color: tone.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{icon}</span>
+      {label}
+    </span>
+    {right}
+  </div>
+);
+// the footer button: Done (light) · Save, Add …, the main action (dark) — full width in the white bar
+export const SheetButton = ({ dark, dim, onClick, children, flex = 1, title }: { dark?: boolean; dim?: boolean; onClick?: () => void; children: any; flex?: number; title?: string }) => (
+  <PillBtn dark={dark} dim={dim} onClick={onClick} title={title} s={{ flex, height: SHEET.button, justifyContent: "center", fontSize: TYPE.row.size }}>{children}</PillBtn>
+);
 
 
 // ── ValuePill: a number shown as a small value (14 px in a 28 px pill); tap = edit in place.
@@ -970,7 +999,8 @@ const menuOptions = (children: any): MenuOpt[] => {
   return out;
 };
 const CHEV = (c: string) => <svg width="10" height="6" viewBox="0 0 10 6" aria-hidden="true" style={{ flexShrink: 0 }}><path d="M1 1l4 4 4-4" fill="none" stroke={c} strokeWidth="1.3" /></svg>;
-export function MenuSelect({ value, onChange, children, disabled, muted, bare, plain, btnS, h, size = "mini", s, ...p }: any) {
+// look = a coloured field (e.g. the contact's status in its status colour): { bg, border, color }
+export function MenuSelect({ value, onChange, children, disabled, muted, bare, plain, btnS, h, size = "mini", look, s, ...p }: any) {
   const opts = menuOptions(children);
   // like a <select>: a value that isn't in the list shows the first option
   const cur = opts.find(o => o.value === String(value ?? "")) || opts[0];
@@ -1018,11 +1048,11 @@ export function MenuSelect({ value, onChange, children, disabled, muted, bare, p
               cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1, WebkitTapHighlightColor: "transparent", outline: "none", whiteSpace: "nowrap" as const, ...btnS }
           : { width: "100%", height: H, display: "flex", alignItems: "center", gap: 8, boxSizing: "border-box" as const, margin: 0,
               padding: bare ? "0 2px 0 0" : "0 10px", fontFamily: SANS, fontSize: form ? TYPE.field.size : TYPE.row.size, textAlign: "left" as const,
-              color: muted || !cur ? C.light : C.black, background: bare ? "transparent" : C.white,
-              border: bare ? "none" : `1px solid ${C.field}`, borderRadius: bare ? 0 : RADIUS.field,
+              color: muted || !cur ? C.light : (look?.color || C.black), background: bare ? "transparent" : (look?.bg || C.white),
+              border: bare ? "none" : `1px solid ${look?.border || C.field}`, borderRadius: bare ? 0 : RADIUS.field,
               cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1, WebkitTapHighlightColor: "transparent", outline: "none", ...btnS }}>
         <span style={plain ? {} : { flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{cur ? cur.label : "—"}</span>
-        {!plain && CHEV(C.muted)}
+        {!plain && CHEV(look?.color || C.muted)}
       </button>
       {open && box && createPortal(
         <div onPointerDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }} onWheel={(e) => { if (e.target === e.currentTarget) setOpen(false); }}

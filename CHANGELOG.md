@@ -176,6 +176,29 @@ Goal: make the Supabase app functionally identical to the old reference
 - Dashboard: an odd last Creator tile spans both columns (like Manager).
 - No SQL. Changed: `planner.ts`, `PlannerCreator.tsx`, `PlannerOverview.tsx`.
 
+## Modals · one sheet, one stylesheet, colour and depth — Phase 1 (23.10.2026)
+- One build for every item window: `Sheet` (atoms.tsx) with its parts `SheetHead`
+  (section: coloured icon circle + small caps), `SHEET_CARD`, `SHEET_CAPS` and
+  `SheetButton` (the footer button). Values in `SHEET` (constants.ts). The Planner's
+  own `Window` and Outreach's full-screen `Window` are removed.
+- Depth: the sheet in the app's cream (white cards float, like the Dashboard), footer
+  bar white with the bottom-bar shadow, the sheet lifted off the dimmed page
+  (`SHADOW.sheet`). Confirm dialogs: the same dimming, a white card.
+- Colour where it means something: the contact's Status field in its status colour
+  (same as the list pill, `MenuSelect look`), @lynnhoa lavender / @createbylynn peach
+  in the Template line and the timeline, a dot per timeline line (pitch butter,
+  reply blue, gifted · invited · lead · client pistachio), section icons one shade
+  stronger (the tone's fill).
+- Log pitch, Import contacts and the phone Filter are bottom sheets now (were full
+  screen / a panel without header). Footers: Done light everywhere (Planner too);
+  Log pitch and Add comments one dark button (✕ cancels); Import gets Done; Filter:
+  Reset top right, "Show n contacts" at the bottom.
+- Media kits: the rows sit in white cards.
+- Still to come: Phase 2 Outreach + Email kit one level (Media kits, Template),
+  Phase 3 Sprint, Phase 4 Service catalog + Workspace item, Phase 5 document windows.
+- No SQL. Changed: `constants.ts`, `atoms.tsx`, `PlannerWindows.tsx`,
+  `PlannerConcept.tsx`, `EmailList.tsx`, `EmailKit.tsx`, `Comments.tsx`.
+
 ## Known open items
 1. Multi-device: data fetched once per load, last-write-wins — consider
    refetch-on-focus (~20 lines).

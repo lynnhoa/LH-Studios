@@ -6,17 +6,15 @@
 // The text list, link list and window heads are shared with the
 // concept page (PlannerConcept: an arc's texts and links, an era's arcs).
 // Extra actions (Delete …) sit in the ⋯ menu; one main button.
-// Every window is a bottom sheet like the Manager and Creator sheets: only as
-// tall as its content, the page dimmed behind. Compact inside: 10 px between
-// sections, 32 px rows and fields with 13 px text (typed at 16 px underneath,
-// so the iPhone doesn't zoom).
+// Every window is the app's one Sheet (atoms.tsx): only as tall as its content,
+// the page dimmed behind, white cards on the cream. Compact inside: 32 px rows
+// and fields with 13 px text (typed at 16 px underneath, so the iPhone doesn't zoom).
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE, Z, PAL, RADIUS, TRACK, SHADOW, DENSITY, ICON } from "./constants";
+import { C, SANS, SERIF, TYPE, PAL, RADIUS, TRACK, SHADOW } from "./constants";
 import { fmtD, today, monthStart, monthEnd, ymd } from "./formatters";
-import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN, Switch, TextInline, MiniInput, MiniSelect, useKeyboardInset, useEscape } from "./atoms";
+import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN, Switch, TextInline, MiniInput, MiniSelect, Sheet, SheetHead, SheetButton, SHEET_CARD } from "./atoms";
 import type { ToneSet } from "./atoms";
 import {
   ACCOUNTS, PHASES, OWNERS, RHYTHMS, STATUSES, STAGE_SHORT, DAY_SHORT, accLook, phaseLabel, ownerLabel, rhythmLabel, rowKind, entryKey, periodOf, snapKey, addDays, isoWeek, weekRange, weekLabel, thisMonday, monthName, todayIndex, gateOf, stageNumOf, taskAccounts, isVisible, byOrder, fmtInt, fmtPct2, parseDec, parseIntDe, ITEM_STATUSES, FORMATS, CLASSIC, formatLook, itemStatusLabel, daysBetween, OWNER_LOOK, monthGoalOf, monthGoalPatch, loadWorkAccount, storyLines,
@@ -286,33 +284,6 @@ export const CountChip = ({ label, n, look }: { label: string; n: number; look?:
   <span style={{ fontSize: TYPE.micro.size, padding: "1px 7px", borderRadius: 10, border: `1px solid ${look?.border || C.rule}`, background: look?.bg || "transparent", color: look?.color || C.muted, whiteSpace: "nowrap" as const }}>{label} {n}</span>
 );
 
-// ── one-level window: a bottom sheet, like the Manager and Creator sheets ─
-// Only as tall as its content (up to 88 % of the screen), the page dimmed behind;
-// tap outside or ✕ to close. The title in small caps, extras (right) on the right.
-// With the iPhone keyboard open, the sheet sits on top of it.
-export function Window({ title, isMobile, onClose, children, footer, right, head }: { title: string; isMobile: boolean; onClose: () => void; children: any; footer?: any; right?: any; head?: any }) {
-  const kb = useKeyboardInset();
-  useEscape(true, onClose);
-  const extra = right ?? head;
-  return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", flexDirection: "column", justifyContent: "flex-end", fontFamily: SANS, color: C.black, paddingBottom: kb }}>
-      <div onClick={onClose} aria-hidden="true" style={{ position: "absolute", inset: 0, background: "rgba(26,26,26,0.28)" }} />
-      <div role="dialog" aria-modal="true" aria-label={title}
-        style={{ position: "relative", background: C.white, borderRadius: `${RADIUS.button}px ${RADIUS.button}px 0 0`, boxShadow: SHADOW.pop,
-          maxHeight: kb ? `calc(100vh - ${kb + 12}px)` : "88vh", display: "flex", flexDirection: "column", width: "100%", maxWidth: 560, margin: "0 auto" }}>
-        <div style={{ height: DENSITY.sheetHeader, display: "flex", alignItems: "center", gap: 4, padding: "0 6px 0 4px", flexShrink: 0 }}>
-          <button onClick={onClose} aria-label="Close" style={{ width: DENSITY.tap, height: DENSITY.tap, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: ICON.close, flexShrink: 0 }}>✕</button>
-          <span style={{ flex: 1, minWidth: 0, textAlign: "center" as const, fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, padding: "0 6px" }}>{title}</span>
-          <span style={{ minWidth: DENSITY.tap, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2, flexShrink: 0 }}>{extra}</span>
-        </div>
-        <div style={{ overflowY: "auto", padding: footer ? "2px 16px 14px" : "2px 16px calc(14px + env(safe-area-inset-bottom, 0px))", WebkitOverflowScrolling: "touch" as any }}>{children}</div>
-        {footer && <div style={{ padding: kb ? "10px 16px" : "10px 16px calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: `1px solid ${C.line}`, flexShrink: 0, background: C.white }}>{footer}</div>}
-      </div>
-    </div>,
-    document.body
-  );
-}
-
 // ── An idea's steps: Idea → To shoot (Shot) → To post (Filmed) → Posted ─────────
 // One status per idea: the Creator list it sits in and the ticks in its window both read it.
 // A later step includes the earlier ones; going back clears the later days. The days are set
@@ -351,17 +322,12 @@ export const dayShort = (d?: string | null) => {
   const dt = new Date(`${String(d).slice(0, 10)}T12:00:00`);
   return isNaN(+dt) ? "" : `${WD3[dt.getDay()]} ${String(d).slice(8, 10)}.${String(d).slice(5, 7)}.`;
 };
-// a section of the idea window: a small coloured circle with its icon + the label (+ something on the right)
+// a section of a window: the shared SheetHead (atoms) with one of these line icons
 export const WinHead = ({ icon, label, tone, right, first }: { icon: string; label: string; tone: ToneSet; right?: any; first?: boolean }) => (
-  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, margin: `${first ? 2 : 10}px 2px 5px` }}>
-    <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted }}>
-      <span style={{ width: 18, height: 18, borderRadius: "50%", background: tone.wash, color: tone.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={icon} size={11} /></span>
-      {label}
-    </span>
-    {right}
-  </div>
+  <SheetHead icon={<Ico d={icon} size={11} />} label={label} tone={tone} right={right} first={first} />
 );
-export const winCard: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, boxShadow: SHADOW.card, overflow: "hidden" };
+// a white card inside a window — the shared one
+export const winCard: any = SHEET_CARD;
 // a platform as a small mark: soft swatch + name (where a format is posted)
 export const PlatformMark = ({ platform }: { platform: "TikTok" | "Instagram" }) => (
   <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -506,9 +472,9 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
 
   return (
     <>
-      <Window title={it.list === "editorial" ? "Editorial" : "Idea"} isMobile={isMobile} onClose={onClose}
+      <Sheet title={it.list === "editorial" ? "Editorial" : "Idea"} onClose={onClose}
         right={<>{accPill}<MoreMenu bare items={[{ label: `Delete ${it.list === "editorial" ? "editorial" : "idea"}`, danger: true, onClick: del }]} /></>}
-        footer={<div style={{ display: "flex", width: "100%" }}><B onClick={onClose} s={{ flex: 1, height: 38, minHeight: 38 }}>Done</B></div>}>
+        footer={<SheetButton onClick={onClose}>Done</SheetButton>}>
         <TitleField value={it.title} onSave={v => save({ title: v })} />
 
         {/* Shot · Filmed · Posted — the same status as the Creator list */}
@@ -623,7 +589,7 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
           <LinkList key={`r-${it.id}`} initial={it.plan.refs || []} onSave={refs => savePlan({ refs })} />
         </div>
 
-      </Window>
+      </Sheet>
     </>
   );
 }
@@ -852,10 +818,10 @@ export function SprintWindow({ planner, sprintId, draft, isMobile, onClose, revi
   return (
     <>
       {ask === "delete" && sp && <ConfirmDialog title={`Delete Sprint ${sp.num}?`} text="The sprint, its day numbers and its review are removed." okLabel="Delete" danger onOk={del} onCancel={() => setAsk(null)} />}
-      <Window title={title} isMobile={isMobile}
+      <Sheet title={title}
         onClose={() => { if ((mode === "edit") && sp) { setMode("read"); setErr(null); } else onClose(); }}
         footer={mode === "read" ? (
-          <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ flex: 1, display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
             <MoreMenu items={[{ label: "Delete sprint", danger: true, onClick: () => setAsk("delete") }]} />
             <div style={{ display: "flex", gap: 8 }}>
               {sp?.status === "active" && <B v="sec" onClick={() => { setRes(sp.results || {}); setMode("review"); }}>End &amp; review</B>}
@@ -863,7 +829,7 @@ export function SprintWindow({ planner, sprintId, draft, isMobile, onClose, revi
             </div>
           </div>
         ) : (
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <div style={{ flex: 1, display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <B v="sec" onClick={() => { if (sp && mode !== "review") { setMode("read"); setErr(null); } else onClose(); }}>Cancel</B>
             <B onClick={save} s={{ opacity: busy ? 0.5 : 1 }}>{busy ? "Saving…" : mode === "new" ? "Start sprint" : mode === "review" ? "Close sprint" : "Save"}</B>
           </div>
@@ -932,7 +898,7 @@ export function SprintWindow({ planner, sprintId, draft, isMobile, onClose, revi
             {mode === "edit" && sp?.status === "done" && resultFields}
           </div>
         )}
-      </Window>
+      </Sheet>
     </>
   );
 }

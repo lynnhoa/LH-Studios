@@ -57,12 +57,13 @@ export type Tone = keyof typeof PAL;
 export const SPACE  = { xs: 4, sm: 8, md: 12, sec: 14, lg: 16 } as const;
 //  thin bars · check boxes · tags · fields · tiles · cards, lists, windows, menus · pills · buttons
 export const RADIUS = { bar: 2, check: 4, tag: 9, field: 10, tile: 12, card: 14, pill: 15, button: 18 } as const;
-//  card = lists and cards · pop = menus, dialogs, toasts · bar = bottom bar · page = PDF pages in the preview
+//  card = lists and cards · pop = menus, dialogs, toasts · bar = bottom bar · page = PDF pages in the preview · sheet = bottom sheets
 export const SHADOW = {
   card: "0 6px 18px rgba(26,26,26,0.05)",
   pop:  "0 8px 24px rgba(26,26,26,0.10)",
   bar:  "0 -6px 18px rgba(26,26,26,0.06)",
   page: "0 4px 24px rgba(0,0,0,0.32)",
+  sheet: "0 -10px 30px rgba(26,26,26,0.16)",   // a bottom sheet, lifted off the dimmed page
 } as const;
 
 // ─── COLORS ──────────────────────────────────────────────────
@@ -211,4 +212,23 @@ export const SPACING = {
   chip: 30, pill: 30, mainBtn: 40, tick: 22, tap: 44,
   menuRow: 34, menuText: 13, menuWidth: 232,     // profile menu: 13 px rows of 34 px, app tiles of 40 px
   colGap: 16,            // iPad / computer: between the two columns (like the Manager dashboard)
+} as const;
+
+// ─── SHEETS — the one look of every item window (bottom sheet) ─
+// One build (Sheet in atoms.tsx) and these values; no window sets its own.
+//   The sheet sits in the app's cream, so the white cards inside float like on the
+//   Dashboard; the footer bar is white with the bottom-bar shadow; the page is dimmed
+//   behind (dialogs use the same dimming). Inside: label-left rows in white cards,
+//   each section with a coloured icon circle (the palette's fill = one shade stronger).
+export const SHEET = {
+  surface: C.bg,                    // header + content: the app's cream
+  bar:     C.white,                 // the footer bar
+  dim:     "rgba(26,26,26,0.28)",   // the page behind a sheet or a dialog
+  width:   560,                     // iPad / computer: centred at the bottom, at most this wide
+  head:    DENSITY.sheetHeader,     // ✕ · TITLE · ⋯
+  pad:     16,                      // sides of the content
+  row:     34,                      // label-left rows in a card
+  label:   76,                      // the label column of those rows
+  icon:    18,                      // the section icon circle
+  button:  38,                      // the footer button (Done · Save · Add …)
 } as const;

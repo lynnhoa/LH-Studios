@@ -20,12 +20,12 @@
 
 import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, ICON, PAL } from "./constants";
-import { B, SectionHead } from "./atoms";
+import { SectionHead, Sheet, SheetButton } from "./atoms";
 import { ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE } from "./planner";
 import type { Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
-import { IC, Subtitle, TabTitle, Window, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
+import { IC, Subtitle, TabTitle, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
 
 // remembered on this device: the open arcs and phases per account (none the first time) and the view
 const OPEN_KEY    = "lh_planner_concept_open";
@@ -299,7 +299,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   const winOk    = !!win && (win.kind === "era" ? !!winEra : !!winArc);
   useEffect(() => { if (win && !winOk && !planner.loading) setWin(null); }, [win, winOk, planner.loading]);
   const close = () => setWin(null);
-  const done  = <div style={{ display: "flex", width: "100%" }}><B onClick={close} s={{ flex: 1, height: 38, minHeight: 38 }}>Done</B></div>;
+  const done  = <SheetButton onClick={close}>Done</SheetButton>;
 
   const columns = <T,>(list: T[], render: (x: T) => any) => {
     const column = (l: T[]) => <div style={{ display: "flex", flexDirection: "column" as const, gap: SPACING.cardGap, minWidth: 0 }}>{l.map(render)}</div>;
@@ -365,7 +365,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
 
       {/* an arc's texts or links (from the Arcs view) */}
       {win && win.kind !== "era" && winArc && (
-        <Window title={`${winArc.num}. ${winArc.name}`} isMobile={isMobile} onClose={close} footer={done}>
+        <Sheet title={`${winArc.num}. ${winArc.name}`} onClose={close} footer={done}>
           <WinHead first icon={win.kind === "texts" ? IC.list : IC.link} tone={ARC_TONE}
             label={win.kind === "texts" ? count("Texts", winArc.texts.length) : count("Links", winArc.links.length)} />
           <div style={winCard}>
@@ -375,14 +375,14 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
               : <LinkList key={`l-${winArc.id}`} initial={winArc.links} pillTone={platformTone}
                   onSave={links => { quiet(planner.updateArc(winArc.id, { links })); }} />}
           </div>
-        </Window>
+        </Sheet>
       )}
 
       {/* an era: its arcs in posting order — the same arcs, texts and links as the Arcs view */}
       {win && win.kind === "era" && winPhase && winEra && (
-        <Window title={`${winPhase.num}. ${winPhase.name} · ${winEra.name}`} isMobile={isMobile} onClose={close} footer={done}>
+        <Sheet title={`${winPhase.num}. ${winPhase.name} · ${winEra.name}`} onClose={close} footer={done}>
           <EraSheet key={`${winPhase.id}-${winEra.key}`} planner={planner} phase={winPhase} era={winEra} />
-        </Window>
+        </Sheet>
       )}
     </div>
   );
