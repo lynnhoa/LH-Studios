@@ -240,7 +240,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
   const hidden = (() => { try { return localStorage.getItem(hideKey) === "1"; } catch { return false; } })();   // per account, on this device
   const setHide = (v: boolean) => { try { v ? localStorage.setItem(hideKey, "1") : localStorage.removeItem(hideKey); } catch { /* ignore */ } rerender(n => n + 1); };
   const past = planner.sprints.filter(x => x.account === acc && x.status === "done").sort((a, b) => b.startOn.localeCompare(a.startOn));
-  const focusText = (s: Sprint) => `${s.focusCategory ? (OUTREACH_CATEGORIES.find(c => c.key === s.focusCategory)?.label || s.focusCategory) : "Any"} · ${OUTREACH_TIERS.find(t => t.key === s.focusTier)?.label || "Now"}`;
+  const focusText = (s: Sprint) => `${s.focusCategory ? (OUTREACH_CATEGORIES.find(c => c.key === s.focusCategory)?.label || "Any category") : "Any category"} · ${OUTREACH_TIERS.find(t => t.key === s.focusTier)?.label || "Any tier"}`;
 
   const sprintCard = sp && (() => {
     const st = planner.sprintStats(sp);
@@ -357,7 +357,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
 
       {sprintWin && (
         <SprintWindow key={`${sprintWin.id || "new"}-${sprintWin.review ? "r" : ""}`} planner={planner} sprintId={sprintWin.id} review={sprintWin.review} isMobile={isMobile} onClose={() => setSprintWin(null)}
-          draft={sprintWin.acc ? { account: sprintWin.acc, startOn: thisMonday(), endOn: addDays(thisMonday(), sprintW * 7 - 1), focusCategory: "", focusTier: "now", pitchGoal: null, followUpGoal: null, review: "" } : undefined} />
+          draft={sprintWin.acc ? { account: sprintWin.acc, startOn: thisMonday(), endOn: addDays(thisMonday(), sprintW * 7 - 1), focusCategory: "", focusTier: "", pitchGoal: null, followUpGoal: null, review: "" } : undefined} />
       )}
     </div>
   );

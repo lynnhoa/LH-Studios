@@ -28,7 +28,7 @@ export interface NewContact { id: string; company: string; category: string; tie
 const rowToSprint = (r: any): Sprint => ({
   id: r.id, account: r.account, num: Number(r.num) || 1,
   startOn: String(r.start_on).slice(0, 10), endOn: String(r.end_on).slice(0, 10),
-  focusCategory: r.focus_category ?? "", focusTier: r.focus_tier || "now",
+  focusCategory: r.focus_category ?? "", focusTier: r.focus_tier || "",
   pitchGoal: r.pitch_goal ?? null, followUpGoal: r.follow_up_goal ?? null,
   review: r.review ?? "", status: r.status === "done" ? "done" : "active",
   days: r.days && typeof r.days === "object" ? r.days : {},
@@ -336,7 +336,7 @@ export function usePlanner(userId: string | null, monday: string) {
     else {
       setOutreachError(null);
       setContacts((oc?.data || []).map((r: any) => ({
-        id: r.id, company: r.company || "", category: r.category || "others", tier: r.tier || "now", status: r.status || "new",
+        id: r.id, company: r.company || "", category: r.category || "", tier: r.tier || "", status: r.status || "new",
         lastContact: r.last_contact ? String(r.last_contact).slice(0, 10) : null, week: mondayOf(ymd(new Date(r.created_at))),
       })));
     }

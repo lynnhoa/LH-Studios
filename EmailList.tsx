@@ -1,10 +1,11 @@
 // ─────────────────────────────────────────────────────────────
 // EmailList — Outreach › Contacts (the email list) (the same parts as the other apps' list screens)
-// Title · Import (light) · Log pitch (dark)
+// Title · + Add · Import (light) · Log pitch (dark)
 // Summary line: ● n contacts · to follow up · Copy emails
-// Toolbar (38 px): Search · Filter (category, tier, city, added) · Sort · Download
-// Active filters as chips (✕) · the contacts in one white card
-// Phone: two lines per contact · iPad/desktop: one-line table in a card
+// Chips: All · Active · Gifted · Invited · Lead · Closed (the app remembers the last one)
+// Toolbar (40 px): Search · Filter (category, tier, status, account, place, added) · Sort · Download
+// Active filters as tags (✕) · the contacts in one white card
+// Phone: two lines per contact, status pill on the right · iPad/desktop: one-line table, Status 2nd
 // Windows (one level): Filter (sheet on phone), contact, Import (the three steps)
 // ─────────────────────────────────────────────────────────────
 
@@ -12,13 +13,12 @@ import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE, Z, PAL, RADIUS, SHADOW } from "./constants";
 import { fmtD } from "./formatters";
-import { B, I, S, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet, useEscape } from "./atoms";
+import { B, I, S, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet, useEscape, Chip, ChipRow } from "./atoms";
 import {
-  OUTREACH_CATEGORIES, OUTREACH_TIERS, OUTREACH_COLUMNS, OUTREACH_STATUSES, STATUS_FILTERS, PITCH_ACCOUNTS, SORTS, ADDED, DEFAULT_VIEW,
-  catOf, tierOf, statusOf, followUpDue, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt, NO_FILTERS, placeOf,
+  OUTREACH_CATEGORIES, OUTREACH_TIERS, OUTREACH_COLUMNS, STATUS_FILTERS, SORTS, ADDED, DEFAULT_VIEW, CHIPS, PIPELINES, NO_TIER,
+  catOf, tierOf, statusOf, statusesFor, isCategory, isTier, isChip, chipCounts, followUpDue, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt, NO_FILTERS, placeOf,
 } from "./outreach";
-import type { Pitch, PitchAccount } from "./outreach";
-import { loadWorkAccount } from "./planner";
+import type { Pitch, ChipKey } from "./outreach";
 import type { OutreachContact, OutreachView, SortKey } from "./outreach";
 import { downloadExcel, downloadTemplate, downloadListPdf } from "./outreachExport";
 import { showUndo, showNote } from "./undo";
@@ -40,7 +40,21 @@ const IC = {
 };
 
 const VIEW_KEY = "lh_outreach_view";
-const loadView = (): OutreachView => { try { return { ...DEFAULT_VIEW, ...JSON.parse(sessionStorage.getItem(VIEW_KEY) || "{}") }; } catch { return DEFAULT_VIEW; } };
+const CHIP_KEY = "lh_outreach_chip";   // the last chip, kept when the app is closed
+const loadView = (): OutreachView => {
+  let v: OutreachView = DEFAULT_VIEW, fresh = true;
+  try { const saved = sessionStorage.getItem(VIEW_KEY); if (saved) { v = { ...DEFAULT_VIEW, ...JSON.parse(saved) }; fresh = false; } } catch { v = DEFAULT_VIEW; }
+  let chip: ChipKey = v.chip;
+  try { const c = localStorage.getItem(CHIP_KEY); if (isChip(c)) chip = c; } catch { /* ignore */ }
+  if (!isChip(chip)) chip = "all";
+  // a fresh start on Active opens most urgent first
+  const sort: SortKey = fresh && chip === "active" ? "urgent" : (SORTS.some(x => x.key === v.sort) ? v.sort : "az");
+  // values that aren't on the lists any more (old tiers, Events / Others) → All
+  const tier = v.tier === "all" || v.tier === "none" || isTier(v.tier) ? v.tier : "all";
+  const cat  = v.cat === "all" || isCategory(v.cat) ? v.cat : "all";
+  const status = STATUS_FILTERS.some(x => x.key === v.status) ? v.status : "all";
+  return { ...v, chip, sort, tier, cat, status };
+};
 
 const CatPill = ({ k }: { k: string }) => {
   const c = catOf(k);
@@ -55,17 +69,26 @@ interface EmailListProps {
   stickyTop: number;       // height of the app header (table header sticks below it)
 }
 
-// Where a contact stands (Stage 2 tracking): Pitched 12.10. · Follow up · Replied · Gifted · Deal ✓
+// Where a contact stands, as a pill: New · Pitched 12.10. · Follow up · Replied · Gifted · Invited · Lead · Client · Declined · No reply
 const shortD = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.`;
-const StatusText = ({ c }: { c: OutreachContact }) => {
-  if (!c.status || c.status === "new") return null;
-  const due = followUpDue(c);
-  const color = due ? C.amber : c.status === "gifted" || c.status === "deal" ? C.green : c.status === "replied" ? C.black : C.muted;
-  const text = due ? "Follow up" : c.status === "pitched" ? `Pitched${c.lastContact ? " " + shortD(c.lastContact) : ""}` : c.status === "deal" ? "Deal ✓" : statusOf(c.status).label;
-  return <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color, whiteSpace: "nowrap" as const, flexShrink: 0 }}>{text}</span>;
+const statusLook = (c: OutreachContact) => {
+  if (followUpDue(c)) return { bg: PAL.waiting.wash, border: PAL.waiting.mid, color: PAL.waiting.ink, text: "Follow up" };
+  switch (c.status) {
+    case "pitched":  return { bg: PAL.neutral.fill, border: C.edge, color: PAL.neutral.ink, text: `Pitched${c.lastContact ? " " + shortD(c.lastContact) : ""}` };
+    case "replied":  return { bg: PAL.progress.wash, border: PAL.progress.mid, color: PAL.progress.ink, text: "Replied" };
+    case "gifted": case "invited": case "lead": case "client":
+                     return { bg: PAL.done.wash, border: PAL.done.mid, color: PAL.done.ink, text: statusOf(c.status).label };
+    case "declined": case "no_reply":
+                     return { bg: PAL.neutral.wash, border: C.rule, color: C.muted, text: statusOf(c.status).label };
+    default:         return { bg: C.white, border: C.rule, color: C.muted, text: "New" };
+  }
 };
-// Logging defaults to the account you're working on (profile menu, same as the Planner)
-const lastAccount = (): PitchAccount => loadWorkAccount();
+const StatusPill = ({ c }: { c: OutreachContact }) => {
+  const l = statusLook(c);
+  return <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.03em", padding: "2px 8px", borderRadius: RADIUS.tag, border: `1px solid ${l.border}`, background: l.bg, color: l.color, whiteSpace: "nowrap" as const, flexShrink: 0 }}>{l.text}</span>;
+};
+// a reply you haven't opened yet
+const ReplyDot = () => <span aria-label="New reply" style={{ width: 7, height: 7, borderRadius: "50%", background: PAL.progress.mid, flexShrink: 0, display: "inline-block" }} />;
 
 export default function EmailList({ outreach, settings, isMobile, isWide, stickyTop }: EmailListProps) {
   const { contacts, loading, loadError, loginEmail } = outreach;
@@ -88,6 +111,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
   }, []);
 
   useEffect(() => { try { sessionStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch { /* ignore */ } }, [view]);
+  useEffect(() => { try { localStorage.setItem(CHIP_KEY, view.chip); } catch { /* ignore */ } }, [view.chip]);
 
   const shown  = useMemo(() => applyView(contacts, view), [contacts, view]);
   const uniq = (xs: string[]) => Array.from(new Set(xs.map(x => (x || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "de"));
@@ -97,9 +121,14 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
   const counts = useMemo(() => { const m: Record<string, number> = {}; contacts.forEach((c: OutreachContact) => { m[c.category] = (m[c.category] || 0) + 1; }); return m; }, [contacts]);
   const nFilters = activeFilters(view);
   const filtered = nFilters > 0 || !!view.q.trim();
+  const narrowed = filtered || view.chip !== "all";   // a chip shows part of the list too
   const nDue = useMemo(() => contacts.filter((c: OutreachContact) => followUpDue(c)).length, [contacts]);   // pitched, no answer, due again
   const brand = (settings?.company || settings?.name || "LH Studio").trim();
   const set = (patch: Partial<OutreachView>) => setView(v => ({ ...v, ...patch }));
+  // Active opens most urgent first; leaving it goes back to A–Z (unless another sort was picked)
+  const setChip = (chip: ChipKey) => setView(v => ({ ...v, chip, sort: chip === "active" ? "urgent" : v.sort === "urgent" ? "az" : v.sort }));
+  const chipN = useMemo(() => chipCounts(contacts, view), [contacts, view]);
+  const nNew  = useMemo(() => contacts.filter((c: OutreachContact) => c.replyNew).length, [contacts]);   // new replies (badge on Active)
 
   const copy = async (text: string, msg: string) => { const ok = await copyText(text); setToast(ok ? msg : "Couldn't copy"); };
   const fileName = (which: "filtered" | "full") =>
@@ -144,14 +173,21 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
         <div><Lbl>Tier</Lbl>
-          <S value={view.tier} onChange={(e: any) => set({ tier: e.target.value })}>
+          <S value={view.tier || "all"} onChange={(e: any) => set({ tier: e.target.value })}>
             <option value="all">All</option>
             {OUTREACH_TIERS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+            <option value="none">{NO_TIER}</option>
           </S>
         </div>
         <div><Lbl>Status</Lbl>
           <S value={view.status || "all"} onChange={(e: any) => set({ status: e.target.value })}>
             {STATUS_FILTERS.map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
+          </S>
+        </div>
+        <div><Lbl>Account</Lbl>
+          <S value={view.acc || "all"} onChange={(e: any) => set({ acc: e.target.value })}>
+            <option value="all">All</option>
+            {PIPELINES.map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
           </S>
         </div>
         <div><Lbl>Country</Lbl>
@@ -166,7 +202,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
             {cities.map(c => <option key={c} value={c}>{c}</option>)}
           </S>
         </div>
-        <div style={{ gridColumn: "1 / -1" }}><Lbl>Added</Lbl>
+        <div><Lbl>Added</Lbl>
           <S value={view.added} onChange={(e: any) => set({ added: e.target.value })}>
             {ADDED.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
           </S>
@@ -199,7 +235,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
         {iconBtn("download", IC.download, busy ? "Preparing…" : "Download")}
         {open === "download" && (
           <div style={{ ...menuBox, width: 250 }}>
-            {(filtered ? (["filtered", "full"] as const) : (["full"] as const)).map((w, i) => (
+            {(narrowed ? (["filtered", "full"] as const) : (["full"] as const)).map((w, i) => (
               <div key={w} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderTop: i ? `1px solid ${C.rule}` : "none" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, color: C.black }}>{w === "filtered" ? "Filtered list" : "Full list"}</div>
@@ -217,12 +253,13 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
 
   const tagStyle = (c?: any): any => ({ height: 30, padding: "0 11px", border: `1px solid ${c ? c.border : C.pillOn}`, background: c ? c.bg : PAL.neutral.fill, color: c ? c.color : C.black, borderRadius: RADIUS.pill, fontSize: TYPE.subtext.size, display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", fontFamily: SANS, whiteSpace: "nowrap" as const });
   // the active filters as chips (each with ✕) — only while a filter is on; the sort lives in the ↑↓ button
-  const hasTags = view.cat !== "all" || view.tier !== "all" || (!!view.status && view.status !== "all") || view.city !== "all" || (!!view.country && view.country !== "all") || view.added !== "any";
+  const hasTags = view.cat !== "all" || (!!view.tier && view.tier !== "all") || (!!view.status && view.status !== "all") || (!!view.acc && view.acc !== "all") || view.city !== "all" || (!!view.country && view.country !== "all") || view.added !== "any";
   const tags = hasTags && (
     <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const, marginTop: 10 }}>
       {view.cat !== "all" && <button onClick={() => set({ cat: "all" })} style={tagStyle(catOf(view.cat))}>{catOf(view.cat).label} ✕</button>}
-      {view.tier !== "all" && <button onClick={() => set({ tier: "all" })} style={tagStyle()}>{tierOf(view.tier).label} ✕</button>}
+      {view.tier && view.tier !== "all" && <button onClick={() => set({ tier: "all" })} style={tagStyle()}>{view.tier === "none" ? NO_TIER : tierOf(view.tier).label} ✕</button>}
       {view.status && view.status !== "all" && <button onClick={() => set({ status: "all" })} style={tagStyle()}>{STATUS_FILTERS.find(x => x.key === view.status)?.label} ✕</button>}
+      {view.acc && view.acc !== "all" && <button onClick={() => set({ acc: "all" })} style={tagStyle()}>{PIPELINES.find(x => x.key === view.acc)?.label} ✕</button>}
       {view.country && view.country !== "all" && <button onClick={() => set({ country: "all" })} style={tagStyle()}>{view.country} ✕</button>}
       {view.city !== "all" && <button onClick={() => set({ city: "all" })} style={tagStyle()}>{view.city} ✕</button>}
       {view.added !== "any" && <button onClick={() => set({ added: "any" })} style={tagStyle()}>{ADDED.find(a => a.key === view.added)?.label} ✕</button>}
@@ -243,30 +280,36 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
       {shown.map((c: OutreachContact, i: number) => (
         <div key={c.id} onClick={() => setOpenId(c.id)} style={{ minHeight: 54, padding: "9px 10px 9px 12px", borderTop: i ? `1px solid ${C.hair}` : "none", cursor: "pointer", boxSizing: "border-box" as const }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: TYPE.row.size, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, minWidth: 0 }}>{c.company || c.email}{placeOf(c) && <span style={{ fontSize: TYPE.label.size, color: C.muted }}> · {placeOf(c)}</span>}</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-              {c.tier && c.tier !== "now" && <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: C.muted }}>{tierOf(c.tier).label}</span>}
-              <CatPill k={c.category} />
+            <span style={{ fontSize: TYPE.row.size, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, minWidth: 0, display: "inline-flex", alignItems: "center", gap: 6, fontWeight: c.replyNew ? 500 : "normal" }}>
+              {c.replyNew && <ReplyDot />}
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, minWidth: 0 }}>{c.company || c.email}{placeOf(c) && <span style={{ fontSize: TYPE.label.size, color: C.muted, fontWeight: "normal" }}> · {placeOf(c)}</span>}</span>
             </span>
+            <StatusPill c={c} />
           </div>
           <div style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 2, display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-            {c.contactName && <span style={{ flexShrink: 0 }}>{c.contactName} ·</span>}
-            {emailCell(c, true)}
+            {c.replyNew ? (
+              <span style={{ color: PAL.progress.ink, whiteSpace: "nowrap" as const }}>New reply{c.replyAt ? ` · ${shortD(String(c.replyAt).slice(0, 10))}` : ""}</span>
+            ) : (
+              <>
+                {c.contactName && <span style={{ flexShrink: 0 }}>{c.contactName} ·</span>}
+                {emailCell(c, true)}
+              </>
+            )}
             <span style={{ flex: 1 }} />
-            <StatusText c={c} />
+            <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: C.muted, whiteSpace: "nowrap" as const, flexShrink: 0 }}>{catOf(c.category).label}</span>
           </div>
         </div>
       ))}
     </ListCard>
   );
 
-  const cols: { key: string; label: string; fr: string; sort?: SortKey[] }[] = [
+  const cols: { key: string; label: string; fr: string; sort?: SortKey[]; min?: number }[] = [
     { key: "company", label: "Company", fr: "1.3fr", sort: ["az", "za"] },
+    { key: "status", label: "Status", fr: "1.1fr", sort: ["urgent"], min: 106 },   // the whole pill, also on the iPad
     { key: "contactName", label: "Contact", fr: "1fr" },
     { key: "email", label: "Email", fr: "1.8fr" },
-    { key: "category", label: "Category", fr: "0.9fr", sort: ["cat"] },
-    { key: "tier", label: "Tier", fr: "0.6fr" },
-    { key: "status", label: "Status", fr: "0.9fr" },
+    { key: "category", label: "Category", fr: "0.9fr", sort: ["cat"], min: 92 },
+    { key: "tier", label: "Tier", fr: "0.8fr" },
     { key: "city", label: "City", fr: "0.9fr" },
     { key: "country", label: "Country", fr: "0.9fr" },
     { key: "web", label: "Website / IG", fr: "1.2fr" },
@@ -281,18 +324,18 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
   const td: any = { padding: "0 10px", height: 40, display: "flex", alignItems: "center", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", borderTop: `1px solid ${C.hair}`, minWidth: 0 };
   const cut = (t: any) => <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, minWidth: 0 }}>{t}</span>;
   const table = (
-    <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: cols.map(c => `minmax(0,${c.fr})`).join(" "), background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, padding: "0 4px 4px" }}>
+    <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: cols.map(c => `minmax(${c.min || 0}px,${c.fr})`).join(" "), background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, padding: "0 4px 4px" }}>
       {cols.map(c => (
         <div key={c.key} onClick={() => headClick(c)} style={{ position: "sticky", top: stickyTop + BAR_H, background: C.white, zIndex: 2, padding: "0 10px", height: 34, display: "flex", alignItems: "center", fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: C.muted, cursor: c.sort ? "pointer" : "default", userSelect: "none" as const, borderRadius: 0 }}>{c.label}{arrow(c)}</div>
       ))}
       {shown.map((c: OutreachContact) => (
         <div key={c.id} className="lh-row" onClick={() => setOpenId(c.id)} style={{ display: "contents", cursor: "pointer" }}>
-          <div style={td}>{cut(c.company)}</div>
+          <div style={{ ...td, gap: 6, fontWeight: c.replyNew ? 500 : "normal" }}>{c.replyNew && <ReplyDot />}{cut(c.company)}</div>
+          <div style={td}><StatusPill c={c} /></div>
           <div style={{ ...td, color: c.contactName ? C.black : C.light }}>{cut(c.contactName || "—")}</div>
           <div style={td}>{emailCell(c)}</div>
           <div style={td}><CatPill k={c.category} /></div>
-          <div style={{ ...td, color: c.tier && c.tier !== "now" ? C.black : C.muted }}>{cut(tierOf(c.tier).label)}</div>
-          <div style={td}>{c.status && c.status !== "new" ? <StatusText c={c} /> : <span style={{ color: C.light }}>—</span>}</div>
+          <div style={{ ...td, color: c.tier ? C.black : C.light }}>{cut(tierOf(c.tier).label || "—")}</div>
           <div style={td}>{cut(c.city)}</div>
           <div style={td}>{cut(c.country)}</div>
           <div style={{ ...td, color: C.muted }}>{cut(c.web)}</div>
@@ -319,11 +362,21 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
         </div>
       </div>
       <SummaryLine dot={nDue ? PAL.waiting.mid : PAL.neutral.mid}>
-        <span style={{ whiteSpace: "nowrap" as const }}>{filtered ? `${shown.length} of ${contacts.length}` : contacts.length} {contacts.length === 1 ? "contact" : "contacts"}</span>
+        <span style={{ whiteSpace: "nowrap" as const }}>{narrowed ? `${shown.length} of ${contacts.length}` : contacts.length} {contacts.length === 1 ? "contact" : "contacts"}</span>
         {nDue > 0 && <> · <Strong color={PAL.waiting.ink}>{nDue} to follow up</Strong></>}
         {shown.length > 0 && <> · <button onClick={() => copy(emailsText(shown), `${shown.length} ${shown.length === 1 ? "email" : "emails"} copied ✓`)} aria-label="Copy the emails in view" title="Copy the emails in view"
           style={{ background: "none", border: "none", padding: "4px 0", margin: "-4px 0", cursor: "pointer", color: C.black, display: "inline-flex", alignItems: "center", gap: 4, fontFamily: SANS, fontSize: TYPE.subtext.size }}>Copy emails <Ico d={IC.copy} size={12} color={C.muted} /></button></>}
       </SummaryLine>
+
+      {/* chips: quick views; a search always looks through every contact */}
+      {contacts.length > 0 && (
+        <ChipRow s={{ marginTop: 10 }}>
+          {CHIPS.map(ch => (
+            <Chip key={ch.key} on={view.chip === ch.key} tone={PAL.neutral} dot={false} label={ch.label} count={chipN[ch.key]}
+              badge={ch.key === "active" ? nNew : 0} onClick={() => setChip(ch.key)} />
+          ))}
+        </ChipRow>
+      )}
 
       {/* search · filter · sort · download stay under the top bar while you scroll */}
       <div style={{ position: "sticky", top: stickyTop, zIndex: 99, background: C.bg, margin: "4px 0 0", padding: "8px 0" }}>
@@ -343,6 +396,8 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
           <p style={{ fontFamily: SERIF, fontSize: 15, color: C.black, margin: "0 0 6px" }}>No contacts yet</p>
           <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: 0, lineHeight: 1.6 }}>Tap <strong style={{ fontWeight: 500, color: C.black }}>+ Add</strong> for one contact, or <strong style={{ fontWeight: 500, color: C.black }}>Import</strong> for a list: build your Excel with the columns, copy the prompt for Claude, run Claude's SQL in Supabase.</p>
         </ListCard>
+      ) : shown.length === 0 && !filtered && view.chip !== "all" ? (
+        <p style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 16 }}>Nothing in {CHIPS.find(x => x.key === view.chip)?.label} yet. <button onClick={() => setChip("all")} style={{ background: "none", border: "none", padding: 0, color: C.black, textDecoration: "underline", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size }}>Show all</button></p>
       ) : shown.length === 0 ? (
         <p style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 16 }}>No contacts match. <button onClick={() => set({ q: "", ...NO_FILTERS })} style={{ background: "none", border: "none", padding: 0, color: C.black, textDecoration: "underline", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size }}>Clear search and filters</button></p>
       ) : isMobile ? phoneList : table}
@@ -432,8 +487,8 @@ const DEFAULTS_KEY = "lh_new_contact_defaults";
 const newContact = (): OutreachContact => {
   let d: any = {};
   try { d = JSON.parse(localStorage.getItem(DEFAULTS_KEY) || "{}") || {}; } catch { d = {}; }
-  return { id: "", company: "", contactName: "", email: "", category: (d.category || "others") as any, tier: (d.tier || "now") as any, status: "new" as any,
-    lastContact: null, web: "", city: "", country: "", notes: "", source: "", createdAt: "" };
+  return { id: "", company: "", contactName: "", email: "", category: (isCategory(d.category) ? d.category : "fashion") as any, tier: (isTier(d.tier) ? d.tier : "") as any, status: "new" as any,
+    lastContact: null, replyAt: null, replyNew: false, clientId: null, web: "", city: "", country: "", notes: "", source: "", createdAt: "" };
 };
 // pr@chanel.com → { company: "Chanel", web: "chanel.com" } · nothing for gmail, gmx, web.de, icloud …
 const FREE_MAIL = /^(gmail|googlemail|gmx|web|icloud|me|mac|outlook|hotmail|live|msn|yahoo|ymail|t-online|aol|proton|protonmail|mail|freenet|posteo|arcor)\./i;
@@ -456,14 +511,15 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
   const [err, setErr] = useState<string | null>(null);
   const [askDelete, setAskDelete] = useState(false);
   useEffect(() => { if (!edit) setF(c); }, [c, edit]);
-  // pitch log for this contact (newest first); the account defaults to the last one used for them
+  // pitch log for this contact (newest first); the account comes from the category
   const mine: Pitch[] = (outreach.pitches || []).filter((p: Pitch) => p.contactId === c.id).sort((a: Pitch, b: Pitch) => b.sentOn.localeCompare(a.sentOn));
-  const [acc, setAcc] = useState<PitchAccount>(() => mine[0]?.account || lastAccount());
   const log = async (kind: "pitch" | "follow_up") => {
     setErr(null);
-    try { await outreach.logPitches([c.id], acc, kind); }
+    try { await outreach.logPitches([c.id], kind, undefined, { restart: true }); }
     catch (e: any) { setErr(e?.message || "Couldn't log it."); }
   };
+  // opening a contact clears its new-reply dot
+  useEffect(() => { if (!isNew && c.replyNew && outreach.markSeen) outreach.markSeen(c.id).catch(() => {}); }, [c.id, c.replyNew]);
 
   // compact form: Enter goes to the next field, the last one saves; the email fills Company and
   // Website by itself (only when they're still empty, not for gmail & co)
@@ -485,6 +541,7 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
   const save = async () => {
     setErr(null); setDupId(null);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) { setErr("Please enter a valid email."); return; }
+    if (!isCategory(f.category)) { setErr("Pick a category."); return; }
     if (isNew) {                                     // saved → the window shows its read view
       try {
         const n = await outreach.addContact(f);
@@ -529,16 +586,13 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
           <div style={{ marginBottom: 6 }}>
             <Lbl>Status</Lbl>
             <S value={c.status || "new"} onChange={(e: any) => outreach.setStatus(c.id, e.target.value).catch((x: any) => setErr(x?.message || "Couldn't save."))}>
-              {OUTREACH_STATUSES.map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
+              {statusesFor(c.category).map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
             </S>
             {followUpDue(c) && <p style={{ fontSize: 12, color: C.amber, margin: "6px 0 0" }}>No reply since {fmtD(c.lastContact!)} — time to follow up.</p>}
-            <Lbl>Log</Lbl>
+            <Lbl>Log · {c.category === "ugc" ? "@createbylynn" : "@lynnhoa"}</Lbl>
             <div style={{ display: "flex", gap: 6 }}>
-              <S value={acc} onChange={(e: any) => setAcc(e.target.value)} s={{ flex: 1, minWidth: 0 }} aria-label="Account">
-                {PITCH_ACCOUNTS.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
-              </S>
-              <B v="sec" onClick={() => log("pitch")} s={{ ...BAR_BTN, flexShrink: 0, color: C.black }}>+ Pitch</B>
-              <B v="sec" onClick={() => log("follow_up")} s={{ ...BAR_BTN, flexShrink: 0, color: C.black }}>+ Follow-up</B>
+              <B v="sec" onClick={() => log("pitch")} s={{ ...BAR_BTN, flex: 1, color: C.black }}>+ Pitch</B>
+              <B v="sec" onClick={() => log("follow_up")} s={{ ...BAR_BTN, flex: 1, color: C.black }}>+ Follow-up</B>
             </div>
           </div>
         )}
@@ -593,12 +647,14 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
               </div>
               <div style={TWO}>
                 <div><Lbl>Category</Lbl>
-                  <S value={f.category} aria-label="Category" onChange={(e: any) => setF({ ...f, category: e.target.value })}>
+                  <S value={isCategory(f.category) ? f.category : ""} aria-label="Category" onChange={(e: any) => setF({ ...f, category: e.target.value })}>
+                    {!isCategory(f.category) && <option value="" disabled>Pick a category</option>}
                     {OUTREACH_CATEGORIES.map(k => <option key={k.key} value={k.key}>{k.label}</option>)}
                   </S>
                 </div>
                 <div><Lbl>Tier</Lbl>
-                  <S value={f.tier || "now"} aria-label="Tier" onChange={(e: any) => setF({ ...f, tier: e.target.value })}>
+                  <S value={isTier(f.tier) ? f.tier : ""} aria-label="Tier" onChange={(e: any) => setF({ ...f, tier: e.target.value })}>
+                    <option value="">—</option>
                     {OUTREACH_TIERS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
                   </S>
                 </div>
@@ -631,7 +687,6 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
 
 // ── Log a pitch (or follow-up) for every contact in view ─────────
 function LogWindow({ ids, followUp, outreach, isMobile, onClose, onDone }: { ids: string[]; followUp: boolean; outreach: any; isMobile: boolean; onClose: () => void; onDone: (n: number) => void }) {
-  const [acc, setAcc]   = useState<PitchAccount>(lastAccount);
   const [kind, setKind] = useState<"pitch" | "follow_up">(followUp ? "follow_up" : "pitch");
   const [date, setDate] = useState(ymdToday);
   const [err, setErr]   = useState<string | null>(null);
@@ -641,7 +696,7 @@ function LogWindow({ ids, followUp, outreach, isMobile, onClose, onDone }: { ids
     setErr(null);
     if (!date) { setErr("Pick the day it was sent."); return; }
     setBusy(true);
-    try { await outreach.logPitches(ids, acc, kind, date); onDone(n); }
+    try { await outreach.logPitches(ids, kind, date); onDone(n); }
     catch (e: any) { setErr(e?.message || "Couldn't log it."); }
     finally { setBusy(false); }
   };
@@ -654,11 +709,7 @@ function LogWindow({ ids, followUp, outreach, isMobile, onClose, onDone }: { ids
         </div>
       }>
       {err && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
-      <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>For the {n} {n === 1 ? "contact" : "contacts"} in view — one entry each in the pitch log.</p>
-      <Lbl>Account</Lbl>
-      <S value={acc} onChange={(e: any) => setAcc(e.target.value)}>
-        {PITCH_ACCOUNTS.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
-      </S>
+      <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>For the {n} {n === 1 ? "contact" : "contacts"} in view — one entry each in the pitch log. UGC contacts count for @createbylynn, all others for @lynnhoa.</p>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
         <div><Lbl>Type</Lbl>
           <S value={kind} onChange={(e: any) => setKind(e.target.value)}>
@@ -668,7 +719,7 @@ function LogWindow({ ids, followUp, outreach, isMobile, onClose, onDone }: { ids
         </div>
         <div><Lbl>Sent on</Lbl><I type="date" value={date} onChange={(e: any) => setDate(e.target.value)} /></div>
       </div>
-      <p style={{ fontSize: 12, color: C.muted, margin: "10px 0 0", lineHeight: 1.5 }}>Not contacted yet → Pitched. Replied, gifted and deals stay as they are.</p>
+      <p style={{ fontSize: 12, color: C.muted, margin: "10px 0 0", lineHeight: 1.5 }}>New → Pitched. Every other status stays as it is.</p>
     </Window>
   );
 }

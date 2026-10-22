@@ -1,26 +1,33 @@
 // ─────────────────────────────────────────────────────────────
-// useOutreach — the Outreach email list (table outreach_contacts)
-// and, from Stage 2, the pitch log (table outreach_pitches).
+// useOutreach — the Outreach email list (table outreach_contacts),
+// the pitch log (table outreach_pitches: only emails sent — the
+// Planner counts these) and the timeline events (table
+// outreach_events: status changes and, later, detected replies).
 // Contacts come in through the Claude prompt (SQL in Supabase);
 // the app lists, changes and deletes them, sets their status and
-// logs pitches and follow-ups.
+// logs pitches and follow-ups. The account of a pitch comes from
+// the contact's category (UGC → @createbylynn, else @lynnhoa).
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase, selectAll } from "./useSupabase";
 import { registerReloader } from "./saveStatus";
 import { today } from "./formatters";
-import type { OutreachContact, OutreachCategory, OutreachTier, OutreachStatus, Pitch, PitchAccount } from "./outreach";
+import { fitStatus, statusAfterPitch, accountOf } from "./outreach";
+import type { OutreachContact, OutreachCategory, OutreachTier, OutreachStatus, Pitch } from "./outreach";
 
 const rowToContact = (r: any): OutreachContact => ({
   id:          r.id,
   company:     r.company ?? "",
   contactName: r.contact_name ?? "",
   email:       r.email ?? "",
-  category:    (r.category ?? "others") as OutreachCategory,
-  tier:        (r.tier ?? "now") as OutreachTier,
+  category:    (r.category ?? "") as OutreachCategory,
+  tier:        (r.tier ?? "") as OutreachTier,           // empty = no tier
   status:      (r.status || "new") as OutreachStatus,
   lastContact: r.last_contact ? String(r.last_contact).slice(0, 10) : null,
+  replyAt:     r.reply_at ?? null,
+  replyNew:    r.reply_new === true,
+  clientId:    r.client_id ?? null,
   web:         r.web ?? "",
   city:        r.city ?? "",
   country:     r.country ?? "",
@@ -72,13 +79,26 @@ export function useOutreach(userId: string | null) {
     return () => { cancelled = true; };
   }, [userId]);
 
+  // a status change goes into the timeline; if that table isn't there yet, the change still counts
+  const logEvent = useCallback(async (contactId: string, status: OutreachStatus) => {
+    try { await supabase.from("outreach_events").insert({ user_id: userId, contact_id: contactId, kind: "status", status: status === "new" ? null : status }); }
+    catch { /* the timeline is extra */ }
+  }, [userId]);
+
   const updateContact = useCallback(async (id: string, patch: Partial<OutreachContact>) => {
     const row: any = {};
+    // a category change to UGC turns Gifted / Invited into Replied (UGC doesn't have them)
+    const before = contacts.find(c => c.id === id);
+    let fitted: OutreachStatus | null = null;
+    if (patch.category !== undefined && before) {
+      const f = fitStatus(before.status, patch.category);
+      if (f !== before.status) { fitted = f; row.status = f === "new" ? null : f; patch = { ...patch, status: f }; }
+    }
     if (patch.company     !== undefined) row.company      = patch.company.trim();
     if (patch.contactName !== undefined) row.contact_name = patch.contactName.trim();
     if (patch.email       !== undefined) row.email        = patch.email.trim().toLowerCase();
     if (patch.category    !== undefined) row.category     = patch.category;
-    if (patch.tier        !== undefined) row.tier         = patch.tier;
+    if (patch.tier        !== undefined) row.tier         = patch.tier || null;
     if (patch.web         !== undefined) row.web          = patch.web.trim();
     if (patch.city        !== undefined) row.city         = patch.city.trim();
     if (patch.country     !== undefined) row.country      = patch.country.trim();
@@ -86,7 +106,8 @@ export function useOutreach(userId: string | null) {
     const { error } = await supabase.from("outreach_contacts").update(row).eq("id", id).eq("user_id", userId);
     if (error) throw new Error(/unique|duplicate/i.test(error.message) ? "This email is already on your list." : error.message);
     setContacts(prev => prev.map(c => c.id === id ? { ...c, ...patch, email: row.email ?? c.email } : c));
-  }, [userId]);
+    if (fitted) await logEvent(id, fitted);
+  }, [userId, contacts, logEvent]);
 
   // One contact typed in by hand. The email is cleaned like the import (no spaces, lowercase);
   // an email already on the list is refused (here first, the database as a safety net) and
@@ -99,7 +120,7 @@ export function useOutreach(userId: string | null) {
     const row = {
       user_id: userId, email,
       company: String(f.company || "").trim(), contact_name: String(f.contactName || "").trim(),
-      category: f.category || "others", tier: f.tier || "now",
+      category: f.category, tier: f.tier || null,
       web: String(f.web || "").trim(), city: String(f.city || "").trim(), country: String(f.country || "").trim(), notes: f.notes || "", source: "Added by hand",
     };
     const { data, error } = await supabase.from("outreach_contacts").insert(row).select().single();
@@ -120,19 +141,34 @@ export function useOutreach(userId: string | null) {
     const { error } = await supabase.from("outreach_contacts").update({ status: status === "new" ? null : status }).eq("id", id).eq("user_id", userId);
     if (error) throw new Error(error.message);
     setContacts(prev => prev.map(c => (c.id === id ? { ...c, status } : c)));
+    await logEvent(id, status);
+  }, [userId, logEvent]);
+
+  // Opening a contact clears its new-reply dot
+  const markSeen = useCallback(async (id: string) => {
+    setContacts(prev => prev.map(c => (c.id === id ? { ...c, replyNew: false } : c)));
+    await supabase.from("outreach_contacts").update({ reply_new: false }).eq("id", id).eq("user_id", userId);
   }, [userId]);
 
-  // Log a pitch or follow-up for one or many contacts: not-contacted → Pitched, last contact = that day
-  const logPitches = useCallback(async (ids: string[], account: PitchAccount, kind: "pitch" | "follow_up", sentOn: string = today()) => {
+  // Log a pitch or follow-up for one or many contacts; last contact = that day.
+  // The account comes from each contact's category. Status:
+  //   one contact, a pitch (restart) → New and every ended status → Pitched; Pitched, Replied, Lead stay
+  //   the list in view (bulk) or a follow-up → only New → Pitched, every other status stays
+  const logPitches = useCallback(async (ids: string[], kind: "pitch" | "follow_up", sentOn: string = today(), opts: { restart?: boolean } = {}) => {
     if (!ids.length) return;
+    const byId = new Map(contacts.map(c => [c.id, c]));
     const added: Pitch[] = [];
     for (const part of chunks(ids)) {
-      const { data, error } = await supabase.from("outreach_pitches").insert(part.map(id => ({ contact_id: id, account, kind, sent_on: sentOn }))).select();
+      const { data, error } = await supabase.from("outreach_pitches")
+        .insert(part.map(id => ({ contact_id: id, account: accountOf(byId.get(id)?.category || ""), kind, sent_on: sentOn }))).select();
       if (error) throw new Error(error.message);
       (data || []).forEach((r: any) => added.push(rowToPitch(r)));
     }
-    const byId = new Map(contacts.map(c => [c.id, c]));
-    const toPitched = ids.filter(id => (byId.get(id)?.status || "new") === "new");
+    const next = (id: string): OutreachStatus => {
+      const s = (byId.get(id)?.status || "new") as OutreachStatus;
+      return kind === "pitch" && opts.restart ? statusAfterPitch(s) : s === "new" ? "pitched" : s;
+    };
+    const toPitched = ids.filter(id => next(id) === "pitched" && (byId.get(id)?.status || "new") !== "pitched");
     const newer     = ids.filter(id => { const lc = byId.get(id)?.lastContact; return !lc || lc < sentOn; });
     for (const part of chunks(toPitched)) {
       const { error } = await supabase.from("outreach_contacts").update({ status: "pitched" }).in("id", part).eq("user_id", userId);
@@ -175,5 +211,5 @@ export function useOutreach(userId: string | null) {
     setContacts(prev => prev.map(x => (x.id === p.contactId ? { ...x, lastContact: before.lastContact, status: before.status || x.status } : x)));
   }, [userId]);
 
-  return { contacts, pitches, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, logPitches, deletePitch, restorePitch };
+  return { contacts, pitches, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, markSeen, logPitches, deletePitch, restorePitch };
 }

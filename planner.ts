@@ -132,7 +132,7 @@ export interface Sprint {
   startOn:       string;
   endOn:         string;
   focusCategory: string;    // Outreach category key, "" = any
-  focusTier:     "now" | "premium" | "luxury";
+  focusTier:     string;   // an Outreach tier key, "" = any tier
   pitchGoal:     number | null;
   followUpGoal:  number | null;
   review:        string;

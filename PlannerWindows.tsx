@@ -813,7 +813,7 @@ export function SprintWindow({ planner, sprintId, draft, isMobile, onClose, revi
         setMode("read");
       } else {
         const fields: Partial<Sprint> = {
-          startOn: f.startOn, endOn: addDays(f.startOn!, weeks * 7 - 1), focusCategory: f.focusCategory || "", focusTier: (f.focusTier || "now") as any,
+          startOn: f.startOn, endOn: addDays(f.startOn!, weeks * 7 - 1), focusCategory: f.focusCategory || "", focusTier: f.focusTier || "",
           pitchGoal: f.pitchGoal ?? null, followUpGoal: f.followUpGoal ?? null, ...(sp ? { results: res } : {}),
         };
         if (sp) await planner.updateSprint(sp.id, fields);
@@ -879,7 +879,7 @@ export function SprintWindow({ planner, sprintId, draft, isMobile, onClose, revi
             <Lbl>Focus</Lbl>
             <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" as const }}>
               {sp.focusCategory ? <CatChip k={sp.focusCategory} /> : <span style={{ fontSize: 14 }}>Any category</span>}
-              <span style={{ fontSize: 14 }}>· {OUTREACH_TIERS.find(t => t.key === sp.focusTier)?.label || "Now"}</span>
+              <span style={{ fontSize: 14 }}>· {OUTREACH_TIERS.find(t => t.key === sp.focusTier)?.label || "Any tier"}</span>
             </div>
             <Lbl>Numbers</Lbl>
             <div style={{ borderTop: `1px solid ${C.rule}` }}>
@@ -920,7 +920,8 @@ export function SprintWindow({ planner, sprintId, draft, isMobile, onClose, revi
                 </MiniSelect>
               </div>
               <div><Lbl>Focus tier</Lbl>
-                <MiniSelect value={f.focusTier || "now"} aria-label="Focus tier" onChange={(e: any) => setF({ ...f, focusTier: e.target.value })}>
+                <MiniSelect value={OUTREACH_TIERS.some(t => t.key === f.focusTier) ? f.focusTier : ""} aria-label="Focus tier" onChange={(e: any) => setF({ ...f, focusTier: e.target.value })}>
+                  <option value="">Any tier</option>
                   {OUTREACH_TIERS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
                 </MiniSelect>
               </div>

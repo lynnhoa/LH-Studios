@@ -670,13 +670,15 @@ export const SummaryLine = ({ dot, children }: { dot: string; children: any }) =
 export const Strong = ({ children, color }: { children: any; color?: string }) => <span style={{ color: color || C.black, fontWeight: 500 }}>{children}</span>;
 
 // filter chip: dot · label · count; on = tinted with its tone (neutral for "All")
-export const Chip = ({ on, tone, label, count, onClick, dot = true }: { on: boolean; tone: ToneSet; label: string; count?: number | string; onClick: () => void; dot?: boolean }) => (
-  <button onClick={onClick} aria-pressed={on}
+// badge: a small round number after the count (e.g. new replies), only when > 0
+export const Chip = ({ on, tone, label, count, onClick, dot = true, badge = 0 }: { on: boolean; tone: ToneSet; label: string; count?: number | string; onClick: () => void; dot?: boolean; badge?: number }) => (
+  <button onClick={onClick} aria-pressed={on} aria-label={badge > 0 ? `${label}${count !== undefined ? ` ${count}` : ""}, ${badge} new` : undefined}
     style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 11px", borderRadius: RADIUS.pill, border: `1px solid ${on ? (dot ? tone.fill : C.pillOn) : C.rule}`,
       background: on ? (dot ? tone.wash : PAL.neutral.fill) : C.white, color: on ? (dot ? tone.ink : C.black) : C.ink2,
       fontFamily: SANS, fontSize: TYPE.subtext.size, cursor: "pointer", whiteSpace: "nowrap" as const, flexShrink: 0 }}>
     {dot && <Dot c={tone.mid} />}{label}
     {count !== undefined && <span style={{ fontSize: TYPE.label.size, color: on ? (dot ? tone.ink : PAL.neutral.ink) : C.muted }}>{count}</span>}
+    {badge > 0 && <span style={{ minWidth: 16, height: 16, padding: "0 4px", boxSizing: "border-box" as const, borderRadius: 8, background: PAL.progress.mid, color: C.white, fontSize: 10, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{badge}</span>}
   </button>
 );
 export const ChipRow = ({ children, s }: { children: any; s?: any }) => (

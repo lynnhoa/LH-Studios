@@ -28,24 +28,26 @@ export function downloadExcel(list: OutreachContact[], filename: string) {
   const rows = list.map(c => [...OUTREACH_COLUMNS.map(col => cellOf(c, col.key)), statusText(c), lastText(c), addedText(c)]);
   const bytes = makeXlsx([{
     name: "Email list", rows: [head, ...rows], autoFilter: true,
-    widths: [26, 32, 20, 14, 10, 24, 16, 36, 14, 13, 12],
+    widths: [26, 32, 20, 14, 26, 24, 16, 16, 36, 14, 13, 12],
   }]);
   saveBytes(bytes, `${filename}.xlsx`, XLSX_MIME);
 }
 
-// Empty template: the column titles, a Category dropdown, and the allowed values on a 2nd sheet
+// Empty template: the column titles, Category and Tier dropdowns with your Excel names,
+// and the allowed values on a 2nd sheet "Lists" (Categories | Tiers), like your own file
 export function downloadTemplate(filename: string) {
+  const cats = OUTREACH_CATEGORIES.map(c => c.label), tiers = OUTREACH_TIERS.map(t => t.label);
+  const n = Math.max(cats.length, tiers.length);
   const bytes = makeXlsx([
     {
       name: "Email list", rows: [OUTREACH_COLUMNS.map(c => c.label)], autoFilter: false,
-      widths: [26, 32, 20, 14, 10, 24, 16, 36],
+      widths: [26, 32, 20, 14, 26, 24, 16, 16, 36],
       dropdown: [
-        { col: OUTREACH_COLUMNS.findIndex(c => c.key === "category"), values: OUTREACH_CATEGORIES.map(c => c.key), toRow: 2000 },
-        { col: OUTREACH_COLUMNS.findIndex(c => c.key === "tier"),     values: OUTREACH_TIERS.map(t => t.key),      toRow: 2000 },
+        { col: OUTREACH_COLUMNS.findIndex(c => c.key === "category"), values: cats,  toRow: 2000 },
+        { col: OUTREACH_COLUMNS.findIndex(c => c.key === "tier"),     values: tiers, toRow: 2000 },
       ],
     },
-    { name: "Categories", rows: [["Category"], ...OUTREACH_CATEGORIES.map(c => [c.key])], widths: [18] },
-    { name: "Tiers", rows: [["Tier"], ...OUTREACH_TIERS.map(t => [t.key])], widths: [14] },
+    { name: "Lists", rows: [["Categories", "Tiers"], ...Array.from({ length: n }, (_, i) => [cats[i] || "", tiers[i] || ""])], widths: [18, 28] },
   ]);
   saveBytes(bytes, `${filename}.xlsx`, XLSX_MIME);
 }
@@ -53,12 +55,15 @@ export function downloadTemplate(filename: string) {
 // ── PDF ───────────────────────────────────────────────────────
 const W = 842, H = 595, PX = 40, ROW_H = 17, FIRST = 24, NEXT = 28;
 const COLS: { key: string; label: string; w: number }[] = [
-  { key: "company", label: "Company", w: 120 }, { key: "contactName", label: "Contact", w: 80 },
-  { key: "email", label: "Email", w: 160 }, { key: "category", label: "Category", w: 70 },
-  { key: "tier", label: "Tier", w: 40 }, { key: "status", label: "Status", w: 62 },
-  { key: "place", label: "City · Country", w: 100 }, { key: "web", label: "Website / Instagram", w: 66 },
-  { key: "added", label: "Added", w: 64 },
+  { key: "company", label: "Company", w: 112 }, { key: "contactName", label: "Contact", w: 70 },
+  { key: "email", label: "Email", w: 140 }, { key: "category", label: "Category", w: 56 },
+  { key: "tier", label: "Tier", w: 92 }, { key: "status", label: "Status", w: 52 },
+  { key: "place", label: "City · Country", w: 96 }, { key: "web", label: "Website / Instagram", w: 84 },
+  { key: "added", label: "Added", w: 60 },
 ];   // sum = 762 = W − 2 × PX
+const pdfCell = (c: OutreachContact, key: string): string =>
+  key === "category" ? catOf(c.category).label : key === "tier" ? tierOf(c.tier).label : key === "status" ? statusText(c)
+  : key === "place" ? placeOf(c) : key === "added" ? addedText(c) : String((c as any)[key] ?? "");
 const cell = (w: number): any => ({ width: w, flexShrink: 0, paddingRight: 6, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", boxSizing: "border-box" });
 
 function ListPages({ list, title, settings }: { list: OutreachContact[]; title: string; settings: any }) {
@@ -84,15 +89,7 @@ function ListPages({ list, title, settings }: { list: OutreachContact[]; title: 
             </div>
             {rows.map(c => (
               <div key={c.id} style={{ display: "flex", alignItems: "center", height: ROW_H, borderBottom: `0.5px solid ${PDF.rule}`, fontSize: 7.5 }}>
-                <div style={cell(120)}>{c.company}</div>
-                <div style={cell(80)}>{c.contactName}</div>
-                <div style={cell(160)}>{c.email}</div>
-                <div style={cell(70)}>{catOf(c.category).label}</div>
-                <div style={cell(40)}>{tierOf(c.tier).label}</div>
-                <div style={cell(62)}>{statusText(c)}</div>
-                <div style={cell(100)}>{placeOf(c)}</div>
-                <div style={cell(66)}>{c.web}</div>
-                <div style={cell(64)}>{addedText(c)}</div>
+                {COLS.map(col => <div key={col.key} style={cell(col.w)}>{pdfCell(c, col.key)}</div>)}
               </div>
             ))}
           </div>
