@@ -189,15 +189,15 @@ I'll run the SQL in Supabase → SQL editor. Emails that are already on my list 
 }
 
 // ── Chips: quick views over the list ─────────────────────────
-// Active = Pitched (incl. follow up due) and Replied, plus every contact with a new reply
-export type ChipKey = "all" | "active" | "gifted" | "invited" | "lead" | "closed";
+// Active = Pitched (incl. follow up due) and Replied, plus every contact with a new reply.
+// Declined / No reply have no chip: they're in All, and Filter → Status finds them.
+export type ChipKey = "all" | "active" | "gifted" | "invited" | "lead";
 export const CHIPS: { key: ChipKey; label: string; statuses: OutreachStatus[] | null }[] = [
   { key: "all",     label: "All",     statuses: null },
   { key: "active",  label: "Active",  statuses: ["pitched", "replied"] },
   { key: "gifted",  label: "Gifted",  statuses: ["gifted"] },
   { key: "invited", label: "Invited", statuses: ["invited"] },
   { key: "lead",    label: "Lead",    statuses: ["lead", "client"] },
-  { key: "closed",  label: "Closed",  statuses: ["declined", "no_reply"] },
 ];
 export const isChip = (k: string | null | undefined): k is ChipKey => CHIPS.some(c => c.key === k);
 export const inChip = (c: { status: string; replyNew?: boolean }, chip: ChipKey) => {
@@ -256,7 +256,7 @@ const passesFilters = (c: OutreachContact, v: OutreachView, now: Date) => {
 
 // how many contacts each chip holds with the current filters (search and chip left out)
 export function chipCounts(list: OutreachContact[], v: OutreachView, now = new Date()): Record<ChipKey, number> {
-  const m: Record<ChipKey, number> = { all: 0, active: 0, gifted: 0, invited: 0, lead: 0, closed: 0 };
+  const m: Record<ChipKey, number> = { all: 0, active: 0, gifted: 0, invited: 0, lead: 0 };
   list.forEach(c => { if (!passesFilters(c, v, now)) return; CHIPS.forEach(ch => { if (inChip(c, ch.key)) m[ch.key]++; }); });
   return m;
 }

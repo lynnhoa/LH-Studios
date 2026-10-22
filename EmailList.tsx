@@ -2,7 +2,7 @@
 // EmailList — Outreach › Contacts (the email list) (the same parts as the other apps' list screens)
 // Title · + Add · Import (light) · Log pitch (dark)
 // Summary line: ● n contacts · to follow up · Copy emails
-// Chips: All · Active · Gifted · Invited · Lead · Closed (the app remembers the last one)
+// Chips: All · Active · Gifted · Invited · Lead (the app remembers the last one)
 // Toolbar (40 px): Search · Filter (category, tier, status, account, place, added) · Sort · Download
 // Active filters as tags (✕) · the contacts in one white card
 // Phone: two lines per contact, status pill on the right · iPad/desktop: one-line table, Status 2nd
@@ -640,6 +640,21 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
   const due = !isNew && followUpDue(c);
   const accLabel = c.category === "ugc" ? "@createbylynn" : "@lynnhoa";
 
+  // ── Lead → Client in Manager (also for a Client that isn't linked yet)
+  const [clientBusy, setClientBusy] = useState(false);
+  const canMakeClient = !isNew && (c.status === "lead" || (c.status === "client" && !c.clientId));
+  const toClient = async () => {
+    if (clientBusy) return;
+    if (changed) { setErr("Save your changes first — the client gets the saved details."); return; }
+    setErr(null); setClientBusy(true);
+    try {
+      const r = await outreach.makeClient(c.id);
+      showNote(r.created ? "Client created in Manager ✓" : `Linked to ${r.name} in Manager ✓`);
+    }
+    catch (e: any) { setErr(e?.message || "Couldn't create the client."); }
+    finally { setClientBusy(false); }
+  };
+
   // ── Write in Outlook: the templates for this contact's pipeline; preselected:
   //    follow-up due → the last follow-up template used for this pipeline, else the last pitch template,
   //    never used yet → the first A–Z (saved with each pitch, so it's the same on phone, iPad and Mac)
@@ -706,6 +721,17 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
                 </div>
               </div>
             </div>
+            {canMakeClient && (
+              <div style={{ marginTop: 12 }}>
+                <PillBtn onClick={toClient} s={{ width: "100%", height: 40, justifyContent: "center", fontSize: TYPE.row.size, background: PAL.done.wash, border: `1px solid ${PAL.done.mid}`, color: PAL.done.ink, opacity: clientBusy ? 0.6 : 1 }}>
+                  {clientBusy ? "Creating…" : "Create client in Manager"}
+                </PillBtn>
+                <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "6px 0 0", textAlign: "center" as const }}>Company, contact, email, city and country go to Clients</p>
+              </div>
+            )}
+            {!isNew && c.status === "client" && c.clientId && (
+              <p style={{ fontSize: TYPE.label.size, color: PAL.done.ink, margin: "10px 2px 0", lineHeight: 1.5 }}>✓ Client in Manager — quote, contract and invoice happen there.</p>
+            )}
             <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, padding: "0 12px 12px", marginTop: 12 }}>
               <Lbl>Template · {accLabel}</Lbl>
               {tpls.length > 0 ? (

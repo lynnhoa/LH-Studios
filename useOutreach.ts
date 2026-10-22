@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase, selectAll } from "./useSupabase";
 import { registerReloader } from "./saveStatus";
-import { today } from "./formatters";
+import { today, uid } from "./formatters";
 import { fitStatus, statusAfterPitch, accountOf } from "./outreach";
 import type { OutreachContact, OutreachCategory, OutreachTier, OutreachStatus, Pitch, OutreachEvent } from "./outreach";
 
@@ -156,6 +156,36 @@ export function useOutreach(userId: string | null) {
     await logEvent(id, status);
   }, [userId, logEvent]);
 
+  // Lead → Client: the client in Manager. A client with the same email or brand name already there → linked to it;
+  // otherwise a new client with company, contact name, email, city and country (the rest is filled in Manager).
+  // The contact becomes Client; quote, contract and invoice then happen in Manager only.
+  const makeClient = useCallback(async (id: string): Promise<{ created: boolean; name: string }> => {
+    const c = contacts.find(x => x.id === id);
+    if (!c) throw new Error("This contact isn't on the list any more.");
+    const email = String(c.email || "").trim().toLowerCase();
+    const { data: list, error: e1 } = await supabase.from("clients").select("id, email, name").eq("user_id", userId);
+    if (e1) throw new Error(e1.message);
+    // the same email, or the same brand name (Manager keeps one client per brand name)
+    const name = c.company.trim() || email;
+    const hit: any = (list || []).find((r: any) => String(r.email || "").trim().toLowerCase() === email)
+      || (list || []).find((r: any) => String(r.name || "").trim().toLowerCase() === name.toLowerCase());
+    let clientId: string = hit?.id, created = false;
+    if (!clientId) {
+      clientId = uid();
+      // like a client added in Manager (agency "Direct"); street, postcode and VAT ID are filled in there
+      const row = { id: clientId, user_id: userId, name, contact: c.contactName.trim(), email,
+        agency: "Direct", street: "", plz: "", city: c.city.trim(), country: c.country.trim(), vat_id: "", tags: [], notes: "" };
+      const { error: e2 } = await supabase.from("clients").insert(row);
+      if (e2) throw new Error(e2.message);
+      created = true;
+    }
+    const { error: e3 } = await supabase.from("outreach_contacts").update({ status: "client", client_id: clientId }).eq("id", id).eq("user_id", userId);
+    if (e3) throw new Error(e3.message);
+    setContacts(prev => prev.map(x => (x.id === id ? { ...x, status: "client", clientId } : x)));
+    if (c.status !== "client") await logEvent(id, "client");
+    return { created, name: hit?.name || c.company || email };
+  }, [userId, contacts, logEvent]);
+
   // Opening a contact clears its new-reply dot
   const markSeen = useCallback(async (id: string) => {
     setContacts(prev => prev.map(c => (c.id === id ? { ...c, replyNew: false } : c)));
@@ -241,5 +271,5 @@ export function useOutreach(userId: string | null) {
     setContacts(prev => prev.map(x => (x.id === p.contactId ? { ...x, lastContact: before.lastContact, status: before.status || x.status } : x)));
   }, [userId]);
 
-  return { contacts, pitches, events, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, markSeen, logPitches, undoLog, deletePitch, restorePitch };
+  return { contacts, pitches, events, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, markSeen, makeClient, logPitches, undoLog, deletePitch, restorePitch };
 }
