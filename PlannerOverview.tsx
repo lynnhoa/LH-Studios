@@ -222,9 +222,11 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
 
   // ── Creator tiles + content flow ────────────────────────────
   const cLook = OWNER_LOOK.creator;
-  const cTiles = cGoals.map(t => {
+  const cTiles = cGoals.map((t, k) => {
     const s = planner.stateOf(t, monday);
-    return tile(t.id, cLook.border, shortName(t), <>{s.actual ?? 0} {small(`/ ${s.target ?? "–"}`)}</>, goalSub(t), { ratio: 0, done: s.done, empty: s.target == null });
+    // an odd last tile spans both columns, so the grid stays even (like the Manager tiles)
+    return tile(t.id, cLook.border, shortName(t), <>{s.actual ?? 0} {small(`/ ${s.target ?? "–"}`)}</>, goalSub(t), { ratio: 0, done: s.done, empty: s.target == null },
+      cGoals.length % 2 === 1 && k === cGoals.length - 1);
   });
   const mine = items.filter(i => i.account === acc);
   // the Creator lists: Ideas → To shoot → To post (filmed) → Posted

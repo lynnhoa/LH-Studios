@@ -390,13 +390,14 @@ export function goalStatus(t: Task, st: RowState, monday: string): GoalStatus | 
 }
 // ── Which weekly goals live on which card ───────────────────
 // Manager card: engaging, following, followers, new emails, pitches, leads.
-// Creator strip: ideas, posts, pieces (+ first set, month goal).
+// Creator strip: ideas, filmed, posts (+ month goal, first set). Pieces isn't shown any more
+// (the month goal counts the portfolio pieces).
 // Everything else that repeats (check-in, kit handover, your own
 // tasks) stays in To-do. The snapshot task is no longer used — the
 // followers number is still typed into the weekly snapshot row.
 export const MANAGER_GOAL = (t: Task) => t.phase === "maintain" && (
   t.source === "following" || t.source === "followers" || t.source === "outreach" || t.source === "pitches" || t.source === "leads" || (t.area === "community" && t.rhythm === "daily"));
-export const CREATOR_GOAL = (t: Task) => t.phase === "maintain" && (t.source === "ideas" || t.source === "filmed" || t.source === "posts" || t.source === "pieces");
+export const CREATOR_GOAL = (t: Task) => t.phase === "maintain" && (t.source === "ideas" || t.source === "filmed" || t.source === "posts");
 export const creatorOrder = (t: Task) => (t.source === "ideas" ? 0 : t.source === "filmed" ? 1 : t.source === "posts" ? 2 : 3);
 export const ON_A_CARD = (t: Task) => MANAGER_GOAL(t) || CREATOR_GOAL(t) || t.source === "snapshot" || t.source === "portfolio_total"
   || (t.rhythm === "monthly" && t.area === "portfolio");

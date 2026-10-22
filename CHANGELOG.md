@@ -166,6 +166,16 @@ Goal: make the Supabase app functionally identical to the old reference
 - Changed: `PlannerCreator.tsx`, `PlannerConcept.tsx`, `usePlanner.ts`,
   `planner.ts`.
 
+## Planner · goals without Pieces, four in a row (22.10.2026)
+- Pieces is no longer a weekly goal on the Creator tab or the Dashboard
+  (the month tile, e.g. Oct, still counts the portfolio pieces of the month
+  and switches on the 1st).
+- Creator: the goals sit in one row of up to 4 (Ideas · Filmed · Posts ·
+  month): the name on top, the number under it; Edit goals puts the field
+  under the name. "x of y reached" counts every tile shown.
+- Dashboard: an odd last Creator tile spans both columns (like Manager).
+- No SQL. Changed: `planner.ts`, `PlannerCreator.tsx`, `PlannerOverview.tsx`.
+
 ## Known open items
 1. Multi-device: data fetched once per load, last-write-wins — consider
    refetch-on-focus (~20 lines).

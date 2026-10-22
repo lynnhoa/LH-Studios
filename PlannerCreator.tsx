@@ -178,16 +178,16 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
   const monthTarget = goal;
   const tone = (d: number, t: number | null) => (t == null ? PAL.neutral : d >= t ? PAL.done : PAL.waiting);
   const subOf = (d: number, t: number | null) => (t == null ? "no goal" : d >= t ? "✓ reached" : `${t - d} to go`);
-  // one line per goal (slim, so the lists below stay in view): name left · "done / goal" right;
-  // the colour says it (grey no goal · yellow to go · green reached). Edit goals: a white field on the right.
+  // one small tile per goal, up to 4 in a row: the name on top, "done / goal" under it;
+  // the colour says it (grey no goal · yellow to go · green reached). Edit goals: a white field under the name.
   const sr: any = { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" };
   const tile = (key: string, name: string, d: number, t: number | null, onGoal: (v: number | null) => void) => {
     const tn = tone(d, t);
     return (
       <div key={key} title={`${name}: ${d}${t != null ? ` of ${t}` : ""} · ${subOf(d, t)}`}
-        style={{ position: "relative", background: tn.wash, borderRadius: RADIUS.tile, height: 36, padding: editGoals ? "0 4px 0 11px" : "0 11px", minWidth: 0,
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, boxSizing: "border-box" as const }}>
-        <span style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: tn.ink, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{name}</span>
+        style={{ position: "relative", background: tn.wash, borderRadius: RADIUS.tile, minHeight: 48, padding: "7px 9px 6px", minWidth: 0,
+          display: "flex", flexDirection: "column" as const, justifyContent: "center", alignItems: "flex-start", gap: 2, boxSizing: "border-box" as const }}>
+        <span style={{ maxWidth: "100%", fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: tn.ink, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{name}</span>
         {editGoals
           ? <ValuePill white width={44} text={t == null ? "" : String(t)} label={`Goal for ${name}`} onCommit={(x) => { const v = x.trim() === "" ? null : parseIntDe(x); if (v !== t) onGoal(v); }} />
           : <span style={{ fontFamily: SERIF, fontSize: TYPE.figure.size, color: C.black, whiteSpace: "nowrap" as const, flexShrink: 0 }}>
@@ -203,6 +203,9 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
     ...(monthTask ? [tile("month", monthName(ms).slice(0, 3), doneMonth, monthTarget, v => quiet(planner.saveEntry(monthTask.id, ms, monthTask.account === "both" ? monthGoalPatch(monthTask, monthEntry, acc, v) : { target: v })))] : []),
     ...(fsT && fs ? [tile("firstset", "1st set", fs.actual ?? 0, fsT.target ?? null, v => quiet(planner.updateTask(fsT.id, { target: v })))] : []),
   ];
+  // "x of y reached" counts every tile shown: the week's goals, the month goal and the first set
+  const shownTotal   = weekGoals.length + (monthTask ? 1 : 0) + (fsT && fs ? 1 : 0);
+  const shownReached = reached + (monthTask && monthTarget != null && doneMonth >= monthTarget ? 1 : 0) + (fsT && fs && fs.done ? 1 : 0);
   const head = (label: string, right?: any, dot?: string) => <SectionHead dot={dot} label={label} right={right} />;
   const linkBtn = (label: string, fn: () => void) => (
     <button onClick={fn} style={{ background: "none", border: "none", padding: "8px 0", margin: "-8px 0", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: PAL.neutral.ink }}>{label}</button>
@@ -331,8 +334,8 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
         <p style={{ fontSize: SPACING.plannerText, color: C.red, marginTop: 16 }}>{loadError}</p>
       ) : (
         <>
-          {head("This week's goals", <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}><span>{reached} of {weekGoals.length} reached</span>{linkBtn(editGoals ? "Done" : "Edit goals", () => setEditGoals(e => !e))}</span>)}
-          {goalTiles.length ? <div id="card-goals-creator" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: SPACING.gridGap }}>{goalTiles}</div>
+          {head("This week's goals", <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}><span>{shownReached} of {shownTotal} reached</span>{linkBtn(editGoals ? "Done" : "Edit goals", () => setEditGoals(e => !e))}</span>)}
+          {goalTiles.length ? <div id="card-goals-creator" style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(4, goalTiles.length)}, minmax(0,1fr))`, gap: SPACING.gridGap }}>{goalTiles}</div>
             : <p id="card-goals-creator" style={{ fontSize: SPACING.plannerText, color: C.muted, margin: 0, padding: "2px 2px" }}>No goals for this account yet.</p>}
           <ChipRow s={{ marginTop: SPACING.cardGap }}>
             {([["all", "All"], ["idea", "Content"], ["editorial", "Portfolio"]] as [Show, string][]).map(([k, l]) => <Chip key={k} on={show === k} tone={PAL.neutral} dot={false} label={l} onClick={() => setShow(k)} />)}
