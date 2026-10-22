@@ -13,7 +13,7 @@ import { fmt, fmtD, fmtE, today, addM, dLeft } from "./formatters";
 import { projectLicenses, ACTION_LABEL, licenseTone, licenseTag } from "./licenses";
 import { pdfFlow, finalizeQuestion, invoiceActions } from "./docFlow";
 import { toSignedPdf, openSignedCopy } from "./signedPdf";
-import { I, B, TSel, TSelWrap, StatusBadge, ConfirmDialog, TonedTag, SummaryLine, Strong, SectionHead, listSeg, ListCard } from "./atoms";
+import { I, B, TSel, TSelWrap, MenuSelect, StatusBadge, ConfirmDialog, TonedTag, SummaryLine, Strong, SectionHead, listSeg, ListCard } from "./atoms";
 import RenewalModal from "./RenewalModal";
 import ProductionSection from "./ProductionSection";
 import PDFModal from "./PDFModal";
@@ -657,10 +657,10 @@ export default function ProjectsTab({
           return (
             <span style={{ position: "relative", display: "inline-flex", alignItems: "center", height: 30, borderRadius: RADIUS.pill, border: `1px solid ${on ? t.fill : C.rule}`, background: on ? t.wash : C.white, color: on ? t.ink : C.ink2, paddingLeft: 11, paddingRight: 28 }}>
               <span style={{ width: 7, height: 7, borderRadius: "50%", background: t.mid, marginRight: 7, flexShrink: 0 }} />
-              <select className="psel" value={statusFilter} onChange={(e: any) => setStatusFilter(e.target.value)} aria-label="Filter"
-                style={{ appearance: "none" as const, WebkitAppearance: "none" as const, border: "none", background: "transparent", color: "inherit", fontFamily: SANS, height: 28, padding: 0, cursor: "pointer", outline: "none" }}>
+              <MenuSelect plain value={statusFilter} onChange={(e: any) => setStatusFilter(e.target.value)} aria-label="Filter"
+                btnS={{ height: 28, fontSize: 12, paddingRight: 18 }}>
                 {FILTERS.map(([val, lbl]) => <option key={val} value={val}>{lbl}</option>)}
-              </select>
+              </MenuSelect>
               <span style={{ position: "absolute", right: 10, pointerEvents: "none" as const, fontSize: ICON.caret }}>▾</span>
             </span>
           );

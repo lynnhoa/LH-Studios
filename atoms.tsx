@@ -101,30 +101,9 @@ export const I = ({ s, ...p }: any) => (
 );
 
 // ─── TEXT SELECT — minimal borderless sort/filter control ─────
-// Standard for list toolbars: uppercase micro text, muted, top-right.
-// Native <select> underneath so mobile pickers keep working.
+// Standard for list toolbars: uppercase micro text, muted, top-right — opens the app's own menu (MenuSelect)
 export const TSel = ({ s, className, ...p }: any) => (
-  <select
-    className={["tsel", className].filter(Boolean).join(" ")}
-    style={{
-      border:        "none",
-      background:    "transparent",
-      fontFamily:    SANS,
-      fontSize:      TYPE.micro.size,
-      color:         C.muted,
-      letterSpacing: TRACK.caps,
-      textTransform: "uppercase" as const,
-      padding:       "4px 2px",
-      cursor:        "pointer",
-      outline:       "none",
-      WebkitAppearance: "none" as const,
-      MozAppearance: "none" as const,
-      appearance:    "none" as const,
-      textAlignLast: "right" as const,
-      ...s,
-    }}
-    {...p}
-  />
+  <MenuSelect plain {...p} btnS={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, padding: "4px 2px", ...s }} />
 );
 
 // Caret + select wrapper so the ▾ affordance is consistent
@@ -138,30 +117,8 @@ export const TSelWrap = ({ children }: any) => (
 // ─── SELECT ──────────────────────────────────────────────────
 const SELECT_ARROW = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a847d' stroke-width='1.3'/%3E%3C/svg%3E")`;
 
-export const S = ({ s, ...p }: any) => (
-  <select
-    style={{
-      width:        "100%",
-      height:       SIZE.field,
-      padding:      "0 28px 0 10px",
-      border:       `1px solid ${C.field}`,
-      backgroundColor: C.white,
-      backgroundImage: SELECT_ARROW,
-      backgroundRepeat: "no-repeat",
-      backgroundPosition: "right 10px center",
-      fontFamily:   SANS,
-      fontSize: TYPE.field.size,  // iOS auto-zooms selects < 16px — never go below
-      color:        C.black,
-      borderRadius: RADIUS.field,
-      outline:      "none",
-      boxSizing:    "border-box" as const,
-      cursor:       "pointer",
-      WebkitAppearance: "none" as const,
-      ...s,
-    }}
-    {...p}
-  />
-);
+// the form dropdown (40 px, 16 px text) — opens the app's own menu (MenuSelect); s = its layout (margin, flex …)
+export const S = ({ s, ...p }: any) => <MenuSelect size="form" s={s} {...p} />;
 
 // ─── BUTTON ──────────────────────────────────────────────────
 // v="pri"   black bg, white text       — primary action
@@ -989,12 +946,113 @@ export const MiniInput = ({ bare, h = SPACING.rowField, s, ...p }: any) => (
       ...(p.type === "date" ? {} : { WebkitAppearance: "none" as const }) }} />
   </span>
 );
-export const MiniSelect = ({ bare, muted, h = SPACING.rowField, s, children, ...p }: any) => (
-  <span style={miniBox(h, s)}>
-    <select {...p} style={{ ...miniCtl(h, bare), color: muted ? C.light : C.black, cursor: "pointer",
-      padding: bare ? `0 ${22 / MK}px 0 0` : `0 ${26 / MK}px 0 ${10 / MK}px`,
-      backgroundColor: bare ? "transparent" : C.white, backgroundImage: SELECT_ARROW, backgroundRepeat: "no-repeat",
-      backgroundPosition: `right ${(bare ? 2 : 10) / MK}px center`, backgroundSize: `${10 / MK}px ${6 / MK}px`,
-      WebkitAppearance: "none" as const, appearance: "none" as const }}>{children}</select>
-  </span>
-);
+// ── MenuSelect — a dropdown drawn in the app's own style (not the phone's system menu):
+//    the field looks like MiniSelect (size "mini", 13 px) or S (size "form"), and tapping it
+//    opens a small white card with 13 px rows and a ✓ on the current one, below the field
+//    (above it when there's no room). Same use as a <select>: <option> / <optgroup> children,
+//    value, onChange(e) with e.target.value, disabled, aria-label.
+const optText = (n: any): string => (n == null || typeof n === "boolean" ? "" : Array.isArray(n) ? n.map(optText).join("")
+  : typeof n === "string" || typeof n === "number" ? String(n) : optText(n?.props?.children));
+type MenuOpt = { value: string; label: string; disabled?: boolean; group?: string };
+const menuOptions = (children: any): MenuOpt[] => {
+  const out: MenuOpt[] = [];
+  const walk = (nodes: any, group?: string) => {
+    const list = Array.isArray(nodes) ? nodes : [nodes];
+    list.forEach((n: any) => {
+      if (n == null || typeof n === "boolean") return;
+      if (Array.isArray(n)) return walk(n, group);
+      if (n.type === "optgroup") return walk(n.props.children, String(n.props.label || ""));
+      if (n.type === "option") out.push({ value: String(n.props.value ?? optText(n.props.children)), label: optText(n.props.children), disabled: !!n.props.disabled, group });
+      else if (n.props?.children) walk(n.props.children, group);    // fragments
+    });
+  };
+  walk(children);
+  return out;
+};
+const CHEV = (c: string) => <svg width="10" height="6" viewBox="0 0 10 6" aria-hidden="true" style={{ flexShrink: 0 }}><path d="M1 1l4 4 4-4" fill="none" stroke={c} strokeWidth="1.3" /></svg>;
+export function MenuSelect({ value, onChange, children, disabled, muted, bare, plain, btnS, h, size = "mini", s, ...p }: any) {
+  const opts = menuOptions(children);
+  // like a <select>: a value that isn't in the list shows the first option
+  const cur = opts.find(o => o.value === String(value ?? "")) || opts[0];
+  const [open, setOpen] = useState(false);
+  const [box, setBox] = useState<{ left: number; top?: number; bottom?: number; width: number; maxH: number } | null>(null);
+  const [act, setAct] = useState(-1);
+  const btn = useRef<HTMLButtonElement | null>(null);
+  const panel = useRef<HTMLDivElement | null>(null);
+  const form = size === "form";
+  const H = h ?? (form ? SIZE.field : SPACING.rowField);
+  const place = () => {
+    const r = btn.current?.getBoundingClientRect(); if (!r) return;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const want = Math.min(380, opts.length * 36 + 10 + new Set(opts.map(o => o.group).filter(Boolean)).size * 26);
+    const width = Math.min(Math.max(r.width, 180), 300, vw - 16);
+    const left = Math.max(8, Math.min(r.left, vw - width - 8));
+    const below = vh - r.bottom - 12, above = r.top - 12;
+    if (below >= Math.min(want, 220) || below >= above) setBox({ left, top: r.bottom + 4, width, maxH: Math.max(120, Math.min(want, below)) });
+    else setBox({ left, bottom: vh - r.top + 4, width, maxH: Math.max(120, Math.min(want, above)) });
+  };
+  const show = () => { if (disabled) return; place(); setAct(Math.max(0, opts.findIndex(o => o === cur))); setOpen(true); };
+  const pick = (o: MenuOpt) => { if (o.disabled) return; setOpen(false); if (o.value !== String(value ?? "")) onChange?.({ target: { value: o.value } }); btn.current?.focus(); };
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("resize", close);
+    setTimeout(() => { panel.current?.focus(); panel.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" }); });
+    return () => window.removeEventListener("resize", close);
+  }, [open]);
+  const key = (e: any) => {
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); btn.current?.focus(); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); setAct(i => Math.min(opts.length - 1, i + 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setAct(i => Math.max(0, i - 1)); }
+    else if (e.key === "Enter" && opts[act]) { e.preventDefault(); pick(opts[act]); }
+  };
+  const groups: { label?: string; items: MenuOpt[] }[] = [];
+  opts.forEach(o => { const g = groups[groups.length - 1]; if (g && g.label === o.group) g.items.push(o); else groups.push({ label: o.group, items: [o] }); });
+  return (
+    <span style={plain ? { position: "relative", display: "inline-block", ...s } : { position: "relative", display: "block", width: "100%", minWidth: 0, height: H, ...s }}>
+      <button ref={btn} type="button" {...p} disabled={disabled} aria-haspopup="listbox" aria-expanded={open}
+        onClick={() => (open ? setOpen(false) : show())}
+        onKeyDown={(e: any) => { if (!open && (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ")) { e.preventDefault(); show(); } }}
+        style={plain
+          ? { display: "inline-flex", alignItems: "center", gap: 6, margin: 0, padding: 0, border: "none", background: "transparent", fontFamily: SANS, color: "inherit",
+              cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1, WebkitTapHighlightColor: "transparent", outline: "none", whiteSpace: "nowrap" as const, ...btnS }
+          : { width: "100%", height: H, display: "flex", alignItems: "center", gap: 8, boxSizing: "border-box" as const, margin: 0,
+              padding: bare ? "0 2px 0 0" : "0 10px", fontFamily: SANS, fontSize: form ? TYPE.field.size : TYPE.row.size, textAlign: "left" as const,
+              color: muted || !cur ? C.light : C.black, background: bare ? "transparent" : C.white,
+              border: bare ? "none" : `1px solid ${C.field}`, borderRadius: bare ? 0 : RADIUS.field,
+              cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1, WebkitTapHighlightColor: "transparent", outline: "none", ...btnS }}>
+        <span style={plain ? {} : { flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{cur ? cur.label : "—"}</span>
+        {!plain && CHEV(C.muted)}
+      </button>
+      {open && box && createPortal(
+        <div onPointerDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }} onWheel={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
+          style={{ position: "fixed", inset: 0, zIndex: Z.dialog + 50, fontFamily: SANS }}>
+          <div ref={panel} role="listbox" aria-label={p["aria-label"]} tabIndex={-1} onKeyDown={key}
+            style={{ position: "fixed", left: box.left, top: box.top, bottom: box.bottom, width: box.width, maxHeight: box.maxH, overflowY: "auto",
+              background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.pop, padding: "4px 0", outline: "none", boxSizing: "border-box" as const }}>
+            {groups.map((g, gi) => (
+              <div key={gi}>
+                {g.label && <div style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted, padding: "8px 12px 4px" }}>{g.label}</div>}
+                {g.items.map(o => {
+                  const i = opts.indexOf(o), on = o === cur;
+                  return (
+                    <div key={o.value + i} role="option" aria-label={o.label} aria-selected={on} aria-disabled={o.disabled || undefined}
+                      onMouseEnter={() => setAct(i)} onClick={() => pick(o)}
+                      style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 36, padding: "0 12px 0 10px", fontSize: TYPE.row.size,
+                        color: o.disabled ? C.light : C.black, background: i === act ? PAL.neutral.wash : "transparent", cursor: o.disabled ? "default" : "pointer" }}>
+                      <span aria-hidden="true" style={{ width: 14, flexShrink: 0, textAlign: "center" as const }}>{on ? "✓" : ""}</span>
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{o.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>,
+        document.body)}
+    </span>
+  );
+}
+
+// the small dropdown in rows and panels (13 px) — opens the app's own menu (MenuSelect)
+export const MiniSelect = (p: any) => <MenuSelect {...p} />;
