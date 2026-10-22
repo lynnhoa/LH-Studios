@@ -163,6 +163,7 @@ export interface OutreachEvent {
   status:    OutreachStatus | null;   // status entries: the new status (null = New)
   at:        string;                  // ISO timestamp
   note?:     string;                  // e.g. "after 2 follow-ups", "imported from your Excel"
+  messageId?: string | null;          // replies: the email they came from (so a reply is never counted twice)
 }
 export const PITCH_ACCOUNTS: { key: PitchAccount; label: string }[] = [
   { key: "lynnhoa", label: "@lynnhoa" },

@@ -685,15 +685,22 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
   const timeline = useMemo(() => {
     if (isNew) return [];
     const ps = (outreach.pitches || []).filter((p: Pitch) => p.contactId === c.id).map((p: Pitch) => ({
-      key: "p" + p.id, day: p.sentOn, ts: p.createdAt || "", pitch: p,
+      key: "p" + p.id, day: p.sentOn, ts: p.createdAt || "", pitch: p as Pitch | null, event: null as OutreachEvent | null,
       text: <>{p.kind === "follow_up" ? "Follow-up" : "Pitch"} · <span style={{ color: C.muted }}>{p.account === "createbylynn" ? "@createbylynn" : "@lynnhoa"}</span></>,
     }));
     const es = (outreach.events || []).filter((e: OutreachEvent) => e.contactId === c.id).map((e: OutreachEvent) => ({
-      key: "e" + e.id, day: ymdLocal(e.at), ts: e.at, pitch: null as Pitch | null,
+      key: "e" + e.id, day: ymdLocal(e.at), ts: e.at, pitch: null as Pitch | null, event: e as OutreachEvent | null,
       text: e.kind === "reply" ? <span style={{ color: PAL.progress.ink }}>Reply received</span> : <>Status · <span style={{ color: C.muted }}>{statusOf(e.status || "new").label}{e.note ? ` · ${e.note}` : ""}</span></>,
     }));
     return [...ps, ...es].sort((a, b) => b.day.localeCompare(a.day) || b.ts.localeCompare(a.ts));
   }, [isNew, c.id, outreach.pitches, outreach.events]);
+  // a status or reply line: one tap deletes (the newest status line also undoes that status), Undo brings it back
+  const deleteLine = (e: OutreachEvent) => {
+    outreach.deleteEvent(e).then(({ statusBefore, statusAfter }: { statusBefore: string | null; statusAfter: string | null }) => {
+      showUndo(statusBefore ? `Status line deleted · back to ${statusOf(statusAfter || "new").label}` : `${e.kind === "reply" ? "Reply" : "Status"} line deleted`,
+        () => outreach.restoreEvent(e, statusBefore));
+    }).catch((x: any) => setErr(x?.message || "Couldn't delete."));
+  };
   const deleteEntry = (p: Pitch) => {
     // one tap deletes, the Undo bar brings it back exactly as it was
     const c0 = (outreach.contacts || []).find((x: any) => x.id === p.contactId);
@@ -884,10 +891,9 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
                 <div key={t.key} style={{ ...rowS(i === 0), fontSize: TYPE.row.size }}>
                   <span style={{ width: 80, flexShrink: 0 }}>{t.day ? fmtD(t.day) : ""}</span>
                   <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{t.text}</span>
-                  {t.pitch ? (
-                    <button onClick={() => deleteEntry(t.pitch!)} aria-label="Delete this entry" title="Delete this entry"
-                      style={{ width: 30, height: 30, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 13, flexShrink: 0 }}>✕</button>
-                  ) : <span style={{ width: 30, flexShrink: 0 }} />}
+                  {/* ✕ on every line: always visible, the text is cut with "…" before it */}
+                  <button onClick={() => (t.pitch ? deleteEntry(t.pitch) : t.event ? deleteLine(t.event) : undefined)} aria-label="Delete this entry" title="Delete this entry"
+                    style={{ width: 30, height: 30, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 13, flexShrink: 0 }}>✕</button>
                 </div>
               ))}
             </div>
