@@ -4,11 +4,79 @@
 // Desktop + iPad + PWA iOS safe.
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, Z, SIZE, PAL, STATUS_TONE, TRACK, RADIUS, SHADOW, ICON, expiryTone, DENSITY, SPACING } from "./constants";
+import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, Z, SIZE, PAL, STATUS_TONE, TRACK, RADIUS, SHADOW, ICON, expiryTone, DENSITY, SPACING, BREAKPOINT, WIDE } from "./constants";
 import { fmtD, dLeft, today, parseDE, fmtNumDE } from "./formatters";
 import { saveStatus } from "./saveStatus";
+
+// ─── SCREEN SIZE ─────────────────────────────────────────────
+// phone below 700 px · iPad 700–1199 · computer from 1200 (same numbers in every app)
+export function useScreen() {
+  const [w, setW] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1024));
+  useEffect(() => {
+    const fn = () => setW(window.innerWidth);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+  return { w, isMobile: w < BREAKPOINT, isWide: w >= WIDE };
+}
+
+// ─── ESC CLOSES THE TOP WINDOW (iPad keyboard / computer) ────
+// Only the window on top closes. In a text field, Esc first leaves the field.
+const escStack: { current: (() => void) | undefined }[] = [];
+let escBound = false;
+export function useEscape(active: boolean, onClose: () => void) {
+  const ref = useRef<(() => void) | undefined>(onClose);
+  ref.current = onClose;
+  useEffect(() => {
+    if (!active) return;
+    if (!escBound && typeof window !== "undefined") {
+      escBound = true;
+      window.addEventListener("keydown", (e: KeyboardEvent) => {
+        if (e.key !== "Escape" || !escStack.length) return;
+        const t = e.target as HTMLElement | null;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) { t.blur(); return; }
+        escStack[escStack.length - 1].current?.();
+      });
+    }
+    escStack.push(ref);
+    return () => { const i = escStack.lastIndexOf(ref); if (i >= 0) escStack.splice(i, 1); };
+  }, [active]);
+}
+
+// ─── TWO COLUMNS ON iPad / COMPUTER ──────────────────────────
+// Like the Manager dashboard: left a little wider, 16 px apart. Phone: left, then right, as one column.
+// When one side has nothing to show, the other gets the full width (index.html: .lh-cols).
+export const Cols = ({ left, right, s }: { left: any; right: any; s?: any }) => {
+  const { isMobile } = useScreen();
+  if (isMobile) return <>{left}{right}</>;
+  return (
+    <div className="lh-cols" style={{ display: "grid", gridTemplateColumns: "minmax(0,1.15fr) minmax(0,1fr)", gap: SPACING.colGap, alignItems: "start", ...s }}>
+      <div style={{ minWidth: 0 }}>{left}</div>
+      <div style={{ minWidth: 0 }}>{right}</div>
+    </div>
+  );
+};
+
+// Groups (a heading + its list) side by side: 2 columns on iPad, 2 or 3 on a computer.
+// Each group goes into the shortest column, by its number of rows, so a group never jumps
+// when it folds or opens. Phone: one column, the order unchanged.
+export const ColGroups = ({ groups, wideCols = 2 }: { groups: { key: string; size: number; node: any }[]; wideCols?: 2 | 3 }) => {
+  const { isMobile, isWide } = useScreen();
+  const n = isMobile ? 1 : isWide ? wideCols : 2;
+  if (n === 1 || groups.length < 2) return <>{groups.map(g => <div key={g.key}>{g.node}</div>)}</>;
+  const cols: { h: number; list: typeof groups }[] = Array.from({ length: n }, () => ({ h: 0, list: [] as typeof groups }));
+  groups.forEach(g => {
+    const c = cols.reduce((a, b) => (b.h < a.h ? b : a));
+    c.list.push(g); c.h += Math.max(1, g.size) + 1;
+  });
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${n}, minmax(0,1fr))`, gap: SPACING.colGap, alignItems: "start" }}>
+      {cols.map((c, i) => <div key={i} style={{ minWidth: 0 }}>{c.list.map(g => <div key={g.key}>{g.node}</div>)}</div>)}
+    </div>
+  );
+};
 
 // ─── INPUT ───────────────────────────────────────────────────
 export const I = ({ s, ...p }: any) => (
@@ -440,6 +508,7 @@ export const ConfirmDialog = ({ title, text, dateLabel, okLabel, cancelLabel = "
   danger?: boolean; error?: string | null; onOk: (date: string) => void; onCancel: () => void;
 }) => {
   const [date, setDate] = useState(today());
+  useEscape(true, onCancel);
   return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: Z.dialog, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(250,249,247,0.88)", padding: 16 }}>
       <div style={{ background: C.bg, border: `1px solid ${C.rule}`, borderRadius: RADIUS.card, padding: "20px 22px 18px", boxShadow: SHADOW.pop, width: "100%", maxWidth: 340 }}>
@@ -712,12 +781,19 @@ export const DetailLine = ({ children, onEdit, s }: { children: any; onEdit?: ()
 
 // bar fixed to the bottom of the screen (total + main action); content needs paddingBottom: BOTTOM_BAR_SPACE
 export const BOTTOM_BAR_SPACE = 96;
-export const BottomBar = ({ children }: { children: any }) => (
-  <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: C.white, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar,
-    padding: "11px 14px calc(14px + env(safe-area-inset-bottom, 0px))", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontFamily: SANS }}>
-    {children}
-  </div>
-);
+// iPad / computer: the bar's content lines up with the page (maxW = the page's width), not the screen edges
+export const BottomBar = ({ children, maxW }: { children: any; maxW?: number }) => {
+  const { isMobile, isWide } = useScreen();
+  const w = maxW ?? (isMobile ? undefined : (isWide ? 1200 : 960) - 40);   // the page's width minus its 20 px sides
+  return (
+    <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: C.white, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar,
+      padding: "11px 14px calc(14px + env(safe-area-inset-bottom, 0px))", fontFamily: SANS }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", maxWidth: w, margin: "0 auto" }}>
+        {children}
+      </div>
+    </div>
+  );
+};
 
 
 // ═════════════════════════════════════════════════════════════
@@ -821,6 +897,7 @@ export function useKeyboardInset(): number {
 
 export const Sheet = ({ title, onClose, right, children, footer }: { title: string; onClose: () => void; right?: any; children: any; footer?: any }) => {
   const kb = useKeyboardInset();
+  useEscape(true, onClose);
   return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", flexDirection: "column", justifyContent: "flex-end", fontFamily: SANS, paddingBottom: kb }}>
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(26,26,26,0.28)" }} />

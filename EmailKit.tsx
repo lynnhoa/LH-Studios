@@ -22,7 +22,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { C, SANS, SERIF, TYPE, PAL, RADIUS, TRACK, SPACING, CARD_TONE } from "./constants";
 import { fmtD } from "./formatters";
-import { I, S, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Row, Chip, ChipRow, Sheet, ConfirmDialog } from "./atoms";
+import { I, S, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Row, Chip, ChipRow, Sheet, ConfirmDialog, ColGroups } from "./atoms";
 import { copyText } from "./outreach";
 import { showNote } from "./undo";
 import { KITS, KIT_TOKEN, kitInfo, fillText, fmtSize } from "./useEmailKit";
@@ -122,7 +122,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
         <>
           {/* ── MEDIA KITS: 4 slim tiles, tap = copy ── */}
           <SectionHead label="Media kits · tap to copy" right={<button onClick={() => setEditLinks(true)} style={linkBtn}>Edit links</button>} />
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6, maxWidth: isMobile ? undefined : 560 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6 }}>
             {KITS.map(d => {
               const t = toneOf(d.key);
               const has = !!urlOf(d.key);
@@ -155,10 +155,11 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
                   {purposes.map(p => <Chip key={p} on={purpose === p} tone={PAL.neutral} dot={false} label={p} count={templates.filter(t => (t.purpose.trim() || NO_PURPOSE) === p).length} onClick={() => setPurpose(p)} />)}
                 </ChipRow>
               )}
-              {shownPurposes.map(p => {
+              {/* iPad / computer: the purposes side by side (phone: one under the other) */}
+              <ColGroups groups={shownPurposes.map(p => {
                 const list = templates.filter(t => (t.purpose.trim() || NO_PURPOSE) === p).sort((a, b) => a.name.localeCompare(b.name, "de"));
-                return (
-                  <div key={p}>
+                return { key: p, size: list.length, node: (
+                  <div>
                     {purposes.length > 1 && <SectionHead label={p} />}
                     <ListCard s={purposes.length > 1 ? undefined : { marginTop: 0 }}>
                       {list.map((t, i) => (
@@ -169,8 +170,8 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
                       ))}
                     </ListCard>
                   </div>
-                );
-              })}
+                ) };
+              })} />
             </>
           )}
         </>

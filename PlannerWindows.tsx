@@ -16,7 +16,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE, Z, PAL, RADIUS, TRACK, SHADOW, DENSITY, ICON } from "./constants";
 import { fmtD, today, monthStart, monthEnd, ymd } from "./formatters";
-import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN, Switch, TextInline, MiniInput, MiniSelect, useKeyboardInset } from "./atoms";
+import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN, Switch, TextInline, MiniInput, MiniSelect, useKeyboardInset, useEscape } from "./atoms";
 import type { ToneSet } from "./atoms";
 import {
   ACCOUNTS, PHASES, OWNERS, RHYTHMS, STATUSES, STAGE_SHORT, DAY_SHORT, accLook, phaseLabel, ownerLabel, rhythmLabel, rowKind, entryKey, periodOf, snapKey, addDays, isoWeek, weekRange, weekLabel, thisMonday, monthName, todayIndex, gateOf, stageNumOf, taskAccounts, isVisible, byOrder, fmtInt, fmtPct2, parseDec, parseIntDe, ITEM_STATUSES, FORMATS, CLASSIC, formatLook, itemStatusLabel, daysBetween, OWNER_LOOK, monthGoalOf, monthGoalPatch, loadWorkAccount, storyLines,
@@ -292,6 +292,7 @@ export const CountChip = ({ label, n, look }: { label: string; n: number; look?:
 // With the iPhone keyboard open, the sheet sits on top of it.
 export function Window({ title, isMobile, onClose, children, footer, right, head }: { title: string; isMobile: boolean; onClose: () => void; children: any; footer?: any; right?: any; head?: any }) {
   const kb = useKeyboardInset();
+  useEscape(true, onClose);
   const extra = right ?? head;
   return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", flexDirection: "column", justifyContent: "flex-end", fontFamily: SANS, color: C.black, paddingBottom: kb }}>

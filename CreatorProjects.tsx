@@ -5,7 +5,7 @@
 import { useState, useMemo } from "react";
 import { C, SANS, SERIF, TYPE, PAL, RADIUS, SPACING, SHADOW } from "./constants";
 import { fmtD } from "./formatters";
-import { SummaryLine, Strong, Chip, ChipRow, SectionHead, TonedTag } from "./atoms";
+import { SummaryLine, Strong, Chip, ChipRow, SectionHead, TonedTag, Cols, ColGroups } from "./atoms";
 import { projectItems, isInProduction, shownStatus } from "./wsHelpers";
 import { statusTone, catTone } from "./CreatorShared";
 
@@ -71,13 +71,14 @@ export default function CreatorProjects({ clients, isMobile }: { clients: any[];
         <Chip on={by === "client"} tone={PAL.neutral} dot={false} label="By client" onClick={() => setBy("client")} />
       </ChipRow>
       {rows.length === 0 && <p style={{ fontSize: TYPE.row.size, color: C.muted, margin: "16px 4px" }}>No projects in production yet.</p>}
-      {by === "project" ? <>
-        {prod.length > 0 && <><SectionHead dot={PAL.progress.mid} label={`In production · ${prod.length}`} right={`${itemsN} items`} />{card(prod)}</>}
-        {after.length > 0 && <><SectionHead dot={PAL.waiting.mid} label={`Invoiced, items still open · ${after.length}`} />{card(after)}</>}
-      </> : clientsWith.map((c: any) => {
+      {/* iPad / computer: side by side (phone: one under the other) */}
+      {by === "project" ? <Cols
+        left={prod.length > 0 && <><SectionHead dot={PAL.progress.mid} label={`In production · ${prod.length}`} right={`${itemsN} items`} />{card(prod)}</>}
+        right={after.length > 0 && <><SectionHead dot={PAL.waiting.mid} label={`Invoiced, items still open · ${after.length}`} />{card(after)}</>} />
+      : <ColGroups groups={clientsWith.map((c: any) => {
         const list = [...prod, ...after].filter((r: any) => r.c.id === c.id);
-        return <div key={c.id}><SectionHead label={`${c.name} · ${list.length}`} />{card(list)}</div>;
-      })}
+        return { key: c.id, size: list.length, node: <><SectionHead label={`${c.name} · ${list.length}`} />{card(list)}</> };
+      })} />}
       {done.length > 0 && (
         <>
           <button onClick={() => setShowDone(o => !o)} aria-expanded={showDone} style={{ width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: SANS }}>

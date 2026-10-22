@@ -167,7 +167,7 @@ export const SIZE = {
 } as const;
 
 // ─── LAYOUT ──────────────────────────────────────────────────
-export const BREAKPOINT = 768;    // phone below, iPad from here
+export const BREAKPOINT = 700;    // phone below, iPad from here (iPad mini portrait is 744)
 export const WIDE       = 1200;   // desktop from here
 export const Z = { nav: 100, menu: 200, modal: 500, dialog: 600, toast: 700 } as const;
 
@@ -210,4 +210,5 @@ export const SPACING = {
   field: 40, rowField: 32,                 // fields alone · fields inside a 44 px row (6 px clear of each line)
   chip: 30, pill: 30, mainBtn: 40, tick: 22, tap: 44,
   menuRow: 34, menuText: 13, menuWidth: 232,     // profile menu: 13 px rows of 34 px, app tiles of 40 px
+  colGap: 16,            // iPad / computer: between the two columns (like the Manager dashboard)
 } as const;

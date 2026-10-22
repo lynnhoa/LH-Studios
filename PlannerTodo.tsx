@@ -12,7 +12,7 @@
 
 import { useState } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, PAL, TRACK } from "./constants";
-import { B, Tick, ConfirmDialog, SectionHead, SummaryLine, Strong, TonedTag, Sheet, PillBtn, I, S, DashCard, TextInline } from "./atoms";
+import { B, Tick, ConfirmDialog, SectionHead, SummaryLine, Strong, TonedTag, Sheet, PillBtn, I, S, DashCard, TextInline, Cols } from "./atoms";
 import { fmtD } from "./formatters";
 import { OWNER_LOOK, accLook, rowKind, stageOf, gateOf, byOrder, STAGE_SHORT, thisMonday } from "./planner";
 import type { Task, AccountFilter, Owner, Phase, Account, Look, Stage } from "./planner";
@@ -194,13 +194,16 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
         <p style={{ fontSize: SPACING.plannerText, color: C.muted, marginTop: 16 }}>Loading…</p>
       ) : loadError ? (
         <p style={{ fontSize: SPACING.plannerText, color: C.red, marginTop: 16 }}>{loadError}</p>
-      ) : (
-        <>
-          {stageCard}
-          {st && (
+      ) : (() => {
+        // the pieces: open to-dos · done ones · the next-stage button
+        const todoPart = st && (
             <>
               <SectionHead label={`To do · ${openCount}`} right={<button onClick={() => setAdding(n => n + 1)} style={{ background: "none", border: "none", padding: "8px 0", margin: "-8px 0", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: PAL.neutral.ink }}>+ Add</button>} />
               {openOnes.length || adding ? listCard(openOnes, true) : <p style={{ fontSize: SPACING.plannerText, color: C.muted, margin: 0, padding: "4px 2px" }}>All done for this stage.</p>}
+            </>
+        );
+        const donePart = st && (
+            <>
               {doneOnes.length > 0 && (
                 <>
                   <button onClick={() => setShowDone(o => !o)} aria-expanded={showDone} style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SANS }}>
@@ -209,14 +212,28 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
                   {showDone && listCard(doneOnes)}
                 </>
               )}
+            </>
+        );
+        const nextPart = st && (
+            <>
               {next && (openCount > 0
                 ? <div style={{ marginTop: SPACING.cardGap, height: SPACING.mainBtn, borderRadius: RADIUS.button, border: `1px solid ${C.edge}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: TYPE.row.size, color: C.muted }}>{openCount} to go before Stage {next.num}</div>
                 : <PillBtn dark onClick={() => setAskNext(true)} s={{ width: "100%", height: SPACING.mainBtn, marginTop: SPACING.cardGap, justifyContent: "center" }}>Stage {st.num} done → start Stage {next.num}</PillBtn>)}
             </>
-          )}
-          {finishedCards}
-        </>
-      )}
+        );
+        // phone: one column as before · iPad / computer: stage + to do on the left, done + finished stages on the right
+        return isMobile ? (
+          <>
+            {stageCard}
+            {todoPart}
+            {donePart}
+            {nextPart}
+            {finishedCards}
+          </>
+        ) : (
+          <Cols left={<>{stageCard}{todoPart}{nextPart}</>} right={<>{donePart}{finishedCards}</>} />
+        );
+      })()}
     </div>
   );
 }

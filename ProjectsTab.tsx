@@ -332,6 +332,10 @@ export function ProjectRow({
       {/* ── EXPANDED DETAIL ── */}
       {isExpanded && (
         <div style={{ paddingBottom: isMobile ? 16 : 12, paddingTop: 4 }}>
+          {/* iPad / computer: details, deliverables + documents on the left · production, licenses + notes on the right.
+              An empty side is left out (index.html: .lh-split). Phone: one column as before. */}
+          <div className={isMobile ? undefined : "lh-split"} style={isMobile ? undefined : { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", columnGap: 28, alignItems: "start" }}>
+          <div>
 
           {/* 1. DETAILS */}
           {pr.qd && (
@@ -417,6 +421,8 @@ export function ProjectRow({
             </div>
           )}
 
+          </div>
+          <div>
           {/* 5. PRODUCTION SECTION — in production, or invoiced with items still open (the Workspace's rule) */}
           {workOpen(pr) && (
             <ProductionSection pr={pr} clients={clients} cl={cl} upP={upP} isMobile={isMobile} clientsHook={clientsHook} />
@@ -432,6 +438,9 @@ export function ProjectRow({
               <p style={{ fontSize: TYPE.body.size, color: C.muted, margin: 0, lineHeight: 1.5 }}>{pr.notes}</p>
             </div>
           )}
+
+          </div>
+          </div>
 
           {/* 8. ACTION ROW */}
           <div style={{ display: "flex", gap: isMobile ? 6 : 5, flexWrap: "wrap" as const, paddingTop: 10, borderTop: `1px solid ${C.hair}`, opacity: busy ? 0.5 : 1 }}>

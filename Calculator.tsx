@@ -15,10 +15,11 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import PDFModal from "./PDFModal";
 import { editLock } from "./saveStatus";
 import { C, SANS, SERIF, PAL, catInfo, TYPE, TRACK, RADIUS, SPACING, DENSITY, cardTone } from "./constants";
+import { APP_HEADER_H } from "./AppNav";
 import { fmt, fmtD, fmtPct, today, uid, addD, pctSpace, r2 } from "./formatters";
 import {
   NumField, ConfirmDialog, PillBtn, Chip, ChipRow, Switch, Stepper, BottomBar, BOTTOM_BAR_SPACE,
-  SectionHead, DashCard, TonedTag, MiniInput, MiniSelect,
+  SectionHead, DashCard, TonedTag, MiniInput, MiniSelect, Cols,
 } from "./atoms";
 import {
   normalizeCards, pricingCats, cardChoices, cardAddons, priceLine, optLabel, optName, addonPriceText,
@@ -584,10 +585,12 @@ export default function Calculator({
     : [isRev ? prefill?.qNo : null, "Draft", `valid until ${fmtD(validUntil)}`].filter(Boolean).join(" · ");
   const moOptions = Array.from(new Set([...RET_MONTHS, retMo])).sort((a, b) => a - b);
   const editable = lines.some(l => !l.fixed);
+  // iPad / computer: the quote stays in view under the top bar; a long quote scrolls inside its column
+  const quoteSticky: any = { position: "sticky", top: APP_HEADER_H.wide + 8, maxHeight: `calc(100dvh - ${APP_HEADER_H.wide + 16 + BOTTOM_BAR_SPACE}px)`, overflowY: "auto", margin: "0 -6px", padding: "0 6px 6px" };
   const nPending = (pending?.lines || []).length;
 
   return (
-    <div style={{ fontFamily: SANS, color: C.black, maxWidth: isMobile ? undefined : 640, paddingBottom: `calc(${BOTTOM_BAR_SPACE}px + env(safe-area-inset-bottom, 0px))` }}>
+    <div style={{ fontFamily: SANS, color: C.black, paddingBottom: `calc(${BOTTOM_BAR_SPACE}px + env(safe-area-inset-bottom, 0px))` }}>
       {askExit && (
         <ConfirmDialog title="Discard this quote?" text={`${lines.length ? `The ${lines.length} ${lines.length === 1 ? "item" : "items"} and the details are lost.` : "The details are lost."} Switching tabs keeps them.`}
           okLabel="Discard" danger onOk={doExit} onCancel={() => setAskExit(false)} />
@@ -605,6 +608,8 @@ export default function Calculator({
       </div>
       <div style={{ ...MI, marginTop: SPACING.titleToSummary }}>{microLine}</div>
 
+      {/* iPad / computer: client + add items on the left · the quote on the right, staying in view (phone: one column) */}
+      <Cols left={<>
       {/* ── CLIENT ── */}
       <SectionHead label="Client" right={!locked && showLastQuote
         ? <button onClick={useLastQuote} style={{ ...linkBtn(PAL.progress.ink), fontSize: TYPE.label.size, minHeight: 24 }}>Last quote ›</button> : undefined} />
@@ -720,6 +725,7 @@ export default function Calculator({
         </div>
       </DashCard>
 
+      </>} right={<div style={isMobile ? undefined : quoteSticky}>
       {/* ── THE QUOTE ── */}
       <SectionHead label={`${isAmend ? "Amendment" : "Quote"} · ${items.length} ${items.length === 1 ? "item" : "items"}`}
         right={locked && (origLines.length > 0 || origTotal > 0)
@@ -912,6 +918,7 @@ export default function Calculator({
           )}
         </div>
       </DashCard>
+      </div>} />
       {formErr && formErr !== missing && <div style={{ fontSize: TYPE.subtext.size, color: PAL.late.ink, margin: "8px 4px 0" }}>{formErr}</div>}
 
       {/* ── BOTTOM BAR: total · what's missing · the one main button ── */}

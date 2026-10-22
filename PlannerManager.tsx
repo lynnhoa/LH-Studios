@@ -14,7 +14,7 @@
 
 import { useState, useEffect, cloneElement } from "react";
 import { C, SANS, TYPE, SPACING, RADIUS, PAL } from "./constants";
-import { B, BAR_BTN, ValuePill, WeekPill, SectionHead, SummaryLine } from "./atoms";
+import { B, BAR_BTN, ValuePill, WeekPill, SectionHead, SummaryLine, Cols } from "./atoms";
 import {
   DAY_SHORT, OWNER_LOOK, isoWeek as isoWeekOf, isVisible, periodOf, stageNumOf, todayIndex, weekRange, fmtPct2, addDays, thisMonday, mondayOf,
   MANAGER_GOAL, managerOrder, rowKind, parseIntDe, daysBetween, snapKey, fmtInt, isTotal,
@@ -342,14 +342,16 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
         <p style={{ fontSize: TYPE.label.size, color: C.red, marginTop: 16, lineHeight: 1.5 }}>{loadError}</p>
       ) : (
         <>
-          {stage2 && planner.stage2Error && <p style={{ fontSize: 12, color: C.red, margin: "12px 0 0", lineHeight: 1.5 }}>{planner.stage2Error}</p>}
-          {sprintCard}
-          {sprintIdle}
-          {goalsCard}
-          {stage2 && !sp && hidden && (
-            <button onClick={() => setHide(false)} style={{ marginTop: 12, background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SANS, fontSize: 12, color: C.light }}>Show sales sprint</button>
-          )}
-          {!stage2 && <div style={{ marginTop: 12, fontSize: 12, color: C.light, display: "flex", alignItems: "center", gap: 6 }}><Ico d={IC.lock} size={12} />Sales sprint · from Stage 2</div>}
+          {(() => {
+            const err = stage2 && planner.stage2Error && <p style={{ fontSize: 12, color: C.red, margin: "12px 0 0", lineHeight: 1.5 }}>{planner.stage2Error}</p>;
+            const showSprint = stage2 && !sp && hidden && (
+              <button onClick={() => setHide(false)} style={{ marginTop: 12, background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SANS, fontSize: 12, color: C.light }}>Show sales sprint</button>
+            );
+            const locked = !stage2 && <div style={{ marginTop: 12, fontSize: 12, color: C.light, display: "flex", alignItems: "center", gap: 6 }}><Ico d={IC.lock} size={12} />Sales sprint · from Stage 2</div>;
+            // phone: one column as before · iPad / computer: goals + check-in on the left, the sales sprint on the right
+            return isMobile ? <>{err}{sprintCard}{sprintIdle}{goalsCard}{showSprint}{locked}</>
+              : <Cols left={goalsCard} right={<>{err}{sprintCard}{sprintIdle}{showSprint}{locked}</>} />;
+          })()}
         </>
       )}
 

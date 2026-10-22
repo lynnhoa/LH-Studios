@@ -17,7 +17,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { C, SANS, SERIF, TYPE, PAL, RADIUS, TRACK, SPACING } from "./constants";
-import { I, S, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Sheet } from "./atoms";
+import { I, S, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Sheet, ColGroups } from "./atoms";
 import { copyText } from "./outreach";
 import { showNote, showUndo } from "./undo";
 import { DEFAULT_GROUP, parseLines, usedToday } from "./useComments";
@@ -137,12 +137,13 @@ export default function Comments({ hook, isMobile }: CommentsProps) {
 
       {!loadError && comments.length > 0 && (
         <>
-          {groups.map(g => {
+          {/* iPad: 2 columns · computer: 3 (phone: one column) */}
+          <ColGroups wideCols={3} groups={groups.map(g => {
             const list = ordered(g);
             const isOpen = open.includes(g);
             const nUsedG = list.filter(usedToday).length;
-            return (
-              <div key={g}>
+            return { key: g, size: list.length, node: (
+              <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, margin: `${SPACING.sectionTop}px 2px ${SPACING.sectionBottom}px`, fontFamily: SANS }}>
                   <button onClick={() => toggle(g)} aria-expanded={isOpen}
                     style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 7, background: "none", border: "none", padding: "10px 0", margin: "-10px 0", cursor: "pointer",
@@ -161,8 +162,8 @@ export default function Comments({ hook, isMobile }: CommentsProps) {
                 </div>
                 {isOpen && <ListCard>{list.map((c, i) => row(c, i === 0))}</ListCard>}
               </div>
-            );
-          })}
+            ) };
+          })} />
         </>
       )}
 

@@ -12,7 +12,7 @@ import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE, Z, PAL, RADIUS, SHADOW } from "./constants";
 import { fmtD } from "./formatters";
-import { B, I, S, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet } from "./atoms";
+import { B, I, S, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet, useEscape } from "./atoms";
 import {
   OUTREACH_CATEGORIES, OUTREACH_TIERS, OUTREACH_COLUMNS, OUTREACH_STATUSES, STATUS_FILTERS, PITCH_ACCOUNTS, SORTS, ADDED, DEFAULT_VIEW,
   catOf, tierOf, statusOf, followUpDue, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt,
@@ -68,6 +68,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
   const { contacts, loading, loadError, loginEmail } = outreach;
   const [view, setView]       = useState<OutreachView>(loadView);
   const [open, setOpen]       = useState<null | "filter" | "sort" | "download">(null);
+  useEscape(!!open, () => setOpen(null));
   const [showCols, setShowCols] = useState(false);
   const [openId, setOpenId]   = useState<string | null>(null);
   const [adding, setAdding]   = useState(false);                 // "+ Add": the contact window, empty
@@ -375,6 +376,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
 
 // ── One-level window: full screen on the phone, centred elsewhere ─
 function Window({ title, isMobile, onClose, children, footer }: { title: string; isMobile: boolean; onClose: () => void; children: any; footer?: any }) {
+  useEscape(true, onClose);
   return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", background: isMobile ? C.bg : "rgba(250,249,247,0.85)", fontFamily: SANS }}>
       <div style={{ width: "100%", maxWidth: isMobile ? "none" : 480, maxHeight: isMobile ? "none" : "88vh", background: C.bg, border: isMobile ? "none" : `1px solid ${C.rule}`, borderRadius: isMobile ? 0 : 2, boxShadow: isMobile ? "none" : "0 8px 32px rgba(0,0,0,0.12)", display: "flex", flexDirection: "column" }}>

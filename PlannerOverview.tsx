@@ -9,7 +9,7 @@
 //   Sales sprint (from Stage 2) · Creator · Content flow
 // ─────────────────────────────────────────────────────────────
 
-import { SectionHead, DashCard, DashCardHead, DashStrip, DashTile, DashIcon, BarList, LinkRow } from "./atoms";
+import { SectionHead, DashCard, DashCardHead, DashStrip, DashTile, DashIcon, BarList, LinkRow, Cols } from "./atoms";
 import { C, SANS, SERIF, TYPE, PAL, RADIUS, SHADOW, TRACK } from "./constants";
 import {
   OWNER_LOOK, TONE, accLook, stageOf, stageNumOf, gateOf, isVisible, addDays, entryKey, monthName, isoWeek, weekRange,
@@ -266,13 +266,19 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
         <p style={{ fontSize: TYPE.label.size, color: C.red, marginTop: 16, lineHeight: 1.5 }}>{loadError}</p>
       ) : (
         <>
-          {hero}
-          {stageCard}
-          {mTiles.length > 0 && <>{section(mLook.color, "Manager")}<div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8, marginTop: 8 }}>{mTiles}</div></>}
-          {sprintLine}
-          {section(cLook.color, "Creator")}
-          {cTiles.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8, marginTop: 8 }}>{cTiles}</div>}
-          {flowCard}
+          {/* iPad / computer: week, stage and Manager on the left · Creator on the right (phone: one column, same order) */}
+          <Cols
+            left={<>
+              {hero}
+              {stageCard}
+              {mTiles.length > 0 && <>{section(mLook.color, "Manager")}<div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8, marginTop: 8 }}>{mTiles}</div></>}
+              {sprintLine}
+            </>}
+            right={<>
+              {section(cLook.color, "Creator")}
+              {cTiles.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8, marginTop: 8 }}>{cTiles}</div>}
+              {flowCard}
+            </>} />
           <div style={{ marginTop: 14, fontSize: 12, color: C.light, textAlign: "center" as const, display: "flex", justifyContent: "center", alignItems: "center", gap: 6 }}>
             {!stage3 && <Ico d={IC.lock} size={12} />}
             {!stage2 ? "Sales sprint from Stage 2 · Money from Stage 3" : !stage3 ? "Money from Stage 3" : "Money from your invoices comes with the Stage 3 build"}

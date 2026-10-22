@@ -8,6 +8,7 @@ import { C, SANS, SERIF, TYPE, Z, TRACK, SHADOW, RADIUS, SPACING, PAL } from "./
 import { initials } from "./formatters";
 import type { Role } from "./types";
 import AppLogo from "./AppLogo";
+import { useEscape } from "./atoms";
 
 export interface MenuItem { key: string; label: string; active?: boolean; onClick: () => void; }
 
@@ -71,6 +72,7 @@ export function AvatarMenu({ settings, roleLabel, items, apps, onSignOut, dropLe
   apps: MenuItem[]; onSignOut: () => void; dropLeft?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  useEscape(open, () => setOpen(false));
   const ini = initials(settings?.name || settings?.company || "LH");
   const run = (fn: () => void) => { setOpen(false); fn(); };
 

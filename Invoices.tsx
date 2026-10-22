@@ -11,7 +11,7 @@ import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE, PAL, TRACK, RADIUS, SHADOW } from "./constants";
 import { fmt, fmtD, today, MONTHS } from "./formatters";
 import { Ico, IC } from "./PlannerWindows";
-import { Chip } from "./atoms";
+import { Chip, useScreen } from "./atoms";
 import PDFModal from "./PDFModal";
 import { downloadInvoiceReport } from "./InvoiceReport";
 import { saveFile } from "./PDFExport";
@@ -106,6 +106,11 @@ export default function Invoices({ clients, settings, isMobile, filterTab, focus
   const daysLate = (due: string) => Math.max(1, Math.round((Date.parse(todayStr) - Date.parse(due)) / 864e5));
   const tagText = (d: any) => d.subtype === "storno" ? "Storno" : d.status === "cancelled" ? "Cancelled" : isPaidInvoice(d) ? "Paid"
     : isOverdue(d, todayStr) ? `Overdue · ${daysLate(d.dueDate)} ${daysLate(d.dueDate) === 1 ? "day" : "days"}` : "Unpaid";
+  // computer: one table, like Contacts — client · no. · type · date · due / paid · amount · status
+  const { isWide } = useScreen();
+  const COLS = "30px minmax(0,2.2fr) minmax(0,1fr) minmax(0,0.9fr) minmax(0,0.9fr) minmax(0,1fr) minmax(0,1fr) 130px 15px";
+  const whenText = (d: any) => isPaidInvoice(d) && d.paidAt ? `paid ${fmtD(d.paidAt)}` : isOpenInvoice(d) && d.dueDate ? `due ${fmtD(d.dueDate)}` : "—";
+  const cell: any = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 };
   const metaText = (r: InvoiceRow) => {
     const d = r.doc;
     const when = isPaidInvoice(d) && d.paidAt ? `paid ${fmtD(d.paidAt).slice(0, 6)}` : isOpenInvoice(d) && d.dueDate ? `due ${fmtD(d.dueDate).slice(0, 6)}` : fmtD(d.docDate);
@@ -173,6 +178,13 @@ export default function Invoices({ clients, settings, isMobile, filterTab, focus
         <p style={{ fontSize: TYPE.row.size, color: C.muted, margin: "16px 4px" }}>{allRows.length ? "No invoices in this view." : "No invoices yet. They appear here once they're finalized."}</p>
       )}
 
+      {/* computer: the column names once, above the months */}
+      {isWide && rows.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: COLS, columnGap: 10, padding: "14px 10px 0 12px", fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted }}>
+          <span /><span>Client · project</span><span>No.</span><span>Type</span><span>Date</span><span>Due / paid</span><span style={{ textAlign: "right" as const }}>Amount</span><span style={{ textAlign: "right" as const }}>Status</span><span />
+        </div>
+      )}
+
       {/* ── MONTHS ── */}
       {groups.map(g => (
         <div key={g.key} id={`inv-${g.key}`}>
@@ -183,6 +195,20 @@ export default function Invoices({ clients, settings, isMobile, filterTab, focus
           <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden" }}>
             {g.rows.map((r, i) => {
               const d = r.doc, t = rowTone(d);
+              if (isWide) return (
+                <div key={r.key} role="button" tabIndex={0} onClick={() => setOpenKey(r.key)} onKeyDown={(e) => { if (e.key === "Enter") setOpenKey(r.key); }}
+                  style={{ display: "grid", gridTemplateColumns: COLS, columnGap: 10, alignItems: "center", minHeight: 48, padding: "6px 10px 6px 12px", borderTop: i ? `1px solid ${C.hair}` : "none", cursor: "pointer", fontSize: TYPE.subtext.size }}>
+                  <span style={{ width: 30, height: 30, borderRadius: "50%", background: t.wash, color: t.ink, display: "flex", alignItems: "center", justifyContent: "center" }}><Ico d={rowIcon(d)} size={15} /></span>
+                  <span style={{ ...cell, fontSize: TYPE.body.size }}>{r.cName}<span style={{ color: C.muted }}> · {r.pr.name}</span></span>
+                  <span style={cell}>{d.docNo || "—"}</span>
+                  <span style={{ ...cell, color: C.muted }}>{invoiceTypeLabel(d)}</span>
+                  <span style={{ ...cell, color: C.muted }}>{fmtD(d.docDate)}</span>
+                  <span style={{ ...cell, color: C.muted }}>{whenText(d)}</span>
+                  <span style={{ ...cell, textAlign: "right" as const, fontSize: TYPE.body.size }}>{fmt(d.gross)}</span>
+                  <span style={{ textAlign: "right" as const, minWidth: 0 }}><span style={{ display: "inline-block", fontSize: TYPE.micro.size, letterSpacing: TRACK.tag, padding: "2px 8px", borderRadius: RADIUS.tag, background: t.fill, color: t.ink, whiteSpace: "nowrap" as const }}>{tagText(d)}</span></span>
+                  <Ico d={IC.right} size={15} color={C.faint} />
+                </div>
+              );
               return (
                 <div key={r.key} role="button" tabIndex={0} onClick={() => setOpenKey(r.key)} onKeyDown={(e) => { if (e.key === "Enter") setOpenKey(r.key); }}
                   style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 54, padding: "7px 10px 7px 12px", borderTop: i ? `1px solid ${C.hair}` : "none", cursor: "pointer" }}>

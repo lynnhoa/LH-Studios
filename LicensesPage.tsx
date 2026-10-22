@@ -13,7 +13,7 @@ import { useState, useEffect } from "react";
 import { C, SANS, SERIF, PAL, TYPE } from "./constants";
 import { fmtD } from "./formatters";
 import { Ico, IC } from "./PlannerWindows";
-import { Chip, ChipRow, SummaryLine, SectionHead, ListCard, IconCircle, TonedTag, PillBtn, TimeBar } from "./atoms";
+import { Chip, ChipRow, SummaryLine, SectionHead, ListCard, IconCircle, TonedTag, PillBtn, TimeBar, ColGroups } from "./atoms";
 import { today } from "./formatters";
 import RenewalModal from "./RenewalModal";
 import PDFModal from "./PDFModal";
@@ -134,8 +134,9 @@ export default function Licenses({ clients, clientsHook, settings, rc, isMobile,
       {groups.length === 0 && (
         <p style={{ fontSize: TYPE.row.size, color: C.muted, margin: "16px 4px" }}>{filter === "action" ? "Nothing expiring in the next 14 days." : "No licenses here."}</p>
       )}
-      {groups.map(g => (
-        <div key={g.key}>
+      {/* iPad / computer: the groups in 2 columns (phone: one column) */}
+      <ColGroups groups={groups.map(g => ({ key: g.key, size: g.items.length * 2, node: (
+        <div>
           <SectionHead dot={g.tone.mid} label={`${g.label} · ${g.items.length}`} />
           <ListCard>
             {g.items.map((l, i) => {
@@ -169,7 +170,7 @@ export default function Licenses({ clients, clientsHook, settings, rc, isMobile,
             })}
           </ListCard>
         </div>
-      ))}
+      ) }))} />
     </div>
   );
 }

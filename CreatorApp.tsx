@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
-import { C, SANS, BREAKPOINT } from "./constants";
+import { C, SANS, BREAKPOINT, WIDE } from "./constants";
 import AppLogo from "./AppLogo";
 import { AvatarMenu, NavTab, appItems, AppHeader } from "./AppNav";
 import { UndoBar } from "./undo";
@@ -48,6 +48,7 @@ export default function CreatorApp({
   }, []);
 
   const isMobile = winW < BREAKPOINT;
+  const isWide   = winW >= WIDE;
 
   const goToDash = () => setNav(NAV_DASHBOARD);
 
@@ -71,7 +72,7 @@ export default function CreatorApp({
 
   // ── Content max-width ────────────────────────────────────
   const contentMaxW =
-    nav === NAV_CLIENTS && creatorClientSel && !isMobile ? 1200 : 960;   // same as Manager / Planner / Outreach
+    isWide || (nav === NAV_CLIENTS && creatorClientSel && !isMobile) ? 1200 : 960;   // computer 1200 · iPad 960 — same as Manager / Planner / Outreach
 
   return (
     <div style={{ background: C.bg, minHeight: "100dvh", fontFamily: SANS, color: C.black }}>

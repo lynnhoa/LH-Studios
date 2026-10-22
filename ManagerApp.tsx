@@ -8,7 +8,7 @@
 
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
-import { C, SANS, TYPE, BREAKPOINT, TRACK, RADIUS, SHADOW, Z } from "./constants";
+import { C, SANS, TYPE, BREAKPOINT, WIDE, TRACK, RADIUS, SHADOW, Z } from "./constants";
 import { currentQuote, contractNo, docNet, retainerMonthly, retDiscOf } from "./docs";
 import AppLogo from "./AppLogo";
 import { PillBtn } from "./atoms";
@@ -91,6 +91,7 @@ export default function ManagerApp({
   }, []);
 
   const isMobile = winW < BREAKPOINT;
+  const isWide   = winW >= WIDE;
 
   // ── Navigation helpers ────────────────────────────────────
   const goTo = (n: number) => {
@@ -212,7 +213,7 @@ export default function ManagerApp({
 
   // ── Content max-width — wider when client detail open ─────
   const contentMaxW =
-    nav === NAV_CLIENTS && clientSel && !isMobile ? 1200 : 960;   // same as Planner / Outreach
+    isWide || (nav === NAV_CLIENTS && clientSel && !isMobile) ? 1200 : 960;   // computer 1200 · iPad 960 — same as Planner / Outreach
 
   // ── Render ────────────────────────────────────────────────
   return (

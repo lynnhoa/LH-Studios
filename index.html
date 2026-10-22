@@ -65,6 +65,18 @@
          Higher specificity than the rule above so 10px wins. */
       select.tsel { font-size: 10px !important; }
       select.psel { font-size: 12px !important; }
+
+      /* Computer (mouse / trackpad) only: a light tint on anything you can click.
+         Touch screens (iPhone, iPad without trackpad) never see it. */
+      @media (hover: hover) and (pointer: fine) {
+        button:not(:disabled), [role="button"] { transition: filter 0.12s ease; }
+        /* only the innermost thing under the pointer, not the card around it */
+        button:not(:disabled):hover:not(:has(button:hover, [role="button"]:hover)),
+        [role="button"]:hover:not(:has(button:hover, [role="button"]:hover)) { filter: brightness(0.975); }
+      }
+      /* iPad / computer: two side-by-side parts; an empty one is left out so the other gets the full width */
+      .lh-split > :empty, .lh-cols > :empty { display: none; }
+      .lh-cols:has(> :empty) { grid-template-columns: minmax(0, 1fr) !important; }
     </style>
   </head>
   <body>

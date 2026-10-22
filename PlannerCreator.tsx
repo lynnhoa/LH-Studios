@@ -14,7 +14,7 @@
 
 import { useState } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, PAL, TRACK, SHADOW } from "./constants";
-import { B, Tick, BAR_BTN, SectionHead, SummaryLine, Strong, TonedTag, Chip, ChipRow, SwitchPill, ValuePill, TextInline } from "./atoms";
+import { B, Tick, BAR_BTN, SectionHead, SummaryLine, Strong, TonedTag, Chip, ChipRow, SwitchPill, ValuePill, TextInline, Cols } from "./atoms";
 import { parseYMD, monthStart, monthEnd, today } from "./formatters";
 import {
   FORMATS, CLASSIC, OWNER_LOOK, TONE, isVisible, monthName, entryKey, monthGoalOf, monthGoalPatch, thisMonday, storyLines, isoWeek,
@@ -235,6 +235,8 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
             {([["all", "All"], ["idea", "Content"], ["editorial", "Portfolio"]] as [Show, string][]).map(([k, l]) => <Chip key={k} on={show === k} tone={PAL.neutral} dot={false} label={l} onClick={() => setShow(k)} />)}
           </ChipRow>
 
+          {/* iPad / computer: concept + to post + to shoot on the left · ideas + posted on the right (phone: same order, one column) */}
+          <Cols left={<>
           {head(isLynn ? "Social concept" : "Concept", conceptTask ? conceptWord : undefined)}
           {card(concept
             ? <div style={{ padding: "6px 12px 10px" }}>
@@ -258,7 +260,7 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
             {!folded.shoot && card(toShoot.map((it, k) => row(it, k, { right: datePick(it),
               tick: { on: false, tone: PAL.waiting, label: `Filmed: ${it.title}`, run: () => go(it, "shot") } })))}
           </>}
-
+          </>} right={<>
           {listHead("ideas", show === "editorial" ? "Portfolio ideas" : "Ideas", ideas.length, PAL.neutral.mid, undefined, () => setAdding(n => n + 1))}
           {!folded.ideas && (ideas.length || adding
             ? card(<>{addRow}{ideas.map((it, k) => row(it, k + (adding ? 1 : 0), { right: shootBtn(it) }))}</>)
@@ -269,6 +271,7 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
             {!folded.posted && card(postedL.map((it, k) => row(it, k, { day: it.postedOn ? `posted ${shortDate(it.postedOn)}` : "posted",
               tick: { on: true, tone: PAL.done, label: `Posted: ${it.title}`, run: () => go(it, "shot") } })))}
           </>}
+          </>} />
         </>
       )}
 

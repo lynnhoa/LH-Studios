@@ -9,7 +9,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, SANS, SERIF, TYPE, PAL, RADIUS, SHADOW, Z, TRACK, SPACING } from "./constants";
 import { fmtD } from "./formatters";
-import { SummaryLine, Strong, Chip, ChipRow, SearchField, SectionHead, ListCard, TonedTag, Sheet, PillBtn, I, S, Row } from "./atoms";
+import { SummaryLine, Strong, Chip, ChipRow, SearchField, SectionHead, ListCard, TonedTag, Sheet, PillBtn, I, S, Row, ColGroups } from "./atoms";
 import { getWsItems, isOverdue, isThisWeek, fmtDeadline, finalStatus, statusRank, shownStatus, WS_CATS, WS_CAT_LABEL } from "./wsHelpers";
 import { catTone, statusTone, Tick2 } from "./CreatorShared";
 import { showUndo } from "./undo";
@@ -140,10 +140,11 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: { c
       </ChipRow>
       <SearchField value={q} onChange={setQ} placeholder="Search items, clients" s={{ marginTop: 10 }} />
       {all.length === 0 && <p style={{ fontSize: TYPE.row.size, color: C.muted, margin: "16px 4px" }}>Nothing in production right now.</p>}
-      {groups.filter(g => g.list.length).map((g, gi) => {
+      {/* iPad / computer: the groups in 2 columns (phone: one column) */}
+      <ColGroups groups={groups.filter(g => g.list.length).map((g, gi) => {
         const folded = g.folded && !unfold[g.key];
-        return (
-          <div key={g.key}>
+        return { key: g.key, size: g.list.length, node: (
+          <div>
             {folded ? (
               <button onClick={() => setUnfold(u => ({ ...u, [g.key]: true }))} aria-expanded={false}
                 style={{ width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: SANS }}>
@@ -169,8 +170,8 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: { c
               </ListCard>
             )}
           </div>
-        );
-      })}
+        ) };
+      })} />
     </div>
   );
 }
