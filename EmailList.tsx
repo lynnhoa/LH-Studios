@@ -15,7 +15,7 @@ import { fmtD } from "./formatters";
 import { B, I, S, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet, useEscape } from "./atoms";
 import {
   OUTREACH_CATEGORIES, OUTREACH_TIERS, OUTREACH_COLUMNS, OUTREACH_STATUSES, STATUS_FILTERS, PITCH_ACCOUNTS, SORTS, ADDED, DEFAULT_VIEW,
-  catOf, tierOf, statusOf, followUpDue, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt,
+  catOf, tierOf, statusOf, followUpDue, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt, NO_FILTERS, placeOf,
 } from "./outreach";
 import type { Pitch, PitchAccount } from "./outreach";
 import { loadWorkAccount } from "./planner";
@@ -24,6 +24,9 @@ import { downloadExcel, downloadTemplate, downloadListPdf } from "./outreachExpo
 import { showUndo, showNote } from "./undo";
 
 // ── small line icons (no icon library needed) ─────────────────
+const BAR_H = 56;   // the sticky search bar: 8 + 40 + 8
+const TRASH = "M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3";
+const ARROW_UP = "M12 19V5M5 12l7-7 7 7";
 const Ico = ({ d, size = 14, color = "currentColor" }: { d: string; size?: number; color?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d={d} /></svg>
 );
@@ -76,11 +79,21 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
   const setToast = (t: string | null) => { if (t) showNote(t); };   // the app-wide message (same look as the save message)
   const [busy, setBusy]       = useState(false);
   const [showLog, setShowLog] = useState(false);
+  // the "↑" button shows after about two screens
+  const [showTop, setShowTop] = useState(false);
+  useEffect(() => {
+    const fn = () => setShowTop(window.scrollY > 1200);
+    fn(); window.addEventListener("scroll", fn, { passive: true });
+    return () => window.removeEventListener("scroll", fn);
+  }, []);
 
   useEffect(() => { try { sessionStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch { /* ignore */ } }, [view]);
 
   const shown  = useMemo(() => applyView(contacts, view), [contacts, view]);
-  const cities = useMemo(() => Array.from(new Set(contacts.map((c: OutreachContact) => (c.city || "").trim()).filter(Boolean))).sort((a: any, b: any) => a.localeCompare(b, "de")) as string[], [contacts]);
+  const uniq = (xs: string[]) => Array.from(new Set(xs.map(x => (x || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "de"));
+  const countries = useMemo(() => uniq(contacts.map((c: OutreachContact) => c.country)), [contacts]);
+  // with a country picked, only that country's cities
+  const cities = useMemo(() => uniq(contacts.filter((c: OutreachContact) => !view.country || view.country === "all" || c.country === view.country).map((c: OutreachContact) => c.city)), [contacts, view.country]);
   const counts = useMemo(() => { const m: Record<string, number> = {}; contacts.forEach((c: OutreachContact) => { m[c.category] = (m[c.category] || 0) + 1; }); return m; }, [contacts]);
   const nFilters = activeFilters(view);
   const filtered = nFilters > 0 || !!view.q.trim();
@@ -120,7 +133,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontFamily: SERIF, fontSize: 17 }}>Filter</span>
-        <button onClick={() => set({ cat: "all", tier: "all", status: "all", city: "all", added: "any" })} style={{ background: "none", border: "none", color: C.muted, textDecoration: "underline", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size }}>Reset</button>
+        <button onClick={() => set(NO_FILTERS)} style={{ background: "none", border: "none", color: C.muted, textDecoration: "underline", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size }}>Reset</button>
       </div>
       <Lbl>Category</Lbl>
       <div style={{ border: `1px solid ${C.rule}`, borderRadius: 2, maxHeight: isMobile ? 260 : 300, overflowY: "auto" }}>
@@ -141,13 +154,19 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
             {STATUS_FILTERS.map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
           </S>
         </div>
+        <div><Lbl>Country</Lbl>
+          <S value={view.country || "all"} onChange={(e: any) => set({ country: e.target.value, city: "all" })}>
+            <option value="all">All</option>
+            {countries.map(c => <option key={c} value={c}>{c}</option>)}
+          </S>
+        </div>
         <div><Lbl>City</Lbl>
           <S value={view.city} onChange={(e: any) => set({ city: e.target.value })}>
             <option value="all">All</option>
             {cities.map(c => <option key={c} value={c}>{c}</option>)}
           </S>
         </div>
-        <div><Lbl>Added</Lbl>
+        <div style={{ gridColumn: "1 / -1" }}><Lbl>Added</Lbl>
           <S value={view.added} onChange={(e: any) => set({ added: e.target.value })}>
             {ADDED.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
           </S>
@@ -198,12 +217,13 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
 
   const tagStyle = (c?: any): any => ({ height: 30, padding: "0 11px", border: `1px solid ${c ? c.border : C.pillOn}`, background: c ? c.bg : PAL.neutral.fill, color: c ? c.color : C.black, borderRadius: RADIUS.pill, fontSize: TYPE.subtext.size, display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", fontFamily: SANS, whiteSpace: "nowrap" as const });
   // the active filters as chips (each with ✕) — only while a filter is on; the sort lives in the ↑↓ button
-  const hasTags = view.cat !== "all" || view.tier !== "all" || (!!view.status && view.status !== "all") || view.city !== "all" || view.added !== "any";
+  const hasTags = view.cat !== "all" || view.tier !== "all" || (!!view.status && view.status !== "all") || view.city !== "all" || (!!view.country && view.country !== "all") || view.added !== "any";
   const tags = hasTags && (
     <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const, marginTop: 10 }}>
       {view.cat !== "all" && <button onClick={() => set({ cat: "all" })} style={tagStyle(catOf(view.cat))}>{catOf(view.cat).label} ✕</button>}
       {view.tier !== "all" && <button onClick={() => set({ tier: "all" })} style={tagStyle()}>{tierOf(view.tier).label} ✕</button>}
       {view.status && view.status !== "all" && <button onClick={() => set({ status: "all" })} style={tagStyle()}>{STATUS_FILTERS.find(x => x.key === view.status)?.label} ✕</button>}
+      {view.country && view.country !== "all" && <button onClick={() => set({ country: "all" })} style={tagStyle()}>{view.country} ✕</button>}
       {view.city !== "all" && <button onClick={() => set({ city: "all" })} style={tagStyle()}>{view.city} ✕</button>}
       {view.added !== "any" && <button onClick={() => set({ added: "any" })} style={tagStyle()}>{ADDED.find(a => a.key === view.added)?.label} ✕</button>}
     </div>
@@ -223,7 +243,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
       {shown.map((c: OutreachContact, i: number) => (
         <div key={c.id} onClick={() => setOpenId(c.id)} style={{ minHeight: 54, padding: "9px 10px 9px 12px", borderTop: i ? `1px solid ${C.hair}` : "none", cursor: "pointer", boxSizing: "border-box" as const }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: TYPE.row.size, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{c.company || c.email}</span>
+            <span style={{ fontSize: TYPE.row.size, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, minWidth: 0 }}>{c.company || c.email}{placeOf(c) && <span style={{ fontSize: TYPE.label.size, color: C.muted }}> · {placeOf(c)}</span>}</span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
               {c.tier && c.tier !== "now" && <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: C.muted }}>{tierOf(c.tier).label}</span>}
               <CatPill k={c.category} />
@@ -248,6 +268,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
     { key: "tier", label: "Tier", fr: "0.6fr" },
     { key: "status", label: "Status", fr: "0.9fr" },
     { key: "city", label: "City", fr: "0.9fr" },
+    { key: "country", label: "Country", fr: "0.9fr" },
     { key: "web", label: "Website / IG", fr: "1.2fr" },
     ...(isWide ? [{ key: "added", label: "Added", fr: "0.8fr", sort: ["new", "old"] as SortKey[] }] : []),
   ];
@@ -262,7 +283,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
   const table = (
     <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: cols.map(c => `minmax(0,${c.fr})`).join(" "), background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, padding: "0 4px 4px" }}>
       {cols.map(c => (
-        <div key={c.key} onClick={() => headClick(c)} style={{ position: "sticky", top: stickyTop, background: C.white, zIndex: 2, padding: "0 10px", height: 34, display: "flex", alignItems: "center", fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: C.muted, cursor: c.sort ? "pointer" : "default", userSelect: "none" as const, borderRadius: 0 }}>{c.label}{arrow(c)}</div>
+        <div key={c.key} onClick={() => headClick(c)} style={{ position: "sticky", top: stickyTop + BAR_H, background: C.white, zIndex: 2, padding: "0 10px", height: 34, display: "flex", alignItems: "center", fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: C.muted, cursor: c.sort ? "pointer" : "default", userSelect: "none" as const, borderRadius: 0 }}>{c.label}{arrow(c)}</div>
       ))}
       {shown.map((c: OutreachContact) => (
         <div key={c.id} className="lh-row" onClick={() => setOpenId(c.id)} style={{ display: "contents", cursor: "pointer" }}>
@@ -273,6 +294,7 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
           <div style={{ ...td, color: c.tier && c.tier !== "now" ? C.black : C.muted }}>{cut(tierOf(c.tier).label)}</div>
           <div style={td}>{c.status && c.status !== "new" ? <StatusText c={c} /> : <span style={{ color: C.light }}>—</span>}</div>
           <div style={td}>{cut(c.city)}</div>
+          <div style={td}>{cut(c.country)}</div>
           <div style={{ ...td, color: C.muted }}>{cut(c.web)}</div>
           {isWide && <div style={{ ...td, color: C.muted }}>{c.createdAt ? fmtD(c.createdAt.slice(0, 10)) : ""}</div>}
         </div>
@@ -303,7 +325,12 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
           style={{ background: "none", border: "none", padding: "4px 0", margin: "-4px 0", cursor: "pointer", color: C.black, display: "inline-flex", alignItems: "center", gap: 4, fontFamily: SANS, fontSize: TYPE.subtext.size }}>Copy emails <Ico d={IC.copy} size={12} color={C.muted} /></button></>}
       </SummaryLine>
 
-      <div style={{ marginTop: 12 }}>{toolbar}</div>
+      {/* search · filter · sort · download stay under the top bar while you scroll */}
+      <div style={{ position: "sticky", top: stickyTop, zIndex: 99, background: C.bg, margin: "4px 0 0", padding: "8px 0" }}>
+        {toolbar}
+        {/* click outside closes a menu (inside the bar, so its menus stay on top) */}
+        {open && !(open === "filter" && isMobile) && <div onClick={() => setOpen(null)} style={{ position: "fixed", inset: 0, zIndex: Z.menu - 1 }} />}
+      </div>
       {tags}
 
       {/* ── CONTENT ── */}
@@ -317,11 +344,17 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
           <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: 0, lineHeight: 1.6 }}>Tap <strong style={{ fontWeight: 500, color: C.black }}>+ Add</strong> for one contact, or <strong style={{ fontWeight: 500, color: C.black }}>Import</strong> for a list: build your Excel with the columns, copy the prompt for Claude, run Claude's SQL in Supabase.</p>
         </ListCard>
       ) : shown.length === 0 ? (
-        <p style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 16 }}>No contacts match. <button onClick={() => set({ q: "", cat: "all", tier: "all", status: "all", city: "all", added: "any" })} style={{ background: "none", border: "none", padding: 0, color: C.black, textDecoration: "underline", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size }}>Clear search and filters</button></p>
+        <p style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 16 }}>No contacts match. <button onClick={() => set({ q: "", ...NO_FILTERS })} style={{ background: "none", border: "none", padding: 0, color: C.black, textDecoration: "underline", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size }}>Clear search and filters</button></p>
       ) : isMobile ? phoneList : table}
 
-      {/* click outside closes a menu */}
-      {open && !(open === "filter" && isMobile) && <div onClick={() => setOpen(null)} style={{ position: "fixed", inset: 0, zIndex: Z.menu - 1 }} />}
+      {/* ↑ back to the top, once you've scrolled a bit */}
+      {showTop && (
+        <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="Back to the top" title="Back to the top"
+          style={{ position: "fixed", right: 16, bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", zIndex: 40, width: 40, height: 40, borderRadius: "50%",
+            border: `1px solid ${C.edge}`, background: C.white, color: C.black, boxShadow: SHADOW.pop, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+          <Ico d={ARROW_UP} size={16} />
+        </button>
+      )}
 
       {/* ── FILTER SHEET (phone) ── */}
       {open === "filter" && isMobile && createPortal(
@@ -400,7 +433,7 @@ const newContact = (): OutreachContact => {
   let d: any = {};
   try { d = JSON.parse(localStorage.getItem(DEFAULTS_KEY) || "{}") || {}; } catch { d = {}; }
   return { id: "", company: "", contactName: "", email: "", category: (d.category || "others") as any, tier: (d.tier || "now") as any, status: "new" as any,
-    lastContact: null, web: "", city: "", notes: "", source: "", createdAt: "" };
+    lastContact: null, web: "", city: "", country: "", notes: "", source: "", createdAt: "" };
 };
 // pr@chanel.com → { company: "Chanel", web: "chanel.com" } · nothing for gmail, gmx, web.de, icloud …
 const FREE_MAIL = /^(gmail|googlemail|gmx|web|icloud|me|mac|outlook|hotmail|live|msn|yahoo|ymail|t-online|aol|proton|protonmail|mail|freenet|posteo|arcor)\./i;
@@ -518,6 +551,7 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
             {row("Tier", tierOf(c.tier).label)}
             {row("Website / IG", c.web)}
             {row("City", c.city)}
+            {row("Country", c.country)}
             {row("Notes", c.notes)}
             {row("Added", c.createdAt ? fmtD(c.createdAt.slice(0, 10)) : "")}
             {row("Source", c.source)}
@@ -570,9 +604,11 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
                 </div>
               </div>
               <div style={TWO}>
-                <div><Lbl>Website / IG</Lbl><I data-k="web" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="next" value={f.web} aria-label="Website or Instagram" onChange={(e: any) => setF({ ...f, web: e.target.value })} onKeyDown={onEnter} /></div>
-                <div><Lbl>City</Lbl><I data-k="city" enterKeyHint="done" value={f.city} aria-label="City" onChange={(e: any) => setF({ ...f, city: e.target.value })} onKeyDown={onEnter} /></div>
+                <div><Lbl>City</Lbl><I data-k="city" enterKeyHint="next" value={f.city} aria-label="City" onChange={(e: any) => setF({ ...f, city: e.target.value })} onKeyDown={onEnter} /></div>
+                <div><Lbl>Country</Lbl><I data-k="country" enterKeyHint="next" value={f.country} aria-label="Country" onChange={(e: any) => setF({ ...f, country: e.target.value })} onKeyDown={onEnter} /></div>
               </div>
+              <Lbl>Website / IG</Lbl>
+              <I data-k="web" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="done" value={f.web} aria-label="Website or Instagram" onChange={(e: any) => setF({ ...f, web: e.target.value })} onKeyDown={onEnter} />
               {showNote || f.notes ? (
                 <><Lbl>Notes</Lbl>
                   <textarea rows={2} value={f.notes} autoFocus={showNote && !f.notes} aria-label="Notes" onChange={(e) => setF({ ...f, notes: e.target.value })}
@@ -580,7 +616,11 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
               ) : (
                 <button onClick={() => setShowNote(true)} style={{ marginTop: 12, background: "none", border: "none", padding: "0 2px", minHeight: 36, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: C.ink2 }}>+ Note</button>
               )}
-              {!isNew && <div style={{ marginTop: 14 }}><button onClick={() => setAskDelete(true)} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.red, minHeight: 36, padding: "0 2px" }}>Delete contact…</button></div>}
+              {!isNew && (
+                <B v="danger" onClick={() => setAskDelete(true)} s={{ width: "100%", minHeight: 40, marginTop: 14, gap: 7, fontSize: TYPE.row.size }}>
+                  <Ico d={TRASH} size={15} />Delete contact
+                </B>
+              )}
             </div>
           </>
         )}

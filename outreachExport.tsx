@@ -11,7 +11,7 @@ import { fmtD, today } from "./formatters";
 import { SETTINGS_DEFAULT } from "./rateCards";
 import { openPdfWindow, pagesToPdf, deliverPdf } from "./PDFExport";
 import { makeXlsx, saveBytes, XLSX_MIME } from "./xlsxWriter";
-import { OUTREACH_COLUMNS, OUTREACH_CATEGORIES, OUTREACH_TIERS, catOf, tierOf, statusOf } from "./outreach";
+import { OUTREACH_COLUMNS, OUTREACH_CATEGORIES, OUTREACH_TIERS, catOf, tierOf, statusOf, placeOf } from "./outreach";
 import type { OutreachContact } from "./outreach";
 
 const addedText = (c: OutreachContact) => (c.createdAt ? fmtD(c.createdAt.slice(0, 10)) : "");
@@ -56,7 +56,7 @@ const COLS: { key: string; label: string; w: number }[] = [
   { key: "company", label: "Company", w: 120 }, { key: "contactName", label: "Contact", w: 80 },
   { key: "email", label: "Email", w: 160 }, { key: "category", label: "Category", w: 70 },
   { key: "tier", label: "Tier", w: 40 }, { key: "status", label: "Status", w: 62 },
-  { key: "city", label: "City", w: 74 }, { key: "web", label: "Website / Instagram", w: 92 },
+  { key: "place", label: "City · Country", w: 100 }, { key: "web", label: "Website / Instagram", w: 66 },
   { key: "added", label: "Added", w: 64 },
 ];   // sum = 762 = W − 2 × PX
 const cell = (w: number): any => ({ width: w, flexShrink: 0, paddingRight: 6, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", boxSizing: "border-box" });
@@ -90,8 +90,8 @@ function ListPages({ list, title, settings }: { list: OutreachContact[]; title: 
                 <div style={cell(70)}>{catOf(c.category).label}</div>
                 <div style={cell(40)}>{tierOf(c.tier).label}</div>
                 <div style={cell(62)}>{statusText(c)}</div>
-                <div style={cell(74)}>{c.city}</div>
-                <div style={cell(92)}>{c.web}</div>
+                <div style={cell(100)}>{placeOf(c)}</div>
+                <div style={cell(66)}>{c.web}</div>
                 <div style={cell(64)}>{addedText(c)}</div>
               </div>
             ))}

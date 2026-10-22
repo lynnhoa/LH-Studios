@@ -23,6 +23,7 @@ const rowToContact = (r: any): OutreachContact => ({
   lastContact: r.last_contact ? String(r.last_contact).slice(0, 10) : null,
   web:         r.web ?? "",
   city:        r.city ?? "",
+  country:     r.country ?? "",
   notes:       r.notes ?? "",
   source:      r.source ?? "",
   createdAt:   r.created_at ?? "",
@@ -80,6 +81,7 @@ export function useOutreach(userId: string | null) {
     if (patch.tier        !== undefined) row.tier         = patch.tier;
     if (patch.web         !== undefined) row.web          = patch.web.trim();
     if (patch.city        !== undefined) row.city         = patch.city.trim();
+    if (patch.country     !== undefined) row.country      = patch.country.trim();
     if (patch.notes       !== undefined) row.notes        = patch.notes;
     const { error } = await supabase.from("outreach_contacts").update(row).eq("id", id).eq("user_id", userId);
     if (error) throw new Error(/unique|duplicate/i.test(error.message) ? "This email is already on your list." : error.message);
@@ -98,7 +100,7 @@ export function useOutreach(userId: string | null) {
       user_id: userId, email,
       company: String(f.company || "").trim(), contact_name: String(f.contactName || "").trim(),
       category: f.category || "others", tier: f.tier || "now",
-      web: String(f.web || "").trim(), city: String(f.city || "").trim(), notes: f.notes || "", source: "Added by hand",
+      web: String(f.web || "").trim(), city: String(f.city || "").trim(), country: String(f.country || "").trim(), notes: f.notes || "", source: "Added by hand",
     };
     const { data, error } = await supabase.from("outreach_contacts").insert(row).select().single();
     if (error) throw new Error(/unique|duplicate/i.test(error.message) ? "This email is already on your list." : error.message);

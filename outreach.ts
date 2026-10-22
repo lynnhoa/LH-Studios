@@ -74,6 +74,7 @@ export interface OutreachContact {
   lastContact: string | null;   // date of the last pitch or follow-up
   web:         string;          // website or Instagram
   city:        string;
+  country:     string;
   notes:       string;
   source:      string;          // file the contact came from
   createdAt:   string;          // ISO timestamp
@@ -89,6 +90,7 @@ export const OUTREACH_COLUMNS: OutreachColumn[] = [
   { key: "tier",        label: "Tier",                required: false, example: "now",                note: "now · premium · luxury — empty: now" },
   { key: "web",         label: "Website / Instagram", required: false, example: "@chanel" },
   { key: "city",        label: "City",                required: false, example: "Paris" },
+  { key: "country",     label: "Country",             required: false, example: "France" },
   { key: "notes",       label: "Notes",               required: false, example: "Met at Fashion Week" },
 ];
 
@@ -102,7 +104,8 @@ export function buildPrompt(loginEmail: string): string {
   return `I'm attaching an Excel/CSV list of contacts for my outreach email list. Please turn it into ONE SQL statement for my Supabase database.
 
 1. Read every row. Find these fields (the column names in my file may differ slightly):
-   company, contact name, email, category, tier, website or Instagram, city, notes.
+   company, contact name, email, category, tier, website or Instagram, city, country, notes.
+   City and country are separate: never put a country into city (e.g. city "Mallorca", country "Spain").
 2. Clean the data:
    - trim spaces; write every email in lowercase
    - skip rows without a valid email address
@@ -112,11 +115,11 @@ export function buildPrompt(loginEmail: string): string {
 4. Tier: now, premium or luxury. Use the file's tier column if it has one; otherwise now.
 5. Output ONLY this SQL (no explanation before it). Escape apostrophes by doubling them (O'Brien → O''Brien). Use '' for empty fields. Put the file name in "source". If there are more than 500 contacts, make several statements of max. 500 rows.
 
-insert into public.outreach_contacts (user_id, company, contact_name, email, category, tier, web, city, notes, source)
-select u.id, v.company, v.contact_name, v.email, v.category, v.tier, v.web, v.city, v.notes, v.source
+insert into public.outreach_contacts (user_id, company, contact_name, email, category, tier, web, city, country, notes, source)
+select u.id, v.company, v.contact_name, v.email, v.category, v.tier, v.web, v.city, v.country, v.notes, v.source
 from (values
-  ('Chanel', 'Poma', 'pr@chanel.com', 'fashion', 'luxury', '@chanel', 'Paris', '', 'my-list.xlsx')
-) as v(company, contact_name, email, category, tier, web, city, notes, source)
+  ('Chanel', 'Poma', 'pr@chanel.com', 'fashion', 'luxury', '@chanel', 'Paris', 'France', '', 'my-list.xlsx')
+) as v(company, contact_name, email, category, tier, web, city, country, notes, source)
 cross join (select id from auth.users where email = '${email}') u
 on conflict (user_id, email) do nothing;
 
@@ -140,8 +143,12 @@ export const ADDED: { key: AddedKey; label: string }[] = [
   { key: "30d",  label: "Last 30 days" },
   { key: "year", label: "This year" },
 ];
-export interface OutreachView { q: string; cat: string; tier: string; status: string; city: string; added: AddedKey; sort: SortKey; }
-export const DEFAULT_VIEW: OutreachView = { q: "", cat: "all", tier: "all", status: "all", city: "all", added: "any", sort: "az" };
+export interface OutreachView { q: string; cat: string; tier: string; status: string; city: string; country: string; added: AddedKey; sort: SortKey; }
+export const DEFAULT_VIEW: OutreachView = { q: "", cat: "all", tier: "all", status: "all", city: "all", country: "all", added: "any", sort: "az" };
+// "Reset" / "Show all": every filter off (search and sort stay)
+export const NO_FILTERS: Partial<OutreachView> = { cat: "all", tier: "all", status: "all", city: "all", country: "all", added: "any" };
+// "Mallorca, Spain" · "Spain" · ""
+export const placeOf = (c: { city?: string; country?: string }) => [c.city, c.country].map(x => (x || "").trim()).filter(Boolean).join(", ");
 // Status filter: the statuses plus "Follow-up due"
 export const STATUS_FILTERS: { key: string; label: string }[] = [
   { key: "all", label: "All" },
@@ -159,6 +166,7 @@ export function applyView(list: OutreachContact[], v: OutreachView, now = new Da
     (v.tier === "all" || (c.tier || "now") === v.tier) &&
     (!v.status || v.status === "all" || (v.status === "followup" ? followUpDue(c, now) : (c.status || "new") === v.status)) &&
     (v.city === "all" || (c.city || "") === v.city) &&
+    (!v.country || v.country === "all" || (c.country || "") === v.country) &&
     (v.added === "any" || (v.added === "30d" ? c.createdAt >= since30 : c.createdAt >= yearStart))
   );
   const byName = (a: OutreachContact, b: OutreachContact) => (a.company || a.email).localeCompare(b.company || b.email, "de", { sensitivity: "base" });
@@ -172,7 +180,7 @@ export function applyView(list: OutreachContact[], v: OutreachView, now = new Da
   return out;
 }
 
-export const activeFilters = (v: OutreachView) => (v.cat !== "all" ? 1 : 0) + (v.tier !== "all" ? 1 : 0) + (v.status && v.status !== "all" ? 1 : 0) + (v.city !== "all" ? 1 : 0) + (v.added !== "any" ? 1 : 0);
+export const activeFilters = (v: OutreachView) => (v.cat !== "all" ? 1 : 0) + (v.tier !== "all" ? 1 : 0) + (v.status && v.status !== "all" ? 1 : 0) + (v.city !== "all" ? 1 : 0) + (v.country && v.country !== "all" ? 1 : 0) + (v.added !== "any" ? 1 : 0);
 
 // "a@x.com, b@y.com" — ready for BCC in Gmail, Outlook, Apple Mail
 export const emailsText = (list: OutreachContact[]) => list.map(c => c.email).filter(Boolean).join(", ");
