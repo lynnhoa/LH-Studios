@@ -146,6 +146,26 @@ Goal: make the Supabase app functionally identical to the old reference
 - Changed: `PlannerConcept.tsx`, `PlannerWindows.tsx`, `usePlanner.ts`,
   `planner.ts`.
 
+## Planner · Creator Now + Saved ideas, era sheet folds (22.10.2026)
+- Creator (accounts with phases): new Now card under the concept line.
+  Phase and Era on top (saved per account, the same on phone and iPad),
+  then one row per arc of that era in posting order: its idea with where
+  it is (Shoot › while it's an idea · to shoot · filmed · posted), or
+  "+ Add an idea" when the arc is empty (a new idea with phase, era and arc
+  set; a pasted link works too). Ideas of the era without one of its arcs
+  show last. The head counts the era's core arcs posted.
+- Ideas → Saved ideas: the ideas not in Now, by phase (No phase last), each
+  with its era and arc in the small line. Use now › moves one into the Now
+  era (its arc stays; with Undo); without an era it's Shoot › as before.
+  @createbylynn (no phases yet): Ideas exactly as before, no Now.
+- Concept › Phases › an era: its arcs are cards now, all closed when the
+  sheet opens; tap one to open it (purpose, formats, texts, links — still
+  edited right there), "expand all / collapse all" next to the era's line.
+- Data: table `planner_concept_now` (SQL `LH-Studio-planner-now.sql`, safe
+  to rerun). Without it Now still works on screen and says to run it.
+- Changed: `PlannerCreator.tsx`, `PlannerConcept.tsx`, `usePlanner.ts`,
+  `planner.ts`.
+
 ## Known open items
 1. Multi-device: data fetched once per load, last-write-wins — consider
    refetch-on-focus (~20 lines).

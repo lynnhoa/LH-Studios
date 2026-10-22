@@ -254,6 +254,8 @@ export interface ConceptPhase {
   purpose: string;
   eras:    ConceptEra[];      // in order
 }
+// Creator › Now: the phase and era you're in, per account (synced between devices)
+export interface ConceptNow { phase: number | null; era: string | null; }
 // the concept page's two colours: arcs pastel blue, phases butter (lavender stays the account's)
 export const ARC_TONE   = PAL.progress;
 export const PHASE_TONE = PAL.waiting;

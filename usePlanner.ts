@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // usePlanner — the Planner's data (tables planner_stages,
 // planner_tasks, planner_entries, planner_snapshots, planner_items,
-// planner_notes, planner_sprints, planner_concept_arcs, planner_concept_phases)
+// planner_notes, planner_sprints, planner_concept_arcs, planner_concept_phases, planner_concept_now)
 // plus Outreach: contacts (new per
 // week, status) and the pitch log. Rows that count themselves
 // (contacts, pitches, ideas, posts, pieces, first set, kit
@@ -18,7 +18,7 @@ import {
   addDays, entryKey, snapKey, mondayOf, periodOf, rowState, taskAccounts, NO_DAYS, planOf,
 } from "./planner";
 import { daysBetween } from "./planner";
-import type { Stage, Task, Entry, TaskStatus, Snapshot, Account, Item, ItemStatus, Note, NoteKind, Auto, Sprint, SprintStats, ConceptArc, ConceptPhase, ConceptEra, ConceptEraArc } from "./planner";
+import type { Stage, Task, Entry, TaskStatus, Snapshot, Account, Item, ItemStatus, Note, NoteKind, Auto, Sprint, SprintStats, ConceptArc, ConceptPhase, ConceptEra, ConceptEraArc, ConceptNow } from "./planner";
 import { FOLLOW_UP_DAYS } from "./outreach";
 import type { Pitch } from "./outreach";
 
@@ -86,6 +86,8 @@ const rowToPhase = (r: any): ConceptPhase => ({
     .filter((e: ConceptEra) => e.key && e.name),
 });
 const PHASES_MISSING = "The phases table doesn't exist yet — run the phases SQL in Supabase once.";
+const NOW_MISSING = "Now isn't saved yet — run the Now SQL in Supabase once.";
+const NO_NOW: ConceptNow = { phase: null, era: null };
 
 const rowToStage = (r: any): Stage => ({
   id:          r.id,
@@ -233,6 +235,8 @@ export function usePlanner(userId: string | null, monday: string) {
   const [conceptError, setConceptError] = useState<string | null>(null);
   const [phases,    setPhases]    = useState<ConceptPhase[]>([]);
   const [phasesError, setPhasesError] = useState<string | null>(null);
+  const [nows,      setNows]      = useState<Partial<Record<Account, ConceptNow>>>({});
+  const [nowError,  setNowError]  = useState<string | null>(null);
   // every target ever set (they carry over to the following weeks / months)
   const [targetLog, setTargetLog] = useState<Record<string, { p: string; v: number }[]>>({});
   const [loginEmail, setLoginEmail] = useState("");
@@ -313,8 +317,8 @@ export function usePlanner(userId: string | null, monday: string) {
 
   // Creator lists and notes, Outreach contacts and (Stage 2) the pitch log and sprints
   const loadOutside = useCallback(async () => {
-    if (!userId) { setContacts([]); setItems([]); setNotes([]); setPitches([]); setSprints([]); setArcs([]); setPhases([]); return; }
-    const [oc, it, nt, pl, sp, ca, ph]: any[] = await Promise.all([
+    if (!userId) { setContacts([]); setItems([]); setNotes([]); setPitches([]); setSprints([]); setArcs([]); setPhases([]); setNows({}); return; }
+    const [oc, it, nt, pl, sp, ca, ph, nw]: any[] = await Promise.all([
       // lists that grow: every row, page by page (more than 1,000 is fine)
       selectAll("outreach_contacts", "id, company, category, tier, status, last_contact, created_at", q => q.eq("user_id", userId).order("id")),
       selectAll("planner_items", "*", q => q.eq("user_id", userId).order("created_at").order("id")),
@@ -325,6 +329,8 @@ export function usePlanner(userId: string | null, monday: string) {
       supabase.from("planner_concept_arcs").select("*").eq("user_id", userId).order("account").order("num"),
       // its phases and eras (one more SQL); without them the arcs still work
       supabase.from("planner_concept_phases").select("*").eq("user_id", userId).order("account").order("num"),
+      // Creator › Now: the phase and era you're in, per account (one more SQL)
+      supabase.from("planner_concept_now").select("*").eq("user_id", userId),
     ]);
     if (oc?.error) setOutreachError(oc.error.message);
     else {
@@ -343,6 +349,16 @@ export function usePlanner(userId: string | null, monday: string) {
     else { setConceptError(null); setArcs((ca?.data || []).map(rowToArc)); }
     if (ph?.error) setPhasesError(/planner_concept_phases/.test(ph.error.message || "") ? PHASES_MISSING : ph.error.message);
     else { setPhasesError(null); setPhases((ph?.data || []).map(rowToPhase)); }
+    if (nw?.error) setNowError(/planner_concept_now/.test(nw.error.message || "") ? NOW_MISSING : nw.error.message);
+    else {
+      setNowError(null);
+      const m: Partial<Record<Account, ConceptNow>> = {};
+      (nw?.data || []).forEach((r: any) => {
+        const acc: Account = r.account === "createbylynn" ? "createbylynn" : "lynnhoa";
+        m[acc] = { phase: Number(r.phase) > 0 ? Number(r.phase) : null, era: typeof r.era === "string" && r.era ? r.era : null };
+      });
+      setNows(m);
+    }
     const err = it?.error || nt?.error;
     if (err) setLoadError(isMissing(err.message) ? MISSING : err.message);
     else {
@@ -555,6 +571,15 @@ export function usePlanner(userId: string | null, monday: string) {
     fail(error);
   }, [userId]);
 
+  // ── Creator › Now: the phase and era you're in (one row per account, synced) ─
+  const nowOf = useCallback((acc: Account): ConceptNow => nows[acc] || NO_NOW, [nows]);
+  const setNow = useCallback(async (acc: Account, phase: number | null, era: string | null) => {
+    setNows(prev => ({ ...prev, [acc]: { phase, era } }));
+    const { error } = await supabase.from("planner_concept_now")
+      .upsert({ user_id: userId, account: acc, phase, era, updated_at: new Date().toISOString() }, { onConflict: "user_id,account" });
+    fail(error);
+  }, [userId]);
+
   // ── notes: concept, offer, weekly learning (one per account / week) ─
   const notesRef = useRef(notes); notesRef.current = notes;
   const noteOf = useCallback((acc: Account, kind: NoteKind, period: string | null = null) =>
@@ -717,7 +742,7 @@ export function usePlanner(userId: string | null, monday: string) {
     createItem, updateItem, setItemStatus, deleteItem, noteOf, saveNote,
     pitches, sprints, stage2Error, createSprint, updateSprint, deleteSprint, activeSprint, sprintStats, followUpsDue, pitchesInWeek, contactName,
     restoreItem, deletePitch, restorePitch,
-    arcs, conceptError, updateArc, phases, phasesError,
+    arcs, conceptError, updateArc, phases, phasesError, nowOf, setNow, nowError,
   };
 }
 

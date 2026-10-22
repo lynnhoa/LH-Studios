@@ -8,9 +8,10 @@
 //   one window each (add, change, delete with Undo, saved right away).
 //   Phases (butter): Home, Occasion, Invited … one card each. Open: its
 //   purpose and its recurring eras. Tap an era: one window with the era's
-//   core arcs in posting order (optional ones last, in grey). Each arc
-//   there IS the arc of the Arcs view — same purpose, formats, texts and
-//   links, edited right there (no jump to Arcs), so a change shows on both.
+//   core arcs in posting order (optional ones last, in grey), as cards —
+//   all closed when it opens; tap one to open it. Each arc there IS the arc
+//   of the Arcs view — same purpose, formats, texts and links, edited right
+//   there (no jump to Arcs), so a change shows on both.
 //   "collapse all / expand all" next to Arcs / Phases. Open cards are
 //   remembered on this device; the first time, all are closed.
 // Arcs, purpose, formats, ticks, phases and eras come from the SQL (fixed).
@@ -205,17 +206,59 @@ const ViewSwitch = ({ view, onPick }: { view: ConceptView; onPick: (v: ConceptVi
   </span>
 );
 
-// the era window's head of one arc: blue number and name · optional ones in grey with their note
-const EraArcHead = ({ n, name, optional, note }: { n: number; name: string; optional: boolean; note: string }) => (
-  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, margin: "10px 2px 5px" }}>
-    <span style={{ ...caps, display: "flex", alignItems: "center", gap: 7, minWidth: 0, color: optional ? C.light : C.muted }}>
-      <NumCircle n={n} tone={optional ? PAL.neutral : ARC_TONE} size={18} />
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{name}</span>
-    </span>
-    {optional && <span style={{ fontSize: TYPE.micro.size, color: C.light, whiteSpace: "nowrap" as const, flexShrink: 0 }}>{note ? `optional · ${note}` : "optional"}</span>}
-  </div>
-);
 const listHead: any = { ...caps, color: C.light, padding: "8px 10px 2px", borderTop: `1px solid ${C.hair}` };
+
+// One era's window: its arcs as cards in posting order, all closed when it opens (tap one to
+// open it; "expand all" next to the era's line). An open arc shows the arc itself — purpose,
+// formats, texts and links — and its texts and links are edited right here (saved on the arc).
+function EraSheet({ planner, phase, era }: { planner: PlannerHook; phase: ConceptPhase; era: ConceptEra }) {
+  const [open, setOpen] = useState<number[]>([]);
+  const anyOpen = open.length > 0;
+  const toggle  = (n: number) => setOpen(o => (o.includes(n) ? o.filter(x => x !== n) : [...o, n]));
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, margin: "2px 2px 10px" }}>
+        <span style={{ flex: 1, minWidth: 0, fontSize: TYPE.subtext.size, color: C.muted, lineHeight: 1.4 }}>{era.desc}</span>
+        <button onClick={() => setOpen(anyOpen ? [] : era.arcs.map(a => a.num))} style={{ ...mini, marginTop: -6 }}>{anyOpen ? "collapse all" : "expand all"}</button>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column" as const, gap: SPACING.gridGap }}>
+        {era.arcs.map(ea => {
+          const arc  = planner.arcs.find(a => a.account === phase.account && a.num === ea.num);
+          const name = arc ? arc.name : `Arc ${ea.num}`;
+          const isOpen = open.includes(ea.num);
+          return (
+            <div key={`${ea.num}`} style={winCard}>
+              <div style={{ display: "flex", alignItems: "center" }}>
+                <button onClick={() => toggle(ea.num)} aria-expanded={isOpen} aria-label={`${ea.num}. ${name}${ea.optional ? ", optional" : ""}`} style={headBtn}>
+                  <NumCircle n={ea.num} tone={ea.optional ? PAL.neutral : ARC_TONE} />
+                  <span style={{ ...nameText, color: ea.optional ? C.muted : C.black }}>{name}</span>
+                  {ea.optional && <span style={{ fontSize: TYPE.micro.size, color: C.light, whiteSpace: "nowrap" as const, flexShrink: 0 }}>{ea.note ? `optional · ${ea.note}` : "optional"}</span>}
+                </button>
+                <Caret open={isOpen} onClick={() => toggle(ea.num)} />
+              </div>
+              {isOpen && (arc ? (
+                <>
+                  <div style={{ padding: `0 6px 6px ${SPACING.rowSide}px` }}>
+                    {arc.purpose && <div style={{ margin: `-8px 22px 0 ${INDENT}px`, fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4 }}>{arc.purpose}</div>}
+                    <div style={{ margin: `8px 0 0 ${INDENT}px` }}><Formats formats={arc.formats} /></div>
+                  </div>
+                  <div style={listHead}>{count("Texts", arc.texts.length)}</div>
+                  <LineList key={`et-${era.key}-${arc.id}`} initial={arc.texts} marker="bullets" placeholder="Write a text" addLabel="Add a text"
+                    onSave={lines => { quiet(planner.updateArc(arc.id, { texts: lines })); }} />
+                  <div style={listHead}>{count("Links", arc.links.length)}</div>
+                  <LinkList key={`el-${era.key}-${arc.id}`} initial={arc.links} pillTone={platformTone}
+                    onSave={links => { quiet(planner.updateArc(arc.id, { links })); }} />
+                </>
+              ) : (
+                <div style={{ padding: `0 ${SPACING.rowSide}px 12px ${SPACING.rowSide + INDENT}px`, fontSize: TYPE.subtext.size, color: C.muted }}>This arc isn't in the concept.</div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
 
 interface PlannerConceptProps {
   planner:   PlannerHook;
@@ -338,33 +381,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
       {/* an era: its arcs in posting order — the same arcs, texts and links as the Arcs view */}
       {win && win.kind === "era" && winPhase && winEra && (
         <Window title={`${winPhase.num}. ${winPhase.name} · ${winEra.name}`} isMobile={isMobile} onClose={close} footer={done}>
-          {winEra.desc && <div style={{ fontSize: TYPE.subtext.size, color: C.muted, lineHeight: 1.4, margin: "2px 2px 0" }}>{winEra.desc}</div>}
-          {winEra.arcs.map(ea => {
-            const arc = planner.arcs.find(a => a.account === winPhase.account && a.num === ea.num);
-            if (!arc) return (
-              <div key={`m-${ea.num}`}>
-                <EraArcHead n={ea.num} name={`Arc ${ea.num}`} optional={ea.optional} note={ea.note} />
-                <div style={{ ...winCard, padding: "10px 12px", fontSize: TYPE.subtext.size, color: C.muted }}>This arc isn't in the concept.</div>
-              </div>
-            );
-            return (
-              <div key={arc.id}>
-                <EraArcHead n={arc.num} name={arc.name} optional={ea.optional} note={ea.note} />
-                <div style={winCard}>
-                  <div style={{ padding: `8px 6px 4px ${SPACING.rowSide}px` }}>
-                    {arc.purpose && <div style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4, margin: "0 22px 6px 0" }}>{arc.purpose}</div>}
-                    <Formats formats={arc.formats} />
-                  </div>
-                  <div style={listHead}>{count("Texts", arc.texts.length)}</div>
-                  <LineList key={`et-${winEra.key}-${arc.id}`} initial={arc.texts} marker="bullets" placeholder="Write a text" addLabel="Add a text"
-                    onSave={lines => { quiet(planner.updateArc(arc.id, { texts: lines })); }} />
-                  <div style={listHead}>{count("Links", arc.links.length)}</div>
-                  <LinkList key={`el-${winEra.key}-${arc.id}`} initial={arc.links} pillTone={platformTone}
-                    onSave={links => { quiet(planner.updateArc(arc.id, { links })); }} />
-                </div>
-              </div>
-            );
-          })}
+          <EraSheet key={`${winPhase.id}-${winEra.key}`} planner={planner} phase={winPhase} era={winEra} />
         </Window>
       )}
     </div>
