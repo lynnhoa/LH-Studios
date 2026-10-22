@@ -38,6 +38,7 @@ export type TemplateKind = "pitch" | "follow_up";
 export interface EmailTemplate {
   id: string; name: string; purpose: string; subject: string; body: string; kit: KitKey | null; createdAt: string;
   pipeline: TemplatePipeline; kind: TemplateKind;
+  categories: string[];   // the contact categories it's for (empty = any) — picks the right template per contact
 }
 export const TEMPLATE_PIPELINES: { key: TemplatePipeline; label: string }[] = [{ key: "lynnhoa", label: "@lynnhoa" }, { key: "ugc", label: "UGC" }];
 export const TEMPLATE_KINDS: { key: TemplateKind; label: string }[] = [{ key: "pitch", label: "Pitch" }, { key: "follow_up", label: "Follow-up" }];
@@ -51,6 +52,7 @@ const rowToTpl = (r: any): EmailTemplate => ({
   id: r.id, name: r.name ?? "", purpose: r.purpose ?? "", subject: r.subject ?? "", body: r.body ?? "",
   kit: kitInfo(r.kit_key) ? r.kit_key : null, createdAt: r.created_at ?? "",
   pipeline: r.pipeline === "ugc" ? "ugc" : "lynnhoa", kind: r.kind === "follow_up" ? "follow_up" : "pitch",
+  categories: Array.isArray(r.categories) ? r.categories : [],
 });
 const fail = (error: any) => { if (error) throw new Error(error.message || "Couldn't save."); };
 

@@ -180,7 +180,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
       {editLinks && <LinksWindow kit={kit} onShare={sharePdf} onClose={() => setEditLinks(false)} />}
       {current && <TemplateWindow t={current} kit={kit} purposes={purposes} urlOf={urlOf} onCopy={copyTemplate} onShare={sharePdf} onCopySubject={(s) => copy(s, "Subject copied ✓")} onClose={() => setOpenId(null)} />}
       {adding && !current && (
-        <TemplateWindow isNew t={{ id: "", name: "", purpose: purpose !== "all" && purpose !== NO_PURPOSE ? purpose : "", subject: "", body: "", kit: null, createdAt: "", pipeline: "lynnhoa", kind: "pitch" }}
+        <TemplateWindow isNew t={{ id: "", name: "", purpose: purpose !== "all" && purpose !== NO_PURPOSE ? purpose : "", subject: "", body: "", kit: null, createdAt: "", pipeline: "lynnhoa", kind: "pitch", categories: [] }}
           kit={kit} purposes={purposes} urlOf={urlOf} onCopy={copyTemplate} onShare={sharePdf} onCopySubject={(s) => copy(s, "Subject copied ✓")}
           onClose={() => setAdding(false)} onCreated={(id) => { setAdding(false); setOpenId(id); }} />
       )}

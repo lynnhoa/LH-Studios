@@ -13,7 +13,8 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE, Z, PAL, RADIUS, SHADOW } from "./constants";
 import { fmtD } from "./formatters";
-import { B, I, S, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet, useEscape, Chip, ChipRow } from "./atoms";
+import { B, I, S, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet, useEscape, Chip, ChipRow, MiniInput, MiniSelect } from "./atoms";
+import { MoreMenu } from "./PlannerWindows";
 import {
   OUTREACH_CATEGORIES, OUTREACH_TIERS, OUTREACH_COLUMNS, STATUS_FILTERS, SORTS, ADDED, DEFAULT_VIEW, CHIPS, PIPELINES, NO_TIER,
   catOf, tierOf, statusOf, statusesFor, isCategory, isTier, isChip, chipCounts, followUpDue, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt, NO_FILTERS, placeOf,
@@ -382,7 +383,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
   return (
     <div>
       {/* hover: row tint + show the copy icon (desktop / iPad) */}
-      <style>{`.lh-row:hover > div { background: rgba(0,0,0,0.025); } .lh-row:hover .lh-copy-ico, .lh-copy-email:focus .lh-copy-ico { opacity: 1 !important; } .lh-chips > div { scrollbar-width: none; } .lh-chips > div::-webkit-scrollbar { display: none; }`}</style>
+      <style>{`.lh-row:hover > div { background: rgba(0,0,0,0.025); } .lh-row:hover .lh-copy-ico, .lh-copy-email:focus .lh-copy-ico { opacity: 1 !important; } .lh-chips > div { scrollbar-width: none; } .lh-chips > div::-webkit-scrollbar { display: none; } .lh-cfrow:focus-within { background: ${C.bg}; }`}</style>
 
       {/* ── HEADER: title · Import · Log pitch ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
@@ -554,6 +555,23 @@ const pickFields = (x: OutreachContact) => { const o: any = {}; EDIT_KEYS.forEac
 // yyyy-mm-dd of a timestamp, in local time
 const ymdLocal = (iso: string) => { const d = new Date(iso); return isNaN(d.getTime()) ? "" : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
+// ── the compact window's parts (like the Planner windows: cards, 13 px, 32 px fields, 36 px rows) ──
+const CAPS: any = { fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted };
+const WCARD: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, boxShadow: SHADOW.card, overflow: "hidden" };
+const USER  = "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 20a8 8 0 0 1 16 0";
+const CLOCK = "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2";
+const SecHead = ({ icon, label, tone }: { icon: string; label: string; tone: { wash: string; ink: string } }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 7, margin: "9px 2px 4px" }}>
+    <span style={{ width: 18, height: 18, borderRadius: "50%", background: tone.wash, color: tone.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={icon} size={11} /></span>
+    <span style={CAPS}>{label}</span>
+  </div>
+);
+const linkBtn: any = { background: "none", border: "none", padding: "4px 2px", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: C.black, textDecoration: "underline" };
+
+// ── Contact: one level, compact — header ✕ · company · ⋯ (Delete contact) ──────
+// Card: Status · Last contact · (Lead → Client) · Template + Write
+// Contact card: 34 px rows, label left, value right — tap a value to type (City · Country share a row)
+// Timeline card · added · footer: one button — Done, Save as soon as you type (stays open after Save)
 function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy, isNew, onOpen }: { c: OutreachContact; outreach: any; kit?: any; onWritten?: (msg: string, undo: () => Promise<void>) => void; isMobile: boolean; onClose: () => void; onCopy: (t: string) => void; isNew?: boolean; onOpen?: (id: string) => void }) {
   const [f, setF] = useState(c);
   const [dupId, setDupId] = useState<string | null>(null);     // the contact that already has this email
@@ -561,7 +579,6 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
   const [busy, setBusy] = useState(false);
   const [askDelete, setAskDelete] = useState(false);
   const [askDiscard, setAskDiscard] = useState(false);
-  const [showNoteField, setShowNoteField] = useState(false);
   const changed = !sameFields(f, c);
   // the stored contact changed (status, a save, a reload): keep what's being typed, take over the rest
   const prevC = useRef(c);
@@ -578,8 +595,8 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
     catch (e: any) { setErr(e?.message || "Couldn't log it."); }
   };
 
-  // compact form: Enter goes to the next field, the last one saves; the email fills Company and
-  // Website by itself (only when they're still empty, not for gmail & co)
+  // Enter goes to the next field, the last one saves; the email fills Company and Website by itself
+  // (only when they're still empty, not for gmail & co)
   const fillFromEmail = () => {
     const fill = fromEmail(f.email);
     if (fill) setF(x => ({ ...x, company: x.company || fill.company, web: x.web || fill.web }));
@@ -616,7 +633,6 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
     catch (e: any) { setErr(e?.message || "Couldn't save."); if (e?.existingId) setDupId(e.existingId); }
     finally { setBusy(false); }
   };
-  const cancel = () => { if (isNew) { onClose(); return; } setF(c); setErr(null); setDupId(null); };
   // ✕, tap outside, Escape: with unsaved typing, ask first
   const close = () => { if (changed) setAskDiscard(true); else onClose(); };
   const del = async () => {
@@ -664,20 +680,27 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
     finally { setClientBusy(false); }
   };
 
-  // ── Write in Outlook: the templates for this contact's pipeline; preselected:
-  //    follow-up due → the last follow-up template used for this pipeline, else the last pitch template,
-  //    never used yet → the first A–Z (saved with each pitch, so it's the same on phone, iPad and Mac)
+  // ── Write in Outlook: the templates for this contact's account; preselected:
+  //    a template made for this contact's category (else one for any category), of the kind needed
+  //    (follow-up when one is due, else pitch) — the one used last, else the first A–Z
+  //    (saved with each pitch, so it's the same on phone, iPad and Mac)
   const pipe = pipelineOf(c.category);
   const tpls: EmailTemplate[] = useMemo(() => (kit?.templates || []).filter((t: EmailTemplate) => t.pipeline === pipe)
     .sort((a: EmailTemplate, b: EmailTemplate) => (a.name || "").localeCompare(b.name || "", "de")), [kit?.templates, pipe]);
   const wantKind = due ? "follow_up" : "pitch";
   const preselect = useMemo(() => {
-    const ofKind = tpls.filter(t => t.kind === wantKind);
-    const ids = new Set(ofKind.map(t => t.id));
-    const last = (outreach.pitches || []).filter((p: Pitch) => p.templateId && ids.has(p.templateId))
-      .sort((a: Pitch, b: Pitch) => (b.createdAt || b.sentOn).localeCompare(a.createdAt || a.sentOn))[0];
-    return last?.templateId || ofKind[0]?.id || tpls[0]?.id || "";
-  }, [tpls, wantKind, outreach.pitches]);
+    const cats = (t: EmailTemplate) => t.categories || [];
+    const lastOf = (list: EmailTemplate[]) => {
+      if (!list.length) return "";
+      const ids = new Set(list.map(t => t.id));
+      const last = (outreach.pitches || []).filter((p: Pitch) => p.templateId && ids.has(p.templateId))
+        .sort((a: Pitch, b: Pitch) => (b.createdAt || b.sentOn).localeCompare(a.createdAt || a.sentOn))[0];
+      return last?.templateId || list[0].id;
+    };
+    const made = tpls.filter(t => cats(t).includes(c.category)), any = tpls.filter(t => !cats(t).length);
+    return lastOf(made.filter(t => t.kind === wantKind)) || lastOf(any.filter(t => t.kind === wantKind))
+      || lastOf(made) || lastOf(any) || lastOf(tpls.filter(t => t.kind === wantKind)) || tpls[0]?.id || "";
+  }, [tpls, wantKind, c.category, outreach.pitches]);
   const [tplId, setTplId] = useState(preselect);
   useEffect(() => { setTplId(preselect); }, [preselect]);
   const tpl = tpls.find(t => t.id === tplId) || null;
@@ -700,151 +723,153 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
     saving.then(added => onWritten?.(kind === "follow_up" ? "Follow-up logged" : "Pitch logged", () => outreach.undoLog(added, before)))
       .catch((e: any) => setErr(`${e?.message || "Couldn't log it."} Log it with + Pitch below.`));
   };
-  const footBtn: any = { flex: 1, height: 40, justifyContent: "center" };
+
+  // one row of the Contact card: label on the left, the value (a field) on the right
+  const rowS = (first?: boolean): any => ({ display: "flex", alignItems: "center", gap: 8, minHeight: 34, padding: "0 6px 0 12px", borderTop: first ? "none" : `1px solid ${C.hair}` });
+  const lbl = (t: string) => <span style={{ ...CAPS, width: 76, flexShrink: 0, paddingTop: 2 }}>{t}</span>;
+  const text = (label: string, key: keyof OutreachContact, ph: string, extra: any = {}, first = false) => (
+    <div className="lh-cfrow" style={rowS(first)}>
+      {lbl(label)}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <MiniInput bare data-k={key} enterKeyHint="next" value={(f as any)[key] || ""} placeholder={ph} aria-label={label}
+          onChange={(e: any) => setF({ ...f, [key]: e.target.value })} onKeyDown={onEnter} {...extra} />
+      </div>
+    </div>
+  );
+  const foot: any = { flex: 1, height: 38, justifyContent: "center", fontSize: TYPE.row.size };
 
   return (
     <>
       {askDelete && <ConfirmDialog title={`Delete ${c.company || c.email}?`} text="The contact is removed from your email list." okLabel="Delete" danger onOk={del} onCancel={() => setAskDelete(false)} />}
       {askDiscard && <ConfirmDialog title="Discard your changes?" text="What you typed isn't saved yet." okLabel="Discard" cancelLabel="Keep editing" onOk={() => { setAskDiscard(false); onClose(); }} onCancel={() => setAskDiscard(false)} />}
-      {/* one level: the fields are the view · Done → Cancel | Save as soon as you type (stays open after Save) */}
       <Sheet title={isNew ? "New contact" : c.company || c.email} onClose={close}
-        footer={isNew || changed ? <>
-          <PillBtn onClick={cancel} s={footBtn}>Cancel</PillBtn>
-          <PillBtn dark onClick={save} s={{ ...footBtn, flex: 1.4, opacity: busy ? 0.5 : 1 }}>{busy ? "Saving…" : "Save"}</PillBtn>
-        </> : <PillBtn onClick={onClose} s={footBtn}>Done</PillBtn>}>
-        {err && <p role="alert" style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
+        right={isNew ? null : <MoreMenu bare items={[{ label: "Delete contact", danger: true, onClick: () => setAskDelete(true) }]} />}
+        footer={isNew ? <PillBtn dark onClick={save} s={{ ...foot, opacity: busy ? 0.5 : 1 }}>{busy ? "Saving…" : "Add contact"}</PillBtn>
+          : changed ? <PillBtn dark onClick={save} s={{ ...foot, opacity: busy ? 0.5 : 1 }}>{busy ? "Saving…" : "Save"}</PillBtn>
+          : <PillBtn onClick={onClose} s={foot}>Done</PillBtn>}>
+        {err && <p role="alert" style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 2px 8px" }}>{err}</p>}
         {dupId && onOpen && <B v="sec" onClick={() => onOpen(dupId)} s={{ marginBottom: 10 }}>Open that contact</B>}
 
-        {/* ── status · last contact · log ── */}
+        {/* ── status · last contact · (lead → client) · template + write ── */}
         {!isNew && !outreach.pitchError && (
-          <>
-            <div style={TWO}>
-              <div><Lbl>Status</Lbl>
-                <S value={c.status || "new"} aria-label="Status" onChange={(e: any) => outreach.setStatus(c.id, e.target.value).catch((x: any) => setErr(x?.message || "Couldn't save."))}>
+          <div style={{ ...WCARD, padding: "8px 10px 10px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
+              <div><div style={{ ...CAPS, margin: "0 2px 4px" }}>Status</div>
+                <MiniSelect value={c.status || "new"} aria-label="Status" onChange={(e: any) => outreach.setStatus(c.id, e.target.value).catch((x: any) => setErr(x?.message || "Couldn't save."))}>
                   {statusesFor(c.category).map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
-                </S>
+                </MiniSelect>
               </div>
-              <div><Lbl>Last contact</Lbl>
-                <div style={{ height: 40, display: "flex", alignItems: "center", fontSize: TYPE.row.size, color: due ? PAL.waiting.ink : c.lastContact ? C.black : C.light }}>
+              <div><div style={{ ...CAPS, margin: "0 2px 4px" }}>Last contact</div>
+                <div style={{ height: 32, display: "flex", alignItems: "center", padding: "0 2px", fontSize: TYPE.row.size, color: due ? PAL.waiting.ink : c.lastContact ? C.black : C.light, whiteSpace: "nowrap" as const, overflow: "hidden" }}>
                   {c.lastContact ? `${fmtD(c.lastContact)}${due ? " · follow up" : ""}` : "—"}
                 </div>
               </div>
             </div>
             {canMakeClient && (
-              <div style={{ marginTop: 12 }}>
-                <PillBtn onClick={toClient} s={{ width: "100%", height: 40, justifyContent: "center", fontSize: TYPE.row.size, background: PAL.done.wash, border: `1px solid ${PAL.done.mid}`, color: PAL.done.ink, opacity: clientBusy ? 0.6 : 1 }}>
-                  {clientBusy ? "Creating…" : "Create client in Manager"}
-                </PillBtn>
-                <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "6px 0 0", textAlign: "center" as const }}>Company, contact, email, city and country go to Clients</p>
-              </div>
+              <PillBtn onClick={toClient} s={{ width: "100%", height: 32, marginTop: 8, justifyContent: "center", fontSize: TYPE.row.size, background: PAL.done.wash, border: `1px solid ${PAL.done.mid}`, color: PAL.done.ink, opacity: clientBusy ? 0.6 : 1 }}>
+                {clientBusy ? "Creating…" : "Create client in Manager"}
+              </PillBtn>
             )}
-            {!isNew && c.status === "client" && c.clientId && (
-              <p style={{ fontSize: TYPE.label.size, color: PAL.done.ink, margin: "10px 2px 0", lineHeight: 1.5 }}>✓ Client in Manager — quote, contract and invoice happen there.</p>
+            {c.status === "client" && c.clientId && (
+              <p style={{ fontSize: TYPE.label.size, color: PAL.done.ink, margin: "8px 2px 0", lineHeight: 1.4 }}>✓ Client in Manager — quote, contract and invoice happen there.</p>
             )}
-            <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, padding: "0 12px 12px", marginTop: 12 }}>
-              <Lbl>Template · {accLabel}</Lbl>
-              {tpls.length > 0 ? (
-                <>
-                  <S value={tplId} aria-label="Template" onChange={(e: any) => setTplId(e.target.value)}>
+            <div style={{ ...CAPS, margin: "10px 2px 4px" }}>Template · {accLabel}</div>
+            {tpls.length > 0 ? (
+              <div style={{ display: "flex", gap: 6 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <MiniSelect value={tplId} aria-label="Template" onChange={(e: any) => setTplId(e.target.value)}>
                     {tpls.map(t => <option key={t.id} value={t.id}>{t.name || "Untitled"}{t.kind === "follow_up" ? " · follow-up" : ""}</option>)}
-                  </S>
-                  <PillBtn dark onClick={write} s={{ width: "100%", height: 40, justifyContent: "center", marginTop: 8, fontSize: TYPE.row.size }}>
-                    <Ico d={MAIL} size={15} />{tpl?.kind === "follow_up" ? "Write follow-up" : "Write in Outlook"}
-                  </PillBtn>
-                  <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "6px 0 0", textAlign: "center" as const }}>
-                    {tpl?.kind === "follow_up" ? "Logs the follow-up" : willPitch ? "Logs the pitch and sets Pitched" : "Logs the pitch"}
-                  </p>
-                </>
-              ) : (
-                <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: 0, lineHeight: 1.5 }}>No {pipe === "ugc" ? "UGC" : "@lynnhoa"} templates yet — add one in Email kit (For: {pipe === "ugc" ? "UGC" : "@lynnhoa"}).</p>
-              )}
-              <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "8px 0 0", textAlign: "center" as const }}>
-                Sent it another way?{" "}
-                <button onClick={() => log("pitch")} style={{ background: "none", border: "none", padding: "4px 2px", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: C.black, textDecoration: "underline" }}>+ Pitch</button>
-                {" · "}
-                <button onClick={() => log("follow_up")} style={{ background: "none", border: "none", padding: "4px 2px", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: C.black, textDecoration: "underline" }}>+ Follow-up</button>
-              </p>
-            </div>
-          </>
+                  </MiniSelect>
+                </div>
+                <PillBtn dark onClick={write} title={tpl?.kind === "follow_up" ? "Write follow-up in Outlook" : "Write in Outlook"}
+                  s={{ height: 32, padding: "0 14px", flexShrink: 0, fontSize: TYPE.subtext.size }}>
+                  <Ico d={MAIL} size={14} /><span aria-label={tpl?.kind === "follow_up" ? "Write follow-up in Outlook" : "Write in Outlook"}>Write</span>
+                </PillBtn>
+              </div>
+            ) : (
+              <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 2px", lineHeight: 1.4 }}>No {pipe === "ugc" ? "UGC" : "@lynnhoa"} templates yet — add one in Email kit.</p>
+            )}
+            <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "6px 2px 0", lineHeight: 1.4 }}>
+              {tpls.length > 0 && <>{tpl?.kind === "follow_up" ? "Logs the follow-up" : willPitch ? "Logs the pitch and sets Pitched" : "Logs the pitch"} · </>}
+              sent another way? <button onClick={() => log("pitch")} style={linkBtn}>+ Pitch</button> · <button onClick={() => log("follow_up")} style={linkBtn}>+ Follow-up</button>
+            </p>
+          </div>
         )}
 
-        {/* ── the fields ── */}
-        <div data-cform="">
-          <Lbl>Email</Lbl>
-          <div style={{ position: "relative" }}>
-            <I data-k="email" type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} enterKeyHint="next"
-              autoFocus={!!isNew} placeholder="name@brand.com" value={f.email} aria-label="Email" s={isNew ? undefined : { paddingRight: 44 }}
-              onChange={(e: any) => setF({ ...f, email: e.target.value })} onBlur={fillFromEmail} onKeyDown={onEnter} />
+        {/* ── the contact: tap a value to type ── */}
+        {!isNew && <SecHead icon={USER} label="Contact" tone={PAL.neutral} />}
+        <div data-cform="" style={{ ...WCARD, marginTop: isNew ? 2 : 0 }}>
+          <div className="lh-cfrow" style={rowS(true)}>
+            {lbl("Email")}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <MiniInput bare data-k="email" type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} enterKeyHint="next"
+                autoFocus={!!isNew} placeholder="name@brand.com" value={f.email} aria-label="Email"
+                onChange={(e: any) => setF({ ...f, email: e.target.value })} onBlur={fillFromEmail} onKeyDown={onEnter} />
+            </div>
             {!isNew && (
               <button onClick={() => onCopy(c.email)} aria-label="Copy email" title="Copy email"
-                style={{ position: "absolute", right: 2, top: 2, width: 36, height: 36, background: "none", border: "none", cursor: "copy", color: C.muted, display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
-                <Ico d={IC.copy} size={15} />
+                style={{ width: 30, height: 30, background: "none", border: "none", cursor: "copy", color: C.light, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
+                <Ico d={IC.copy} size={14} />
               </button>
             )}
           </div>
-          {isNew && <p style={{ fontSize: TYPE.micro.size, color: C.light, margin: "4px 2px 0" }}>Only the email is needed.</p>}
-          <div style={TWO}>
-            <div><Lbl>Company</Lbl><I data-k="company" enterKeyHint="next" value={f.company} aria-label="Company" onChange={(e: any) => setF({ ...f, company: e.target.value })} onKeyDown={onEnter} /></div>
-            <div><Lbl>Contact name</Lbl><I data-k="contactName" enterKeyHint="next" value={f.contactName} aria-label="Contact name" onChange={(e: any) => setF({ ...f, contactName: e.target.value })} onKeyDown={onEnter} /></div>
-          </div>
-          <div style={TWO}>
-            <div><Lbl>Category</Lbl>
-              <S value={isCategory(f.category) ? f.category : ""} aria-label="Category" onChange={(e: any) => setF({ ...f, category: e.target.value })}>
+          {text("Company", "company", "Brand name")}
+          {text("Contact", "contactName", "Add a name", { "aria-label": "Contact name" })}
+          <div className="lh-cfrow" style={rowS()}>
+            {lbl("Category")}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <MiniSelect bare value={isCategory(f.category) ? f.category : ""} muted={!isCategory(f.category)} aria-label="Category" onChange={(e: any) => setF({ ...f, category: e.target.value })}>
                 {!isCategory(f.category) && <option value="" disabled>Pick a category</option>}
                 {OUTREACH_CATEGORIES.map(k => <option key={k.key} value={k.key}>{k.label}</option>)}
-              </S>
+              </MiniSelect>
             </div>
-            <div><Lbl>Tier</Lbl>
-              <S value={isTier(f.tier) ? f.tier : ""} aria-label="Tier" onChange={(e: any) => setF({ ...f, tier: e.target.value })}>
+          </div>
+          <div className="lh-cfrow" style={rowS()}>
+            {lbl("Tier")}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <MiniSelect bare value={isTier(f.tier) ? f.tier : ""} muted={!isTier(f.tier)} aria-label="Tier" onChange={(e: any) => setF({ ...f, tier: e.target.value })}>
                 <option value="">—</option>
                 {OUTREACH_TIERS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </S>
+              </MiniSelect>
             </div>
           </div>
-          <div style={TWO}>
-            <div><Lbl>City</Lbl><I data-k="city" enterKeyHint="next" value={f.city} aria-label="City" onChange={(e: any) => setF({ ...f, city: e.target.value })} onKeyDown={onEnter} /></div>
-            <div><Lbl>Country</Lbl><I data-k="country" enterKeyHint="next" value={f.country} aria-label="Country" onChange={(e: any) => setF({ ...f, country: e.target.value })} onKeyDown={onEnter} /></div>
+          <div style={{ ...rowS(), padding: 0, gap: 0 }}>
+            <div className="lh-cfrow" style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0, minHeight: 34, padding: "0 6px 0 12px" }}>
+              <span style={{ ...CAPS, width: 46, flexShrink: 0, paddingTop: 2 }}>City</span>
+              <div style={{ flex: 1, minWidth: 0 }}><MiniInput bare data-k="city" enterKeyHint="next" value={f.city || ""} placeholder="—" aria-label="City" onChange={(e: any) => setF({ ...f, city: e.target.value })} onKeyDown={onEnter} /></div>
+            </div>
+            <div className="lh-cfrow" style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0, minHeight: 34, padding: "0 6px 0 10px", borderLeft: `1px solid ${C.hair}` }}>
+              <span style={{ ...CAPS, width: 58, flexShrink: 0, paddingTop: 2 }}>Country</span>
+              <div style={{ flex: 1, minWidth: 0 }}><MiniInput bare data-k="country" enterKeyHint="next" value={f.country || ""} placeholder="—" aria-label="Country" onChange={(e: any) => setF({ ...f, country: e.target.value })} onKeyDown={onEnter} /></div>
+            </div>
           </div>
-          <Lbl>Website / IG</Lbl>
-          <I data-k="web" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="done" value={f.web} aria-label="Website or Instagram" onChange={(e: any) => setF({ ...f, web: e.target.value })} onKeyDown={onEnter} />
-          {showNoteField || f.notes || c.notes ? (
-            <><Lbl>Notes</Lbl>
-              <textarea rows={2} value={f.notes} autoFocus={showNoteField && !f.notes} aria-label="Notes" onChange={(e) => setF({ ...f, notes: e.target.value })}
-                style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.field}`, background: C.white, fontFamily: SANS, fontSize: 16, color: C.black, borderRadius: RADIUS.field, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const }} /></>
-          ) : (
-            <button onClick={() => setShowNoteField(true)} style={{ marginTop: 12, background: "none", border: "none", padding: "0 2px", minHeight: 36, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: C.ink2 }}>+ Note</button>
-          )}
+          {text("Web / IG", "web", "—", { inputMode: "url", autoCapitalize: "none", autoCorrect: "off", spellCheck: false, "aria-label": "Website or Instagram" })}
+          {text("Notes", "notes", "Add a note", { enterKeyHint: "done" })}
         </div>
+        {isNew && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "6px 2px 0" }}>Only the email is needed.</p>}
 
         {/* ── timeline: pitches, follow-ups, status changes, replies ── */}
         {!isNew && !outreach.pitchError && (
           <>
-            <Lbl>Timeline · {timeline.length}</Lbl>
-            {timeline.length === 0 ? <p style={{ fontSize: 12, color: C.light, margin: 0 }}>Nothing sent yet.</p> : (
-              <div style={{ borderTop: `1px solid ${C.rule}` }}>
-                {timeline.map(t => (
-                  <div key={t.key} style={{ minHeight: 36, display: "flex", alignItems: "center", gap: 8, borderBottom: `1px solid ${C.rule}`, fontSize: 13 }}>
-                    <span style={{ width: 86, flexShrink: 0 }}>{t.day ? fmtD(t.day) : ""}</span>
-                    <span style={{ flex: 1, minWidth: 0 }}>{t.text}</span>
-                    {t.pitch ? (
-                      <button onClick={() => deleteEntry(t.pitch!)} aria-label="Delete this entry" title="Delete this entry"
-                        style={{ width: 32, height: 32, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 14 }}>✕</button>
-                    ) : <span style={{ width: 32, flexShrink: 0 }} />}
-                  </div>
-                ))}
-              </div>
-            )}
+            <SecHead icon={CLOCK} label={`Timeline · ${timeline.length}`} tone={PAL.progress} />
+            <div style={WCARD}>
+              {timeline.length === 0 ? <div style={{ ...rowS(true), fontSize: TYPE.subtext.size, color: C.light }}>Nothing sent yet.</div> : timeline.map((t, i) => (
+                <div key={t.key} style={{ ...rowS(i === 0), fontSize: TYPE.row.size }}>
+                  <span style={{ width: 80, flexShrink: 0 }}>{t.day ? fmtD(t.day) : ""}</span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{t.text}</span>
+                  {t.pitch ? (
+                    <button onClick={() => deleteEntry(t.pitch!)} aria-label="Delete this entry" title="Delete this entry"
+                      style={{ width: 30, height: 30, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 13, flexShrink: 0 }}>✕</button>
+                  ) : <span style={{ width: 30, flexShrink: 0 }} />}
+                </div>
+              ))}
+            </div>
           </>
         )}
         {!isNew && (c.createdAt || c.source) && (
-          <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "10px 2px 0", lineHeight: 1.5, overflowWrap: "anywhere" as const }}>
+          <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "8px 2px 0", lineHeight: 1.5, overflowWrap: "anywhere" as const }}>
             {[c.createdAt ? `Added ${fmtD(c.createdAt.slice(0, 10))}` : "", c.source].filter(Boolean).join(" · ")}
           </p>
-        )}
-        {!isNew && (
-          <B v="danger" onClick={() => setAskDelete(true)} s={{ width: "100%", minHeight: 40, marginTop: 14, gap: 7, fontSize: TYPE.row.size }}>
-            <Ico d={TRASH} size={15} />Delete contact
-          </B>
         )}
       </Sheet>
     </>
