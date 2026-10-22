@@ -1,7 +1,8 @@
 // ─────────────────────────────────────────────────────────────
 // usePlanner — the Planner's data (tables planner_stages,
 // planner_tasks, planner_entries, planner_snapshots, planner_items,
-// planner_notes, planner_sprints, planner_concept_arcs) plus Outreach: contacts (new per
+// planner_notes, planner_sprints, planner_concept_arcs, planner_concept_phases)
+// plus Outreach: contacts (new per
 // week, status) and the pitch log. Rows that count themselves
 // (contacts, pitches, ideas, posts, pieces, first set, kit
 // handover) read from here.
@@ -17,7 +18,7 @@ import {
   addDays, entryKey, snapKey, mondayOf, periodOf, rowState, taskAccounts, NO_DAYS, planOf,
 } from "./planner";
 import { daysBetween } from "./planner";
-import type { Stage, Task, Entry, TaskStatus, Snapshot, Account, Item, ItemStatus, Note, NoteKind, Auto, Sprint, SprintStats, ConceptArc } from "./planner";
+import type { Stage, Task, Entry, TaskStatus, Snapshot, Account, Item, ItemStatus, Note, NoteKind, Auto, Sprint, SprintStats, ConceptArc, ConceptPhase, ConceptEra, ConceptEraArc } from "./planner";
 import { FOLLOW_UP_DAYS } from "./outreach";
 import type { Pitch } from "./outreach";
 
@@ -66,6 +67,25 @@ const rowToArc = (r: any): ConceptArc => ({
     .filter((l: { url: string; note: string }) => l.url || l.note),
 });
 const CONCEPT_MISSING = "The concept table doesn't exist yet — run the concept SQL in Supabase once.";
+// one phase with its eras (fixed by the SQL); an era's arcs are numbers pointing at the arcs above
+const rowToPhase = (r: any): ConceptPhase => ({
+  id:      r.id,
+  account: r.account === "createbylynn" ? "createbylynn" : "lynnhoa",
+  num:     Number(r.num) || 0,
+  name:    r.name ?? "",
+  purpose: r.purpose ?? "",
+  eras:    (Array.isArray(r.eras) ? r.eras : [])
+    .map((e: any): ConceptEra => ({
+      key:  String(e?.key ?? "").trim(),
+      name: String(e?.name ?? "").trim(),
+      desc: String(e?.desc ?? "").trim(),
+      arcs: (Array.isArray(e?.arcs) ? e.arcs : [])
+        .map((a: any): ConceptEraArc => ({ num: Number(a?.num) || 0, optional: !!a?.optional, note: String(a?.note ?? "").trim() }))
+        .filter((a: ConceptEraArc) => a.num > 0),
+    }))
+    .filter((e: ConceptEra) => e.key && e.name),
+});
+const PHASES_MISSING = "The phases table doesn't exist yet — run the phases SQL in Supabase once.";
 
 const rowToStage = (r: any): Stage => ({
   id:          r.id,
@@ -211,6 +231,8 @@ export function usePlanner(userId: string | null, monday: string) {
   const [stage2Error, setStage2Error] = useState<string | null>(null);
   const [arcs,      setArcs]      = useState<ConceptArc[]>([]);
   const [conceptError, setConceptError] = useState<string | null>(null);
+  const [phases,    setPhases]    = useState<ConceptPhase[]>([]);
+  const [phasesError, setPhasesError] = useState<string | null>(null);
   // every target ever set (they carry over to the following weeks / months)
   const [targetLog, setTargetLog] = useState<Record<string, { p: string; v: number }[]>>({});
   const [loginEmail, setLoginEmail] = useState("");
@@ -291,8 +313,8 @@ export function usePlanner(userId: string | null, monday: string) {
 
   // Creator lists and notes, Outreach contacts and (Stage 2) the pitch log and sprints
   const loadOutside = useCallback(async () => {
-    if (!userId) { setContacts([]); setItems([]); setNotes([]); setPitches([]); setSprints([]); setArcs([]); return; }
-    const [oc, it, nt, pl, sp, ca]: any[] = await Promise.all([
+    if (!userId) { setContacts([]); setItems([]); setNotes([]); setPitches([]); setSprints([]); setArcs([]); setPhases([]); return; }
+    const [oc, it, nt, pl, sp, ca, ph]: any[] = await Promise.all([
       // lists that grow: every row, page by page (more than 1,000 is fine)
       selectAll("outreach_contacts", "id, company, category, tier, status, last_contact, created_at", q => q.eq("user_id", userId).order("id")),
       selectAll("planner_items", "*", q => q.eq("user_id", userId).order("created_at").order("id")),
@@ -301,6 +323,8 @@ export function usePlanner(userId: string | null, monday: string) {
       supabase.from("planner_sprints").select("*").eq("user_id", userId).order("start_on"),
       // the content concept (its own SQL); without it the rest of the Planner still works
       supabase.from("planner_concept_arcs").select("*").eq("user_id", userId).order("account").order("num"),
+      // its phases and eras (one more SQL); without them the arcs still work
+      supabase.from("planner_concept_phases").select("*").eq("user_id", userId).order("account").order("num"),
     ]);
     if (oc?.error) setOutreachError(oc.error.message);
     else {
@@ -317,6 +341,8 @@ export function usePlanner(userId: string | null, monday: string) {
     if (!sp?.error) setSprints((sp?.data || []).map(rowToSprint));
     if (ca?.error) setConceptError(/planner_concept_arcs/.test(ca.error.message || "") ? CONCEPT_MISSING : ca.error.message);
     else { setConceptError(null); setArcs((ca?.data || []).map(rowToArc)); }
+    if (ph?.error) setPhasesError(/planner_concept_phases/.test(ph.error.message || "") ? PHASES_MISSING : ph.error.message);
+    else { setPhasesError(null); setPhases((ph?.data || []).map(rowToPhase)); }
     const err = it?.error || nt?.error;
     if (err) setLoadError(isMissing(err.message) ? MISSING : err.message);
     else {
@@ -691,7 +717,7 @@ export function usePlanner(userId: string | null, monday: string) {
     createItem, updateItem, setItemStatus, deleteItem, noteOf, saveNote,
     pitches, sprints, stage2Error, createSprint, updateSprint, deleteSprint, activeSprint, sprintStats, followUpsDue, pitchesInWeek, contactName,
     restoreItem, deletePitch, restorePitch,
-    arcs, conceptError, updateArc,
+    arcs, conceptError, updateArc, phases, phasesError,
   };
 }
 

@@ -1,10 +1,10 @@
 // ─────────────────────────────────────────────────────────────
 // PlannerWindows — the Planner's windows (one level, like the
 // Outreach contact window) and the small pieces they share.
-//   Idea window    an idea or an editorial: ticks, concept (arc · format), storyline, clips, links
+//   Idea window    an idea or an editorial: ticks, concept (phase · era · arc · format), storyline, clips, links
 //   Sprint window  focus, goals, results and the review (Stage 2)
 // The text list, link list and window heads are shared with the
-// concept page (PlannerConcept: an arc's texts and links).
+// concept page (PlannerConcept: an arc's texts and links, an era's arcs).
 // Extra actions (Delete …) sit in the ⋯ menu; one main button.
 // Every window is a bottom sheet like the Manager and Creator sheets: only as
 // tall as its content, the page dimmed behind. Compact inside: 10 px between
@@ -530,12 +530,26 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
           </div>
         )}
 
-        {/* the content concept: Arc, then Format (that arc's formats) side by side */}
+        {/* the content concept: Phase · Era, then Arc · Format (the era's arcs first) */}
         <WinHead icon={IC.bulb} label="Concept" tone={accT} />
         {(() => {
           const arcs = planner.arcs.filter(a => a.account === it.account).sort((a, b) => a.num - b.num);
           const arc  = arcs.find(a => a.id === it.plan.arc);
           const fmt  = arc?.formats.find(f => f.name === it.plan.arcFormat);
+          const phases = planner.phases.filter(p => p.account === it.account).sort((a, b) => a.num - b.num);
+          const phase  = phases.find(p => p.num === it.plan.phase);
+          const era    = phase?.eras.find(e => e.key === it.plan.era);
+          // with an era: its arcs first (in posting order, optional ones marked), then the others
+          const eraArcs = era ? era.arcs.flatMap(ea => { const a = arcs.find(x => x.num === ea.num); return a ? [{ ea, a }] : []; }) : [];
+          const others  = era ? arcs.filter(a => !era.arcs.some(ea => ea.num === a.num)) : arcs;
+          // a new phase keeps the era if it has one with the same key; "Pick a phase" clears both
+          const pickPhase = (v: string) => {
+            const n = Number(v) || 0;
+            if (!n) { savePlan({ phase: null, era: null }); return; }
+            const next = phases.find(p => p.num === n);
+            const keep = !!next && !!it.plan.era && next.eras.some(e => e.key === it.plan.era);
+            savePlan({ phase: n, era: keep ? it.plan.era : null });
+          };
           // a new arc keeps the format if it has one of the same name
           const pickArc = (id: string) => {
             if (!id) { savePlan({ arc: null, arcFormat: null }); return; }
@@ -545,12 +559,35 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
           };
           return (
             <>
+              {(phases.length > 0 || !!it.plan.phase) && (
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 6, marginBottom: 6 }}>
+                  <MiniSelect value={it.plan.phase ? String(it.plan.phase) : ""} muted={!it.plan.phase} aria-label="Phase"
+                    onChange={(e: any) => pickPhase(String(e.target.value || ""))}>
+                    <option value="">Pick a phase</option>
+                    {!!it.plan.phase && !phase && <option value={String(it.plan.phase)}>Not in the concept any more</option>}
+                    {phases.map(p => <option key={p.id} value={String(p.num)}>{`${p.num}. ${p.name}`}</option>)}
+                  </MiniSelect>
+                  <MiniSelect value={it.plan.era || ""} muted={!it.plan.era} disabled={!phase} aria-label="Era"
+                    onChange={(e: any) => savePlan({ era: String(e.target.value || "") || null })}>
+                    <option value="">{phase ? "Pick an era" : "Era"}</option>
+                    {phase && it.plan.era && !era && <option value={it.plan.era}>Not in this phase any more</option>}
+                    {(phase?.eras || []).map(e => <option key={e.key} value={e.key}>{e.name}</option>)}
+                  </MiniSelect>
+                </div>
+              )}
               <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 6 }}>
                 <MiniSelect value={it.plan.arc || ""} muted={!it.plan.arc} disabled={!arcs.length && !it.plan.arc} aria-label="Arc"
                   onChange={(e: any) => pickArc(String(e.target.value || ""))}>
                   <option value="">{arcs.length ? "Pick an arc" : `No arcs for @${it.account} yet`}</option>
                   {it.plan.arc && !arc && <option value={it.plan.arc}>Not in the concept any more</option>}
-                  {arcs.map(a => <option key={a.id} value={a.id}>{`${a.num}. ${a.name}`}</option>)}
+                  {era && eraArcs.length > 0 && (
+                    <optgroup label={era.name}>
+                      {eraArcs.map(({ ea, a }) => <option key={a.id} value={a.id}>{`${a.num}. ${a.name}${ea.optional ? " (optional)" : ""}`}</option>)}
+                    </optgroup>
+                  )}
+                  {era && eraArcs.length > 0
+                    ? (others.length > 0 && <optgroup label="Other arcs">{others.map(a => <option key={a.id} value={a.id}>{`${a.num}. ${a.name}`}</option>)}</optgroup>)
+                    : arcs.map(a => <option key={a.id} value={a.id}>{`${a.num}. ${a.name}`}</option>)}
                 </MiniSelect>
                 <MiniSelect value={it.plan.arcFormat || ""} muted={!it.plan.arcFormat} disabled={!arc} aria-label="Format"
                   onChange={(e: any) => savePlan({ arcFormat: String(e.target.value || "") || null })}>

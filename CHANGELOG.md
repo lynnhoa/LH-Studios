@@ -123,6 +123,29 @@ Goal: make the Supabase app functionally identical to the old reference
   same name; "Pick an arc" clears both.
 - Changed: `PlannerWindows.tsx`, `PlannerConcept.tsx`.
 
+## Planner · Concept phases (22.10.2026)
+- Content concept: a switch under the title, Arcs | Phases (remembered on
+  this device). Colours: arcs pastel blue, phases butter; lavender stays
+  the account's.
+- Phases: Home, Occasion, Invited, City break, Long trip, Brand partner,
+  one card each (all closed the first time, remembered). Open: purpose and
+  its recurring eras, each with the number of core arcs (+ optional).
+- Tap an era: one sheet with its arcs in posting order, optional ones last
+  in grey with their note. Each arc there IS the arc of Arcs: purpose,
+  formats with ticks, texts and links, edited right there (no jump to
+  Arcs); a change shows in both.
+- Idea window › Concept: Phase and Era above Arc and Format. Era lists that
+  phase's eras; a new phase keeps the era if it has it; "Pick a phase"
+  clears both. With an era, Arc lists the era's arcs first (optional ones
+  marked), then the others. Saved in the idea's plan (`phase`, `era`), no
+  SQL. Without phases (e.g. @createbylynn) the row is hidden.
+- Data: table `planner_concept_phases` (SQL `LH-Studio-planner-phases.sql`,
+  safe to rerun). Phases, eras and their arcs are fixed by the SQL. Step 4
+  adds the approved era lines to the matching arcs' texts (only lines that
+  aren't there yet).
+- Changed: `PlannerConcept.tsx`, `PlannerWindows.tsx`, `usePlanner.ts`,
+  `planner.ts`.
+
 ## Known open items
 1. Multi-device: data fetched once per load, last-write-wins — consider
    refetch-on-focus (~20 lines).

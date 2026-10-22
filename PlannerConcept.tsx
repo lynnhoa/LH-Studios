@@ -1,40 +1,49 @@
 // ─────────────────────────────────────────────────────────────
 // PlannerConcept — Planner › Content concept, opened from the
 // profile menu ("@lynnhoa concept" / "@createbylynn concept").
-//   One card per arc, numbered top to bottom. Tap an arc to open or
-//   close it; "collapse all / expand all" sits next to Arcs. Remembered
-//   on this device; the first time, all are closed (every arc on one
-//   screen).
-//   An open arc: its purpose, its formats with the TikTok / Instagram
-//   ticks, and "texts · links" small in the top right.
-//   texts / links open one window each — the idea window's text list
-//   and link list: add, change, delete with Undo, saved right away.
-// Arcs, purpose, formats and ticks come from the SQL (fixed here).
+//   Arcs | Phases: a switch under the title (remembered on this device).
+//   Arcs (pastel blue): one card per arc, numbered top to bottom. Tap an
+//   arc to open or close it. Open: its purpose, its formats with the
+//   TikTok / Instagram ticks, and "texts · links" small in the top right —
+//   one window each (add, change, delete with Undo, saved right away).
+//   Phases (butter): Home, Occasion, Invited … one card each. Open: its
+//   purpose and its recurring eras. Tap an era: one window with the era's
+//   core arcs in posting order (optional ones last, in grey). Each arc
+//   there IS the arc of the Arcs view — same purpose, formats, texts and
+//   links, edited right there (no jump to Arcs), so a change shows on both.
+//   "collapse all / expand all" next to Arcs / Phases. Open cards are
+//   remembered on this device; the first time, all are closed.
+// Arcs, purpose, formats, ticks, phases and eras come from the SQL (fixed).
 // Phone: one column · iPad / computer: two columns (first half left).
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
-import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, ICON } from "./constants";
+import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, ICON, PAL } from "./constants";
 import { B, SectionHead } from "./atoms";
-import { ACCOUNTS, PLATFORM_TONE, platformTone } from "./planner";
-import type { Account, ConceptArc, ConceptFormat } from "./planner";
+import { ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE } from "./planner";
+import type { Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
-import { IC, Subtitle, TabTitle, Window, WinHead, winCard, LineList, LinkList, ACC_TONE } from "./PlannerWindows";
+import { IC, Subtitle, TabTitle, Window, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
 
-// the open arcs per account, remembered on this device (none the first time)
-const OPEN_KEY = "lh_planner_concept_open";
+// remembered on this device: the open arcs and phases per account (none the first time) and the view
+const OPEN_KEY    = "lh_planner_concept_open";
+const OPEN_PH_KEY = "lh_planner_concept_open_phases";
+const VIEW_KEY    = "lh_planner_concept_view";
 type OpenMap = Partial<Record<Account, number[]>>;
-const loadOpen = (): OpenMap => {
-  try { const v = JSON.parse(localStorage.getItem(OPEN_KEY) || "null"); if (v && typeof v === "object") return v; } catch { /* ignore */ }
+type ConceptView = "arcs" | "phases";
+const loadMap = (key: string): OpenMap => {
+  try { const v = JSON.parse(localStorage.getItem(key) || "null"); if (v && typeof v === "object") return v; } catch { /* ignore */ }
   return {};
 };
+const saveMap = (key: string, m: OpenMap) => { try { localStorage.setItem(key, JSON.stringify(m)); } catch { /* ignore */ } };
+const loadView = (): ConceptView => { try { return localStorage.getItem(VIEW_KEY) === "phases" ? "phases" : "arcs"; } catch { return "arcs"; } };
 
 const quiet = (p: Promise<any>) => p.catch(() => { /* the save toast reports it */ });
 
-const NUM    = 24;              // the arc's number circle
+const NUM    = 24;              // the number circle of an arc or a phase
 const GAP    = 9;
-const INDENT = NUM + GAP;       // purpose and formats line up with the arc's name
+const INDENT = NUM + GAP;       // purpose, formats and eras line up with the card's name
 const COL    = 30;              // the TikTok and Instagram columns
 
 const caps: any = { fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const };
@@ -45,6 +54,7 @@ const mini: any = {
   whiteSpace: "nowrap" as const, WebkitTapHighlightColor: "transparent",
 };
 const count = (word: string, n: number) => (n ? `${word} · ${n}` : word);
+type Tone = { fill: string; wash: string; mid: string; ink: string };
 
 // a platform tick: soft fill, coloured outline and check · empty: light outline
 const PlatformTick = ({ on, platform }: { on: boolean; platform: "TikTok" | "Instagram" }) => {
@@ -70,18 +80,45 @@ const FormatRow = ({ f }: { f: ConceptFormat }) => (
   </div>
 );
 
+// "Formats · TT · IG" and one row per format (the arc card and the era window)
+const Formats = ({ formats }: { formats: ConceptFormat[] }) => (
+  <>
+    <div style={{ display: "flex", alignItems: "center", height: 22 }}>
+      <span style={{ ...caps, flex: 1, color: C.light }}>Formats</span>
+      <span style={{ ...caps, width: COL, textAlign: "center" as const, color: PLATFORM_TONE.TikTok.ink }} title="TikTok">TT</span>
+      <span style={{ ...caps, width: COL, textAlign: "center" as const, color: PLATFORM_TONE.Instagram.ink }} title="Instagram">IG</span>
+    </div>
+    {formats.map((f, k) => <FormatRow key={k} f={f} />)}
+  </>
+);
+
+const NumCircle = ({ n, tone, size = NUM }: { n: number; tone: Tone; size?: number }) => (
+  <span aria-hidden="true" style={{ width: size, height: size, borderRadius: "50%", background: tone.wash, color: tone.ink,
+    fontSize: size < NUM ? TYPE.micro.size : TYPE.subtext.size, fontWeight: 500, letterSpacing: 0,
+    display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{n}</span>
+);
+
+const cardBox: any = { background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden" };
+const headBtn: any = {
+  flex: 1, minWidth: 0, minHeight: SPACING.row1, display: "flex", alignItems: "center", gap: GAP, padding: `0 8px 0 ${SPACING.rowSide}px`,
+  background: "none", border: "none", cursor: "pointer", fontFamily: SANS, textAlign: "left" as const, color: C.black, WebkitTapHighlightColor: "transparent",
+};
+const nameText: any = { flex: 1, minWidth: 0, fontSize: SPACING.plannerText, fontWeight: 500, lineHeight: 1.3, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" };
+const Caret = ({ open, onClick }: { open: boolean; onClick: () => void }) => (
+  <span aria-hidden="true" onClick={onClick}
+    style={{ width: COL, minHeight: SPACING.row1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: ICON.caret, color: C.faint, flexShrink: 0, cursor: "pointer" }}>
+    {open ? "▴" : "▾"}
+  </span>
+);
+
 // one arc: number · name · (open: texts · links) · ▾ — open: purpose and formats
 function ArcCard({ arc, open, onToggle, onOpen }: { arc: ConceptArc; open: boolean; onToggle: () => void; onOpen: (kind: "texts" | "links") => void }) {
-  const tone = ACC_TONE[arc.account];
   return (
-    <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden" }}>
+    <div style={cardBox}>
       <div style={{ display: "flex", alignItems: "center" }}>
-        <button onClick={onToggle} aria-expanded={open} aria-label={`${arc.num}. ${arc.name}`}
-          style={{ flex: 1, minWidth: 0, minHeight: SPACING.row1, display: "flex", alignItems: "center", gap: GAP, padding: `0 8px 0 ${SPACING.rowSide}px`,
-            background: "none", border: "none", cursor: "pointer", fontFamily: SANS, textAlign: "left" as const, color: C.black, WebkitTapHighlightColor: "transparent" }}>
-          <span aria-hidden="true" style={{ width: NUM, height: NUM, borderRadius: "50%", background: tone.wash, color: tone.ink, fontSize: TYPE.subtext.size, fontWeight: 500,
-            display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{arc.num}</span>
-          <span style={{ flex: 1, minWidth: 0, fontSize: SPACING.plannerText, fontWeight: 500, lineHeight: 1.3, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{arc.name}</span>
+        <button onClick={onToggle} aria-expanded={open} aria-label={`${arc.num}. ${arc.name}`} style={headBtn}>
+          <NumCircle n={arc.num} tone={ARC_TONE} />
+          <span style={nameText}>{arc.name}</span>
         </button>
         {open && (
           <span style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
@@ -89,27 +126,96 @@ function ArcCard({ arc, open, onToggle, onOpen }: { arc: ConceptArc; open: boole
             <button onClick={() => onOpen("links")} aria-label={`Links of ${arc.name}`} style={mini}>{count("links", arc.links.length)}</button>
           </span>
         )}
-        <span aria-hidden="true" onClick={onToggle}
-          style={{ width: COL, minHeight: SPACING.row1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: ICON.caret, color: C.faint, flexShrink: 0, cursor: "pointer" }}>
-          {open ? "▴" : "▾"}
-        </span>
+        <Caret open={open} onClick={onToggle} />
       </div>
       {open && (
         <div style={{ padding: `0 6px 6px ${SPACING.rowSide}px` }}>
           {arc.purpose && <div style={{ margin: `-8px 22px 0 ${INDENT}px`, fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4 }}>{arc.purpose}</div>}
+          <div style={{ margin: `8px 0 0 ${INDENT}px` }}><Formats formats={arc.formats} /></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// an era's core arcs and its optional ones: "4" or "4 + 1"
+const eraCount = (e: ConceptEra) => {
+  const core = e.arcs.filter(a => !a.optional).length, opt = e.arcs.length - core;
+  return { core, opt, label: opt ? `${core} + ${opt}` : String(core) };
+};
+
+// one phase: number · name · ▾ — open: purpose and its eras (tap one: its arcs)
+function PhaseCard({ phase, open, onToggle, onEra }: { phase: ConceptPhase; open: boolean; onToggle: () => void; onEra: (e: ConceptEra) => void }) {
+  return (
+    <div style={cardBox}>
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <button onClick={onToggle} aria-expanded={open} aria-label={`${phase.num}. ${phase.name}`} style={headBtn}>
+          <NumCircle n={phase.num} tone={PHASE_TONE} />
+          <span style={nameText}>{phase.name}</span>
+        </button>
+        <Caret open={open} onClick={onToggle} />
+      </div>
+      {open && (
+        <div style={{ padding: `0 6px 6px ${SPACING.rowSide}px` }}>
+          {phase.purpose && <div style={{ margin: `-8px 22px 0 ${INDENT}px`, fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4 }}>{phase.purpose}</div>}
           <div style={{ margin: `8px 0 0 ${INDENT}px` }}>
             <div style={{ display: "flex", alignItems: "center", height: 22 }}>
-              <span style={{ ...caps, flex: 1, color: C.light }}>Formats</span>
-              <span style={{ ...caps, width: COL, textAlign: "center" as const, color: PLATFORM_TONE.TikTok.ink }} title="TikTok">TT</span>
-              <span style={{ ...caps, width: COL, textAlign: "center" as const, color: PLATFORM_TONE.Instagram.ink }} title="Instagram">IG</span>
+              <span style={{ ...caps, flex: 1, color: C.light }}>{count("Eras", phase.eras.length)}</span>
+              <span style={{ ...caps, color: C.light, paddingRight: 22 }}>Arcs</span>
             </div>
-            {arc.formats.map((f, k) => <FormatRow key={k} f={f} />)}
+            {phase.eras.map(e => {
+              const n = eraCount(e);
+              return (
+                <button key={e.key} onClick={() => onEra(e)}
+                  aria-label={`${e.name}: ${n.core} arcs${n.opt ? ` and ${n.opt} optional` : ""}`}
+                  style={{ width: "100%", display: "flex", alignItems: "center", minHeight: SPACING.row1, padding: "5px 0", background: "none", border: "none",
+                    borderTop: `1px solid ${C.hair}`, cursor: "pointer", fontFamily: SANS, textAlign: "left" as const, color: C.black, WebkitTapHighlightColor: "transparent" }}>
+                  <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: C.ink2, flexShrink: 0, marginRight: GAP }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: SPACING.listText, fontWeight: 500, lineHeight: 1.3 }}>{e.name}</span>
+                    {e.desc && <span style={{ display: "block", fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.35, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{e.desc}</span>}
+                  </span>
+                  <span style={{ fontSize: SPACING.listMeta, color: C.muted, whiteSpace: "nowrap" as const, paddingLeft: 8 }}>{n.label}</span>
+                  <span aria-hidden="true" style={{ width: 22, textAlign: "center" as const, color: C.faint, fontSize: 15, flexShrink: 0 }}>›</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
     </div>
   );
 }
+
+// Arcs | Phases — like the account switch, the chosen one in warm grey
+const VIEWS: { key: ConceptView; label: string }[] = [{ key: "arcs", label: "Arcs" }, { key: "phases", label: "Phases" }];
+const ViewSwitch = ({ view, onPick }: { view: ConceptView; onPick: (v: ConceptView) => void }) => (
+  <span role="group" aria-label="Show" style={{ display: "inline-flex", alignItems: "center", gap: 2, height: 28, padding: 2, boxSizing: "border-box" as const, border: `1px solid ${C.rule}`, borderRadius: 14, background: C.white }}>
+    {VIEWS.map(v => {
+      const on = v.key === view;
+      return (
+        <button key={v.key} type="button" aria-pressed={on} onClick={() => { if (!on) onPick(v.key); }}
+          style={{ height: 22, padding: "0 9px", borderRadius: 11, boxSizing: "border-box" as const, border: `1px solid ${on ? C.pillOn : "transparent"}`,
+            background: on ? PAL.neutral.fill : "transparent", color: on ? C.black : C.muted, fontFamily: SANS, fontSize: 12, letterSpacing: "0.01em",
+            lineHeight: 1, whiteSpace: "nowrap" as const, cursor: on ? "default" : "pointer", WebkitTapHighlightColor: "transparent" }}>
+          {v.label}
+        </button>
+      );
+    })}
+  </span>
+);
+
+// the era window's head of one arc: blue number and name · optional ones in grey with their note
+const EraArcHead = ({ n, name, optional, note }: { n: number; name: string; optional: boolean; note: string }) => (
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, margin: "10px 2px 5px" }}>
+    <span style={{ ...caps, display: "flex", alignItems: "center", gap: 7, minWidth: 0, color: optional ? C.light : C.muted }}>
+      <NumCircle n={n} tone={optional ? PAL.neutral : ARC_TONE} size={18} />
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{name}</span>
+    </span>
+    {optional && <span style={{ fontSize: TYPE.micro.size, color: C.light, whiteSpace: "nowrap" as const, flexShrink: 0 }}>{note ? `optional · ${note}` : "optional"}</span>}
+  </div>
+);
+const listHead: any = { ...caps, color: C.light, padding: "8px 10px 2px", borderTop: `1px solid ${C.hair}` };
 
 interface PlannerConceptProps {
   planner:   PlannerHook;
@@ -118,72 +224,106 @@ interface PlannerConceptProps {
   onAccount?: (a: Account) => void;
 }
 
+type Win = { kind: "texts" | "links"; id: string } | { kind: "era"; id: string; era: string };
+
 export default function PlannerConcept({ planner, view, isMobile, onAccount }: PlannerConceptProps) {
-  const acc  = (view.acc === "all" ? "lynnhoa" : view.acc) as Account;
-  const tone = ACC_TONE[acc];
-  const arcs = planner.arcs.filter(a => a.account === acc).sort((a, b) => a.num - b.num);
+  const acc    = (view.acc === "all" ? "lynnhoa" : view.acc) as Account;
+  const arcs   = planner.arcs.filter(a => a.account === acc).sort((a, b) => a.num - b.num);
+  const phases = planner.phases.filter(p => p.account === acc).sort((a, b) => a.num - b.num);
+  const accLabel = ACCOUNTS.find(a => a.key === acc)?.label || `@${acc}`;
 
-  const [openMap, setOpenMap] = useState<OpenMap>(loadOpen);
-  const openNums = openMap[acc] || [];
-  const saveOpen = (m: OpenMap) => { setOpenMap(m); try { localStorage.setItem(OPEN_KEY, JSON.stringify(m)); } catch { /* ignore */ } };
-  const toggle   = (n: number) => saveOpen({ ...openMap, [acc]: openNums.includes(n) ? openNums.filter(x => x !== n) : [...openNums, n] });
-  const anyOpen  = arcs.some(a => openNums.includes(a.num));
-  const toggleAll = () => saveOpen({ ...openMap, [acc]: anyOpen ? [] : arcs.map(a => a.num) });
+  // Arcs | Phases
+  const [show, setShow] = useState<ConceptView>(loadView);
+  const pickView = (v: ConceptView) => { setShow(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* ignore */ } };
 
-  // the window: one arc's texts or links
-  const [win, setWin] = useState<{ id: string; kind: "texts" | "links" } | null>(null);
-  const winArc = win ? planner.arcs.find(a => a.id === win.id) : undefined;
-  useEffect(() => { if (win && !winArc && !planner.loading) setWin(null); }, [win, winArc, planner.loading]);
+  // open cards, per account
+  const [openArcs, setOpenArcs] = useState<OpenMap>(() => loadMap(OPEN_KEY));
+  const [openPhs,  setOpenPhs]  = useState<OpenMap>(() => loadMap(OPEN_PH_KEY));
+  const arcNums = openArcs[acc] || [];
+  const phNums  = openPhs[acc] || [];
+  const setArcsOpen = (nums: number[]) => { const m = { ...openArcs, [acc]: nums }; setOpenArcs(m); saveMap(OPEN_KEY, m); };
+  const setPhsOpen  = (nums: number[]) => { const m = { ...openPhs, [acc]: nums }; setOpenPhs(m); saveMap(OPEN_PH_KEY, m); };
+  const toggleArc   = (n: number) => setArcsOpen(arcNums.includes(n) ? arcNums.filter(x => x !== n) : [...arcNums, n]);
+  const togglePh    = (n: number) => setPhsOpen(phNums.includes(n) ? phNums.filter(x => x !== n) : [...phNums, n]);
+  const anyArcOpen  = arcs.some(a => arcNums.includes(a.num));
+  const anyPhOpen   = phases.some(p => phNums.includes(p.num));
+
+  // the window: one arc's texts or links, or one era with its arcs
+  const [win, setWin] = useState<Win | null>(null);
+  const winArc   = win && win.kind !== "era" ? planner.arcs.find(a => a.id === win.id) : undefined;
+  const winPhase = win && win.kind === "era" ? planner.phases.find(p => p.id === win.id) : undefined;
+  const winEra   = win && win.kind === "era" ? winPhase?.eras.find(e => e.key === win.era) : undefined;
+  const winOk    = !!win && (win.kind === "era" ? !!winEra : !!winArc);
+  useEffect(() => { if (win && !winOk && !planner.loading) setWin(null); }, [win, winOk, planner.loading]);
   const close = () => setWin(null);
+  const done  = <div style={{ display: "flex", width: "100%" }}><B onClick={close} s={{ flex: 1, height: 38, minHeight: 38 }}>Done</B></div>;
 
-  const card = (a: ConceptArc) => (
-    <ArcCard key={a.id} arc={a} open={openNums.includes(a.num)} onToggle={() => toggle(a.num)} onOpen={kind => setWin({ id: a.id, kind })} />
-  );
-  const column = (list: ConceptArc[]) => <div style={{ display: "flex", flexDirection: "column" as const, gap: SPACING.cardGap, minWidth: 0 }}>{list.map(card)}</div>;
-  const half = Math.ceil(arcs.length / 2);
+  const columns = <T,>(list: T[], render: (x: T) => any) => {
+    const column = (l: T[]) => <div style={{ display: "flex", flexDirection: "column" as const, gap: SPACING.cardGap, minWidth: 0 }}>{l.map(render)}</div>;
+    if (isMobile) return column(list);
+    const half = Math.ceil(list.length / 2);
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: SPACING.cardGap, alignItems: "start" }}>
+        {column(list.slice(0, half))}
+        {column(list.slice(half))}
+      </div>
+    );
+  };
   const swatch = (t: { wash: string; mid: string }) => (
     <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 3, boxSizing: "border-box" as const, background: t.wash, border: `1.5px solid ${t.mid}`, flexShrink: 0 }} />
   );
-  const accLabel = ACCOUNTS.find(a => a.key === acc)?.label || `@${acc}`;
+  const empty = (title: string, text: string) => (
+    <div style={{ ...cardBox, padding: "14px 12px" }}>
+      <div style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black }}>{title}</div>
+      <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 4, lineHeight: 1.5 }}>{text}</div>
+    </div>
+  );
+  const note = (text: string, color: string = C.muted) => <p style={{ fontSize: SPACING.plannerText, color, marginTop: 16 }}>{text}</p>;
+
+  const arcsView = planner.conceptError ? note(planner.conceptError, C.red) : (
+    <>
+      <SectionHead dot={ARC_TONE.mid} label={`Arcs · ${arcs.length}`}
+        right={arcs.length ? <button onClick={() => setArcsOpen(anyArcOpen ? [] : arcs.map(a => a.num))} style={mini}>{anyArcOpen ? "collapse all" : "expand all"}</button> : undefined} />
+      {!arcs.length
+        ? empty(`No arcs for ${accLabel} yet`, "They're added here once its concept is mapped, in the same layout: numbered arcs, formats, platforms, texts and links.")
+        : columns(arcs, a => <ArcCard key={a.id} arc={a} open={arcNums.includes(a.num)} onToggle={() => toggleArc(a.num)} onOpen={kind => setWin({ kind, id: a.id })} />)}
+      {arcs.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap" as const, alignItems: "center", gap: "6px 14px", fontSize: SPACING.listMeta, color: C.muted, margin: `${SPACING.cardGap}px 2px 0` }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: C.ink2 }} />main format</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{swatch(PLATFORM_TONE.TikTok)}TikTok</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{swatch(PLATFORM_TONE.Instagram)}Instagram</span>
+        </div>
+      )}
+    </>
+  );
+
+  const phasesView = planner.phasesError ? note(planner.phasesError, C.red) : (
+    <>
+      <SectionHead dot={PHASE_TONE.mid} label={`Phases · ${phases.length}`}
+        right={phases.length ? <button onClick={() => setPhsOpen(anyPhOpen ? [] : phases.map(p => p.num))} style={mini}>{anyPhOpen ? "collapse all" : "expand all"}</button> : undefined} />
+      {!phases.length
+        ? empty(`No phases for ${accLabel} yet`, "They're added here once its concept is mapped: phases, their eras and each era's arcs.")
+        : columns(phases, p => <PhaseCard key={p.id} phase={p} open={phNums.includes(p.num)} onToggle={() => togglePh(p.num)} onEra={e => setWin({ kind: "era", id: p.id, era: e.key })} />)}
+      {phases.length > 0 && (
+        <div style={{ fontSize: SPACING.listMeta, color: C.muted, margin: `${SPACING.cardGap}px 2px 0`, lineHeight: 1.4 }}>
+          Tap an era for its arcs · the number = core arcs + optional
+        </div>
+      )}
+    </>
+  );
 
   return (
     <div>
       <TabTitle title="Content concept" acc={acc} onAccount={onAccount} isMobile={isMobile} />
-      <Subtitle text="Arcs · formats · texts · links" />
+      <Subtitle text={show === "phases" ? "Phases · eras · core arcs" : "Arcs · formats · texts · links"} />
+      <div style={{ marginTop: 12 }}><ViewSwitch view={show} onPick={pickView} /></div>
 
-      {planner.loading ? (
-        <p style={{ fontSize: SPACING.plannerText, color: C.muted, marginTop: 16 }}>Loading…</p>
-      ) : planner.conceptError ? (
-        <p style={{ fontSize: SPACING.plannerText, color: C.red, marginTop: 16 }}>{planner.conceptError}</p>
-      ) : (
-        <>
-          <SectionHead dot={tone.mid} label={`Arcs · ${arcs.length}`}
-            right={arcs.length ? <button onClick={toggleAll} style={mini}>{anyOpen ? "collapse all" : "expand all"}</button> : undefined} />
-          {!arcs.length ? (
-            <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, padding: "14px 12px" }}>
-              <div style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black }}>No arcs for {accLabel} yet</div>
-              <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 4, lineHeight: 1.5 }}>They're added here once its concept is mapped, in the same layout: numbered arcs, formats, platforms, texts and links.</div>
-            </div>
-          ) : isMobile ? column(arcs) : (
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: SPACING.cardGap, alignItems: "start" }}>
-              {column(arcs.slice(0, half))}
-              {column(arcs.slice(half))}
-            </div>
-          )}
-          {arcs.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap" as const, alignItems: "center", gap: "6px 14px", fontSize: SPACING.listMeta, color: C.muted, margin: `${SPACING.cardGap}px 2px 0` }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: C.ink2 }} />main format</span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{swatch(PLATFORM_TONE.TikTok)}TikTok</span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{swatch(PLATFORM_TONE.Instagram)}Instagram</span>
-            </div>
-          )}
-        </>
-      )}
+      {planner.loading ? note("Loading…") : show === "phases" ? phasesView : arcsView}
 
-      {win && winArc && (
-        <Window title={`${winArc.num}. ${winArc.name}`} isMobile={isMobile} onClose={close}
-          footer={<div style={{ display: "flex", width: "100%" }}><B onClick={close} s={{ flex: 1, height: 38, minHeight: 38 }}>Done</B></div>}>
-          <WinHead first icon={win.kind === "texts" ? IC.list : IC.link} tone={ACC_TONE[winArc.account]}
+      {/* an arc's texts or links (from the Arcs view) */}
+      {win && win.kind !== "era" && winArc && (
+        <Window title={`${winArc.num}. ${winArc.name}`} isMobile={isMobile} onClose={close} footer={done}>
+          <WinHead first icon={win.kind === "texts" ? IC.list : IC.link} tone={ARC_TONE}
             label={win.kind === "texts" ? count("Texts", winArc.texts.length) : count("Links", winArc.links.length)} />
           <div style={winCard}>
             {win.kind === "texts"
@@ -192,6 +332,39 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
               : <LinkList key={`l-${winArc.id}`} initial={winArc.links} pillTone={platformTone}
                   onSave={links => { quiet(planner.updateArc(winArc.id, { links })); }} />}
           </div>
+        </Window>
+      )}
+
+      {/* an era: its arcs in posting order — the same arcs, texts and links as the Arcs view */}
+      {win && win.kind === "era" && winPhase && winEra && (
+        <Window title={`${winPhase.num}. ${winPhase.name} · ${winEra.name}`} isMobile={isMobile} onClose={close} footer={done}>
+          {winEra.desc && <div style={{ fontSize: TYPE.subtext.size, color: C.muted, lineHeight: 1.4, margin: "2px 2px 0" }}>{winEra.desc}</div>}
+          {winEra.arcs.map(ea => {
+            const arc = planner.arcs.find(a => a.account === winPhase.account && a.num === ea.num);
+            if (!arc) return (
+              <div key={`m-${ea.num}`}>
+                <EraArcHead n={ea.num} name={`Arc ${ea.num}`} optional={ea.optional} note={ea.note} />
+                <div style={{ ...winCard, padding: "10px 12px", fontSize: TYPE.subtext.size, color: C.muted }}>This arc isn't in the concept.</div>
+              </div>
+            );
+            return (
+              <div key={arc.id}>
+                <EraArcHead n={arc.num} name={arc.name} optional={ea.optional} note={ea.note} />
+                <div style={winCard}>
+                  <div style={{ padding: `8px 6px 4px ${SPACING.rowSide}px` }}>
+                    {arc.purpose && <div style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4, margin: "0 22px 6px 0" }}>{arc.purpose}</div>}
+                    <Formats formats={arc.formats} />
+                  </div>
+                  <div style={listHead}>{count("Texts", arc.texts.length)}</div>
+                  <LineList key={`et-${winEra.key}-${arc.id}`} initial={arc.texts} marker="bullets" placeholder="Write a text" addLabel="Add a text"
+                    onSave={lines => { quiet(planner.updateArc(arc.id, { texts: lines })); }} />
+                  <div style={listHead}>{count("Links", arc.links.length)}</div>
+                  <LinkList key={`el-${winEra.key}-${arc.id}`} initial={arc.links} pillTone={platformTone}
+                    onSave={links => { quiet(planner.updateArc(arc.id, { links })); }} />
+                </div>
+              </div>
+            );
+          })}
         </Window>
       )}
     </div>

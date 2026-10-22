@@ -103,6 +103,8 @@ export interface ItemPlan {
   filmedOn?: string | null;                  // the day it was ticked "Filmed"
   arc?: string | null;                       // content concept: the arc (its id) …
   arcFormat?: string | null;                 // … and its format (by name)
+  phase?: number | null;                     // content concept: the phase (its number) …
+  era?: string | null;                       // … and its era (its key)
 }
 export const EMPTY_PLAN: ItemPlan = { style: "bullets", clips: [], refs: [] };
 export function planOf(v: any): ItemPlan {
@@ -114,6 +116,8 @@ export function planOf(v: any): ItemPlan {
     filmedOn: typeof o.filmedOn === "string" ? o.filmedOn : null,
     arc:       typeof o.arc === "string" && o.arc ? o.arc : null,
     arcFormat: typeof o.arcFormat === "string" && o.arcFormat ? o.arcFormat : null,
+    phase:     Number.isInteger(o.phase) && o.phase > 0 ? o.phase : null,
+    era:       typeof o.era === "string" && o.era ? o.era : null,
   };
 }
 // storyline text → points (strips "- ", "• ", "1. " the way people type them)
@@ -237,6 +241,22 @@ export interface ConceptArc {
   texts:   string[];          // example lines
   links:   ConceptLink[];     // reference posts: link + what it shows
 }
+// Phases (fixed by the SQL): where you are in life (Home, Occasion, Invited …). Each phase has
+// its recurring eras; each era names its core arcs by number, in posting order. An era's arcs
+// ARE the arcs above (same purpose, formats, texts and links): nothing is copied.
+export interface ConceptEraArc { num: number; optional: boolean; note: string; }
+export interface ConceptEra    { key: string; name: string; desc: string; arcs: ConceptEraArc[]; }
+export interface ConceptPhase {
+  id:      string;
+  account: Account;
+  num:     number;            // 1, 2, 3 … top to bottom
+  name:    string;
+  purpose: string;
+  eras:    ConceptEra[];      // in order
+}
+// the concept page's two colours: arcs pastel blue, phases butter (lavender stays the account's)
+export const ARC_TONE   = PAL.progress;
+export const PHASE_TONE = PAL.waiting;
 // the two platforms on the concept page (ticks and link pills): TikTok pistachio, Instagram pink
 type PlatformTone = { fill: string; wash: string; mid: string; ink: string };
 export const PLATFORM_TONE: Record<"TikTok" | "Instagram", PlatformTone> = { TikTok: PAL.done, Instagram: PAL.late };
