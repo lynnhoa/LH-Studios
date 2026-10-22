@@ -38,7 +38,7 @@ const rowToContact = (r: any): OutreachContact => ({
 
 const rowToPitch = (r: any): Pitch => ({
   id: r.id, contactId: r.contact_id, account: r.account, kind: r.kind === "follow_up" ? "follow_up" : "pitch",
-  sentOn: String(r.sent_on).slice(0, 10), createdAt: r.created_at ?? "",
+  sentOn: String(r.sent_on).slice(0, 10), createdAt: r.created_at ?? "", templateId: r.template_id ?? null,
 });
 const rowToEvent = (r: any): OutreachEvent => ({
   id: r.id, contactId: r.contact_id, kind: r.kind === "reply" ? "reply" : "status", status: (r.status ?? null) as OutreachStatus | null, at: r.at ?? r.created_at ?? "",
@@ -166,13 +166,14 @@ export function useOutreach(userId: string | null) {
   // The account comes from each contact's category. Status:
   //   one contact, a pitch (restart) → New and every ended status → Pitched; Pitched, Replied, Lead stay
   //   the list in view (bulk) or a follow-up → only New → Pitched, every other status stays
-  const logPitches = useCallback(async (ids: string[], kind: "pitch" | "follow_up", sentOn: string = today(), opts: { restart?: boolean } = {}) => {
-    if (!ids.length) return;
+  // Returns the new entries (for Undo).
+  const logPitches = useCallback(async (ids: string[], kind: "pitch" | "follow_up", sentOn: string = today(), opts: { restart?: boolean; templateId?: string | null } = {}): Promise<Pitch[]> => {
+    if (!ids.length) return [];
     const byId = new Map(contacts.map(c => [c.id, c]));
     const added: Pitch[] = [];
     for (const part of chunks(ids)) {
       const { data, error } = await supabase.from("outreach_pitches")
-        .insert(part.map(id => ({ contact_id: id, account: accountOf(byId.get(id)?.category || ""), kind, sent_on: sentOn }))).select();
+        .insert(part.map(id => ({ contact_id: id, account: accountOf(byId.get(id)?.category || ""), kind, sent_on: sentOn, ...(opts.templateId ? { template_id: opts.templateId } : {}) }))).select();
       if (error) throw new Error(error.message);
       (data || []).forEach((r: any) => added.push(rowToPitch(r)));
     }
@@ -193,7 +194,24 @@ export function useOutreach(userId: string | null) {
     const tp = new Set(toPitched), nw = new Set(newer);
     setPitches(prev => [...prev, ...added]);
     setContacts(prev => prev.map(c => (tp.has(c.id) || nw.has(c.id) ? { ...c, status: tp.has(c.id) ? "pitched" : c.status, lastContact: nw.has(c.id) ? sentOn : c.lastContact } : c)));
+    return added;
   }, [userId, contacts]);
+
+  // Undo of a Write in Outlook: the new entries out, status and last contact exactly as before
+  const undoLog = useCallback(async (added: Pitch[], before: { id: string; status: OutreachStatus; lastContact: string | null }[]) => {
+    const ids = added.map(p => p.id);
+    if (ids.length) {
+      const { error } = await supabase.from("outreach_pitches").delete().in("id", ids).eq("user_id", userId);
+      if (error) throw new Error(error.message);
+    }
+    for (const b of before) {
+      const { error } = await supabase.from("outreach_contacts").update({ status: b.status === "new" ? null : b.status, last_contact: b.lastContact }).eq("id", b.id).eq("user_id", userId);
+      if (error) throw new Error(error.message);
+    }
+    const gone = new Set(ids), back = new Map(before.map(b => [b.id, b]));
+    setPitches(prev => prev.filter(p => !gone.has(p.id)));
+    setContacts(prev => prev.map(c => (back.has(c.id) ? { ...c, status: back.get(c.id)!.status, lastContact: back.get(c.id)!.lastContact } : c)));
+  }, [userId]);
 
   // Remove a wrong entry: last contact goes back to the one before; no entries left → not contacted again
   const deletePitch = useCallback(async (p: Pitch) => {
@@ -223,5 +241,5 @@ export function useOutreach(userId: string | null) {
     setContacts(prev => prev.map(x => (x.id === p.contactId ? { ...x, lastContact: before.lastContact, status: before.status || x.status } : x)));
   }, [userId]);
 
-  return { contacts, pitches, events, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, markSeen, logPitches, deletePitch, restorePitch };
+  return { contacts, pitches, events, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, markSeen, logPitches, undoLog, deletePitch, restorePitch };
 }

@@ -101,6 +101,7 @@ export interface Pitch {
   kind:      "pitch" | "follow_up";
   sentOn:    string;   // yyyy-mm-dd
   createdAt?: string;  // when it was logged (orders entries of the same day)
+  templateId?: string | null;   // the Email kit template it was written with (Write in Outlook)
 }
 // One timeline entry that isn't an email sent: a status change, or (from reply detection) a reply
 export interface OutreachEvent {

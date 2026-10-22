@@ -17,7 +17,11 @@ import { B, I, S, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, Lis
 import {
   OUTREACH_CATEGORIES, OUTREACH_TIERS, OUTREACH_COLUMNS, STATUS_FILTERS, SORTS, ADDED, DEFAULT_VIEW, CHIPS, PIPELINES, NO_TIER,
   catOf, tierOf, statusOf, statusesFor, isCategory, isTier, isChip, chipCounts, followUpDue, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt, NO_FILTERS, placeOf,
+  pipelineOf, statusAfterPitch,
 } from "./outreach";
+import { kitInfo } from "./useEmailKit";
+import type { EmailTemplate } from "./useEmailKit";
+import { fillFor, composeUrl, openInOutlook } from "./outlook";
 import type { Pitch, ChipKey, OutreachEvent } from "./outreach";
 import type { OutreachContact, OutreachView, SortKey } from "./outreach";
 import { downloadExcel, downloadTemplate, downloadListPdf } from "./outreachExport";
@@ -27,6 +31,7 @@ import { showUndo, showNote } from "./undo";
 const BAR_H = 56;   // the sticky search bar: 8 + 40 + 8
 const TRASH = "M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3";
 const ARROW_UP = "M12 19V5M5 12l7-7 7 7";
+const MAIL = "M4 6h16v12H4zM4 7l8 6 8-6";
 const Ico = ({ d, size = 14, color = "currentColor" }: { d: string; size?: number; color?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d={d} /></svg>
 );
@@ -63,6 +68,7 @@ const CatPill = ({ k }: { k: string }) => {
 
 interface EmailListProps {
   outreach:  any;          // useOutreach()
+  kit?:      any;          // useEmailKit() — the templates and media kit links for Write in Outlook
   settings:  any;
   isMobile:  boolean;
   isWide:    boolean;      // ≥ 1200 px
@@ -90,7 +96,7 @@ const StatusPill = ({ c }: { c: OutreachContact }) => {
 // a reply you haven't opened yet
 const ReplyDot = () => <span aria-label="New reply" style={{ width: 7, height: 7, borderRadius: "50%", background: PAL.progress.mid, flexShrink: 0, display: "inline-block" }} />;
 
-export default function EmailList({ outreach, settings, isMobile, isWide, stickyTop }: EmailListProps) {
+export default function EmailList({ outreach, kit, settings, isMobile, isWide, stickyTop }: EmailListProps) {
   const { contacts, loading, loadError, loginEmail } = outreach;
   const [view, setView]       = useState<OutreachView>(loadView);
   const [open, setOpen]       = useState<null | "filter" | "sort" | "download">(null);
@@ -112,6 +118,32 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
 
   useEffect(() => { try { sessionStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch { /* ignore */ } }, [view]);
   useEffect(() => { try { localStorage.setItem(CHIP_KEY, view.chip); } catch { /* ignore */ } }, [view.chip]);
+
+  // Write in Outlook: the Undo bar right away, and once more when you come back from Outlook
+  // (the first one is often gone by then) — up to 10 minutes later
+  const pendingUndo = useRef<{ msg: string; undo: () => Promise<void>; at: number } | null>(null);
+  useEffect(() => {
+    const back = () => {
+      if (document.visibilityState !== "visible") return;
+      const p = pendingUndo.current;
+      if (!p) return;
+      pendingUndo.current = null;
+      if (Date.now() - p.at < 10 * 60e3) setTimeout(() => showUndo(p.msg, p.undo), 400);
+    };
+    document.addEventListener("visibilitychange", back);
+    window.addEventListener("focus", back);
+    return () => { document.removeEventListener("visibilitychange", back); window.removeEventListener("focus", back); };
+  }, []);
+  const written = (msg: string, undo: () => Promise<void>) => {
+    let done = false;
+    const once = async () => {
+      if (done) return;
+      done = true; pendingUndo.current = null;
+      try { await undo(); showNote("Undone ✓"); } catch (e: any) { showNote(e?.message || "Couldn't undo."); }
+    };
+    pendingUndo.current = { msg, undo: once, at: Date.now() };
+    showUndo(msg, once);
+  };
 
   const shown  = useMemo(() => applyView(contacts, view), [contacts, view]);
   const uniq = (xs: string[]) => Array.from(new Set(xs.map(x => (x || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "de"));
@@ -419,8 +451,8 @@ export default function EmailList({ outreach, settings, isMobile, isWide, sticky
         </div>, document.body)}
 
       {/* ── CONTACT WINDOW ── */}
-      {current && <ContactWindow c={current} outreach={outreach} isMobile={isMobile} onClose={() => setOpenId(null)} onCopy={(t) => copy(t, "Email copied ✓")} />}
-      {adding && !current && newC && <ContactWindow c={newC} isNew outreach={outreach} isMobile={isMobile} onClose={() => setAdding(false)} onCopy={(t) => copy(t, "Email copied ✓")}
+      {current && <ContactWindow c={current} outreach={outreach} kit={kit} onWritten={written} isMobile={isMobile} onClose={() => setOpenId(null)} onCopy={(t) => copy(t, "Email copied ✓")} />}
+      {adding && !current && newC && <ContactWindow c={newC} isNew outreach={outreach} kit={kit} isMobile={isMobile} onClose={() => setAdding(false)} onCopy={(t) => copy(t, "Email copied ✓")}
         onOpen={(id) => { setAdding(false); setOpenId(id); }} />}
 
       {/* ── LOG A PITCH FOR THE CONTACTS IN VIEW ── */}
@@ -513,7 +545,7 @@ const pickFields = (x: OutreachContact) => { const o: any = {}; EDIT_KEYS.forEac
 // yyyy-mm-dd of a timestamp, in local time
 const ymdLocal = (iso: string) => { const d = new Date(iso); return isNaN(d.getTime()) ? "" : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
-function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }: { c: OutreachContact; outreach: any; isMobile: boolean; onClose: () => void; onCopy: (t: string) => void; isNew?: boolean; onOpen?: (id: string) => void }) {
+function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy, isNew, onOpen }: { c: OutreachContact; outreach: any; kit?: any; onWritten?: (msg: string, undo: () => Promise<void>) => void; isMobile: boolean; onClose: () => void; onCopy: (t: string) => void; isNew?: boolean; onOpen?: (id: string) => void }) {
   const [f, setF] = useState(c);
   const [dupId, setDupId] = useState<string | null>(null);     // the contact that already has this email
   const [err, setErr] = useState<string | null>(null);
@@ -607,6 +639,43 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
 
   const due = !isNew && followUpDue(c);
   const accLabel = c.category === "ugc" ? "@createbylynn" : "@lynnhoa";
+
+  // ── Write in Outlook: the templates for this contact's pipeline; preselected:
+  //    follow-up due → the last follow-up template used for this pipeline, else the last pitch template,
+  //    never used yet → the first A–Z (saved with each pitch, so it's the same on phone, iPad and Mac)
+  const pipe = pipelineOf(c.category);
+  const tpls: EmailTemplate[] = useMemo(() => (kit?.templates || []).filter((t: EmailTemplate) => t.pipeline === pipe)
+    .sort((a: EmailTemplate, b: EmailTemplate) => (a.name || "").localeCompare(b.name || "", "de")), [kit?.templates, pipe]);
+  const wantKind = due ? "follow_up" : "pitch";
+  const preselect = useMemo(() => {
+    const ofKind = tpls.filter(t => t.kind === wantKind);
+    const ids = new Set(ofKind.map(t => t.id));
+    const last = (outreach.pitches || []).filter((p: Pitch) => p.templateId && ids.has(p.templateId))
+      .sort((a: Pitch, b: Pitch) => (b.createdAt || b.sentOn).localeCompare(a.createdAt || a.sentOn))[0];
+    return last?.templateId || ofKind[0]?.id || tpls[0]?.id || "";
+  }, [tpls, wantKind, outreach.pitches]);
+  const [tplId, setTplId] = useState(preselect);
+  useEffect(() => { setTplId(preselect); }, [preselect]);
+  const tpl = tpls.find(t => t.id === tplId) || null;
+  const kitUrl = (k: string | null) => (k ? String(kit?.kits?.find((x: any) => x.key === k)?.url || "").trim() : "");
+  const willPitch = tpl?.kind !== "follow_up" && statusAfterPitch(c.status) !== c.status;
+
+  const write = () => {
+    setErr(null);
+    if (!tpl) return;
+    if (!tpl.body.trim()) { setErr("This template has no text yet — add it in Email kit."); return; }
+    if (tpl.kit && !kitUrl(tpl.kit)) { setErr(`Add the ${kitInfo(tpl.kit)!.short} link in Email kit first.`); return; }
+    const typed = f.email.trim().toLowerCase();
+    const to = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typed) ? typed : c.email;
+    const mail = fillFor(tpl, { contactName: f.contactName, company: f.company }, tpl.kit ? kitUrl(tpl.kit) : null);
+    const before = [{ id: c.id, status: c.status, lastContact: c.lastContact }];
+    const kind = tpl.kind;
+    // the save starts first, then Outlook opens in the same tap (the iPhone only opens apps from a tap)
+    const saving: Promise<Pitch[]> = outreach.logPitches([c.id], kind, undefined, { restart: kind === "pitch", templateId: tpl.id });
+    openInOutlook(composeUrl(to, mail.subject, mail.body));
+    saving.then(added => onWritten?.(kind === "follow_up" ? "Follow-up logged" : "Pitch logged", () => outreach.undoLog(added, before)))
+      .catch((e: any) => setErr(`${e?.message || "Couldn't log it."} Log it with + Pitch below.`));
+  };
   const footBtn: any = { flex: 1, height: 40, justifyContent: "center" };
 
   return (
@@ -638,11 +707,28 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
               </div>
             </div>
             <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, padding: "0 12px 12px", marginTop: 12 }}>
-              <Lbl>Log · {accLabel}</Lbl>
-              <div style={{ display: "flex", gap: 6 }}>
-                <PillBtn onClick={() => log("pitch")} s={{ flex: 1, height: 36, justifyContent: "center" }}>+ Pitch</PillBtn>
-                <PillBtn onClick={() => log("follow_up")} s={{ flex: 1, height: 36, justifyContent: "center" }}>+ Follow-up</PillBtn>
-              </div>
+              <Lbl>Template · {accLabel}</Lbl>
+              {tpls.length > 0 ? (
+                <>
+                  <S value={tplId} aria-label="Template" onChange={(e: any) => setTplId(e.target.value)}>
+                    {tpls.map(t => <option key={t.id} value={t.id}>{t.name || "Untitled"}{t.kind === "follow_up" ? " · follow-up" : ""}</option>)}
+                  </S>
+                  <PillBtn dark onClick={write} s={{ width: "100%", height: 40, justifyContent: "center", marginTop: 8, fontSize: TYPE.row.size }}>
+                    <Ico d={MAIL} size={15} />{tpl?.kind === "follow_up" ? "Write follow-up" : "Write in Outlook"}
+                  </PillBtn>
+                  <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "6px 0 0", textAlign: "center" as const }}>
+                    {tpl?.kind === "follow_up" ? "Logs the follow-up" : willPitch ? "Logs the pitch and sets Pitched" : "Logs the pitch"}
+                  </p>
+                </>
+              ) : (
+                <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: 0, lineHeight: 1.5 }}>No {pipe === "ugc" ? "UGC" : "@lynnhoa"} templates yet — add one in Email kit (For: {pipe === "ugc" ? "UGC" : "@lynnhoa"}).</p>
+              )}
+              <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "8px 0 0", textAlign: "center" as const }}>
+                Sent it another way?{" "}
+                <button onClick={() => log("pitch")} style={{ background: "none", border: "none", padding: "4px 2px", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: C.black, textDecoration: "underline" }}>+ Pitch</button>
+                {" · "}
+                <button onClick={() => log("follow_up")} style={{ background: "none", border: "none", padding: "4px 2px", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: C.black, textDecoration: "underline" }}>+ Follow-up</button>
+              </p>
             </div>
           </>
         )}

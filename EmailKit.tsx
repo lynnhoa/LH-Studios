@@ -25,7 +25,7 @@ import { fmtD } from "./formatters";
 import { I, S, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Row, Chip, ChipRow, Sheet, ConfirmDialog, ColGroups } from "./atoms";
 import { copyText } from "./outreach";
 import { showNote } from "./undo";
-import { KITS, KIT_TOKEN, kitInfo, fillText, fmtSize } from "./useEmailKit";
+import { KITS, KIT_TOKEN, kitInfo, fillText, fmtSize, TEMPLATE_PIPELINES, TEMPLATE_KINDS } from "./useEmailKit";
 import type { EmailKitHook, EmailTemplate, KitKey, MediaKit } from "./useEmailKit";
 
 const Ico = ({ d, size = 14, color = "currentColor" }: { d: string; size?: number; color?: string }) => (
@@ -165,7 +165,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
                       {list.map((t, i) => (
                         <Row key={t.id} first={i === 0} chevron={false} onClick={() => setOpenId(t.id)}
                           title={t.name || "Untitled"}
-                          meta={<>Kit: {t.kit ? <span style={{ color: toneOf(t.kit).ink }}>{kitInfo(t.kit)!.label}</span> : "none"}</>}
+                          meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"} · {t.kind === "follow_up" ? "Follow-up" : "Pitch"} · Kit: {t.kit ? <span style={{ color: toneOf(t.kit).ink }}>{kitInfo(t.kit)!.label}</span> : "none"}</>}
                           right={<CopyBtn label={`Copy ${t.name || "the text"}`} onClick={() => copyTemplate(t, t.kit)} />} />
                       ))}
                     </ListCard>
@@ -180,7 +180,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
       {editLinks && <LinksWindow kit={kit} onShare={sharePdf} onClose={() => setEditLinks(false)} />}
       {current && <TemplateWindow t={current} kit={kit} purposes={purposes} urlOf={urlOf} onCopy={copyTemplate} onShare={sharePdf} onCopySubject={(s) => copy(s, "Subject copied ✓")} onClose={() => setOpenId(null)} />}
       {adding && !current && (
-        <TemplateWindow isNew t={{ id: "", name: "", purpose: purpose !== "all" && purpose !== NO_PURPOSE ? purpose : "", subject: "", body: "", kit: null, createdAt: "" }}
+        <TemplateWindow isNew t={{ id: "", name: "", purpose: purpose !== "all" && purpose !== NO_PURPOSE ? purpose : "", subject: "", body: "", kit: null, createdAt: "", pipeline: "lynnhoa", kind: "pitch" }}
           kit={kit} purposes={purposes} urlOf={urlOf} onCopy={copyTemplate} onShare={sharePdf} onCopySubject={(s) => copy(s, "Subject copied ✓")}
           onClose={() => setAdding(false)} onCreated={(id) => { setAdding(false); setOpenId(id); }} />
       )}
@@ -349,6 +349,7 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
         {!edit ? (
           <>
             <div style={{ fontFamily: SERIF, fontSize: TYPE.tile.size, lineHeight: 1.2 }}>{t.name || "Untitled"}</div>
+            <div style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "4px 2px 0" }}>{TEMPLATE_PIPELINES.find(x => x.key === t.pipeline)?.label} · {t.kind === "follow_up" ? "Follow-up" : "Pitch"}</div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "12px 2px 5px" }}>
               <span style={caps}>Media kit</span>
               {pickPdf && <button onClick={() => onShare(pick!)} style={{ ...linkBtn, display: "inline-flex", alignItems: "center", gap: 4 }}><Ico d={IC.share} size={12} />Share PDF</button>}
@@ -381,11 +382,28 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
                 </S>
               </div>
             </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div>
+                <Lbl>For</Lbl>
+                <S value={f.pipeline || "lynnhoa"} aria-label="For" onChange={(e: any) => setF({ ...f, pipeline: e.target.value })}>
+                  {TEMPLATE_PIPELINES.map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
+                </S>
+              </div>
+              <div>
+                <Lbl>Type</Lbl>
+                <S value={f.kind || "pitch"} aria-label="Type" onChange={(e: any) => setF({ ...f, kind: e.target.value })}>
+                  {TEMPLATE_KINDS.map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
+                </S>
+              </div>
+            </div>
             <Lbl>Subject</Lbl>
-            <I value={f.subject} placeholder="Collaboration idea · [Brand]" aria-label="Subject" onChange={(e: any) => setF({ ...f, subject: e.target.value })} />
+            <I value={f.subject} placeholder="Collaboration idea · {company}" aria-label="Subject" onChange={(e: any) => setF({ ...f, subject: e.target.value })} />
             <Lbl>Text</Lbl>
-            <TA value={f.body} aria-label="Text" placeholder={"Hi [Name],\n\n…\n\nMy media kit: {kit}\n\nBest, Lynn"} onChange={(e: any) => setF({ ...f, body: e.target.value })} />
-            <p style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "5px 2px 0", lineHeight: 1.4 }}>Write {KIT_TOKEN} where the media kit link goes. Without it, the link goes at the end.</p>
+            <TA value={f.body} aria-label="Text" placeholder={"Hi {name},\n\n…\n\nMy media kit: {kit}\n\nBest, Lynn"} onChange={(e: any) => setF({ ...f, body: e.target.value })} />
+            <p style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "5px 2px 0", lineHeight: 1.5 }}>
+              Filled in for each contact when you write from Contacts:<br />
+              {"{name}"} first name (no name: “Company team”) · {"{company}"} company · {KIT_TOKEN} media kit link (without it, the link goes at the end)
+            </p>
             {!isNew && (
               <button onClick={() => setAskDelete(true)} style={{ ...linkBtn, color: C.red, display: "block", margin: "16px auto 0", padding: 8 }}>Delete template</button>
             )}

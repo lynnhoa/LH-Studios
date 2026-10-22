@@ -69,7 +69,7 @@ export default function OutreachApp({ userId, settings, signOut, switchTo, banne
       <div style={{ maxWidth: isWide ? 1200 : 960, margin: "0 auto", padding: isMobile ? "14px 14px 28px" : "24px 20px 40px" }}>
         {banners}
         {tab === "contacts"
-          ? <EmailList outreach={outreach} settings={settings} isMobile={isMobile} isWide={isWide} stickyTop={headerH} />
+          ? <EmailList outreach={outreach} kit={emailKit} settings={settings} isMobile={isMobile} isWide={isWide} stickyTop={headerH} />
           : tab === "kit"
             ? <EmailKit kit={emailKit} isMobile={isMobile} />
             : <Comments hook={comments} isMobile={isMobile} />}

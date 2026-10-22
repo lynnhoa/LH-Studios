@@ -32,9 +32,15 @@ export const KIT_TOKEN = "{kit}";
 
 export interface KitPdf { path: string; name: string; size: number; updatedAt: string; }
 export interface MediaKit { key: KitKey; url: string; file: string; focus: string; updatedAt: string; pdf: KitPdf | null; }
+// pipeline: whose contacts it's for (UGC → @createbylynn, else @lynnhoa) · kind: a first pitch or a follow-up
+export type TemplatePipeline = "lynnhoa" | "ugc";
+export type TemplateKind = "pitch" | "follow_up";
 export interface EmailTemplate {
   id: string; name: string; purpose: string; subject: string; body: string; kit: KitKey | null; createdAt: string;
+  pipeline: TemplatePipeline; kind: TemplateKind;
 }
+export const TEMPLATE_PIPELINES: { key: TemplatePipeline; label: string }[] = [{ key: "lynnhoa", label: "@lynnhoa" }, { key: "ugc", label: "UGC" }];
+export const TEMPLATE_KINDS: { key: TemplateKind; label: string }[] = [{ key: "pitch", label: "Pitch" }, { key: "follow_up", label: "Follow-up" }];
 
 const rowToKit = (r: any): MediaKit => {
   const d = kitInfo(r.key)!;
@@ -44,6 +50,7 @@ const rowToKit = (r: any): MediaKit => {
 const rowToTpl = (r: any): EmailTemplate => ({
   id: r.id, name: r.name ?? "", purpose: r.purpose ?? "", subject: r.subject ?? "", body: r.body ?? "",
   kit: kitInfo(r.kit_key) ? r.kit_key : null, createdAt: r.created_at ?? "",
+  pipeline: r.pipeline === "ugc" ? "ugc" : "lynnhoa", kind: r.kind === "follow_up" ? "follow_up" : "pitch",
 });
 const fail = (error: any) => { if (error) throw new Error(error.message || "Couldn't save."); };
 
@@ -179,6 +186,8 @@ export function useEmailKit(userId: string | null) {
     if (f.subject !== undefined) row.subject = f.subject;
     if (f.body    !== undefined) row.body    = f.body;
     if (f.kit     !== undefined) row.kit_key = f.kit;
+    if (f.pipeline !== undefined) row.pipeline = f.pipeline;
+    if (f.kind     !== undefined) row.kind     = f.kind;
     return row;
   };
   const addTemplate = useCallback(async (f: EmailTemplate): Promise<EmailTemplate> => {
