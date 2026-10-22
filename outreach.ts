@@ -100,6 +100,15 @@ export interface Pitch {
   account:   PitchAccount;
   kind:      "pitch" | "follow_up";
   sentOn:    string;   // yyyy-mm-dd
+  createdAt?: string;  // when it was logged (orders entries of the same day)
+}
+// One timeline entry that isn't an email sent: a status change, or (from reply detection) a reply
+export interface OutreachEvent {
+  id:        string;
+  contactId: string;
+  kind:      "status" | "reply";
+  status:    OutreachStatus | null;   // status entries: the new status (null = New)
+  at:        string;                  // ISO timestamp
 }
 export const PITCH_ACCOUNTS: { key: PitchAccount; label: string }[] = [
   { key: "lynnhoa", label: "@lynnhoa" },

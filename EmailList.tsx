@@ -9,7 +9,7 @@
 // Windows (one level): Filter (sheet on phone), contact, Import (the three steps)
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE, Z, PAL, RADIUS, SHADOW } from "./constants";
 import { fmtD } from "./formatters";
@@ -18,7 +18,7 @@ import {
   OUTREACH_CATEGORIES, OUTREACH_TIERS, OUTREACH_COLUMNS, STATUS_FILTERS, SORTS, ADDED, DEFAULT_VIEW, CHIPS, PIPELINES, NO_TIER,
   catOf, tierOf, statusOf, statusesFor, isCategory, isTier, isChip, chipCounts, followUpDue, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt, NO_FILTERS, placeOf,
 } from "./outreach";
-import type { Pitch, ChipKey } from "./outreach";
+import type { Pitch, ChipKey, OutreachEvent } from "./outreach";
 import type { OutreachContact, OutreachView, SortKey } from "./outreach";
 import { downloadExcel, downloadTemplate, downloadListPdf } from "./outreachExport";
 import { showUndo, showNote } from "./undo";
@@ -480,8 +480,10 @@ function Window({ title, isMobile, onClose, children, footer }: { title: string;
   );
 }
 
-// ── Contact: read view, Edit → Save returns to the read view ─────
-// a new contact: the window opens empty, ready to type (Save → its read view);
+// ── Contact: one level — the fields are the view (no Edit step) ──
+// Status (saves at once) · Last contact · Log · fields · timeline · Delete;
+// footer Done → Cancel | Save as soon as you type; after Save the window stays open.
+// a new contact: the window opens empty, ready to type (Save → it opens as itself);
 // category and tier start with the last ones used for a new contact
 const DEFAULTS_KEY = "lh_new_contact_defaults";
 const newContact = (): OutreachContact => {
@@ -504,26 +506,39 @@ export const fromEmail = (email: string): { company: string; web: string } | nul
 };
 const TWO: any = { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 };
 
+// the fields you type in; everything else (status, dates, the dot) comes from the stored contact
+const EDIT_KEYS = ["email", "company", "contactName", "category", "tier", "city", "country", "web", "notes"] as const;
+const sameFields = (a: OutreachContact, b: OutreachContact) => EDIT_KEYS.every(k => String((a as any)[k] ?? "") === String((b as any)[k] ?? ""));
+const pickFields = (x: OutreachContact) => { const o: any = {}; EDIT_KEYS.forEach(k => { o[k] = (x as any)[k]; }); return o as Partial<OutreachContact>; };
+// yyyy-mm-dd of a timestamp, in local time
+const ymdLocal = (iso: string) => { const d = new Date(iso); return isNaN(d.getTime()) ? "" : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+
 function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }: { c: OutreachContact; outreach: any; isMobile: boolean; onClose: () => void; onCopy: (t: string) => void; isNew?: boolean; onOpen?: (id: string) => void }) {
-  const [edit, setEdit] = useState(!!isNew);
-  const [dupId, setDupId] = useState<string | null>(null);     // the contact that already has this email
   const [f, setF] = useState(c);
+  const [dupId, setDupId] = useState<string | null>(null);     // the contact that already has this email
   const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [askDelete, setAskDelete] = useState(false);
-  useEffect(() => { if (!edit) setF(c); }, [c, edit]);
-  // pitch log for this contact (newest first); the account comes from the category
-  const mine: Pitch[] = (outreach.pitches || []).filter((p: Pitch) => p.contactId === c.id).sort((a: Pitch, b: Pitch) => b.sentOn.localeCompare(a.sentOn));
-  const log = async (kind: "pitch" | "follow_up") => {
-    setErr(null);
-    try { await outreach.logPitches([c.id], kind, undefined, { restart: true }); }
-    catch (e: any) { setErr(e?.message || "Couldn't log it."); }
-  };
+  const [askDiscard, setAskDiscard] = useState(false);
+  const [showNoteField, setShowNoteField] = useState(false);
+  const changed = !sameFields(f, c);
+  // the stored contact changed (status, a save, a reload): keep what's being typed, take over the rest
+  const prevC = useRef(c);
+  useEffect(() => {
+    setF(x => (sameFields(x, prevC.current) ? { ...c } : { ...x, status: c.status, lastContact: c.lastContact, replyAt: c.replyAt, replyNew: c.replyNew, clientId: c.clientId }));
+    prevC.current = c;
+  }, [c]);
   // opening a contact clears its new-reply dot
   useEffect(() => { if (!isNew && c.replyNew && outreach.markSeen) outreach.markSeen(c.id).catch(() => {}); }, [c.id, c.replyNew]);
 
+  const log = async (kind: "pitch" | "follow_up") => {
+    setErr(null);
+    try { await outreach.logPitches([c.id], kind, undefined, { restart: true }); showNote(kind === "pitch" ? "Pitch logged ✓" : "Follow-up logged ✓"); }
+    catch (e: any) { setErr(e?.message || "Couldn't log it."); }
+  };
+
   // compact form: Enter goes to the next field, the last one saves; the email fills Company and
   // Website by itself (only when they're still empty, not for gmail & co)
-  const [showNote, setShowNote] = useState(false);
   const fillFromEmail = () => {
     const fill = fromEmail(f.email);
     if (fill) setF(x => ({ ...x, company: x.company || fill.company, web: x.web || fill.web }));
@@ -535,150 +550,180 @@ function ContactWindow({ c, outreach, isMobile, onClose, onCopy, isNew, onOpen }
     const form = e.currentTarget.closest("[data-cform]");
     const list = (form ? Array.from(form.querySelectorAll("input[data-k]")) : []) as HTMLInputElement[];
     const i = list.indexOf(e.currentTarget);
-    if (i >= 0 && i < list.length - 1) list[i + 1].focus(); else { (e.currentTarget as HTMLInputElement).blur(); save(); }
+    if (i >= 0 && i < list.length - 1) list[i + 1].focus(); else { (e.currentTarget as HTMLInputElement).blur(); if (isNew || changed) save(); }
   };
 
+  // Save: the window stays open (a new contact opens as itself)
   const save = async () => {
+    if (busy) return;
     setErr(null); setDupId(null);
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) { setErr("Please enter a valid email."); return; }
-    if (!isCategory(f.category)) { setErr("Pick a category."); return; }
-    if (isNew) {                                     // saved → the window shows its read view
-      try {
-        const n = await outreach.addContact(f);
-        try { localStorage.setItem(DEFAULTS_KEY, JSON.stringify({ category: f.category, tier: f.tier })); } catch { /* ignore */ }
+    const clean = { ...f, email: f.email.trim().toLowerCase() };
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean.email)) { setErr("Please enter a valid email."); return; }
+    if (!isCategory(clean.category)) { setErr("Pick a category."); return; }
+    setBusy(true);
+    try {
+      if (isNew) {
+        const n = await outreach.addContact(clean);
+        try { localStorage.setItem(DEFAULTS_KEY, JSON.stringify({ category: clean.category, tier: clean.tier })); } catch { /* ignore */ }
         onOpen?.(n.id);
+        return;
       }
-      catch (e: any) { setErr(e?.message || "Couldn't save."); if (e?.existingId) setDupId(e.existingId); }
-      return;
+      setF(clean);
+      await outreach.updateContact(c.id, pickFields(clean));
+      showNote("Saved ✓");
     }
-    try { await outreach.updateContact(c.id, f); setEdit(false); }
-    catch (e: any) { setErr(e?.message || "Couldn't save."); }
+    catch (e: any) { setErr(e?.message || "Couldn't save."); if (e?.existingId) setDupId(e.existingId); }
+    finally { setBusy(false); }
   };
+  const cancel = () => { if (isNew) { onClose(); return; } setF(c); setErr(null); setDupId(null); };
+  // ✕, tap outside, Escape: with unsaved typing, ask first
+  const close = () => { if (changed) setAskDiscard(true); else onClose(); };
   const del = async () => {
     setAskDelete(false);
     try { await outreach.deleteContact(c.id); onClose(); }
     catch (e: any) { setErr(e?.message || "Couldn't delete."); }
   };
-  const row = (label: string, value: any) => (
-    <div style={{ display: "grid", gridTemplateColumns: "110px minmax(0,1fr)", gap: 8, padding: "8px 0", borderBottom: `1px solid ${C.rule}`, fontSize: 13 }}>
-      <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: C.muted, paddingTop: 2 }}>{label}</span>
-      <span style={{ minWidth: 0, overflowWrap: "anywhere" as const }}>{value || <span style={{ color: C.light }}>—</span>}</span>
-    </div>
-  );
-  const field = (label: string, key: keyof OutreachContact, type = "text") => (
-    <div><Lbl>{label}</Lbl><I type={type} value={(f as any)[key]} onChange={(e: any) => setF({ ...f, [key]: e.target.value })} /></div>
-  );
+
+  // timeline: emails sent (pitch log) + status changes and replies, newest first
+  const timeline = useMemo(() => {
+    if (isNew) return [];
+    const ps = (outreach.pitches || []).filter((p: Pitch) => p.contactId === c.id).map((p: Pitch) => ({
+      key: "p" + p.id, day: p.sentOn, ts: p.createdAt || "", pitch: p,
+      text: <>{p.kind === "follow_up" ? "Follow-up" : "Pitch"} · <span style={{ color: C.muted }}>{p.account === "createbylynn" ? "@createbylynn" : "@lynnhoa"}</span></>,
+    }));
+    const es = (outreach.events || []).filter((e: OutreachEvent) => e.contactId === c.id).map((e: OutreachEvent) => ({
+      key: "e" + e.id, day: ymdLocal(e.at), ts: e.at, pitch: null as Pitch | null,
+      text: e.kind === "reply" ? <span style={{ color: PAL.progress.ink }}>Reply received</span> : <>Status · <span style={{ color: C.muted }}>{statusOf(e.status || "new").label}</span></>,
+    }));
+    return [...ps, ...es].sort((a, b) => b.day.localeCompare(a.day) || b.ts.localeCompare(a.ts));
+  }, [isNew, c.id, outreach.pitches, outreach.events]);
+  const deleteEntry = (p: Pitch) => {
+    // one tap deletes, the Undo bar brings it back exactly as it was
+    const c0 = (outreach.contacts || []).find((x: any) => x.id === p.contactId);
+    const before = { lastContact: c0?.lastContact ?? null, status: c0?.status ?? null };
+    outreach.deletePitch(p).then(() => showUndo(`${p.kind === "follow_up" ? "Follow-up" : "Pitch"} deleted`, () => outreach.restorePitch(p, before)))
+      .catch((x: any) => setErr(x?.message || "Couldn't delete."));
+  };
+
+  const due = !isNew && followUpDue(c);
+  const accLabel = c.category === "ugc" ? "@createbylynn" : "@lynnhoa";
+  const footBtn: any = { flex: 1, height: 40, justifyContent: "center" };
 
   return (
     <>
       {askDelete && <ConfirmDialog title={`Delete ${c.company || c.email}?`} text="The contact is removed from your email list." okLabel="Delete" danger onOk={del} onCancel={() => setAskDelete(false)} />}
-      {/* the app's sheet (as in the Service Catalog): ✕ · title · Edit; Cancel | Save right under the fields */}
-      <Sheet title={isNew ? "New contact" : c.company || c.email}
-        onClose={edit && !isNew ? () => { setEdit(false); setErr(null); } : onClose}
-        right={!edit ? <PillBtn onClick={() => setEdit(true)}>Edit</PillBtn> : null}
-        footer={edit ? <>
-          <PillBtn onClick={() => { if (isNew) { onClose(); return; } setEdit(false); setErr(null); }} s={{ flex: 1, height: 40, justifyContent: "center" }}>Cancel</PillBtn>
-          <PillBtn dark onClick={save} s={{ flex: 1.4, height: 40, justifyContent: "center" }}>Save</PillBtn>
-        </> : undefined}>
+      {askDiscard && <ConfirmDialog title="Discard your changes?" text="What you typed isn't saved yet." okLabel="Discard" cancelLabel="Keep editing" onOk={() => { setAskDiscard(false); onClose(); }} onCancel={() => setAskDiscard(false)} />}
+      {/* one level: the fields are the view · Done → Cancel | Save as soon as you type (stays open after Save) */}
+      <Sheet title={isNew ? "New contact" : c.company || c.email} onClose={close}
+        footer={isNew || changed ? <>
+          <PillBtn onClick={cancel} s={footBtn}>Cancel</PillBtn>
+          <PillBtn dark onClick={save} s={{ ...footBtn, flex: 1.4, opacity: busy ? 0.5 : 1 }}>{busy ? "Saving…" : "Save"}</PillBtn>
+        </> : <PillBtn onClick={onClose} s={footBtn}>Done</PillBtn>}>
         {err && <p role="alert" style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
         {dupId && onOpen && <B v="sec" onClick={() => onOpen(dupId)} s={{ marginBottom: 10 }}>Open that contact</B>}
-        {!edit && !outreach.pitchError && (
-          <div style={{ marginBottom: 6 }}>
-            <Lbl>Status</Lbl>
-            <S value={c.status || "new"} onChange={(e: any) => outreach.setStatus(c.id, e.target.value).catch((x: any) => setErr(x?.message || "Couldn't save."))}>
-              {statusesFor(c.category).map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
-            </S>
-            {followUpDue(c) && <p style={{ fontSize: 12, color: C.amber, margin: "6px 0 0" }}>No reply since {fmtD(c.lastContact!)} — time to follow up.</p>}
-            <Lbl>Log · {c.category === "ugc" ? "@createbylynn" : "@lynnhoa"}</Lbl>
-            <div style={{ display: "flex", gap: 6 }}>
-              <B v="sec" onClick={() => log("pitch")} s={{ ...BAR_BTN, flex: 1, color: C.black }}>+ Pitch</B>
-              <B v="sec" onClick={() => log("follow_up")} s={{ ...BAR_BTN, flex: 1, color: C.black }}>+ Follow-up</B>
+
+        {/* ── status · last contact · log ── */}
+        {!isNew && !outreach.pitchError && (
+          <>
+            <div style={TWO}>
+              <div><Lbl>Status</Lbl>
+                <S value={c.status || "new"} aria-label="Status" onChange={(e: any) => outreach.setStatus(c.id, e.target.value).catch((x: any) => setErr(x?.message || "Couldn't save."))}>
+                  {statusesFor(c.category).map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
+                </S>
+              </div>
+              <div><Lbl>Last contact</Lbl>
+                <div style={{ height: 40, display: "flex", alignItems: "center", fontSize: TYPE.row.size, color: due ? PAL.waiting.ink : c.lastContact ? C.black : C.light }}>
+                  {c.lastContact ? `${fmtD(c.lastContact)}${due ? " · follow up" : ""}` : "—"}
+                </div>
+              </div>
+            </div>
+            <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, padding: "0 12px 12px", marginTop: 12 }}>
+              <Lbl>Log · {accLabel}</Lbl>
+              <div style={{ display: "flex", gap: 6 }}>
+                <PillBtn onClick={() => log("pitch")} s={{ flex: 1, height: 36, justifyContent: "center" }}>+ Pitch</PillBtn>
+                <PillBtn onClick={() => log("follow_up")} s={{ flex: 1, height: 36, justifyContent: "center" }}>+ Follow-up</PillBtn>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── the fields ── */}
+        <div data-cform="">
+          <Lbl>Email</Lbl>
+          <div style={{ position: "relative" }}>
+            <I data-k="email" type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} enterKeyHint="next"
+              autoFocus={!!isNew} placeholder="name@brand.com" value={f.email} aria-label="Email" s={isNew ? undefined : { paddingRight: 44 }}
+              onChange={(e: any) => setF({ ...f, email: e.target.value })} onBlur={fillFromEmail} onKeyDown={onEnter} />
+            {!isNew && (
+              <button onClick={() => onCopy(c.email)} aria-label="Copy email" title="Copy email"
+                style={{ position: "absolute", right: 2, top: 2, width: 36, height: 36, background: "none", border: "none", cursor: "copy", color: C.muted, display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                <Ico d={IC.copy} size={15} />
+              </button>
+            )}
+          </div>
+          {isNew && <p style={{ fontSize: TYPE.micro.size, color: C.light, margin: "4px 2px 0" }}>Only the email is needed.</p>}
+          <div style={TWO}>
+            <div><Lbl>Company</Lbl><I data-k="company" enterKeyHint="next" value={f.company} aria-label="Company" onChange={(e: any) => setF({ ...f, company: e.target.value })} onKeyDown={onEnter} /></div>
+            <div><Lbl>Contact name</Lbl><I data-k="contactName" enterKeyHint="next" value={f.contactName} aria-label="Contact name" onChange={(e: any) => setF({ ...f, contactName: e.target.value })} onKeyDown={onEnter} /></div>
+          </div>
+          <div style={TWO}>
+            <div><Lbl>Category</Lbl>
+              <S value={isCategory(f.category) ? f.category : ""} aria-label="Category" onChange={(e: any) => setF({ ...f, category: e.target.value })}>
+                {!isCategory(f.category) && <option value="" disabled>Pick a category</option>}
+                {OUTREACH_CATEGORIES.map(k => <option key={k.key} value={k.key}>{k.label}</option>)}
+              </S>
+            </div>
+            <div><Lbl>Tier</Lbl>
+              <S value={isTier(f.tier) ? f.tier : ""} aria-label="Tier" onChange={(e: any) => setF({ ...f, tier: e.target.value })}>
+                <option value="">—</option>
+                {OUTREACH_TIERS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+              </S>
             </div>
           </div>
-        )}
-        {!edit ? (
+          <div style={TWO}>
+            <div><Lbl>City</Lbl><I data-k="city" enterKeyHint="next" value={f.city} aria-label="City" onChange={(e: any) => setF({ ...f, city: e.target.value })} onKeyDown={onEnter} /></div>
+            <div><Lbl>Country</Lbl><I data-k="country" enterKeyHint="next" value={f.country} aria-label="Country" onChange={(e: any) => setF({ ...f, country: e.target.value })} onKeyDown={onEnter} /></div>
+          </div>
+          <Lbl>Website / IG</Lbl>
+          <I data-k="web" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="done" value={f.web} aria-label="Website or Instagram" onChange={(e: any) => setF({ ...f, web: e.target.value })} onKeyDown={onEnter} />
+          {showNoteField || f.notes || c.notes ? (
+            <><Lbl>Notes</Lbl>
+              <textarea rows={2} value={f.notes} autoFocus={showNoteField && !f.notes} aria-label="Notes" onChange={(e) => setF({ ...f, notes: e.target.value })}
+                style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.field}`, background: C.white, fontFamily: SANS, fontSize: 16, color: C.black, borderRadius: RADIUS.field, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const }} /></>
+          ) : (
+            <button onClick={() => setShowNoteField(true)} style={{ marginTop: 12, background: "none", border: "none", padding: "0 2px", minHeight: 36, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: C.ink2 }}>+ Note</button>
+          )}
+        </div>
+
+        {/* ── timeline: pitches, follow-ups, status changes, replies ── */}
+        {!isNew && !outreach.pitchError && (
           <>
-            {row("Company", c.company)}
-            {row("Email", <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}><span style={{ minWidth: 0, overflowWrap: "anywhere" as const }}>{c.email}</span><PillBtn onClick={() => onCopy(c.email)} s={{ height: 28, flexShrink: 0 }}>Copy</PillBtn></span>)}
-            {row("Contact", c.contactName)}
-            {row("Category", <CatPill k={c.category} />)}
-            {row("Tier", tierOf(c.tier).label)}
-            {row("Website / IG", c.web)}
-            {row("City", c.city)}
-            {row("Country", c.country)}
-            {row("Notes", c.notes)}
-            {row("Added", c.createdAt ? fmtD(c.createdAt.slice(0, 10)) : "")}
-            {row("Source", c.source)}
-            {!outreach.pitchError && (
-              <>
-                <Lbl>Pitch log · {mine.length}</Lbl>
-                {mine.length === 0 ? <p style={{ fontSize: 12, color: C.light, margin: 0 }}>Nothing sent yet.</p> : (
-                  <div style={{ borderTop: `1px solid ${C.rule}` }}>
-                    {mine.map((p: Pitch) => (
-                      <div key={p.id} style={{ minHeight: 36, display: "flex", alignItems: "center", gap: 8, borderBottom: `1px solid ${C.rule}`, fontSize: 13 }}>
-                        <span style={{ width: 86, flexShrink: 0 }}>{fmtD(p.sentOn)}</span>
-                        <span style={{ flex: 1, minWidth: 0 }}>{p.kind === "follow_up" ? "Follow-up" : "Pitch"} · <span style={{ color: C.muted }}>{p.account === "lynnhoa" ? "@lynnhoa" : "@createbylynn"}</span></span>
-                        <button onClick={() => {
-                            // one tap deletes, the Undo bar brings it back exactly as it was
-                            const c0 = (outreach.contacts || []).find((x: any) => x.id === p.contactId);
-                            const before = { lastContact: c0?.lastContact ?? null, status: c0?.status ?? null };
-                            outreach.deletePitch(p).then(() => showUndo(`${p.kind === "follow_up" ? "Follow-up" : "Pitch"} deleted`, () => outreach.restorePitch(p, before)))
-                              .catch((x: any) => setErr(x?.message || "Couldn't delete."));
-                          }} aria-label="Delete this entry" title="Delete this entry"
-                          style={{ width: 32, height: 32, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 14 }}>✕</button>
-                      </div>
-                    ))}
+            <Lbl>Timeline · {timeline.length}</Lbl>
+            {timeline.length === 0 ? <p style={{ fontSize: 12, color: C.light, margin: 0 }}>Nothing sent yet.</p> : (
+              <div style={{ borderTop: `1px solid ${C.rule}` }}>
+                {timeline.map(t => (
+                  <div key={t.key} style={{ minHeight: 36, display: "flex", alignItems: "center", gap: 8, borderBottom: `1px solid ${C.rule}`, fontSize: 13 }}>
+                    <span style={{ width: 86, flexShrink: 0 }}>{t.day ? fmtD(t.day) : ""}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>{t.text}</span>
+                    {t.pitch ? (
+                      <button onClick={() => deleteEntry(t.pitch!)} aria-label="Delete this entry" title="Delete this entry"
+                        style={{ width: 32, height: 32, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 14 }}>✕</button>
+                    ) : <span style={{ width: 32, flexShrink: 0 }} />}
                   </div>
-                )}
-              </>
+                ))}
+              </div>
             )}
           </>
-        ) : (
-          <>
-            <div data-cform="">
-              <Lbl>Email</Lbl>
-              <I data-k="email" type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} enterKeyHint="next"
-                autoFocus={!!isNew} placeholder="name@brand.com" value={f.email} aria-label="Email"
-                onChange={(e: any) => setF({ ...f, email: e.target.value })} onBlur={fillFromEmail} onKeyDown={onEnter} />
-              {isNew && <p style={{ fontSize: TYPE.micro.size, color: C.light, margin: "4px 2px 0" }}>Only the email is needed.</p>}
-              <div style={TWO}>
-                <div><Lbl>Company</Lbl><I data-k="company" enterKeyHint="next" value={f.company} aria-label="Company" onChange={(e: any) => setF({ ...f, company: e.target.value })} onKeyDown={onEnter} /></div>
-                <div><Lbl>Contact name</Lbl><I data-k="contactName" enterKeyHint="next" value={f.contactName} aria-label="Contact name" onChange={(e: any) => setF({ ...f, contactName: e.target.value })} onKeyDown={onEnter} /></div>
-              </div>
-              <div style={TWO}>
-                <div><Lbl>Category</Lbl>
-                  <S value={isCategory(f.category) ? f.category : ""} aria-label="Category" onChange={(e: any) => setF({ ...f, category: e.target.value })}>
-                    {!isCategory(f.category) && <option value="" disabled>Pick a category</option>}
-                    {OUTREACH_CATEGORIES.map(k => <option key={k.key} value={k.key}>{k.label}</option>)}
-                  </S>
-                </div>
-                <div><Lbl>Tier</Lbl>
-                  <S value={isTier(f.tier) ? f.tier : ""} aria-label="Tier" onChange={(e: any) => setF({ ...f, tier: e.target.value })}>
-                    <option value="">—</option>
-                    {OUTREACH_TIERS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-                  </S>
-                </div>
-              </div>
-              <div style={TWO}>
-                <div><Lbl>City</Lbl><I data-k="city" enterKeyHint="next" value={f.city} aria-label="City" onChange={(e: any) => setF({ ...f, city: e.target.value })} onKeyDown={onEnter} /></div>
-                <div><Lbl>Country</Lbl><I data-k="country" enterKeyHint="next" value={f.country} aria-label="Country" onChange={(e: any) => setF({ ...f, country: e.target.value })} onKeyDown={onEnter} /></div>
-              </div>
-              <Lbl>Website / IG</Lbl>
-              <I data-k="web" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="done" value={f.web} aria-label="Website or Instagram" onChange={(e: any) => setF({ ...f, web: e.target.value })} onKeyDown={onEnter} />
-              {showNote || f.notes ? (
-                <><Lbl>Notes</Lbl>
-                  <textarea rows={2} value={f.notes} autoFocus={showNote && !f.notes} aria-label="Notes" onChange={(e) => setF({ ...f, notes: e.target.value })}
-                    style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.field}`, background: C.white, fontFamily: SANS, fontSize: 16, color: C.black, borderRadius: RADIUS.field, outline: "none", resize: "vertical" as const, boxSizing: "border-box" as const }} /></>
-              ) : (
-                <button onClick={() => setShowNote(true)} style={{ marginTop: 12, background: "none", border: "none", padding: "0 2px", minHeight: 36, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: C.ink2 }}>+ Note</button>
-              )}
-              {!isNew && (
-                <B v="danger" onClick={() => setAskDelete(true)} s={{ width: "100%", minHeight: 40, marginTop: 14, gap: 7, fontSize: TYPE.row.size }}>
-                  <Ico d={TRASH} size={15} />Delete contact
-                </B>
-              )}
-            </div>
-          </>
+        )}
+        {!isNew && (c.createdAt || c.source) && (
+          <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "10px 2px 0", lineHeight: 1.5, overflowWrap: "anywhere" as const }}>
+            {[c.createdAt ? `Added ${fmtD(c.createdAt.slice(0, 10))}` : "", c.source].filter(Boolean).join(" · ")}
+          </p>
+        )}
+        {!isNew && (
+          <B v="danger" onClick={() => setAskDelete(true)} s={{ width: "100%", minHeight: 40, marginTop: 14, gap: 7, fontSize: TYPE.row.size }}>
+            <Ico d={TRASH} size={15} />Delete contact
+          </B>
         )}
       </Sheet>
     </>

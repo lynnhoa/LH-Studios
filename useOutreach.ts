@@ -14,7 +14,7 @@ import { supabase, selectAll } from "./useSupabase";
 import { registerReloader } from "./saveStatus";
 import { today } from "./formatters";
 import { fitStatus, statusAfterPitch, accountOf } from "./outreach";
-import type { OutreachContact, OutreachCategory, OutreachTier, OutreachStatus, Pitch } from "./outreach";
+import type { OutreachContact, OutreachCategory, OutreachTier, OutreachStatus, Pitch, OutreachEvent } from "./outreach";
 
 const rowToContact = (r: any): OutreachContact => ({
   id:          r.id,
@@ -38,13 +38,17 @@ const rowToContact = (r: any): OutreachContact => ({
 
 const rowToPitch = (r: any): Pitch => ({
   id: r.id, contactId: r.contact_id, account: r.account, kind: r.kind === "follow_up" ? "follow_up" : "pitch",
-  sentOn: String(r.sent_on).slice(0, 10),
+  sentOn: String(r.sent_on).slice(0, 10), createdAt: r.created_at ?? "",
+});
+const rowToEvent = (r: any): OutreachEvent => ({
+  id: r.id, contactId: r.contact_id, kind: r.kind === "reply" ? "reply" : "status", status: (r.status ?? null) as OutreachStatus | null, at: r.at ?? r.created_at ?? "",
 });
 const chunks = <T,>(a: T[], n = 400): T[][] => { const out: T[][] = []; for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n)); return out; };
 
 export function useOutreach(userId: string | null) {
   const [contacts,   setContacts]   = useState<OutreachContact[]>([]);
   const [pitches,    setPitches]    = useState<Pitch[]>([]);
+  const [events,     setEvents]     = useState<OutreachEvent[]>([]);   // the timeline: status changes, replies
   const [pitchError, setPitchError] = useState<string | null>(null);
   const [loading,    setLoading]    = useState(true);
   const [loadError,  setLoadError]  = useState<string | null>(null);
@@ -66,6 +70,9 @@ export function useOutreach(userId: string | null) {
     const pr: any = await selectAll("outreach_pitches", "*", q => q.eq("user_id", userId).order("sent_on").order("id"));
     if (pr?.error) setPitchError(/outreach_pitches/.test(pr.error.message || "") ? "The pitch log table doesn't exist yet — run the Phase 6 SQL in Supabase once." : pr.error.message);
     else { setPitchError(null); setPitches((pr?.data || []).map(rowToPitch)); }
+    // timeline entries; without the table the rest still works (the timeline shows the pitch log only)
+    const ev: any = await selectAll("outreach_events", "*", q => q.eq("user_id", userId).order("at").order("id"));
+    setEvents(ev?.error ? [] : (ev?.data || []).map(rowToEvent));
     setLoading(false);
   }, [userId]);
 
@@ -81,8 +88,11 @@ export function useOutreach(userId: string | null) {
 
   // a status change goes into the timeline; if that table isn't there yet, the change still counts
   const logEvent = useCallback(async (contactId: string, status: OutreachStatus) => {
-    try { await supabase.from("outreach_events").insert({ user_id: userId, contact_id: contactId, kind: "status", status: status === "new" ? null : status }); }
-    catch { /* the timeline is extra */ }
+    try {
+      const { data, error } = await supabase.from("outreach_events")
+        .insert({ user_id: userId, contact_id: contactId, kind: "status", status: status === "new" ? null : status }).select().single();
+      if (!error && data) setEvents(prev => [...prev, rowToEvent(data)]);
+    } catch { /* the timeline is extra */ }
   }, [userId]);
 
   const updateContact = useCallback(async (id: string, patch: Partial<OutreachContact>) => {
@@ -134,6 +144,8 @@ export function useOutreach(userId: string | null) {
     const { error } = await supabase.from("outreach_contacts").delete().eq("id", id).eq("user_id", userId);
     if (error) throw new Error(error.message);
     setContacts(prev => prev.filter(c => c.id !== id));
+    setPitches(prev => prev.filter(p => p.contactId !== id));
+    setEvents(prev => prev.filter(e => e.contactId !== id));
   }, [userId]);
 
   // ── tracking ────────────────────────────────────────────────
@@ -211,5 +223,5 @@ export function useOutreach(userId: string | null) {
     setContacts(prev => prev.map(x => (x.id === p.contactId ? { ...x, lastContact: before.lastContact, status: before.status || x.status } : x)));
   }, [userId]);
 
-  return { contacts, pitches, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, markSeen, logPitches, deletePitch, restorePitch };
+  return { contacts, pitches, events, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, markSeen, logPitches, deletePitch, restorePitch };
 }
