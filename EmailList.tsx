@@ -22,7 +22,7 @@ import {
 } from "./outreach";
 import { kitInfo } from "./useEmailKit";
 import type { EmailTemplate } from "./useEmailKit";
-import { fillFor, composeUrl, openInOutlook } from "./outlook";
+import { fillFor, composeUrl, openMail, templatesFor, pickTemplate, kitUrlOf } from "./outlook";
 import type { Pitch, ChipKey, OutreachEvent } from "./outreach";
 import type { OutreachContact, OutreachView, SortKey } from "./outreach";
 import { downloadExcel, downloadTemplate, downloadListPdf } from "./outreachExport";
@@ -69,7 +69,7 @@ const CatPill = ({ k }: { k: string }) => {
 
 interface EmailListProps {
   outreach:  any;          // useOutreach()
-  kit?:      any;          // useEmailKit() — the templates and media kit links for Write in Outlook
+  kit?:      any;          // useEmailKit() — the templates and media kit links for Write
   settings:  any;
   isMobile:  boolean;
   isWide:    boolean;      // ≥ 1200 px
@@ -90,9 +90,19 @@ const statusLook = (c: OutreachContact) => {
     default:         return { bg: C.white, border: C.rule, color: C.muted, text: "New" };
   }
 };
-const StatusPill = ({ c }: { c: OutreachContact }) => {
+// New · Pitched · Follow up: the pill writes the email (✉) — one tap, no window; the other pills open the contact
+const canWrite = (c: OutreachContact) => !c.status || c.status === "new" || c.status === "pitched";
+const StatusPill = ({ c, onWrite }: { c: OutreachContact; onWrite?: (c: OutreachContact) => void }) => {
   const l = statusLook(c);
-  return <span style={{ fontSize: TYPE.micro.size, letterSpacing: "0.03em", padding: "2px 8px", borderRadius: RADIUS.tag, border: `1px solid ${l.border}`, background: l.bg, color: l.color, whiteSpace: "nowrap" as const, flexShrink: 0 }}>{l.text}</span>;
+  const pill: any = { fontSize: TYPE.micro.size, letterSpacing: "0.03em", padding: "2px 8px", borderRadius: RADIUS.tag, border: `1px solid ${l.border}`, background: l.bg, color: l.color, whiteSpace: "nowrap" as const, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4, lineHeight: 1.4 };
+  if (!onWrite || !canWrite(c)) return <span style={pill}>{l.text}</span>;
+  // a larger tap area around the small pill (the row itself still opens the contact)
+  return (
+    <button onClick={(e) => { e.stopPropagation(); onWrite(c); }} aria-label={`Write to ${c.company || c.email}`} title="Write the email"
+      style={{ background: "none", border: "none", padding: "8px 0 8px 10px", margin: "-8px 0 -8px -10px", cursor: "pointer", flexShrink: 0, fontFamily: SANS, display: "inline-flex" }}>
+      <span style={pill}><Ico d={MAIL} size={11} />{l.text}</span>
+    </button>
+  );
 };
 // a reply you haven't opened yet
 const ReplyDot = () => <span aria-label="New reply" style={{ width: 7, height: 7, borderRadius: "50%", background: PAL.progress.mid, flexShrink: 0, display: "inline-block" }} />;
@@ -120,7 +130,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
   useEffect(() => { try { sessionStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch { /* ignore */ } }, [view]);
   useEffect(() => { try { localStorage.setItem(CHIP_KEY, view.chip); } catch { /* ignore */ } }, [view.chip]);
 
-  // Write in Outlook: the Undo bar right away, and once more when you come back from Outlook
+  // Write: the Undo bar right away, and once more when you come back from your mail app
   // (the first one is often gone by then) — up to 10 minutes later
   const pendingUndo = useRef<{ msg: string; undo: () => Promise<void>; at: number } | null>(null);
   useEffect(() => {
@@ -135,6 +145,22 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
     window.addEventListener("focus", back);
     return () => { document.removeEventListener("visibilitychange", back); window.removeEventListener("focus", back); };
   }, []);
+  // ✉ on a status pill: the email in your mail app with the preselected template, logged, no window
+  const quickWrite = (c: OutreachContact) => {
+    const list = templatesFor(kit?.templates || [], c.category);
+    const tpl = list.find(t => t.id === pickTemplate(list, c.category, followUpDue(c) ? "follow_up" : "pitch", outreach.pitches || []));
+    if (!tpl) { showNote(`No ${pipelineOf(c.category) === "ugc" ? "UGC" : "@lynnhoa"} template yet — add one in Email kit`); return; }
+    if (!tpl.body.trim()) { showNote("This template has no text yet — add it in Email kit"); return; }
+    const url = kitUrlOf(kit?.kits, tpl.kit);
+    if (tpl.kit && !url) { showNote(`Add the ${kitInfo(tpl.kit)!.short} link in Email kit first`); return; }
+    const mail = fillFor(tpl, c, url || null);
+    const before = [{ id: c.id, status: c.status, lastContact: c.lastContact }];
+    // the save starts first, then your mail app opens in the same tap
+    const saving: Promise<Pitch[]> = outreach.logPitches([c.id], tpl.kind, undefined, { restart: tpl.kind === "pitch", templateId: tpl.id });
+    openMail(composeUrl(c.email, mail.subject, mail.body));
+    saving.then(added => written(`${tpl.kind === "follow_up" ? "Follow-up" : "Pitch"} logged · ${tpl.name || "template"}`, () => outreach.undoLog(added, before)))
+      .catch((e: any) => showNote(e?.message || "Couldn't log it — open the contact and use + Pitch"));
+  };
   const written = (msg: string, undo: () => Promise<void>) => {
     let done = false;
     const once = async () => {
@@ -317,7 +343,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
               {c.replyNew && <ReplyDot />}
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, minWidth: 0 }}>{c.company || c.email}{placeOf(c) && <span style={{ fontSize: TYPE.label.size, color: C.muted, fontWeight: "normal" }}> · {placeOf(c)}</span>}</span>
             </span>
-            <StatusPill c={c} />
+            <StatusPill c={c} onWrite={quickWrite} />
           </div>
           <div style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 2, display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
             {c.replyNew ? (
@@ -364,7 +390,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
       {shown.map((c: OutreachContact) => (
         <div key={c.id} className="lh-row" onClick={() => setOpenId(c.id)} style={{ display: "contents", cursor: "pointer" }}>
           <div style={{ ...td, gap: 6, fontWeight: c.replyNew ? 500 : "normal" }}>{c.replyNew && <ReplyDot />}{cut(c.company)}</div>
-          <div style={td}><StatusPill c={c} /></div>
+          <div style={td}><StatusPill c={c} onWrite={quickWrite} /></div>
           <div style={{ ...td, color: c.contactName ? C.black : C.light }}>{cut(c.contactName || "—")}</div>
           <div style={td}>{emailCell(c)}</div>
           <div style={td}><CatPill k={c.category} /></div>
@@ -680,31 +706,18 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
     finally { setClientBusy(false); }
   };
 
-  // ── Write in Outlook: the templates for this contact's account; preselected:
+  // ── Write: the templates for this contact's account (your Email kit order); preselected:
   //    a template made for this contact's category (else one for any category), of the kind needed
   //    (follow-up when one is due, else pitch) — the one used last, else the first A–Z
   //    (saved with each pitch, so it's the same on phone, iPad and Mac)
   const pipe = pipelineOf(c.category);
-  const tpls: EmailTemplate[] = useMemo(() => (kit?.templates || []).filter((t: EmailTemplate) => t.pipeline === pipe)
-    .sort((a: EmailTemplate, b: EmailTemplate) => (a.name || "").localeCompare(b.name || "", "de")), [kit?.templates, pipe]);
+  const tpls: EmailTemplate[] = useMemo(() => templatesFor(kit?.templates || [], c.category), [kit?.templates, c.category]);   // your Email kit order
   const wantKind = due ? "follow_up" : "pitch";
-  const preselect = useMemo(() => {
-    const cats = (t: EmailTemplate) => t.categories || [];
-    const lastOf = (list: EmailTemplate[]) => {
-      if (!list.length) return "";
-      const ids = new Set(list.map(t => t.id));
-      const last = (outreach.pitches || []).filter((p: Pitch) => p.templateId && ids.has(p.templateId))
-        .sort((a: Pitch, b: Pitch) => (b.createdAt || b.sentOn).localeCompare(a.createdAt || a.sentOn))[0];
-      return last?.templateId || list[0].id;
-    };
-    const made = tpls.filter(t => cats(t).includes(c.category)), any = tpls.filter(t => !cats(t).length);
-    return lastOf(made.filter(t => t.kind === wantKind)) || lastOf(any.filter(t => t.kind === wantKind))
-      || lastOf(made) || lastOf(any) || lastOf(tpls.filter(t => t.kind === wantKind)) || tpls[0]?.id || "";
-  }, [tpls, wantKind, c.category, outreach.pitches]);
+  const preselect = useMemo(() => pickTemplate(tpls, c.category, wantKind, outreach.pitches || []), [tpls, wantKind, c.category, outreach.pitches]);
   const [tplId, setTplId] = useState(preselect);
   useEffect(() => { setTplId(preselect); }, [preselect]);
   const tpl = tpls.find(t => t.id === tplId) || null;
-  const kitUrl = (k: string | null) => (k ? String(kit?.kits?.find((x: any) => x.key === k)?.url || "").trim() : "");
+  const kitUrl = (k: string | null) => kitUrlOf(kit?.kits, k);
   const willPitch = tpl?.kind !== "follow_up" && statusAfterPitch(c.status) !== c.status;
 
   const write = () => {
@@ -717,10 +730,10 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
     const mail = fillFor(tpl, { contactName: f.contactName, company: f.company }, tpl.kit ? kitUrl(tpl.kit) : null);
     const before = [{ id: c.id, status: c.status, lastContact: c.lastContact }];
     const kind = tpl.kind;
-    // the save starts first, then Outlook opens in the same tap (the iPhone only opens apps from a tap)
+    // the save starts first, then your mail app opens in the same tap (the iPhone only opens apps from a tap)
     const saving: Promise<Pitch[]> = outreach.logPitches([c.id], kind, undefined, { restart: kind === "pitch", templateId: tpl.id });
-    openInOutlook(composeUrl(to, mail.subject, mail.body));
-    saving.then(added => onWritten?.(kind === "follow_up" ? "Follow-up logged" : "Pitch logged", () => outreach.undoLog(added, before)))
+    openMail(composeUrl(to, mail.subject, mail.body));
+    saving.then(added => onWritten?.(`${kind === "follow_up" ? "Follow-up" : "Pitch"} logged · ${tpl.name || "template"}`, () => outreach.undoLog(added, before)))
       .catch((e: any) => setErr(`${e?.message || "Couldn't log it."} Log it with + Pitch below.`));
   };
 
@@ -781,9 +794,9 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
                     {tpls.map(t => <option key={t.id} value={t.id}>{t.name || "Untitled"}{t.kind === "follow_up" ? " · follow-up" : ""}</option>)}
                   </MiniSelect>
                 </div>
-                <PillBtn dark onClick={write} title={tpl?.kind === "follow_up" ? "Write follow-up in Outlook" : "Write in Outlook"}
+                <PillBtn dark onClick={write} title={tpl?.kind === "follow_up" ? "Write the follow-up in your mail app" : "Write the email in your mail app"}
                   s={{ height: 32, padding: "0 14px", flexShrink: 0, fontSize: TYPE.subtext.size }}>
-                  <Ico d={MAIL} size={14} /><span aria-label={tpl?.kind === "follow_up" ? "Write follow-up in Outlook" : "Write in Outlook"}>Write</span>
+                  <Ico d={MAIL} size={14} /><span aria-label={tpl?.kind === "follow_up" ? "Write follow-up" : "Write email"}>Write</span>
                 </PillBtn>
               </div>
             ) : (

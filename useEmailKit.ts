@@ -39,6 +39,7 @@ export interface EmailTemplate {
   id: string; name: string; purpose: string; subject: string; body: string; kit: KitKey | null; createdAt: string;
   pipeline: TemplatePipeline; kind: TemplateKind;
   categories: string[];   // the contact categories it's for (empty = any) — picks the right template per contact
+  sortOrder: number | null; // your own order in the Email kit (empty = after the sorted ones, A–Z)
 }
 export const TEMPLATE_PIPELINES: { key: TemplatePipeline; label: string }[] = [{ key: "lynnhoa", label: "@lynnhoa" }, { key: "ugc", label: "UGC" }];
 export const TEMPLATE_KINDS: { key: TemplateKind; label: string }[] = [{ key: "pitch", label: "Pitch" }, { key: "follow_up", label: "Follow-up" }];
@@ -53,7 +54,11 @@ const rowToTpl = (r: any): EmailTemplate => ({
   kit: kitInfo(r.kit_key) ? r.kit_key : null, createdAt: r.created_at ?? "",
   pipeline: r.pipeline === "ugc" ? "ugc" : "lynnhoa", kind: r.kind === "follow_up" ? "follow_up" : "pitch",
   categories: Array.isArray(r.categories) ? r.categories : [],
+  sortOrder: r.sort_order == null ? null : Number(r.sort_order),
 });
+// your Email kit order: sorted templates first, then the rest A–Z
+const tplSort = (a: EmailTemplate, b: EmailTemplate) =>
+  (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER) || (a.name || "").localeCompare(b.name || "", "de");
 const fail = (error: any) => { if (error) throw new Error(error.message || "Couldn't save."); };
 
 // "2,4 MB" · "380 KB" (German format)
@@ -100,7 +105,7 @@ export function useEmailKit(userId: string | null) {
       if (!ins?.error) rows = [...rows, ...(ins.data || [])];
     }
     setKits(KITS.map(d => rows.find(r => r.key === d.key)).filter(Boolean).map(rowToKit));
-    setTemplates((t.data || []).map(rowToTpl));
+    setTemplates((t.data || []).map(rowToTpl).sort(tplSort));
     setLoading(false);
   }, [userId]);
 
@@ -192,13 +197,25 @@ export function useEmailKit(userId: string | null) {
     if (f.kind     !== undefined) row.kind     = f.kind;
     return row;
   };
+  // a new template goes to the end of your order
   const addTemplate = useCallback(async (f: EmailTemplate): Promise<EmailTemplate> => {
-    const { data, error } = await supabase.from("email_templates").insert({ user_id: userId, ...tplRow(f) }).select().single();
+    const next = templates.reduce((m, t) => Math.max(m, t.sortOrder ?? 0), 0) + 1;
+    const { data, error } = await supabase.from("email_templates").insert({ user_id: userId, ...tplRow(f), sort_order: next }).select().single();
     fail(error);
     const n = rowToTpl(data);
-    setTemplates(prev => [...prev, n]);
+    setTemplates(prev => [...prev, n].sort(tplSort));
     return n;
-  }, [userId]);
+  }, [userId, templates]);
+  // your own order (Email kit → Sort): every template gets its place 1, 2, 3 …
+  const saveOrder = useCallback(async (ids: string[]) => {
+    const place = new Map(ids.map((id, i) => [id, i + 1]));
+    setTemplates(prev => prev.map(t => (place.has(t.id) ? { ...t, sortOrder: place.get(t.id)! } : t)).sort(tplSort));
+    for (const [id, n] of place) {
+      if (templates.find(t => t.id === id)?.sortOrder === n) continue;          // only what moved
+      const { error } = await supabase.from("email_templates").update({ sort_order: n }).eq("id", id).eq("user_id", userId);
+      fail(error);
+    }
+  }, [userId, templates]);
   const updateTemplate = useCallback(async (id: string, f: Partial<EmailTemplate>) => {
     const { data, error } = await supabase.from("email_templates").update(tplRow(f)).eq("id", id).eq("user_id", userId).select().single();
     fail(error);
@@ -210,7 +227,7 @@ export function useEmailKit(userId: string | null) {
     setTemplates(prev => prev.filter(t => t.id !== id));
   }, [userId]);
 
-  return { kits, templates, loading, loadError, saveKits, addTemplate, updateTemplate, deleteTemplate, uploadPdf, deletePdf, preloadPdfs, sharePdf };
+  return { kits, templates, loading, loadError, saveKits, addTemplate, updateTemplate, deleteTemplate, saveOrder, uploadPdf, deletePdf, preloadPdfs, sharePdf };
 }
 
 export type EmailKitHook = ReturnType<typeof useEmailKit>;

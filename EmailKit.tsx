@@ -54,6 +54,12 @@ const TA = (p: any) => (
 );
 
 // the round copy button on a row (its own tap: doesn't open the row)
+// ↑ / ↓ while sorting (a light round button, faint at the ends)
+const MoveBtn = ({ dir, label, off, onClick }: { dir: "up" | "down"; label: string; off: boolean; onClick: () => void }) => (
+  <button onClick={off ? undefined : onClick} aria-label={label} title={label} aria-disabled={off}
+    style={{ width: 32, height: 32, borderRadius: "50%", border: `1px solid ${off ? C.line : C.edge}`, background: C.white, color: off ? C.faint : C.black,
+      cursor: off ? "default" : "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, fontSize: 14, fontFamily: SANS }}>{dir === "up" ? "↑" : "↓"}</button>
+);
 const CopyBtn = ({ onClick, label }: { onClick: () => void; label: string }) => (
   <button onClick={(e) => { e.stopPropagation(); onClick(); }} aria-label={label} title={label}
     style={{ width: 32, height: 32, borderRadius: "50%", border: `1px solid ${C.edge}`, background: C.white, color: C.ink2, display: "inline-flex",
@@ -108,12 +114,21 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
   useEffect(() => { if (purpose !== "all" && !purposes.includes(purpose)) setPurpose("all"); }, [purposes, purpose]);
   const shownPurposes = purpose === "all" ? purposes : [purpose];
   const current = templates.find(t => t.id === openId);
+  // Sort: ↑ ↓ move a template one place; the new order is saved right away
+  const [sorting, setSorting] = useState(false);
+  const move = (i: number, d: -1 | 1) => {
+    const j = i + d;
+    if (j < 0 || j >= templates.length) return;
+    const ids = templates.map(t => t.id);
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    kit.saveOrder(ids).catch((e: any) => showNote(e?.message || "Couldn't save the order."));
+  };
 
   return (
     <div>
       <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? TYPE.screen.size : TYPE.pageTitle.size, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Email kit</h2>
       <SummaryLine dot={PAL.neutral.mid}>
-        <span><Strong>{kits.length || KITS.length}</Strong> media kits · <Strong>{templates.length}</Strong> {templates.length === 1 ? "template" : "templates"} · copy only</span>
+        <span><Strong>{kits.length || KITS.length}</Strong> media kits · <Strong>{templates.length}</Strong> {templates.length === 1 ? "template" : "templates"}</span>
       </SummaryLine>
 
       {loadError && <p role="alert" style={{ fontSize: TYPE.subtext.size, color: C.red, margin: "12px 0 0" }}>{loadError}</p>}
@@ -141,8 +156,29 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
           </div>
 
           {/* ── EMAIL TEMPLATES ── */}
-          <SectionHead label="Email templates" right={<button onClick={() => setAdding(true)} style={{ ...linkBtn, textDecoration: "none" }}>+ Add</button>} />
-          {loading ? null : templates.length === 0 ? (
+          <SectionHead label="Email templates" right={sorting
+            ? <button onClick={() => setSorting(false)} style={linkBtn}>Done</button>
+            : <span style={{ display: "inline-flex", gap: 12, alignItems: "center" }}>
+                {templates.length > 1 && <button onClick={() => setSorting(true)} style={linkBtn}>Sort</button>}
+                <button onClick={() => setAdding(true)} style={{ ...linkBtn, textDecoration: "none" }}>+ Add</button>
+              </span>} />
+          {loading ? null : sorting ? (
+            <>
+              {/* your own order: ↑ ↓ move a template, saved right away */}
+              <ListCard s={{ marginTop: 0 }}>
+                {templates.map((t, i) => (
+                  <Row key={t.id} first={i === 0} chevron={false}
+                    title={t.name || "Untitled"}
+                    meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"} · {t.kind === "follow_up" ? "Follow-up" : "Pitch"} · Kit: {t.kit ? <span style={{ color: toneOf(t.kit).ink }}>{kitInfo(t.kit)!.label}</span> : "none"}</>}
+                    right={<span style={{ display: "inline-flex", gap: 6 }}>
+                      <MoveBtn dir="up" label={`Move ${t.name || "this template"} up`} off={i === 0} onClick={() => move(i, -1)} />
+                      <MoveBtn dir="down" label={`Move ${t.name || "this template"} down`} off={i === templates.length - 1} onClick={() => move(i, 1)} />
+                    </span>} />
+                ))}
+              </ListCard>
+              <p style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "6px 2px 0" }}>This order is also used in each contact's template list.</p>
+            </>
+          ) : templates.length === 0 ? (
             <ListCard s={{ padding: "18px 14px", textAlign: "center" as const }}>
               <div style={{ fontSize: SPACING.listText }}>Add your first template</div>
               <div style={{ fontSize: SPACING.listMeta, color: C.muted, marginTop: 3, lineHeight: 1.4 }}>Each template gets a purpose and a media kit choice.</div>
@@ -157,7 +193,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
               )}
               {/* iPad / computer: the purposes side by side (phone: one under the other) */}
               <ColGroups groups={shownPurposes.map(p => {
-                const list = templates.filter(t => (t.purpose.trim() || NO_PURPOSE) === p).sort((a, b) => a.name.localeCompare(b.name, "de"));
+                const list = templates.filter(t => (t.purpose.trim() || NO_PURPOSE) === p);   // in your own order (Sort)
                 return { key: p, size: list.length, node: (
                   <div>
                     {purposes.length > 1 && <SectionHead label={p} />}
@@ -180,7 +216,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
       {editLinks && <LinksWindow kit={kit} onShare={sharePdf} onClose={() => setEditLinks(false)} />}
       {current && <TemplateWindow t={current} kit={kit} purposes={purposes} urlOf={urlOf} onCopy={copyTemplate} onShare={sharePdf} onCopySubject={(s) => copy(s, "Subject copied ✓")} onClose={() => setOpenId(null)} />}
       {adding && !current && (
-        <TemplateWindow isNew t={{ id: "", name: "", purpose: purpose !== "all" && purpose !== NO_PURPOSE ? purpose : "", subject: "", body: "", kit: null, createdAt: "", pipeline: "lynnhoa", kind: "pitch", categories: [] }}
+        <TemplateWindow isNew t={{ id: "", name: "", purpose: purpose !== "all" && purpose !== NO_PURPOSE ? purpose : "", subject: "", body: "", kit: null, createdAt: "", pipeline: "lynnhoa", kind: "pitch", categories: [], sortOrder: null }}
           kit={kit} purposes={purposes} urlOf={urlOf} onCopy={copyTemplate} onShare={sharePdf} onCopySubject={(s) => copy(s, "Subject copied ✓")}
           onClose={() => setAdding(false)} onCreated={(id) => { setAdding(false); setOpenId(id); }} />
       )}
