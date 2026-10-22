@@ -14,7 +14,7 @@ import { supabase, selectAll } from "./useSupabase";
 import { registerReloader } from "./saveStatus";
 import { today, uid } from "./formatters";
 import { fitStatus, statusAfterPitch, accountOf } from "./outreach";
-import type { OutreachContact, OutreachCategory, OutreachTier, OutreachStatus, Pitch, OutreachEvent } from "./outreach";
+import type { OutreachContact, OutreachCategory, OutreachTier, OutreachStatus, Pitch, PitchAccount, OutreachEvent } from "./outreach";
 
 const rowToContact = (r: any): OutreachContact => ({
   id:          r.id,
@@ -232,13 +232,13 @@ export function useOutreach(userId: string | null) {
   //   one contact, a pitch (restart) → New and every ended status → Pitched; Pitched, Replied, Lead stay
   //   the list in view (bulk) or a follow-up → only New → Pitched, every other status stays
   // Returns the new entries (for Undo).
-  const logPitches = useCallback(async (ids: string[], kind: "pitch" | "follow_up", sentOn: string = today(), opts: { restart?: boolean; templateId?: string | null } = {}): Promise<Pitch[]> => {
+  const logPitches = useCallback(async (ids: string[], kind: "pitch" | "follow_up", sentOn: string = today(), opts: { restart?: boolean; templateId?: string | null; account?: PitchAccount } = {}): Promise<Pitch[]> => {
     if (!ids.length) return [];
     const byId = new Map(contacts.map(c => [c.id, c]));
     const added: Pitch[] = [];
     for (const part of chunks(ids)) {
       const { data, error } = await supabase.from("outreach_pitches")
-        .insert(part.map(id => ({ contact_id: id, account: accountOf(byId.get(id)?.category || ""), kind, sent_on: sentOn, ...(opts.templateId ? { template_id: opts.templateId } : {}) }))).select();
+        .insert(part.map(id => ({ contact_id: id, account: opts.account || accountOf(byId.get(id)?.category || ""), kind, sent_on: sentOn, ...(opts.templateId ? { template_id: opts.templateId } : {}) }))).select();
       if (error) throw new Error(error.message);
       (data || []).forEach((r: any) => added.push(rowToPitch(r)));
     }

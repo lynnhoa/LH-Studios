@@ -23,7 +23,7 @@ import { useState, useEffect, useMemo } from "react";
 import { C, SANS, SERIF, TYPE, PAL, RADIUS, TRACK, SPACING, CARD_TONE } from "./constants";
 import { fmtD } from "./formatters";
 import { I, S, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Row, Chip, ChipRow, Sheet, ConfirmDialog, ColGroups } from "./atoms";
-import { copyText } from "./outreach";
+import { copyText, OUTREACH_CATEGORIES, catOf } from "./outreach";
 import { showNote } from "./undo";
 import { KITS, KIT_TOKEN, kitInfo, fillText, fmtSize, TEMPLATE_PIPELINES, TEMPLATE_KINDS } from "./useEmailKit";
 import type { EmailKitHook, EmailTemplate, KitKey, MediaKit } from "./useEmailKit";
@@ -54,6 +54,8 @@ const TA = (p: any) => (
 );
 
 // the round copy button on a row (its own tap: doesn't open the row)
+// "Hotel, Restaurant" · "Any category" — the categories a template is for
+const catsText = (t: EmailTemplate) => (t.categories || []).length ? (t.categories || []).map(k => catOf(k).label).join(", ") : "Any category";
 // ↑ / ↓ while sorting (a light round button, faint at the ends)
 const MoveBtn = ({ dir, label, off, onClick }: { dir: "up" | "down"; label: string; off: boolean; onClick: () => void }) => (
   <button onClick={off ? undefined : onClick} aria-label={label} title={label} aria-disabled={off}
@@ -201,7 +203,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
                       {list.map((t, i) => (
                         <Row key={t.id} first={i === 0} chevron={false} onClick={() => setOpenId(t.id)}
                           title={t.name || "Untitled"}
-                          meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"} · {t.kind === "follow_up" ? "Follow-up" : "Pitch"} · Kit: {t.kit ? <span style={{ color: toneOf(t.kit).ink }}>{kitInfo(t.kit)!.label}</span> : "none"}</>}
+                          meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"} · {t.kind === "follow_up" ? "Follow-up" : "Pitch"} · {catsText(t)} · Kit: {t.kit ? <span style={{ color: toneOf(t.kit).ink }}>{kitInfo(t.kit)!.label}</span> : "none"}</>}
                           right={<CopyBtn label={`Copy ${t.name || "the text"}`} onClick={() => copyTemplate(t, t.kit)} />} />
                       ))}
                     </ListCard>
@@ -385,7 +387,7 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
         {!edit ? (
           <>
             <div style={{ fontFamily: SERIF, fontSize: TYPE.tile.size, lineHeight: 1.2 }}>{t.name || "Untitled"}</div>
-            <div style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "4px 2px 0" }}>{TEMPLATE_PIPELINES.find(x => x.key === t.pipeline)?.label} · {t.kind === "follow_up" ? "Follow-up" : "Pitch"}</div>
+            <div style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "4px 2px 0" }}>{TEMPLATE_PIPELINES.find(x => x.key === t.pipeline)?.label} · {t.kind === "follow_up" ? "Follow-up" : "Pitch"} · {catsText(t)}</div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "12px 2px 5px" }}>
               <span style={caps}>Media kit</span>
               {pickPdf && <button onClick={() => onShare(pick!)} style={{ ...linkBtn, display: "inline-flex", alignItems: "center", gap: 4 }}><Ico d={IC.share} size={12} />Share PDF</button>}
@@ -432,6 +434,15 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
                 </S>
               </div>
             </div>
+            <Lbl>Categories</Lbl>
+            <div role="group" aria-label="Categories" style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
+              {OUTREACH_CATEGORIES.map(k => {
+                const on = (f.categories || []).includes(k.key);
+                return <Chip key={k.key} on={on} tone={PAL.neutral} dot={false} label={k.label}
+                  onClick={() => setF({ ...f, categories: on ? (f.categories || []).filter(x => x !== k.key) : [...(f.categories || []), k.key] })} />;
+              })}
+            </div>
+            <p style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "5px 2px 0", lineHeight: 1.4 }}>None picked = any category. Hotel and Restaurant templates only show for hotel and restaurant contacts.</p>
             <Lbl>Subject</Lbl>
             <I value={f.subject} placeholder="Collaboration idea · {company}" aria-label="Subject" onChange={(e: any) => setF({ ...f, subject: e.target.value })} />
             <Lbl>Text</Lbl>

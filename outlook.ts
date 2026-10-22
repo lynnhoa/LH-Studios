@@ -58,9 +58,17 @@ export const byTemplateOrder = (a: EmailTemplate, b: EmailTemplate) => {
   const x = a.sortOrder ?? Number.MAX_SAFE_INTEGER, y = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
   return x - y || (a.name || "").localeCompare(b.name || "", "de");
 };
-// the templates a contact can be written with: same account (UGC → @createbylynn, else @lynnhoa)
+// the templates a contact can be written with:
+//   a Hotel contact → only the templates made for Hotel; a Restaurant contact → only those made for Restaurant
+//   (from either account — "Hotels & restaurants" is made for both)
+//   every other contact → its account's templates (UGC → @createbylynn, else @lynnhoa), without the hotel / restaurant ones
+export const HOSPITALITY = ["hotel", "restaurants"];
+const forHospitality = (t: EmailTemplate) => (t.categories || []).some(c => HOSPITALITY.includes(c));
 export const templatesFor = (templates: EmailTemplate[], category: string) =>
-  (templates || []).filter(t => t.pipeline === pipelineOf(category)).sort(byTemplateOrder);
+  (templates || []).filter(t => HOSPITALITY.includes(category) ? (t.categories || []).includes(category) : (t.pipeline === pipelineOf(category) && !forHospitality(t)))
+    .sort(byTemplateOrder);
+// the account a pitch counts for: the template's account (a UGC template for a hotel counts for @createbylynn)
+export const accountOfTemplate = (t: EmailTemplate) => (t.pipeline === "ugc" ? "createbylynn" : "lynnhoa") as "createbylynn" | "lynnhoa";
 // preselected: one made for the contact's category (else one for any category), of the kind needed
 // (follow-up when one is due, else pitch) — the one used last, else the first in your order
 export function pickTemplate(list: EmailTemplate[], category: string, wantKind: "pitch" | "follow_up", pitches: Pitch[]): string {

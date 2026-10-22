@@ -195,6 +195,7 @@ export function useEmailKit(userId: string | null) {
     if (f.kit     !== undefined) row.kit_key = f.kit;
     if (f.pipeline !== undefined) row.pipeline = f.pipeline;
     if (f.kind     !== undefined) row.kind     = f.kind;
+    if (f.categories !== undefined) row.categories = f.categories;
     return row;
   };
   // a new template goes to the end of your order

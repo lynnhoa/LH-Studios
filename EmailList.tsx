@@ -22,7 +22,7 @@ import {
 } from "./outreach";
 import { kitInfo } from "./useEmailKit";
 import type { EmailTemplate } from "./useEmailKit";
-import { fillFor, composeUrl, openMail, templatesFor, pickTemplate, kitUrlOf } from "./outlook";
+import { fillFor, composeUrl, openMail, templatesFor, pickTemplate, kitUrlOf, accountOfTemplate, HOSPITALITY } from "./outlook";
 import type { Pitch, ChipKey, OutreachEvent } from "./outreach";
 import type { OutreachContact, OutreachView, SortKey } from "./outreach";
 import { downloadExcel, downloadTemplate, downloadListPdf } from "./outreachExport";
@@ -90,6 +90,10 @@ const statusLook = (c: OutreachContact) => {
     default:         return { bg: C.white, border: C.rule, color: C.muted, text: "New" };
   }
 };
+// no template for this contact yet: what to add in Email kit
+const noTemplateText = (category: string) => HOSPITALITY.includes(category)
+  ? "No hotel & restaurant template yet — add one in Email kit with the category Hotel or Restaurant"
+  : `No ${pipelineOf(category) === "ugc" ? "UGC" : "@lynnhoa"} template yet — add one in Email kit`;
 // New · Pitched · Follow up: the pill writes the email (✉) — one tap, no window; the other pills open the contact
 const canWrite = (c: OutreachContact) => !c.status || c.status === "new" || c.status === "pitched";
 const StatusPill = ({ c, onWrite }: { c: OutreachContact; onWrite?: (c: OutreachContact) => void }) => {
@@ -149,14 +153,14 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
   const quickWrite = (c: OutreachContact) => {
     const list = templatesFor(kit?.templates || [], c.category);
     const tpl = list.find(t => t.id === pickTemplate(list, c.category, followUpDue(c) ? "follow_up" : "pitch", outreach.pitches || []));
-    if (!tpl) { showNote(`No ${pipelineOf(c.category) === "ugc" ? "UGC" : "@lynnhoa"} template yet — add one in Email kit`); return; }
+    if (!tpl) { showNote(noTemplateText(c.category)); return; }
     if (!tpl.body.trim()) { showNote("This template has no text yet — add it in Email kit"); return; }
     const url = kitUrlOf(kit?.kits, tpl.kit);
     if (tpl.kit && !url) { showNote(`Add the ${kitInfo(tpl.kit)!.short} link in Email kit first`); return; }
     const mail = fillFor(tpl, c, url || null);
     const before = [{ id: c.id, status: c.status, lastContact: c.lastContact }];
     // the save starts first, then your mail app opens in the same tap
-    const saving: Promise<Pitch[]> = outreach.logPitches([c.id], tpl.kind, undefined, { restart: tpl.kind === "pitch", templateId: tpl.id });
+    const saving: Promise<Pitch[]> = outreach.logPitches([c.id], tpl.kind, undefined, { restart: tpl.kind === "pitch", templateId: tpl.id, account: accountOfTemplate(tpl) });
     openMail(composeUrl(c.email, mail.subject, mail.body));
     saving.then(added => written(`${tpl.kind === "follow_up" ? "Follow-up" : "Pitch"} logged · ${tpl.name || "template"}`, () => outreach.undoLog(added, before)))
       .catch((e: any) => showNote(e?.message || "Couldn't log it — open the contact and use + Pitch"));
@@ -731,7 +735,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
     const before = [{ id: c.id, status: c.status, lastContact: c.lastContact }];
     const kind = tpl.kind;
     // the save starts first, then your mail app opens in the same tap (the iPhone only opens apps from a tap)
-    const saving: Promise<Pitch[]> = outreach.logPitches([c.id], kind, undefined, { restart: kind === "pitch", templateId: tpl.id });
+    const saving: Promise<Pitch[]> = outreach.logPitches([c.id], kind, undefined, { restart: kind === "pitch", templateId: tpl.id, account: accountOfTemplate(tpl) });
     openMail(composeUrl(to, mail.subject, mail.body));
     saving.then(added => onWritten?.(`${kind === "follow_up" ? "Follow-up" : "Pitch"} logged · ${tpl.name || "template"}`, () => outreach.undoLog(added, before)))
       .catch((e: any) => setErr(`${e?.message || "Couldn't log it."} Log it with + Pitch below.`));
@@ -786,7 +790,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
             {c.status === "client" && c.clientId && (
               <p style={{ fontSize: TYPE.label.size, color: PAL.done.ink, margin: "8px 2px 0", lineHeight: 1.4 }}>✓ Client in Manager — quote, contract and invoice happen there.</p>
             )}
-            <div style={{ ...CAPS, margin: "10px 2px 4px" }}>Template · {accLabel}</div>
+            <div style={{ ...CAPS, margin: "10px 2px 4px" }}>Template · {tpl ? (accountOfTemplate(tpl) === "createbylynn" ? "@createbylynn" : "@lynnhoa") : accLabel}</div>
             {tpls.length > 0 ? (
               <div style={{ display: "flex", gap: 6 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -800,7 +804,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
                 </PillBtn>
               </div>
             ) : (
-              <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 2px", lineHeight: 1.4 }}>No {pipe === "ugc" ? "UGC" : "@lynnhoa"} templates yet — add one in Email kit.</p>
+              <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 2px", lineHeight: 1.4 }}>{noTemplateText(c.category)}.</p>
             )}
             <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "6px 2px 0", lineHeight: 1.4 }}>
               {tpls.length > 0 && <>{tpl?.kind === "follow_up" ? "Logs the follow-up" : willPitch ? "Logs the pitch and sets Pitched" : "Logs the pitch"} · </>}
