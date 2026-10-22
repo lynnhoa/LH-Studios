@@ -152,6 +152,7 @@ export interface Pitch {
   account:   PitchAccount;
   kind:      "pitch" | "follow_up";
   sentOn:    string;   // yyyy-mm-dd
+  channel?:  Channel;  // how it was sent: email (default) or Instagram DM
   createdAt?: string;  // when it was logged (orders entries of the same day)
   templateId?: string | null;   // the Email kit template it was written with (Write in Outlook)
 }
@@ -172,6 +173,28 @@ export const PITCH_ACCOUNTS: { key: PitchAccount; label: string }[] = [
 // the account a pitch counts for comes from the category
 export const accountOf = (category: string): PitchAccount => (pipelineOf(category) === "ugc" ? "createbylynn" : "lynnhoa");
 
+// ── Channel: email (default) or Instagram DM — set per contact in its window ──
+export type Channel = "email" | "dm";
+export const CHANNELS: { key: Channel; label: string }[] = [{ key: "email", label: "Email" }, { key: "dm", label: "Instagram DM" }];
+// "@chanel" · "chanel" · "instagram.com/chanel/" · "https://www.instagram.com/chanel?hl=de" → "chanel" ("" if it isn't one)
+const NOT_HANDLES = new Set(["p", "reel", "reels", "explore", "stories", "tv", "accounts", "direct"]);
+export function igHandleOf(text: string): string {
+  const t = String(text || "").trim();
+  const m = t.match(/instagram\.com\/([A-Za-z0-9._]+)/i);
+  if (m) return NOT_HANDLES.has(m[1].toLowerCase()) ? "" : m[1].toLowerCase();
+  const a = t.match(/^@?([A-Za-z0-9._]{1,30})$/);
+  return a && (t.startsWith("@") || !/\./.test(a[1]) || a[1].includes("_")) ? a[1].toLowerCase() : "";
+}
+// the Instagram field as typed: "@chanel.paris", "chanel.paris" or a link → "chanel.paris"
+export function cleanHandle(text: string): string {
+  const t = String(text || "").trim();
+  if (/instagram\.com/i.test(t)) return igHandleOf(t);
+  const m = t.replace(/^@/, "").match(/^[A-Za-z0-9._]{1,30}$/);
+  return m ? m[0].toLowerCase() : "";
+}
+// the handle a DM goes to: the Instagram field, else what's in Website / Instagram
+export const handleOf = (c: { instagram?: string; web?: string }) => cleanHandle(c.instagram || "") || igHandleOf(c.web || "");
+
 export interface OutreachContact {
   id:          string;
   company:     string;
@@ -190,6 +213,8 @@ export interface OutreachContact {
   followSent?:  number;         // follow-ups sent since the last pitch
   repitchOn?:   string | null;  // No reply / Declined: from when it can be pitched again
   web:         string;          // website or Instagram
+  instagram:   string;          // Instagram handle without @ (for DMs) — "" = none
+  channel:     Channel;         // how this contact is pitched: email (default) or Instagram DM
   city:        string;
   country:     string;
   notes:       string;
@@ -206,6 +231,8 @@ export const OUTREACH_COLUMNS: OutreachColumn[] = [
   { key: "category",    label: "Category",            required: false, example: "Fashion",            note: `${OUTREACH_CATEGORIES.map(c => c.label).join(" · ")} — empty: Claude picks the closest` },
   { key: "tier",        label: "Tier",                required: false, example: "Luxury",             note: `${OUTREACH_TIERS.map(t => t.label).join(" · ")} — empty: no tier` },
   { key: "web",         label: "Website / Instagram", required: false, example: "@chanel" },
+  { key: "instagram",   label: "Instagram",           required: false, example: "@chanel",            note: "For DMs — empty: taken from Website / Instagram" },
+  { key: "channel",     label: "Channel",             required: false, example: "Email",              note: "Email · Instagram DM — empty: Email" },
   { key: "city",        label: "City",                required: false, example: "Paris" },
   { key: "country",     label: "Country",             required: false, example: "France" },
   { key: "notes",       label: "Notes",               required: false, example: "Met at Fashion Week" },
@@ -222,7 +249,7 @@ export function buildPrompt(loginEmail: string): string {
   return `I'm attaching an Excel/CSV list of contacts for my outreach email list. Please turn it into ONE SQL statement for my Supabase database.
 
 1. Read every row. Find these fields (the column names in my file may differ slightly):
-   company, contact name, email, category, tier, website or Instagram, city, country, notes.
+   company, contact name, email, category, tier, website or Instagram, Instagram handle, channel, city, country, notes.
    City and country are separate: never put a country into city (e.g. city "Mallorca", country "Spain").
 2. Clean the data:
    - trim spaces; write every email in lowercase
@@ -232,17 +259,19 @@ export function buildPrompt(loginEmail: string): string {
    Use the file's category column if it has one. If a row has no category, pick the closest of these 8.
 4. Tier: write the key of one of these (key = the name in my Excel): ${tiers}.
    Use the file's tier column. If a row has no tier, write NULL (without quotes) — never guess a tier.
-5. Output ONLY this SQL (no explanation before it). Escape apostrophes by doubling them (O'Brien → O''Brien). Use '' for other empty fields. Put the file name in "source". If there are more than 500 contacts, make several statements of max. 500 rows.
+5. Instagram: the handle without @ in lowercase (from an Instagram column, or from an instagram.com link or @handle in the website column), else ''.
+   Channel: 'dm' when the file's channel column says Instagram DM (or DM only), otherwise 'email'.
+6. Output ONLY this SQL (no explanation before it). Escape apostrophes by doubling them (O'Brien → O''Brien). Use '' for other empty fields. Put the file name in "source". If there are more than 500 contacts, make several statements of max. 500 rows.
 
-insert into public.outreach_contacts (user_id, company, contact_name, email, category, tier, web, city, country, notes, source)
-select u.id, v.company, v.contact_name, v.email, v.category, v.tier, v.web, v.city, v.country, v.notes, v.source
+insert into public.outreach_contacts (user_id, company, contact_name, email, category, tier, web, instagram, channel, city, country, notes, source)
+select u.id, v.company, v.contact_name, v.email, v.category, v.tier, v.web, v.instagram, v.channel, v.city, v.country, v.notes, v.source
 from (values
-  ('Chanel', 'Poma', 'pr@chanel.com', 'fashion', 'luxury', '@chanel', 'Paris', 'France', '', 'my-list.xlsx')
-) as v(company, contact_name, email, category, tier, web, city, country, notes, source)
+  ('Chanel', 'Poma', 'pr@chanel.com', 'fashion', 'luxury', '@chanel', 'chanel', 'email', 'Paris', 'France', '', 'my-list.xlsx')
+) as v(company, contact_name, email, category, tier, web, instagram, channel, city, country, notes, source)
 cross join (select id from auth.users where email = '${email}') u
 on conflict (user_id, email) do nothing;
 
-6. After the SQL, add a 3-line summary: rows read, rows skipped (no email / duplicate in file), and the count per category.
+7. After the SQL, add a 3-line summary: rows read, rows skipped (no email / duplicate in file), and the count per category.
 
 I'll run the SQL in Supabase → SQL editor. Emails that are already on my list are skipped automatically.`;
 }
@@ -283,10 +312,10 @@ export const ADDED: { key: AddedKey; label: string }[] = [
   { key: "year", label: "This year" },
 ];
 // tier: "all" · a tier key · "none" (no tier) — acc: "all" · "lynnhoa" · "ugc"
-export interface OutreachView { q: string; chip: ChipKey; cat: string; tier: string; status: string; acc: string; city: string; country: string; added: AddedKey; sort: SortKey; }
-export const DEFAULT_VIEW: OutreachView = { q: "", chip: "all", cat: "all", tier: "all", status: "all", acc: "all", city: "all", country: "all", added: "any", sort: "az" };
+export interface OutreachView { q: string; chip: ChipKey; cat: string; tier: string; status: string; acc: string; channel?: string; city: string; country: string; added: AddedKey; sort: SortKey; }
+export const DEFAULT_VIEW: OutreachView = { q: "", chip: "all", cat: "all", tier: "all", status: "all", acc: "all", channel: "all", city: "all", country: "all", added: "any", sort: "az" };
 // "Reset" / "Show all": every filter off (search, chip and sort stay)
-export const NO_FILTERS: Partial<OutreachView> = { cat: "all", tier: "all", status: "all", acc: "all", city: "all", country: "all", added: "any" };
+export const NO_FILTERS: Partial<OutreachView> = { cat: "all", tier: "all", status: "all", acc: "all", channel: "all", city: "all", country: "all", added: "any" };
 // "Mallorca, Spain" · "Spain" · ""
 export const placeOf = (c: { city?: string; country?: string }) => [c.city, c.country].map(x => (x || "").trim()).filter(Boolean).join(", ");
 // Status filter: the statuses plus "Follow-up due"
@@ -309,6 +338,7 @@ const passesFilters = (c: OutreachContact, v: OutreachView, now: Date) => {
     (!v.tier || v.tier === "all" || (v.tier === "none" ? !c.tier : c.tier === v.tier)) &&
     (!v.status || v.status === "all" || (v.status === "followup" ? followUpDue(c, now) : v.status === "repitch" ? repitchReady(c, now) : (c.status || "new") === v.status)) &&
     (!v.acc || v.acc === "all" || pipelineOf(c.category) === v.acc) &&
+    (!v.channel || v.channel === "all" || (c.channel || "email") === v.channel) &&
     (v.city === "all" || (c.city || "") === v.city) &&
     (!v.country || v.country === "all" || (c.country || "") === v.country) &&
     (v.added === "any" || (v.added === "30d" ? c.createdAt >= since30 : c.createdAt >= yearStart));
@@ -373,6 +403,7 @@ export function dashboardStats(contacts: OutreachContact[], pitches: Pitch[], ev
   const fu2 = cs.filter(c => followUpDue(c, now) && c.followStep === "fu2").length;
   return {
     weeks, sentTotal: sent.length, sentPitches: sent.filter(p => p.kind === "pitch").length, sentFollowUps: sent.filter(p => p.kind === "follow_up").length,
+    sentEmails: sent.filter(p => (p.channel || "email") === "email").length, sentDms: sent.filter(p => p.channel === "dm").length,
     thisWeek: weeks[7].n,
     contacts: cs.length, pitched: pitched.length, replies: replies.length,
     responseRate: pitched.length ? (replies.length / pitched.length) * 100 : 0,
@@ -388,7 +419,7 @@ export function dashboardStats(contacts: OutreachContact[], pitches: Pitch[], ev
   };
 }
 
-export const activeFilters = (v: OutreachView) => (v.cat !== "all" ? 1 : 0) + (v.tier && v.tier !== "all" ? 1 : 0) + (v.status && v.status !== "all" ? 1 : 0) + (v.acc && v.acc !== "all" ? 1 : 0) + (v.city !== "all" ? 1 : 0) + (v.country && v.country !== "all" ? 1 : 0) + (v.added !== "any" ? 1 : 0);
+export const activeFilters = (v: OutreachView) => (v.cat !== "all" ? 1 : 0) + (v.tier && v.tier !== "all" ? 1 : 0) + (v.status && v.status !== "all" ? 1 : 0) + (v.acc && v.acc !== "all" ? 1 : 0) + (v.channel && v.channel !== "all" ? 1 : 0) + (v.city !== "all" ? 1 : 0) + (v.country && v.country !== "all" ? 1 : 0) + (v.added !== "any" ? 1 : 0);
 
 // "a@x.com, b@y.com" — ready for BCC in Gmail, Outlook, Apple Mail
 export const emailsText = (list: OutreachContact[]) => list.map(c => c.email).filter(Boolean).join(", ");

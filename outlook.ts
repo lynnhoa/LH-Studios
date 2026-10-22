@@ -64,9 +64,34 @@ export const byTemplateOrder = (a: EmailTemplate, b: EmailTemplate) => {
 //   every other contact → its account's templates (UGC → @createbylynn, else @lynnhoa), without the hotel / restaurant ones
 export const HOSPITALITY = ["hotel", "restaurants"];
 const forHospitality = (t: EmailTemplate) => (t.categories || []).some(c => HOSPITALITY.includes(c));
-export const templatesFor = (templates: EmailTemplate[], category: string) =>
-  (templates || []).filter(t => HOSPITALITY.includes(category) ? (t.categories || []).includes(category) : (t.pipeline === pipelineOf(category) && !forHospitality(t)))
+//   … and only the templates of the contact's channel (Email or Instagram DM)
+export const templatesFor = (templates: EmailTemplate[], category: string, channel: "email" | "dm" = "email") =>
+  (templates || []).filter(t => (t.channel || "email") === channel)
+    .filter(t => HOSPITALITY.includes(category) ? (t.categories || []).includes(category) : (t.pipeline === pipelineOf(category) && !forHospitality(t)))
     .sort(byTemplateOrder);
+
+// ── Instagram DM: the text is copied, then the chat with the brand opens (ig.me = Instagram's own
+// chat link: the Instagram app on the phone, instagram.com on a computer). You paste and send —
+// Instagram doesn't let apps fill in or send a DM.
+export const igChatUrl = (handle: string) => `https://ig.me/m/${encodeURIComponent(handle)}`;
+// copy in the tap itself (the iPhone only allows it there); falls back to the old way when needed
+export function copyNow(text: string) {
+  try { if (navigator.clipboard?.writeText) { navigator.clipboard.writeText(text).catch(() => fallbackCopy(text)); return; } } catch { /* fall back */ }
+  fallbackCopy(text);
+}
+function fallbackCopy(text: string) {
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length); document.execCommand("copy"); ta.remove();
+  } catch { /* nothing more to try */ }
+}
+// open the chat in a new tab / the Instagram app — the app itself stays where it is
+export function openInstagram(url: string) {
+  const w = window.open(url, "_blank");
+  if (w) { try { w.opener = null; } catch { /* other window */ } }
+  else window.location.href = url;          // no new window allowed: open it right here
+}
 // the account a pitch counts for: the template's account (a UGC template for a hotel counts for @createbylynn)
 export const accountOfTemplate = (t: EmailTemplate) => (t.pipeline === "ugc" ? "createbylynn" : "lynnhoa") as "createbylynn" | "lynnhoa";
 // preselected: one made for the contact's category (else one for any category), of the kind needed —

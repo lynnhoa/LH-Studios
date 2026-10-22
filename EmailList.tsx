@@ -13,16 +13,16 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE, Z, PAL, RADIUS, SHADOW } from "./constants";
 import { fmtD } from "./formatters";
-import { B, I, S, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet, useEscape, Chip, ChipRow, MiniInput, MiniSelect } from "./atoms";
+import { B, I, MenuSelect, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet, useEscape, Chip, ChipRow, MiniInput } from "./atoms";
 import { MoreMenu } from "./PlannerWindows";
 import {
   OUTREACH_CATEGORIES, OUTREACH_TIERS, OUTREACH_COLUMNS, STATUS_FILTERS, SORTS, ADDED, DEFAULT_VIEW, CHIPS, PIPELINES, NO_TIER,
-  catOf, tierOf, statusOf, statusesFor, isCategory, isTier, isChip, chipCounts, followUpDue, repitchReady, nextKind, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt, NO_FILTERS, placeOf,
+  catOf, tierOf, statusOf, statusesFor, isCategory, isTier, isChip, chipCounts, followUpDue, repitchReady, nextKind, handleOf, cleanHandle, CHANNELS, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt, NO_FILTERS, placeOf,
   pipelineOf, statusAfterPitch,
 } from "./outreach";
 import { kitInfo } from "./useEmailKit";
 import type { EmailTemplate } from "./useEmailKit";
-import { fillFor, composeUrl, openMail, templatesFor, pickTemplate, kitUrlOf, accountOfTemplate, logKind, HOSPITALITY } from "./outlook";
+import { fillFor, composeUrl, openMail, templatesFor, pickTemplate, kitUrlOf, accountOfTemplate, logKind, HOSPITALITY, igChatUrl, copyNow, openInstagram } from "./outlook";
 import type { Pitch, ChipKey, OutreachEvent } from "./outreach";
 import type { OutreachContact, OutreachView, SortKey } from "./outreach";
 import { downloadExcel, downloadTemplate, downloadListPdf } from "./outreachExport";
@@ -33,6 +33,7 @@ const BAR_H = 56;   // the sticky search bar: 8 + 40 + 8
 const TRASH = "M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3";
 const ARROW_UP = "M12 19V5M5 12l7-7 7 7";
 const MAIL = "M4 6h16v12H4zM4 7l8 6 8-6";
+const IG = "M8 4h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM16.5 7.5h.01";
 const Ico = ({ d, size = 14, color = "currentColor" }: { d: string; size?: number; color?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d={d} /></svg>
 );
@@ -111,9 +112,9 @@ const StatusPill = ({ c, onWrite }: { c: OutreachContact; onWrite?: (c: Outreach
   if (!onWrite || !canWrite(c)) return <span style={pill}>{l.text}</span>;
   // a larger tap area around the small pill (the row itself still opens the contact)
   return (
-    <button onClick={(e) => { e.stopPropagation(); onWrite(c); }} aria-label={`Write to ${c.company || c.email}`} title="Write the email"
+    <button onClick={(e) => { e.stopPropagation(); onWrite(c); }} aria-label={`${c.channel === "dm" ? "DM" : "Write to"} ${c.company || c.email}`} title={c.channel === "dm" ? "Copy the DM and open Instagram" : "Write the email"}
       style={{ background: "none", border: "none", padding: "8px 0 8px 10px", margin: "-8px 0 -8px -10px", cursor: "pointer", flexShrink: 0, fontFamily: SANS, display: "inline-flex" }}>
-      <span style={pill}><Ico d={MAIL} size={11} />{l.text}</span>
+      <span style={pill}><Ico d={c.channel === "dm" ? IG : MAIL} size={11} />{l.text}</span>
     </button>
   );
 };
@@ -160,9 +161,12 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
   }, []);
   // ✉ on a status pill: the email in your mail app with the preselected template, logged, no window
   const quickWrite = (c: OutreachContact) => {
-    const list = templatesFor(kit?.templates || [], c.category);
+    const dm = c.channel === "dm";
+    const handle = handleOf(c);
+    if (dm && !handle) { showNote("Add the Instagram handle first — open the contact"); return; }
+    const list = templatesFor(kit?.templates || [], c.category, dm ? "dm" : "email");
     const tpl = list.find(t => t.id === pickTemplate(list, c.category, nextKind(c) || "follow_up_2", outreach.pitches || []));
-    if (!tpl) { showNote(noTemplateText(c.category)); return; }
+    if (!tpl) { showNote(dm ? "No DM template yet — add one in Email kit (Channel: Instagram DM)" : noTemplateText(c.category)); return; }
     if (!tpl.body.trim()) { showNote("This template has no text yet — add it in Email kit"); return; }
     const url = kitUrlOf(kit?.kits, tpl.kit);
     if (tpl.kit && !url) { showNote(`Add the ${kitInfo(tpl.kit)!.short} link in Email kit first`); return; }
@@ -170,9 +174,10 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
     const before = [{ id: c.id, status: c.status, lastContact: c.lastContact }];
     // the save starts first, then your mail app opens in the same tap
     const kind = logKind(tpl);
-    const saving: Promise<Pitch[]> = outreach.logPitches([c.id], kind, undefined, { restart: kind === "pitch", templateId: tpl.id, account: accountOfTemplate(tpl) });
-    openMail(composeUrl(c.email, mail.subject, mail.body));
-    saving.then(added => written(`${kind === "follow_up" ? "Follow-up" : "Pitch"} logged · ${tpl.name || "template"}`, () => outreach.undoLog(added, before)))
+    if (dm) copyNow(mail.body);                      // copied in the tap itself, then Instagram opens
+    const saving: Promise<Pitch[]> = outreach.logPitches([c.id], kind, undefined, { restart: kind === "pitch", templateId: tpl.id, account: accountOfTemplate(tpl), channel: dm ? "dm" : "email" });
+    if (dm) openInstagram(igChatUrl(handle)); else openMail(composeUrl(c.email, mail.subject, mail.body));
+    saving.then(added => written(dm ? "Copied · paste it in Instagram" : `${kind === "follow_up" ? "Follow-up" : "Pitch"} logged · ${tpl.name || "template"}`, () => outreach.undoLog(added, before)))
       .catch((e: any) => showNote(e?.message || "Couldn't log it — open the contact and use + Pitch"));
   };
   const written = (msg: string, undo: () => Promise<void>) => {
@@ -246,39 +251,45 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
         <div><Lbl>Tier</Lbl>
-          <S value={view.tier || "all"} onChange={(e: any) => set({ tier: e.target.value })}>
+          <MenuSelect size="form" value={view.tier || "all"} onChange={(e: any) => set({ tier: e.target.value })}>
             <option value="all">All</option>
             {OUTREACH_TIERS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
             <option value="none">{NO_TIER}</option>
-          </S>
+          </MenuSelect>
         </div>
         <div><Lbl>Status</Lbl>
-          <S value={view.status || "all"} onChange={(e: any) => set({ status: e.target.value })}>
+          <MenuSelect size="form" value={view.status || "all"} onChange={(e: any) => set({ status: e.target.value })}>
             {STATUS_FILTERS.map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
-          </S>
+          </MenuSelect>
         </div>
         <div><Lbl>Account</Lbl>
-          <S value={view.acc || "all"} onChange={(e: any) => set({ acc: e.target.value })}>
+          <MenuSelect size="form" value={view.acc || "all"} onChange={(e: any) => set({ acc: e.target.value })}>
             <option value="all">All</option>
             {PIPELINES.map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
-          </S>
+          </MenuSelect>
+        </div>
+        <div><Lbl>Channel</Lbl>
+          <MenuSelect size="form" value={view.channel || "all"} aria-label="Channel" onChange={(e: any) => set({ channel: e.target.value })}>
+            <option value="all">All</option>
+            {CHANNELS.map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
+          </MenuSelect>
         </div>
         <div><Lbl>Country</Lbl>
-          <S value={view.country || "all"} onChange={(e: any) => set({ country: e.target.value, city: "all" })}>
+          <MenuSelect size="form" value={view.country || "all"} onChange={(e: any) => set({ country: e.target.value, city: "all" })}>
             <option value="all">All</option>
             {countries.map(c => <option key={c} value={c}>{c}</option>)}
-          </S>
+          </MenuSelect>
         </div>
         <div><Lbl>City</Lbl>
-          <S value={view.city} onChange={(e: any) => set({ city: e.target.value })}>
+          <MenuSelect size="form" value={view.city} onChange={(e: any) => set({ city: e.target.value })}>
             <option value="all">All</option>
             {cities.map(c => <option key={c} value={c}>{c}</option>)}
-          </S>
+          </MenuSelect>
         </div>
         <div><Lbl>Added</Lbl>
-          <S value={view.added} onChange={(e: any) => set({ added: e.target.value })}>
+          <MenuSelect size="form" value={view.added} onChange={(e: any) => set({ added: e.target.value })}>
             {ADDED.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
-          </S>
+          </MenuSelect>
         </div>
       </div>
       <B onClick={() => setOpen(null)} s={{ width: "100%", marginTop: 14 }}>Show {shown.length} {shown.length === 1 ? "contact" : "contacts"}</B>
@@ -364,6 +375,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
               <span style={{ color: PAL.progress.ink, whiteSpace: "nowrap" as const }}>New reply{c.replyAt ? ` · ${shortD(String(c.replyAt).slice(0, 10))}` : ""}</span>
             ) : (
               <>
+                {c.channel === "dm" && handleOf(c) && <span style={{ flexShrink: 0 }}>@{handleOf(c)} ·</span>}
                 {c.contactName && <span style={{ flexShrink: 0 }}>{c.contactName} ·</span>}
                 {emailCell(c, true)}
               </>
@@ -572,7 +584,7 @@ const newContact = (): OutreachContact => {
   let d: any = {};
   try { d = JSON.parse(localStorage.getItem(DEFAULTS_KEY) || "{}") || {}; } catch { d = {}; }
   return { id: "", company: "", contactName: "", email: "", category: (isCategory(d.category) ? d.category : "fashion") as any, tier: (isTier(d.tier) ? d.tier : "") as any, status: "new" as any,
-    lastContact: null, replyAt: null, replyNew: false, clientId: null, web: "", city: "", country: "", notes: "", source: "", createdAt: "" };
+    lastContact: null, replyAt: null, replyNew: false, clientId: null, web: "", instagram: "", channel: "email", city: "", country: "", notes: "", source: "", createdAt: "" };
 };
 // pr@chanel.com → { company: "Chanel", web: "chanel.com" } · nothing for gmail, gmx, web.de, icloud …
 const FREE_MAIL = /^(gmail|googlemail|gmx|web|icloud|me|mac|outlook|hotmail|live|msn|yahoo|ymail|t-online|aol|proton|protonmail|mail|freenet|posteo|arcor)\./i;
@@ -589,8 +601,9 @@ export const fromEmail = (email: string): { company: string; web: string } | nul
 const TWO: any = { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 };
 
 // the fields you type in; everything else (status, dates, the dot) comes from the stored contact
-const EDIT_KEYS = ["email", "company", "contactName", "category", "tier", "city", "country", "web", "notes"] as const;
-const sameFields = (a: OutreachContact, b: OutreachContact) => EDIT_KEYS.every(k => String((a as any)[k] ?? "") === String((b as any)[k] ?? ""));
+const EDIT_KEYS = ["email", "company", "contactName", "category", "tier", "city", "country", "web", "instagram", "notes"] as const;
+const sameFields = (a: OutreachContact, b: OutreachContact) => EDIT_KEYS.every(k => k === "instagram"
+  ? cleanHandle(a.instagram || "") === cleanHandle(b.instagram || "") : String((a as any)[k] ?? "") === String((b as any)[k] ?? ""));
 const pickFields = (x: OutreachContact) => { const o: any = {}; EDIT_KEYS.forEach(k => { o[k] = (x as any)[k]; }); return o as Partial<OutreachContact>; };
 // yyyy-mm-dd of a timestamp, in local time
 const ymdLocal = (iso: string) => { const d = new Date(iso); return isNaN(d.getTime()) ? "" : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
@@ -631,7 +644,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
 
   const log = async (kind: "pitch" | "follow_up") => {
     setErr(null);
-    try { await outreach.logPitches([c.id], kind, undefined, { restart: true }); showNote(kind === "pitch" ? "Pitch logged ✓" : "Follow-up logged ✓"); }
+    try { await outreach.logPitches([c.id], kind, undefined, { restart: true, channel: c.channel === "dm" ? "dm" : "email" }); showNote(kind === "pitch" ? "Pitch logged ✓" : "Follow-up logged ✓"); }
     catch (e: any) { setErr(e?.message || "Couldn't log it."); }
   };
 
@@ -655,7 +668,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
   const save = async () => {
     if (busy) return;
     setErr(null); setDupId(null);
-    const clean = { ...f, email: f.email.trim().toLowerCase() };
+    const clean = { ...f, email: f.email.trim().toLowerCase(), instagram: cleanHandle(f.instagram || "") };
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean.email)) { setErr("Please enter a valid email."); return; }
     if (!isCategory(clean.category)) { setErr("Pick a category."); return; }
     setBusy(true);
@@ -686,7 +699,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
     if (isNew) return [];
     const ps = (outreach.pitches || []).filter((p: Pitch) => p.contactId === c.id).map((p: Pitch) => ({
       key: "p" + p.id, day: p.sentOn, ts: p.createdAt || "", pitch: p as Pitch | null, event: null as OutreachEvent | null,
-      text: <>{p.kind === "follow_up" ? "Follow-up" : "Pitch"} · <span style={{ color: C.muted }}>{p.account === "createbylynn" ? "@createbylynn" : "@lynnhoa"}</span></>,
+      text: <>{p.kind === "follow_up" ? "Follow-up" : "Pitch"}{p.channel === "dm" ? " · DM" : ""} · <span style={{ color: C.muted }}>{p.account === "createbylynn" ? "@createbylynn" : "@lynnhoa"}</span></>,
     }));
     const es = (outreach.events || []).filter((e: OutreachEvent) => e.contactId === c.id).map((e: OutreachEvent) => ({
       key: "e" + e.id, day: ymdLocal(e.at), ts: e.at, pitch: null as Pitch | null, event: e as OutreachEvent | null,
@@ -732,7 +745,8 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
   //    (follow-up when one is due, else pitch) — the one used last, else the first A–Z
   //    (saved with each pitch, so it's the same on phone, iPad and Mac)
   const pipe = pipelineOf(c.category);
-  const tpls: EmailTemplate[] = useMemo(() => templatesFor(kit?.templates || [], c.category), [kit?.templates, c.category]);   // your Email kit order
+  const isDm = c.channel === "dm";
+  const tpls: EmailTemplate[] = useMemo(() => templatesFor(kit?.templates || [], c.category, isDm ? "dm" : "email"), [kit?.templates, c.category, isDm]);   // your Email kit order
   const wantKind = nextKind(c) || "follow_up_2";
   const preselect = useMemo(() => pickTemplate(tpls, c.category, wantKind, outreach.pitches || []), [tpls, wantKind, c.category, outreach.pitches]);
   const [tplId, setTplId] = useState(preselect);
@@ -751,10 +765,13 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
     const mail = fillFor(tpl, { contactName: f.contactName, company: f.company }, tpl.kit ? kitUrl(tpl.kit) : null);
     const before = [{ id: c.id, status: c.status, lastContact: c.lastContact }];
     const kind = logKind(tpl);
-    // the save starts first, then your mail app opens in the same tap (the iPhone only opens apps from a tap)
-    const saving: Promise<Pitch[]> = outreach.logPitches([c.id], kind, undefined, { restart: kind === "pitch", templateId: tpl.id, account: accountOfTemplate(tpl) });
-    openMail(composeUrl(to, mail.subject, mail.body));
-    saving.then(added => onWritten?.(`${kind === "follow_up" ? "Follow-up" : "Pitch"} logged · ${tpl.name || "template"}`, () => outreach.undoLog(added, before)))
+    const handle = cleanHandle(f.instagram || "") || handleOf(c);
+    if (isDm && !handle) { setErr("Add the Instagram handle first (IG)."); return; }
+    if (isDm) copyNow(mail.body);                    // a DM: copied in the tap itself, then Instagram opens the chat
+    // the save starts first, then your mail app / Instagram opens in the same tap (the iPhone only opens apps from a tap)
+    const saving: Promise<Pitch[]> = outreach.logPitches([c.id], kind, undefined, { restart: kind === "pitch", templateId: tpl.id, account: accountOfTemplate(tpl), channel: isDm ? "dm" : "email" });
+    if (isDm) openInstagram(igChatUrl(handle)); else openMail(composeUrl(to, mail.subject, mail.body));
+    saving.then(added => onWritten?.(isDm ? "Copied · paste it in Instagram" : `${kind === "follow_up" ? "Follow-up" : "Pitch"} logged · ${tpl.name || "template"}`, () => outreach.undoLog(added, before)))
       .catch((e: any) => setErr(`${e?.message || "Couldn't log it."} Log it with + Pitch below.`));
   };
 
@@ -789,9 +806,9 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
           <div style={{ ...WCARD, padding: "8px 10px 10px" }}>
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
               <div><div style={{ ...CAPS, margin: "0 2px 4px" }}>Status</div>
-                <MiniSelect value={c.status || "new"} aria-label="Status" onChange={(e: any) => outreach.setStatus(c.id, e.target.value).catch((x: any) => setErr(x?.message || "Couldn't save."))}>
+                <MenuSelect value={c.status || "new"} aria-label="Status" onChange={(e: any) => outreach.setStatus(c.id, e.target.value).catch((x: any) => setErr(x?.message || "Couldn't save."))}>
                   {statusesFor(c.category).map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
-                </MiniSelect>
+                </MenuSelect>
               </div>
               <div><div style={{ ...CAPS, margin: "0 2px 4px" }}>Last contact</div>
                 <div style={{ height: 32, display: "flex", alignItems: "center", padding: "0 2px", fontSize: TYPE.row.size, color: due ? PAL.waiting.ink : c.lastContact ? C.black : C.light, whiteSpace: "nowrap" as const, overflow: "hidden" }}>
@@ -807,24 +824,41 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
             {c.status === "client" && c.clientId && (
               <p style={{ fontSize: TYPE.label.size, color: PAL.done.ink, margin: "8px 2px 0", lineHeight: 1.4 }}>✓ Client in Manager — quote, contract and invoice happen there.</p>
             )}
-            <div style={{ ...CAPS, margin: "10px 2px 4px" }}>Template · {tpl ? (accountOfTemplate(tpl) === "createbylynn" ? "@createbylynn" : "@lynnhoa") : accLabel}</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, margin: "6px 2px 4px" }}>
+              <span style={{ ...CAPS }}>Template{isDm ? " · DM" : ""} · {tpl ? (accountOfTemplate(tpl) === "createbylynn" ? "@createbylynn" : "@lynnhoa") : accLabel}</span>
+              {/* the channel: Email (default) or Instagram DM — saved at once, like the status */}
+              <span role="group" aria-label="Channel" style={{ display: "inline-flex", border: `1px solid ${C.rule}`, borderRadius: RADIUS.card, overflow: "hidden", flexShrink: 0 }}>
+                {(["email", "dm"] as const).map(k => {
+                  const on = (c.channel || "email") === k, off = k === "dm" && !handleOf(c);
+                  return (
+                    <button key={k} type="button" aria-pressed={on} disabled={off} title={off ? "Add the Instagram handle (IG) and save first" : k === "dm" ? "Pitch by Instagram DM" : "Pitch by email"}
+                      onClick={() => { if (!on) outreach.updateContact(c.id, { channel: k }).catch((x: any) => setErr(x?.message || "Couldn't save.")); }}
+                      style={{ height: 20, padding: "0 9px", border: "none", fontFamily: SANS, fontSize: TYPE.label.size, cursor: off ? "default" : "pointer",
+                        background: on ? PAL.neutral.fill : C.white, color: off ? C.faint : on ? C.black : C.muted, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <Ico d={k === "dm" ? IG : MAIL} size={11} />{k === "dm" ? "DM" : "Email"}
+                    </button>
+                  );
+                })}
+              </span>
+            </div>
             {tpls.length > 0 ? (
               <div style={{ display: "flex", gap: 6 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <MiniSelect value={tplId} aria-label="Template" onChange={(e: any) => setTplId(e.target.value)}>
+                  <MenuSelect value={tplId} aria-label="Template" onChange={(e: any) => setTplId(e.target.value)}>
                     {tpls.map(t => <option key={t.id} value={t.id}>{t.name || "Untitled"}{t.kind === "follow_up" ? " · follow-up 1" : t.kind === "follow_up_2" ? " · follow-up 2" : ""}</option>)}
-                  </MiniSelect>
+                  </MenuSelect>
                 </div>
-                <PillBtn dark onClick={write} title={tpl?.kind === "follow_up" ? "Write the follow-up in your mail app" : "Write the email in your mail app"}
+                <PillBtn dark onClick={write} title={isDm ? "Copy the DM and open the chat in Instagram" : tpl?.kind === "follow_up" ? "Write the follow-up in your mail app" : "Write the email in your mail app"}
                   s={{ height: 32, padding: "0 14px", flexShrink: 0, fontSize: TYPE.subtext.size }}>
-                  <Ico d={MAIL} size={14} /><span aria-label={tpl?.kind === "follow_up" ? "Write follow-up" : "Write email"}>Write</span>
+                  {isDm ? <><Ico d={IG} size={14} /><span aria-label="Send DM">DM</span></>
+                    : <><Ico d={MAIL} size={14} /><span aria-label={tpl?.kind === "follow_up" ? "Write follow-up" : "Write email"}>Write</span></>}
                 </PillBtn>
               </div>
             ) : (
-              <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 2px", lineHeight: 1.4 }}>{noTemplateText(c.category)}.</p>
+              <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 2px", lineHeight: 1.4 }}>{isDm ? "No DM template yet — add one in Email kit (Channel: Instagram DM)" : noTemplateText(c.category)}.</p>
             )}
             <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "6px 2px 0", lineHeight: 1.4 }}>
-              {tpls.length > 0 && <>{tpl?.kind === "follow_up_2" ? "Logs follow-up 2" : tpl?.kind === "follow_up" ? "Logs follow-up 1" : willPitch ? "Logs the pitch and sets Pitched" : "Logs the pitch"} · </>}
+              {tpls.length > 0 && <>{isDm ? "Copies the text, opens the chat · " : ""}{tpl?.kind === "follow_up_2" ? "Logs follow-up 2" : tpl?.kind === "follow_up" ? "Logs follow-up 1" : willPitch ? "Logs the pitch and sets Pitched" : "Logs the pitch"} · </>}
               sent another way? <button onClick={() => log("pitch")} style={linkBtn}>+ Pitch</button> · <button onClick={() => log("follow_up")} style={linkBtn}>+ Follow-up</button>
             </p>
           </div>
@@ -852,19 +886,19 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
           <div className="lh-cfrow" style={rowS()}>
             {lbl("Category")}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <MiniSelect bare value={isCategory(f.category) ? f.category : ""} muted={!isCategory(f.category)} aria-label="Category" onChange={(e: any) => setF({ ...f, category: e.target.value })}>
+              <MenuSelect bare value={isCategory(f.category) ? f.category : ""} muted={!isCategory(f.category)} aria-label="Category" onChange={(e: any) => setF({ ...f, category: e.target.value })}>
                 {!isCategory(f.category) && <option value="" disabled>Pick a category</option>}
                 {OUTREACH_CATEGORIES.map(k => <option key={k.key} value={k.key}>{k.label}</option>)}
-              </MiniSelect>
+              </MenuSelect>
             </div>
           </div>
           <div className="lh-cfrow" style={rowS()}>
             {lbl("Tier")}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <MiniSelect bare value={isTier(f.tier) ? f.tier : ""} muted={!isTier(f.tier)} aria-label="Tier" onChange={(e: any) => setF({ ...f, tier: e.target.value })}>
+              <MenuSelect bare value={isTier(f.tier) ? f.tier : ""} muted={!isTier(f.tier)} aria-label="Tier" onChange={(e: any) => setF({ ...f, tier: e.target.value })}>
                 <option value="">—</option>
                 {OUTREACH_TIERS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </MiniSelect>
+              </MenuSelect>
             </div>
           </div>
           <div style={{ ...rowS(), padding: 0, gap: 0 }}>
@@ -877,7 +911,17 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
               <div style={{ flex: 1, minWidth: 0 }}><MiniInput bare data-k="country" enterKeyHint="next" value={f.country || ""} placeholder="—" aria-label="Country" onChange={(e: any) => setF({ ...f, country: e.target.value })} onKeyDown={onEnter} /></div>
             </div>
           </div>
-          {text("Web / IG", "web", "—", { inputMode: "url", autoCapitalize: "none", autoCorrect: "off", spellCheck: false, "aria-label": "Website or Instagram" })}
+          <div style={{ ...rowS(), padding: 0, gap: 0 }}>
+            <div className="lh-cfrow" style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0, minHeight: 34, padding: "0 6px 0 12px" }}>
+              <span style={{ ...CAPS, width: 46, flexShrink: 0, paddingTop: 2 }}>Web</span>
+              <div style={{ flex: 1, minWidth: 0 }}><MiniInput bare data-k="web" enterKeyHint="next" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={f.web || ""} placeholder="—" aria-label="Website" onChange={(e: any) => setF({ ...f, web: e.target.value })} onKeyDown={onEnter} /></div>
+            </div>
+            <div className="lh-cfrow" style={{ display: "flex", alignItems: "center", gap: 0, flex: 1, minWidth: 0, minHeight: 34, padding: "0 6px 0 10px", borderLeft: `1px solid ${C.hair}` }}>
+              <span style={{ ...CAPS, width: 28, flexShrink: 0, paddingTop: 2 }}>IG</span>
+              <span style={{ fontSize: TYPE.row.size, color: f.instagram ? C.black : C.light, flexShrink: 0, marginRight: 1 }}>@</span>
+              <div style={{ flex: 1, minWidth: 0 }}><MiniInput bare data-k="instagram" enterKeyHint="next" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={(f.instagram || "").replace(/^@/, "")} placeholder={handleOf({ web: f.web }) || "handle"} aria-label="Instagram" onChange={(e: any) => setF({ ...f, instagram: e.target.value })} onKeyDown={onEnter} /></div>
+            </div>
+          </div>
           {text("Notes", "notes", "Add a note", { enterKeyHint: "done" })}
         </div>
         {isNew && <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "6px 2px 0" }}>Only the email is needed.</p>}
@@ -936,10 +980,10 @@ function LogWindow({ ids, followUp, outreach, isMobile, onClose, onDone }: { ids
       <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>For the {n} {n === 1 ? "contact" : "contacts"} in view — one entry each in the pitch log. UGC contacts count for @createbylynn, all others for @lynnhoa.</p>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
         <div><Lbl>Type</Lbl>
-          <S value={kind} onChange={(e: any) => setKind(e.target.value)}>
+          <MenuSelect size="form" value={kind} onChange={(e: any) => setKind(e.target.value)}>
             <option value="pitch">Pitch</option>
             <option value="follow_up">Follow-up</option>
-          </S>
+          </MenuSelect>
         </div>
         <div><Lbl>Sent on</Lbl><I type="date" value={date} onChange={(e: any) => setDate(e.target.value)} /></div>
       </div>

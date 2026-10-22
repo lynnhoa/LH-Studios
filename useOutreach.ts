@@ -13,8 +13,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { supabase, selectAll } from "./useSupabase";
 import { registerReloader } from "./saveStatus";
 import { today, uid } from "./formatters";
-import { fitStatus, statusAfterPitch, accountOf, followInfo } from "./outreach";
-import type { OutreachContact, OutreachCategory, OutreachTier, OutreachStatus, Pitch, PitchAccount, OutreachEvent } from "./outreach";
+import { fitStatus, statusAfterPitch, accountOf, followInfo, cleanHandle } from "./outreach";
+import type { OutreachContact, OutreachCategory, OutreachTier, OutreachStatus, Pitch, PitchAccount, OutreachEvent, Channel } from "./outreach";
 
 const rowToContact = (r: any): OutreachContact => ({
   id:          r.id,
@@ -29,6 +29,8 @@ const rowToContact = (r: any): OutreachContact => ({
   replyNew:    r.reply_new === true,
   clientId:    r.client_id ?? null,
   web:         r.web ?? "",
+  instagram:   r.instagram ?? "",
+  channel:     r.channel === "dm" ? "dm" : "email",
   city:        r.city ?? "",
   country:     r.country ?? "",
   notes:       r.notes ?? "",
@@ -39,6 +41,7 @@ const rowToContact = (r: any): OutreachContact => ({
 const rowToPitch = (r: any): Pitch => ({
   id: r.id, contactId: r.contact_id, account: r.account, kind: r.kind === "follow_up" ? "follow_up" : "pitch",
   sentOn: String(r.sent_on).slice(0, 10), createdAt: r.created_at ?? "", templateId: r.template_id ?? null,
+  channel: r.channel === "dm" ? "dm" : "email",
 });
 const rowToEvent = (r: any): OutreachEvent => ({
   id: r.id, contactId: r.contact_id, kind: r.kind === "reply" ? "reply" : "status", status: (r.status ?? null) as OutreachStatus | null, at: r.at ?? r.created_at ?? "",
@@ -146,12 +149,14 @@ export function useOutreach(userId: string | null) {
     if (patch.category    !== undefined) row.category     = patch.category;
     if (patch.tier        !== undefined) row.tier         = patch.tier || null;
     if (patch.web         !== undefined) row.web          = patch.web.trim();
+    if (patch.instagram   !== undefined) row.instagram    = cleanHandle(patch.instagram);
+    if (patch.channel     !== undefined) row.channel      = patch.channel === "dm" ? "dm" : "email";
     if (patch.city        !== undefined) row.city         = patch.city.trim();
     if (patch.country     !== undefined) row.country      = patch.country.trim();
     if (patch.notes       !== undefined) row.notes        = patch.notes;
     const { error } = await supabase.from("outreach_contacts").update(row).eq("id", id).eq("user_id", userId);
     if (error) throw new Error(/unique|duplicate/i.test(error.message) ? "This email is already on your list." : error.message);
-    setContacts(prev => prev.map(c => c.id === id ? { ...c, ...patch, email: row.email ?? c.email } : c));
+    setContacts(prev => prev.map(c => c.id === id ? { ...c, ...patch, email: row.email ?? c.email, instagram: row.instagram ?? c.instagram } : c));
     if (fitted) await logEvent(id, fitted);
   }, [userId, contacts, logEvent]);
 
@@ -168,6 +173,7 @@ export function useOutreach(userId: string | null) {
       company: String(f.company || "").trim(), contact_name: String(f.contactName || "").trim(),
       category: f.category, tier: f.tier || null,
       web: String(f.web || "").trim(), city: String(f.city || "").trim(), country: String(f.country || "").trim(), notes: f.notes || "", source: "Added by hand",
+      ...(f.instagram ? { instagram: cleanHandle(f.instagram) } : {}), ...(f.channel === "dm" ? { channel: "dm" } : {}),
     };
     const { data, error } = await supabase.from("outreach_contacts").insert(row).select().single();
     if (error) throw new Error(/unique|duplicate/i.test(error.message) ? "This email is already on your list." : error.message);
@@ -233,13 +239,13 @@ export function useOutreach(userId: string | null) {
   //   one contact, a pitch (restart) → New and every ended status → Pitched; Pitched, Replied, Lead stay
   //   the list in view (bulk) or a follow-up → only New → Pitched, every other status stays
   // Returns the new entries (for Undo).
-  const logPitches = useCallback(async (ids: string[], kind: "pitch" | "follow_up", sentOn: string = today(), opts: { restart?: boolean; templateId?: string | null; account?: PitchAccount } = {}): Promise<Pitch[]> => {
+  const logPitches = useCallback(async (ids: string[], kind: "pitch" | "follow_up", sentOn: string = today(), opts: { restart?: boolean; templateId?: string | null; account?: PitchAccount; channel?: Channel } = {}): Promise<Pitch[]> => {
     if (!ids.length) return [];
     const byId = new Map(contacts.map(c => [c.id, c]));
     const added: Pitch[] = [];
     for (const part of chunks(ids)) {
       const { data, error } = await supabase.from("outreach_pitches")
-        .insert(part.map(id => ({ contact_id: id, account: opts.account || accountOf(byId.get(id)?.category || ""), kind, sent_on: sentOn, ...(opts.templateId ? { template_id: opts.templateId } : {}) }))).select();
+        .insert(part.map(id => ({ contact_id: id, account: opts.account || accountOf(byId.get(id)?.category || ""), kind, sent_on: sentOn, ...(opts.templateId ? { template_id: opts.templateId } : {}), ...(opts.channel === "dm" ? { channel: "dm" } : {}) }))).select();
       if (error) throw new Error(error.message);
       (data || []).forEach((r: any) => added.push(rowToPitch(r)));
     }
@@ -298,7 +304,7 @@ export function useOutreach(userId: string | null) {
   // Undo of a deleted pitch: the same entry back, and the contact's last contact / status as before
   const restorePitch = useCallback(async (p: Pitch, before: { lastContact: string | null; status: any }) => {
     const { data, error } = await supabase.from("outreach_pitches")
-      .insert({ id: p.id, contact_id: p.contactId, account: p.account, kind: p.kind, sent_on: p.sentOn }).select().single();
+      .insert({ id: p.id, contact_id: p.contactId, account: p.account, kind: p.kind, sent_on: p.sentOn, ...(p.channel === "dm" ? { channel: "dm" } : {}) }).select().single();
     if (error) throw new Error(error.message);
     const { error: e2 } = await supabase.from("outreach_contacts")
       .update({ last_contact: before.lastContact, status: before.status && before.status !== "new" ? before.status : null }).eq("id", p.contactId).eq("user_id", userId);

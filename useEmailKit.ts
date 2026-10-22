@@ -40,7 +40,9 @@ export interface EmailTemplate {
   pipeline: TemplatePipeline; kind: TemplateKind;
   categories: string[];   // the contact categories it's for (empty = any) — picks the right template per contact
   sortOrder: number | null; // your own order in the Email kit (empty = after the sorted ones, A–Z)
+  channel: "email" | "dm";  // an email, or a short Instagram DM (no subject; copied and pasted into Instagram)
 }
+export const TEMPLATE_CHANNELS: { key: "email" | "dm"; label: string }[] = [{ key: "email", label: "Email" }, { key: "dm", label: "Instagram DM" }];
 export const TEMPLATE_PIPELINES: { key: TemplatePipeline; label: string }[] = [{ key: "lynnhoa", label: "@lynnhoa" }, { key: "ugc", label: "UGC" }];
 export const TEMPLATE_KINDS: { key: TemplateKind; label: string }[] = [{ key: "pitch", label: "Pitch" }, { key: "follow_up", label: "Follow-up 1" }, { key: "follow_up_2", label: "Follow-up 2" }];
 export const kindLabel = (k: string) => TEMPLATE_KINDS.find(x => x.key === k)?.label || "Pitch";
@@ -56,6 +58,7 @@ const rowToTpl = (r: any): EmailTemplate => ({
   pipeline: r.pipeline === "ugc" ? "ugc" : "lynnhoa", kind: r.kind === "follow_up" || r.kind === "follow_up_2" ? r.kind : "pitch",
   categories: Array.isArray(r.categories) ? r.categories : [],
   sortOrder: r.sort_order == null ? null : Number(r.sort_order),
+  channel: r.channel === "dm" ? "dm" : "email",
 });
 // your Email kit order: sorted templates first, then the rest A–Z
 const tplSort = (a: EmailTemplate, b: EmailTemplate) =>
@@ -197,6 +200,8 @@ export function useEmailKit(userId: string | null) {
     if (f.pipeline !== undefined) row.pipeline = f.pipeline;
     if (f.kind     !== undefined) row.kind     = f.kind;
     if (f.categories !== undefined) row.categories = f.categories;
+    if (f.channel !== undefined && f.channel === "dm") row.channel = "dm";
+    else if (f.channel !== undefined) row.channel = "email";
     return row;
   };
   // a new template goes to the end of your order

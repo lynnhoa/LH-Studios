@@ -2,7 +2,7 @@
 // OutreachDashboard — Outreach › Dashboard: a read-only overview,
 // to read at a glance (the to-dos stay in Contacts). Built only from
 // the Manager dashboard's parts (atoms › DASHBOARD PARTS), same sizes:
-//   Emails sent · last 8 weeks   card with week bars + response-rate strip
+//   Sent · last 8 weeks          card with week bars (emails + DMs) + response-rate strip
 //   Pipeline                     Awaiting reply · Follow-ups due · Replies · Won
 //                                + Ready to re-pitch (wide row)
 //   Reply check                  row with a tag (like Licenses)
@@ -60,11 +60,12 @@ export default function OutreachDashboard({ outreach, isMobile, onOpenContacts }
   const emailsCard = (
     <DashCard>
       <div style={{ padding: "11px 13px 9px" }}>
-        <DashCardHead icon={<DashIcon tone={PAL.neutral}>{icon(IC.mail)}</DashIcon>} label="Emails sent · last 8 weeks" />
+        <DashCardHead icon={<DashIcon tone={PAL.neutral}>{icon(IC.mail)}</DashIcon>} label="Sent · last 8 weeks" />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 8, marginTop: 6 }}>
           <div style={{ fontFamily: SERIF, fontSize: TYPE.kpi.size, lineHeight: 1.05, whiteSpace: "nowrap" as const }}>{int(s.sentTotal)}</div>
           <div style={{ fontSize: TYPE.label.size, color: C.muted, textAlign: "right" as const, lineHeight: 1.35 }}>
-            {int(s.sentPitches)} {s.sentPitches === 1 ? "pitch" : "pitches"} · {int(s.sentFollowUps)} {s.sentFollowUps === 1 ? "follow-up" : "follow-ups"}<br />This week {int(s.thisWeek)}
+            {int(s.sentPitches)} {s.sentPitches === 1 ? "pitch" : "pitches"} · {int(s.sentFollowUps)} {s.sentFollowUps === 1 ? "follow-up" : "follow-ups"}<br />
+            {int(s.sentEmails)} {s.sentEmails === 1 ? "email" : "emails"} · {int(s.sentDms)} {s.sentDms === 1 ? "DM" : "DMs"} · this week {int(s.thisWeek)}
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(8, minmax(0,1fr))", gap: 6, alignItems: "end", height: 38, marginTop: 10 }}>

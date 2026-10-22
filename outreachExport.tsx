@@ -16,7 +16,9 @@ import type { OutreachContact } from "./outreach";
 
 const addedText = (c: OutreachContact) => (c.createdAt ? fmtD(c.createdAt.slice(0, 10)) : "");
 const cellOf = (c: OutreachContact, key: string): string =>
-  key === "category" ? catOf(c.category).label : key === "tier" ? tierOf(c.tier).label : String((c as any)[key] ?? "");
+  key === "category" ? catOf(c.category).label : key === "tier" ? tierOf(c.tier).label
+  : key === "instagram" ? (c.instagram ? `@${c.instagram}` : "") : key === "channel" ? (c.channel === "dm" ? "Instagram DM" : "Email")
+  : String((c as any)[key] ?? "");
 
 // Stage 2 tracking, after the import columns
 const statusText = (c: OutreachContact) => (c.status && c.status !== "new" ? statusOf(c.status).label : "");
