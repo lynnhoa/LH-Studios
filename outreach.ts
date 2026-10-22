@@ -82,15 +82,66 @@ export const statusAfterPitch = (s: OutreachStatus): OutreachStatus =>
 export const statusAfterReply = (s: OutreachStatus): OutreachStatus =>
   s === "new" || s === "pitched" ? "replied" : s;
 
-// A follow-up is due when a pitched contact hasn't answered for this many days
-export const FOLLOW_UP_DAYS = 7;
+// ── Follow-up timing — ONE place (the daily No reply on the server uses the same numbers) ──
+// pitch → Follow-up 1 after 5 days → Follow-up 2 after 7 more → No reply 14 days after that
+// (set by the server once a day) → Re-pitch 90 days after No reply / Declined. A reply stops it all.
+export const CADENCE = { fu1: 5, fu2: 7, close: 14, repitch: 90 } as const;
+export const FOLLOW_UP_DAYS = CADENCE.fu1;   // older callers: days until the first follow-up
+const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+export const todayYmd = (now = new Date()) => ymdLocal(now);
+export const addDaysYmd = (ymd: string, n: number) => { const [y, m, d] = ymd.split("-").map(Number); return ymdLocal(new Date(y, m - 1, d + n)); };
+const isoToYmd = (iso: string) => { const d = new Date(iso); return isNaN(d.getTime()) ? "" : ymdLocal(d); };
+export const mondayYmd = (ymd: string) => { const [y, m, d] = ymd.split("-").map(Number); const t = new Date(y, m - 1, d); return addDaysYmd(ymd, -((t.getDay() + 6) % 7)); };
+// ISO calendar week of a date (W1 = the week with the year's first Thursday)
+export const isoWeekNo = (ymd: string) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d)); const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  return Math.ceil(((t.getTime() - Date.UTC(t.getUTCFullYear(), 0, 1)) / 864e5 + 1) / 7);
+};
 const daysSince = (ymd: string, now = new Date()) => {
   const [y, m, d] = ymd.split("-").map(Number);
   const a = new Date(y, m - 1, d), b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.round((b.getTime() - a.getTime()) / 864e5);
 };
-export const followUpDue = (c: { status: string; lastContact: string | null }, now = new Date()) =>
-  c.status === "pitched" && !!c.lastContact && daysSince(c.lastContact, now) >= FOLLOW_UP_DAYS;
+
+export type FollowStep = "fu1" | "fu2" | "close" | null;
+export interface FollowInfo { followStep: FollowStep; followDueOn: string | null; followSent: number; repitchOn: string | null; }
+// Where a contact stands in the follow-up cycle — worked out from its pitch log (follow-ups since the
+// last pitch) and, for re-pitch, from the timeline (the day it became No reply / Declined)
+export function followInfo(c: { status: string; lastContact: string | null },
+  pitches: { kind: string; sentOn: string }[] = [], events: { kind: string; status: string | null; at: string }[] = []): FollowInfo {
+  let followStep: FollowStep = null, followDueOn: string | null = null, followSent = 0, repitchOn: string | null = null;
+  const st = c.status || "new";
+  if (st === "pitched") {
+    const lastPitch = pitches.filter(p => p.kind === "pitch").reduce<string | null>((m, p) => (!m || p.sentOn > m ? p.sentOn : m), null);
+    const fus = pitches.filter(p => p.kind === "follow_up" && (!lastPitch || p.sentOn >= lastPitch));
+    followSent = fus.length;
+    const lastSent = [lastPitch || "", ...fus.map(p => p.sentOn)].filter(Boolean).sort().pop() || c.lastContact;
+    if (lastSent) {
+      followStep = followSent === 0 ? "fu1" : followSent === 1 ? "fu2" : "close";
+      followDueOn = addDaysYmd(lastSent, followSent === 0 ? CADENCE.fu1 : followSent === 1 ? CADENCE.fu2 : CADENCE.close);
+    }
+  }
+  if (st === "no_reply" || st === "declined") {
+    const ended = events.filter(e => e.kind === "status" && e.status === st).map(e => isoToYmd(e.at)).filter(Boolean).sort().pop() || c.lastContact;
+    repitchOn = ended ? addDaysYmd(ended, CADENCE.repitch) : null;
+  }
+  return { followStep, followDueOn, followSent, repitchOn };
+}
+// a follow-up is due (Follow-up 1 or 2); without the pitch log it falls back to the first step
+export const followUpDue = (c: { status: string; lastContact: string | null; followStep?: FollowStep; followDueOn?: string | null }, now = new Date()) => {
+  if ((c.status || "new") !== "pitched") return false;
+  if (c.followDueOn === undefined) return !!c.lastContact && daysSince(c.lastContact, now) >= CADENCE.fu1;
+  return (c.followStep === "fu1" || c.followStep === "fu2") && !!c.followDueOn && c.followDueOn <= todayYmd(now);
+};
+// No reply / Declined, 90 days ago or more: ready to pitch again
+export const repitchReady = (c: { status: string; repitchOn?: string | null }, now = new Date()) =>
+  (c.status === "no_reply" || c.status === "declined") && !!c.repitchOn && c.repitchOn <= todayYmd(now);
+// the kind of email that comes next: pitched → the next follow-up (none after the 2nd); everything else → a pitch
+export type NextKind = "pitch" | "follow_up" | "follow_up_2";
+export const nextKind = (c: { status: string; followSent?: number }): NextKind | null =>
+  (c.status || "new") === "pitched" ? ((c.followSent || 0) >= 2 ? null : (c.followSent || 0) === 1 ? "follow_up_2" : "follow_up") : "pitch";
 
 // One pitch or follow-up sent to a contact, for one account
 export type PitchAccount = "lynnhoa" | "createbylynn";
@@ -110,6 +161,7 @@ export interface OutreachEvent {
   kind:      "status" | "reply";
   status:    OutreachStatus | null;   // status entries: the new status (null = New)
   at:        string;                  // ISO timestamp
+  note?:     string;                  // e.g. "after 2 follow-ups", "imported from your Excel"
 }
 export const PITCH_ACCOUNTS: { key: PitchAccount; label: string }[] = [
   { key: "lynnhoa", label: "@lynnhoa" },
@@ -130,6 +182,11 @@ export interface OutreachContact {
   replyAt:     string | null;   // when the last reply came in (reply detection)
   replyNew:    boolean;         // a reply you haven't opened yet (the dot)
   clientId:    string | null;   // the client in Manager (Lead → Client)
+  // worked out by useOutreach from the pitch log and the timeline (see followInfo)
+  followStep?:  FollowStep;     // fu1 · fu2 · close (waiting for No reply) · null
+  followDueOn?: string | null;  // when that step is due (yyyy-mm-dd)
+  followSent?:  number;         // follow-ups sent since the last pitch
+  repitchOn?:   string | null;  // No reply / Declined: from when it can be pitched again
   web:         string;          // website or Instagram
   city:        string;
   country:     string;
@@ -235,6 +292,7 @@ export const STATUS_FILTERS: { key: string; label: string }[] = [
   { key: "all", label: "All" },
   ...OUTREACH_STATUSES.map(s => ({ key: s.key, label: s.label })),
   { key: "followup", label: "Follow-up due" },
+  { key: "repitch",  label: "Ready to re-pitch" },
 ];
 
 // Most urgent first: new reply · follow-up due · replied · pitched (newest first) · the rest A–Z
@@ -247,7 +305,7 @@ const passesFilters = (c: OutreachContact, v: OutreachView, now: Date) => {
   const yearStart = `${now.getFullYear()}-01-01`;
   return (v.cat === "all" || c.category === v.cat) &&
     (!v.tier || v.tier === "all" || (v.tier === "none" ? !c.tier : c.tier === v.tier)) &&
-    (!v.status || v.status === "all" || (v.status === "followup" ? followUpDue(c, now) : (c.status || "new") === v.status)) &&
+    (!v.status || v.status === "all" || (v.status === "followup" ? followUpDue(c, now) : v.status === "repitch" ? repitchReady(c, now) : (c.status || "new") === v.status)) &&
     (!v.acc || v.acc === "all" || pipelineOf(c.category) === v.acc) &&
     (v.city === "all" || (c.city || "") === v.city) &&
     (!v.country || v.country === "all" || (c.country || "") === v.country) &&
@@ -287,6 +345,45 @@ export function applyView(list: OutreachContact[], v: OutreachView, now = new Da
     : v.sort === "cat" ? (catIdx(a) - catIdx(b)) || byName(a, b)
     : byName(a, b));
   return out;
+}
+
+// ── Dashboard numbers (read-only overview) ─────────────────────
+// view: all · @lynnhoa (every category but UGC) · UGC. Emails sent count by the pitch's account.
+export type DashView = "all" | "lynnhoa" | "ugc";
+const ANSWERED = new Set(["replied", "gifted", "invited", "lead", "client", "declined"]);   // they wrote back (a "no" is an answer too)
+export function dashboardStats(contacts: OutreachContact[], pitches: Pitch[], events: OutreachEvent[], view: DashView, now = new Date()) {
+  const inView = (cat: string) => view === "all" || pipelineOf(cat) === view;
+  const accOk = (acc: string) => view === "all" || (view === "ugc" ? acc === "createbylynn" : acc === "lynnhoa");
+  const cs = contacts.filter(c => inView(c.category));
+  const replyIds = new Set(events.filter(e => e.kind === "reply").map(e => e.contactId));
+  const answered = (c: OutreachContact) => ANSWERED.has(c.status) || replyIds.has(c.id);
+  const contacted = (c: OutreachContact) => (c.status || "new") !== "new";
+  const pitched = cs.filter(contacted), replies = cs.filter(c => contacted(c) && answered(c));
+  // the last 8 calendar weeks, this week last
+  const thisMon = mondayYmd(todayYmd(now));
+  const mondays = Array.from({ length: 8 }, (_, i) => addDaysYmd(thisMon, -7 * (7 - i)));
+  const end = addDaysYmd(thisMon, 6);
+  const sent = pitches.filter(p => accOk(p.account) && p.sentOn >= mondays[0] && p.sentOn <= end);
+  const weeks = mondays.map(m => ({ monday: m, week: isoWeekNo(m), n: sent.filter(p => p.sentOn >= m && p.sentOn <= addDaysYmd(m, 6)).length }));
+  const won = { gifted: 0, invited: 0, lead: 0, client: 0 };
+  cs.forEach(c => { if (c.status === "gifted" || c.status === "invited" || c.status === "lead" || c.status === "client") won[c.status]++; });
+  const fu1 = cs.filter(c => followUpDue(c, now) && c.followStep === "fu1").length;
+  const fu2 = cs.filter(c => followUpDue(c, now) && c.followStep === "fu2").length;
+  return {
+    weeks, sentTotal: sent.length, sentPitches: sent.filter(p => p.kind === "pitch").length, sentFollowUps: sent.filter(p => p.kind === "follow_up").length,
+    thisWeek: weeks[7].n,
+    contacts: cs.length, pitched: pitched.length, replies: replies.length,
+    responseRate: pitched.length ? (replies.length / pitched.length) * 100 : 0,
+    awaiting: cs.filter(c => c.status === "pitched").length,
+    followUpsDue: fu1 + fu2, fu1Due: fu1, fu2Due: fu2,
+    newReplies: cs.filter(c => c.replyNew).length,
+    won: { total: won.gifted + won.invited + won.lead + won.client, ...won },
+    repitch: cs.filter(c => repitchReady(c, now)).length,
+    byCategory: OUTREACH_CATEGORIES.filter(k => inView(k.key)).map(k => {
+      const list = cs.filter(c => c.category === k.key);
+      return { key: k.key, label: k.label, contacts: list.length, pitched: list.filter(contacted).length, replies: list.filter(c => contacted(c) && answered(c)).length };
+    }).filter(r => r.contacts > 0).sort((a, b) => b.contacts - a.contacts || a.label.localeCompare(b.label)),
+  };
 }
 
 export const activeFilters = (v: OutreachView) => (v.cat !== "all" ? 1 : 0) + (v.tier && v.tier !== "all" ? 1 : 0) + (v.status && v.status !== "all" ? 1 : 0) + (v.acc && v.acc !== "all" ? 1 : 0) + (v.city !== "all" ? 1 : 0) + (v.country && v.country !== "all" ? 1 : 0) + (v.added !== "any" ? 1 : 0);

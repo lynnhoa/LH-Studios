@@ -69,9 +69,9 @@ export const templatesFor = (templates: EmailTemplate[], category: string) =>
     .sort(byTemplateOrder);
 // the account a pitch counts for: the template's account (a UGC template for a hotel counts for @createbylynn)
 export const accountOfTemplate = (t: EmailTemplate) => (t.pipeline === "ugc" ? "createbylynn" : "lynnhoa") as "createbylynn" | "lynnhoa";
-// preselected: one made for the contact's category (else one for any category), of the kind needed
-// (follow-up when one is due, else pitch) — the one used last, else the first in your order
-export function pickTemplate(list: EmailTemplate[], category: string, wantKind: "pitch" | "follow_up", pitches: Pitch[]): string {
+// preselected: one made for the contact's category (else one for any category), of the kind needed —
+// Follow-up 2 → else Follow-up 1 → else Pitch; Follow-up 1 → else Pitch — the one used last, else the first in your order
+export function pickTemplate(list: EmailTemplate[], category: string, wantKind: "pitch" | "follow_up" | "follow_up_2", pitches: Pitch[]): string {
   const cats = (t: EmailTemplate) => t.categories || [];
   const lastOf = (l: EmailTemplate[]) => {
     if (!l.length) return "";
@@ -81,9 +81,15 @@ export function pickTemplate(list: EmailTemplate[], category: string, wantKind: 
     return last?.templateId || l[0].id;
   };
   const made = list.filter(t => cats(t).includes(category)), any = list.filter(t => !cats(t).length);
-  return lastOf(made.filter(t => t.kind === wantKind)) || lastOf(any.filter(t => t.kind === wantKind))
-    || lastOf(made) || lastOf(any) || lastOf(list.filter(t => t.kind === wantKind)) || list[0]?.id || "";
+  const kinds = wantKind === "follow_up_2" ? ["follow_up_2", "follow_up", "pitch"] : wantKind === "follow_up" ? ["follow_up", "pitch"] : ["pitch"];
+  for (const k of kinds) {
+    const id = lastOf(made.filter(t => t.kind === k)) || lastOf(any.filter(t => t.kind === k)) || lastOf(list.filter(t => t.kind === k));
+    if (id) return id;
+  }
+  return lastOf(made) || lastOf(any) || list[0]?.id || "";
 }
+// a template's kind as logged in the pitch log: a pitch, or a follow-up (Follow-up 1 and 2 are both follow-ups)
+export const logKind = (t: EmailTemplate): "pitch" | "follow_up" => (t.kind === "pitch" ? "pitch" : "follow_up");
 // a media kit's link from the Email kit ("" when it has none yet)
 export const kitUrlOf = (kits: { key: string; url?: string }[] | undefined, k: string | null) =>
   (k ? String((kits || []).find(x => x.key === k)?.url || "").trim() : "");

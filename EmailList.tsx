@@ -17,12 +17,12 @@ import { B, I, S, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, Lis
 import { MoreMenu } from "./PlannerWindows";
 import {
   OUTREACH_CATEGORIES, OUTREACH_TIERS, OUTREACH_COLUMNS, STATUS_FILTERS, SORTS, ADDED, DEFAULT_VIEW, CHIPS, PIPELINES, NO_TIER,
-  catOf, tierOf, statusOf, statusesFor, isCategory, isTier, isChip, chipCounts, followUpDue, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt, NO_FILTERS, placeOf,
+  catOf, tierOf, statusOf, statusesFor, isCategory, isTier, isChip, chipCounts, followUpDue, repitchReady, nextKind, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt, NO_FILTERS, placeOf,
   pipelineOf, statusAfterPitch,
 } from "./outreach";
 import { kitInfo } from "./useEmailKit";
 import type { EmailTemplate } from "./useEmailKit";
-import { fillFor, composeUrl, openMail, templatesFor, pickTemplate, kitUrlOf, accountOfTemplate, HOSPITALITY } from "./outlook";
+import { fillFor, composeUrl, openMail, templatesFor, pickTemplate, kitUrlOf, accountOfTemplate, logKind, HOSPITALITY } from "./outlook";
 import type { Pitch, ChipKey, OutreachEvent } from "./outreach";
 import type { OutreachContact, OutreachView, SortKey } from "./outreach";
 import { downloadExcel, downloadTemplate, downloadListPdf } from "./outreachExport";
@@ -47,6 +47,12 @@ const IC = {
 
 const VIEW_KEY = "lh_outreach_view";
 const CHIP_KEY = "lh_outreach_chip";   // the last chip, kept when the app is closed
+// the Dashboard opens Contacts already filtered (search and other filters cleared)
+export function presetContactsView(patch: Partial<OutreachView>) {
+  const v: OutreachView = { ...DEFAULT_VIEW, ...patch };
+  if (v.chip === "active" && !patch.sort) v.sort = "urgent";
+  try { sessionStorage.setItem(VIEW_KEY, JSON.stringify(v)); localStorage.setItem(CHIP_KEY, v.chip); } catch { /* ignore */ }
+}
 const loadView = (): OutreachView => {
   let v: OutreachView = DEFAULT_VIEW, fresh = true;
   try { const saved = sessionStorage.getItem(VIEW_KEY); if (saved) { v = { ...DEFAULT_VIEW, ...JSON.parse(saved) }; fresh = false; } } catch { v = DEFAULT_VIEW; }
@@ -79,9 +85,11 @@ interface EmailListProps {
 // Where a contact stands, as a pill: New · Pitched 12.10. · Follow up · Replied · Gifted · Invited · Lead · Client · Declined · No reply
 const shortD = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.`;
 const statusLook = (c: OutreachContact) => {
-  if (followUpDue(c)) return { bg: PAL.waiting.wash, border: PAL.waiting.mid, color: PAL.waiting.ink, text: "Follow up" };
+  if (followUpDue(c)) return { bg: PAL.waiting.wash, border: PAL.waiting.mid, color: PAL.waiting.ink, text: `Follow up ${c.followStep === "fu2" ? 2 : 1}` };
+  if (repitchReady(c)) return { bg: PAL.neutral.wash, border: C.pillOn, color: PAL.neutral.ink, text: "Re-pitch" };
   switch (c.status) {
-    case "pitched":  return { bg: PAL.neutral.fill, border: C.edge, color: PAL.neutral.ink, text: `Pitched${c.lastContact ? " " + shortD(c.lastContact) : ""}` };
+    case "pitched":  return { bg: PAL.neutral.fill, border: C.edge, color: PAL.neutral.ink,
+                       text: (c.followSent || 0) > 0 ? `FU ${Math.min(2, c.followSent || 0)} · ${c.lastContact ? shortD(c.lastContact) : ""}`.trim() : `Pitched${c.lastContact ? " " + shortD(c.lastContact) : ""}` };
     case "replied":  return { bg: PAL.progress.wash, border: PAL.progress.mid, color: PAL.progress.ink, text: "Replied" };
     case "gifted": case "invited": case "lead": case "client":
                      return { bg: PAL.done.wash, border: PAL.done.mid, color: PAL.done.ink, text: statusOf(c.status).label };
@@ -94,8 +102,9 @@ const statusLook = (c: OutreachContact) => {
 const noTemplateText = (category: string) => HOSPITALITY.includes(category)
   ? "No hotel & restaurant template yet — add one in Email kit with the category Hotel or Restaurant"
   : `No ${pipelineOf(category) === "ugc" ? "UGC" : "@lynnhoa"} template yet — add one in Email kit`;
-// New · Pitched · Follow up: the pill writes the email (✉) — one tap, no window; the other pills open the contact
-const canWrite = (c: OutreachContact) => !c.status || c.status === "new" || c.status === "pitched";
+// New · Pitched / Follow up (until the 2nd follow-up is out) · Re-pitch: the pill writes the email (✉) —
+// one tap, no window; the other pills open the contact
+const canWrite = (c: OutreachContact) => !c.status || c.status === "new" || (c.status === "pitched" && (c.followSent || 0) < 2) || repitchReady(c);
 const StatusPill = ({ c, onWrite }: { c: OutreachContact; onWrite?: (c: OutreachContact) => void }) => {
   const l = statusLook(c);
   const pill: any = { fontSize: TYPE.micro.size, letterSpacing: "0.03em", padding: "2px 8px", borderRadius: RADIUS.tag, border: `1px solid ${l.border}`, background: l.bg, color: l.color, whiteSpace: "nowrap" as const, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4, lineHeight: 1.4 };
@@ -152,7 +161,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
   // ✉ on a status pill: the email in your mail app with the preselected template, logged, no window
   const quickWrite = (c: OutreachContact) => {
     const list = templatesFor(kit?.templates || [], c.category);
-    const tpl = list.find(t => t.id === pickTemplate(list, c.category, followUpDue(c) ? "follow_up" : "pitch", outreach.pitches || []));
+    const tpl = list.find(t => t.id === pickTemplate(list, c.category, nextKind(c) || "follow_up_2", outreach.pitches || []));
     if (!tpl) { showNote(noTemplateText(c.category)); return; }
     if (!tpl.body.trim()) { showNote("This template has no text yet — add it in Email kit"); return; }
     const url = kitUrlOf(kit?.kits, tpl.kit);
@@ -160,9 +169,10 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
     const mail = fillFor(tpl, c, url || null);
     const before = [{ id: c.id, status: c.status, lastContact: c.lastContact }];
     // the save starts first, then your mail app opens in the same tap
-    const saving: Promise<Pitch[]> = outreach.logPitches([c.id], tpl.kind, undefined, { restart: tpl.kind === "pitch", templateId: tpl.id, account: accountOfTemplate(tpl) });
+    const kind = logKind(tpl);
+    const saving: Promise<Pitch[]> = outreach.logPitches([c.id], kind, undefined, { restart: kind === "pitch", templateId: tpl.id, account: accountOfTemplate(tpl) });
     openMail(composeUrl(c.email, mail.subject, mail.body));
-    saving.then(added => written(`${tpl.kind === "follow_up" ? "Follow-up" : "Pitch"} logged · ${tpl.name || "template"}`, () => outreach.undoLog(added, before)))
+    saving.then(added => written(`${kind === "follow_up" ? "Follow-up" : "Pitch"} logged · ${tpl.name || "template"}`, () => outreach.undoLog(added, before)))
       .catch((e: any) => showNote(e?.message || "Couldn't log it — open the contact and use + Pitch"));
   };
   const written = (msg: string, undo: () => Promise<void>) => {
@@ -680,7 +690,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
     }));
     const es = (outreach.events || []).filter((e: OutreachEvent) => e.contactId === c.id).map((e: OutreachEvent) => ({
       key: "e" + e.id, day: ymdLocal(e.at), ts: e.at, pitch: null as Pitch | null,
-      text: e.kind === "reply" ? <span style={{ color: PAL.progress.ink }}>Reply received</span> : <>Status · <span style={{ color: C.muted }}>{statusOf(e.status || "new").label}</span></>,
+      text: e.kind === "reply" ? <span style={{ color: PAL.progress.ink }}>Reply received</span> : <>Status · <span style={{ color: C.muted }}>{statusOf(e.status || "new").label}{e.note ? ` · ${e.note}` : ""}</span></>,
     }));
     return [...ps, ...es].sort((a, b) => b.day.localeCompare(a.day) || b.ts.localeCompare(a.ts));
   }, [isNew, c.id, outreach.pitches, outreach.events]);
@@ -716,13 +726,13 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
   //    (saved with each pitch, so it's the same on phone, iPad and Mac)
   const pipe = pipelineOf(c.category);
   const tpls: EmailTemplate[] = useMemo(() => templatesFor(kit?.templates || [], c.category), [kit?.templates, c.category]);   // your Email kit order
-  const wantKind = due ? "follow_up" : "pitch";
+  const wantKind = nextKind(c) || "follow_up_2";
   const preselect = useMemo(() => pickTemplate(tpls, c.category, wantKind, outreach.pitches || []), [tpls, wantKind, c.category, outreach.pitches]);
   const [tplId, setTplId] = useState(preselect);
   useEffect(() => { setTplId(preselect); }, [preselect]);
   const tpl = tpls.find(t => t.id === tplId) || null;
   const kitUrl = (k: string | null) => kitUrlOf(kit?.kits, k);
-  const willPitch = tpl?.kind !== "follow_up" && statusAfterPitch(c.status) !== c.status;
+  const willPitch = tpl?.kind === "pitch" && statusAfterPitch(c.status) !== c.status;
 
   const write = () => {
     setErr(null);
@@ -733,7 +743,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
     const to = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typed) ? typed : c.email;
     const mail = fillFor(tpl, { contactName: f.contactName, company: f.company }, tpl.kit ? kitUrl(tpl.kit) : null);
     const before = [{ id: c.id, status: c.status, lastContact: c.lastContact }];
-    const kind = tpl.kind;
+    const kind = logKind(tpl);
     // the save starts first, then your mail app opens in the same tap (the iPhone only opens apps from a tap)
     const saving: Promise<Pitch[]> = outreach.logPitches([c.id], kind, undefined, { restart: kind === "pitch", templateId: tpl.id, account: accountOfTemplate(tpl) });
     openMail(composeUrl(to, mail.subject, mail.body));
@@ -778,7 +788,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
               </div>
               <div><div style={{ ...CAPS, margin: "0 2px 4px" }}>Last contact</div>
                 <div style={{ height: 32, display: "flex", alignItems: "center", padding: "0 2px", fontSize: TYPE.row.size, color: due ? PAL.waiting.ink : c.lastContact ? C.black : C.light, whiteSpace: "nowrap" as const, overflow: "hidden" }}>
-                  {c.lastContact ? `${fmtD(c.lastContact)}${due ? " · follow up" : ""}` : "—"}
+                  {c.lastContact ? `${fmtD(c.lastContact)}${due ? ` · FU ${c.followStep === "fu2" ? 2 : 1} due` : ""}` : "—"}
                 </div>
               </div>
             </div>
@@ -795,7 +805,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
               <div style={{ display: "flex", gap: 6 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <MiniSelect value={tplId} aria-label="Template" onChange={(e: any) => setTplId(e.target.value)}>
-                    {tpls.map(t => <option key={t.id} value={t.id}>{t.name || "Untitled"}{t.kind === "follow_up" ? " · follow-up" : ""}</option>)}
+                    {tpls.map(t => <option key={t.id} value={t.id}>{t.name || "Untitled"}{t.kind === "follow_up" ? " · follow-up 1" : t.kind === "follow_up_2" ? " · follow-up 2" : ""}</option>)}
                   </MiniSelect>
                 </div>
                 <PillBtn dark onClick={write} title={tpl?.kind === "follow_up" ? "Write the follow-up in your mail app" : "Write the email in your mail app"}
@@ -807,7 +817,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
               <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 2px", lineHeight: 1.4 }}>{noTemplateText(c.category)}.</p>
             )}
             <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "6px 2px 0", lineHeight: 1.4 }}>
-              {tpls.length > 0 && <>{tpl?.kind === "follow_up" ? "Logs the follow-up" : willPitch ? "Logs the pitch and sets Pitched" : "Logs the pitch"} · </>}
+              {tpls.length > 0 && <>{tpl?.kind === "follow_up_2" ? "Logs follow-up 2" : tpl?.kind === "follow_up" ? "Logs follow-up 1" : willPitch ? "Logs the pitch and sets Pitched" : "Logs the pitch"} · </>}
               sent another way? <button onClick={() => log("pitch")} style={linkBtn}>+ Pitch</button> · <button onClick={() => log("follow_up")} style={linkBtn}>+ Follow-up</button>
             </p>
           </div>

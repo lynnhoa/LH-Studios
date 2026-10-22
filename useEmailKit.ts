@@ -34,7 +34,7 @@ export interface KitPdf { path: string; name: string; size: number; updatedAt: s
 export interface MediaKit { key: KitKey; url: string; file: string; focus: string; updatedAt: string; pdf: KitPdf | null; }
 // pipeline: whose contacts it's for (UGC → @createbylynn, else @lynnhoa) · kind: a first pitch or a follow-up
 export type TemplatePipeline = "lynnhoa" | "ugc";
-export type TemplateKind = "pitch" | "follow_up";
+export type TemplateKind = "pitch" | "follow_up" | "follow_up_2";   // follow_up = Follow-up 1
 export interface EmailTemplate {
   id: string; name: string; purpose: string; subject: string; body: string; kit: KitKey | null; createdAt: string;
   pipeline: TemplatePipeline; kind: TemplateKind;
@@ -42,7 +42,8 @@ export interface EmailTemplate {
   sortOrder: number | null; // your own order in the Email kit (empty = after the sorted ones, A–Z)
 }
 export const TEMPLATE_PIPELINES: { key: TemplatePipeline; label: string }[] = [{ key: "lynnhoa", label: "@lynnhoa" }, { key: "ugc", label: "UGC" }];
-export const TEMPLATE_KINDS: { key: TemplateKind; label: string }[] = [{ key: "pitch", label: "Pitch" }, { key: "follow_up", label: "Follow-up" }];
+export const TEMPLATE_KINDS: { key: TemplateKind; label: string }[] = [{ key: "pitch", label: "Pitch" }, { key: "follow_up", label: "Follow-up 1" }, { key: "follow_up_2", label: "Follow-up 2" }];
+export const kindLabel = (k: string) => TEMPLATE_KINDS.find(x => x.key === k)?.label || "Pitch";
 
 const rowToKit = (r: any): MediaKit => {
   const d = kitInfo(r.key)!;
@@ -52,7 +53,7 @@ const rowToKit = (r: any): MediaKit => {
 const rowToTpl = (r: any): EmailTemplate => ({
   id: r.id, name: r.name ?? "", purpose: r.purpose ?? "", subject: r.subject ?? "", body: r.body ?? "",
   kit: kitInfo(r.kit_key) ? r.kit_key : null, createdAt: r.created_at ?? "",
-  pipeline: r.pipeline === "ugc" ? "ugc" : "lynnhoa", kind: r.kind === "follow_up" ? "follow_up" : "pitch",
+  pipeline: r.pipeline === "ugc" ? "ugc" : "lynnhoa", kind: r.kind === "follow_up" || r.kind === "follow_up_2" ? r.kind : "pitch",
   categories: Array.isArray(r.categories) ? r.categories : [],
   sortOrder: r.sort_order == null ? null : Number(r.sort_order),
 });

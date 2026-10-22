@@ -19,7 +19,7 @@ import {
 } from "./planner";
 import { daysBetween } from "./planner";
 import type { Stage, Task, Entry, TaskStatus, Snapshot, Account, Item, ItemStatus, Note, NoteKind, Auto, Sprint, SprintStats, ConceptArc, ConceptPhase, ConceptEra, ConceptEraArc, ConceptNow } from "./planner";
-import { FOLLOW_UP_DAYS } from "./outreach";
+import { followInfo, followUpDue } from "./outreach";
 import type { Pitch } from "./outreach";
 
 // an Outreach contact, as far as the Planner needs it
@@ -635,12 +635,16 @@ export function usePlanner(userId: string | null, monday: string) {
     };
   }, []);
 
-  // pitched contacts of this account without a reply for 7+ days
+  // pitched contacts of this account with a follow-up due — the same timing as Outreach (outreach.ts › CADENCE:
+  // follow-up 1 after 5 days, follow-up 2 after 7 more)
   const followUpsDue = useCallback((acc: Account, on: string = today()) => {
-    const last = new Map<string, string>();
-    pitches.filter(p => p.account === acc).forEach(p => { const m = last.get(p.contactId); if (!m || p.sentOn > m) last.set(p.contactId, p.sentOn); });
-    const status = new Map(contacts.map(c => [c.id, c.status]));
-    return [...last.entries()].filter(([id, d]) => status.get(id) === "pitched" && daysBetween(d, on) >= FOLLOW_UP_DAYS).length;
+    const mine = new Map<string, { kind: string; sentOn: string }[]>();
+    pitches.forEach(p => { const l = mine.get(p.contactId); if (l) l.push(p); else mine.set(p.contactId, [p]); });
+    const ofAcc = new Set(pitches.filter(p => p.account === acc).map(p => p.contactId));
+    const [y, m, d] = on.split("-").map(Number);
+    const at = new Date(y, m - 1, d);
+    return contacts.filter(c => ofAcc.has(c.id) && c.status === "pitched")
+      .filter(c => followUpDue({ ...c, ...followInfo(c, mine.get(c.id) || []) }, at)).length;
   }, [pitches, contacts]);
 
   // pitch log entries of some accounts in one week (newest first)

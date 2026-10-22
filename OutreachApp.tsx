@@ -12,7 +12,8 @@ import { C, SANS, BREAKPOINT, WIDE } from "./constants";
 import AppLogo from "./AppLogo";
 import { AvatarMenu, NavTab, appItems, AppHeader, APP_HEADER_H } from "./AppNav";
 import { UndoBar } from "./undo";
-import EmailList from "./EmailList";
+import EmailList, { presetContactsView } from "./EmailList";
+import OutreachDashboard from "./OutreachDashboard";
 import EmailKit from "./EmailKit";
 import Comments from "./Comments";
 import { useOutreach } from "./useOutreach";
@@ -34,10 +35,10 @@ export default function OutreachApp({ userId, settings, signOut, switchTo, banne
   const outreach = useOutreach(userId);
   const emailKit = useEmailKit(userId);
   const comments = useComments(userId);
-  // the open tab: Contacts (the email list) · Email kit · Comments — kept while the app is open
-  type Tab = "contacts" | "kit" | "comments";
+  // the open tab: Dashboard (first, like Manager) · Contacts (the email list) · Email kit · Comments — kept while the app is open
+  type Tab = "dashboard" | "contacts" | "kit" | "comments";
   const TAB_KEY = "lh_outreach_tab";
-  const [tab, setTab] = useState<Tab>(() => { try { const t = sessionStorage.getItem(TAB_KEY); return t === "kit" || t === "comments" ? t : "contacts"; } catch { return "contacts"; } });
+  const [tab, setTab] = useState<Tab>(() => { try { const t = sessionStorage.getItem(TAB_KEY); return t === "contacts" || t === "kit" || t === "comments" ? t : "dashboard"; } catch { return "dashboard"; } });
   const pickTab = (t: Tab) => { setTab(t); try { sessionStorage.setItem(TAB_KEY, t); } catch { /* ignore */ } window.scrollTo(0, 0); };
   // the account you're working on (same choice as in the Planner): the default when you log a pitch
   const [work, setWork] = useState<Account>(loadWorkAccount);
@@ -62,13 +63,16 @@ export default function OutreachApp({ userId, settings, signOut, switchTo, banne
   return (
     <div style={{ minHeight: "100dvh", background: C.bg, fontFamily: SANS, color: C.black }}>
       <AppHeader isMobile={isMobile} avatar={avatar(false)} tabs={(h, px) => <>
+        <NavTab label="Dashboard" active={tab === "dashboard"} onClick={() => pickTab("dashboard")} height={h} px={px} />
         <NavTab label="Contacts"  active={tab === "contacts"} onClick={() => pickTab("contacts")} height={h} px={px} />
         <NavTab label="Email kit" active={tab === "kit"}      onClick={() => pickTab("kit")}      height={h} px={px} />
         <NavTab label="Comments"  active={tab === "comments"} onClick={() => pickTab("comments")} height={h} px={px} />
       </>} />
       <div style={{ maxWidth: isWide ? 1200 : 960, margin: "0 auto", padding: isMobile ? "14px 14px 28px" : "24px 20px 40px" }}>
         {banners}
-        {tab === "contacts"
+        {tab === "dashboard"
+          ? <OutreachDashboard outreach={outreach} isMobile={isMobile} onOpenContacts={(patch) => { presetContactsView(patch); pickTab("contacts"); }} />
+          : tab === "contacts"
           ? <EmailList outreach={outreach} kit={emailKit} settings={settings} isMobile={isMobile} isWide={isWide} stickyTop={headerH} />
           : tab === "kit"
             ? <EmailKit kit={emailKit} isMobile={isMobile} />

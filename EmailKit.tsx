@@ -25,7 +25,7 @@ import { fmtD } from "./formatters";
 import { I, S, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Row, Chip, ChipRow, Sheet, ConfirmDialog, ColGroups } from "./atoms";
 import { copyText, OUTREACH_CATEGORIES, catOf } from "./outreach";
 import { showNote } from "./undo";
-import { KITS, KIT_TOKEN, kitInfo, fillText, fmtSize, TEMPLATE_PIPELINES, TEMPLATE_KINDS } from "./useEmailKit";
+import { KITS, KIT_TOKEN, kitInfo, fillText, fmtSize, TEMPLATE_PIPELINES, TEMPLATE_KINDS, kindLabel } from "./useEmailKit";
 import type { EmailKitHook, EmailTemplate, KitKey, MediaKit } from "./useEmailKit";
 
 const Ico = ({ d, size = 14, color = "currentColor" }: { d: string; size?: number; color?: string }) => (
@@ -171,7 +171,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
                 {templates.map((t, i) => (
                   <Row key={t.id} first={i === 0} chevron={false}
                     title={t.name || "Untitled"}
-                    meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"} · {t.kind === "follow_up" ? "Follow-up" : "Pitch"} · Kit: {t.kit ? <span style={{ color: toneOf(t.kit).ink }}>{kitInfo(t.kit)!.label}</span> : "none"}</>}
+                    meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"} · {kindLabel(t.kind)} · Kit: {t.kit ? <span style={{ color: toneOf(t.kit).ink }}>{kitInfo(t.kit)!.label}</span> : "none"}</>}
                     right={<span style={{ display: "inline-flex", gap: 6 }}>
                       <MoveBtn dir="up" label={`Move ${t.name || "this template"} up`} off={i === 0} onClick={() => move(i, -1)} />
                       <MoveBtn dir="down" label={`Move ${t.name || "this template"} down`} off={i === templates.length - 1} onClick={() => move(i, 1)} />
@@ -203,7 +203,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
                       {list.map((t, i) => (
                         <Row key={t.id} first={i === 0} chevron={false} onClick={() => setOpenId(t.id)}
                           title={t.name || "Untitled"}
-                          meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"} · {t.kind === "follow_up" ? "Follow-up" : "Pitch"} · {catsText(t)} · Kit: {t.kit ? <span style={{ color: toneOf(t.kit).ink }}>{kitInfo(t.kit)!.label}</span> : "none"}</>}
+                          meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"} · {kindLabel(t.kind)} · {catsText(t)} · Kit: {t.kit ? <span style={{ color: toneOf(t.kit).ink }}>{kitInfo(t.kit)!.label}</span> : "none"}</>}
                           right={<CopyBtn label={`Copy ${t.name || "the text"}`} onClick={() => copyTemplate(t, t.kit)} />} />
                       ))}
                     </ListCard>
@@ -387,7 +387,7 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
         {!edit ? (
           <>
             <div style={{ fontFamily: SERIF, fontSize: TYPE.tile.size, lineHeight: 1.2 }}>{t.name || "Untitled"}</div>
-            <div style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "4px 2px 0" }}>{TEMPLATE_PIPELINES.find(x => x.key === t.pipeline)?.label} · {t.kind === "follow_up" ? "Follow-up" : "Pitch"} · {catsText(t)}</div>
+            <div style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "4px 2px 0" }}>{TEMPLATE_PIPELINES.find(x => x.key === t.pipeline)?.label} · {kindLabel(t.kind)} · {catsText(t)}</div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "12px 2px 5px" }}>
               <span style={caps}>Media kit</span>
               {pickPdf && <button onClick={() => onShare(pick!)} style={{ ...linkBtn, display: "inline-flex", alignItems: "center", gap: 4 }}><Ico d={IC.share} size={12} />Share PDF</button>}

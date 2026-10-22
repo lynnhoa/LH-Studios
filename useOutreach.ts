@@ -9,11 +9,11 @@
 // the contact's category (UGC → @createbylynn, else @lynnhoa).
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { supabase, selectAll } from "./useSupabase";
 import { registerReloader } from "./saveStatus";
 import { today, uid } from "./formatters";
-import { fitStatus, statusAfterPitch, accountOf } from "./outreach";
+import { fitStatus, statusAfterPitch, accountOf, followInfo } from "./outreach";
 import type { OutreachContact, OutreachCategory, OutreachTier, OutreachStatus, Pitch, PitchAccount, OutreachEvent } from "./outreach";
 
 const rowToContact = (r: any): OutreachContact => ({
@@ -42,6 +42,7 @@ const rowToPitch = (r: any): Pitch => ({
 });
 const rowToEvent = (r: any): OutreachEvent => ({
   id: r.id, contactId: r.contact_id, kind: r.kind === "reply" ? "reply" : "status", status: (r.status ?? null) as OutreachStatus | null, at: r.at ?? r.created_at ?? "",
+  note: r.note ?? "",
 });
 const chunks = <T,>(a: T[], n = 400): T[][] => { const out: T[][] = []; for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n)); return out; };
 
@@ -306,5 +307,13 @@ export function useOutreach(userId: string | null) {
     setContacts(prev => prev.map(x => (x.id === p.contactId ? { ...x, lastContact: before.lastContact, status: before.status || x.status } : x)));
   }, [userId]);
 
-  return { contacts, pitches, events, mail, checkReplies, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, markSeen, makeClient, logPitches, undoLog, deletePitch, restorePitch };
+  // every contact with where it stands in the follow-up cycle (from its pitch log and timeline)
+  const enriched = useMemo(() => {
+    const ps = new Map<string, Pitch[]>(), es = new Map<string, OutreachEvent[]>();
+    pitches.forEach(p => { const l = ps.get(p.contactId); if (l) l.push(p); else ps.set(p.contactId, [p]); });
+    events.forEach(e => { const l = es.get(e.contactId); if (l) l.push(e); else es.set(e.contactId, [e]); });
+    return contacts.map(c => ({ ...c, ...followInfo(c, ps.get(c.id) || [], es.get(c.id) || []) }));
+  }, [contacts, pitches, events]);
+
+  return { contacts: enriched, pitches, events, mail, checkReplies, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, markSeen, makeClient, logPitches, undoLog, deletePitch, restorePitch };
 }
