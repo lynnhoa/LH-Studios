@@ -1,3 +1,9 @@
+# Phase 3 · Manager + Creator · smooth with the keyboard (23.10.2026)
+- Catalog item, Usage / exclusivity, Card settings and Workspace item stay still with the iPhone
+  keyboard (Sheet `still`): iPhone scrolls the screen itself in one smooth move.
+- New item / new option → Add already stays the same window (checked).
+- Every sheet in the app is still now. Changed: `ServiceCatalog.tsx`, `CreatorWorkspace.tsx`.
+
 # Phase 2 · Planner · smooth with the keyboard (23.10.2026)
 - Idea / Editorial, Arc texts / links, Era, Sprint and New sprint stay still with the iPhone keyboard
   (Sheet `still`): iPhone scrolls the screen itself in one smooth move.
