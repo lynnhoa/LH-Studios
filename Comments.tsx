@@ -196,7 +196,7 @@ function AddWindow({ hook, groups, start, onClose }: { hook: CommentsHook; group
       <Lbl>Group</Lbl>
       <GroupPick groups={groups} value={group} onChange={setGroup} />
       <Lbl>Comments · one per line</Lbl>
-      <TA value={text} aria-label="Comments" placeholder={"so elegant ✨\nthe styling is so good\na classic 🤍"} onChange={(e: any) => setText(e.target.value)} />
+      <TA value={text} autoFocus aria-label="Comments" placeholder={"so elegant ✨\nthe styling is so good\na classic 🤍"} onChange={(e: any) => setText(e.target.value)} />
       <p style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "5px 2px 0", lineHeight: 1.4 }}>
         {n === 0 && !doubles ? "Bullets, empty lines and doubles are left out." : `${n} new${doubles ? ` · ${doubles} already in the list` : ""}`}
       </p>

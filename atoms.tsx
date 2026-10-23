@@ -4,69 +4,11 @@
 // Desktop + iPad + PWA iOS safe.
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useRef, useLayoutEffect, createContext, useContext } from "react";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, Z, SIZE, PAL, STATUS_TONE, TRACK, RADIUS, SHADOW, ICON, expiryTone, DENSITY, SPACING, BREAKPOINT, WIDE, SHEET, MOTION } from "./constants";
+import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, Z, SIZE, PAL, STATUS_TONE, TRACK, RADIUS, SHADOW, ICON, expiryTone, DENSITY, SPACING, BREAKPOINT, WIDE, SHEET } from "./constants";
 import { fmtD, dLeft, today, parseDE, fmtNumDE } from "./formatters";
 import { saveStatus } from "./saveStatus";
-
-// ─── THE VISIBLE SCREEN — one tracker for every window and bottom bar ─
-// iPhone: when the keyboard opens, the part of the screen you can see shrinks and may be panned
-// (visualViewport). Four CSS variables on <html> follow it — --vv-top, --vv-h (the visible area),
-// --kb (what the keyboard covers), --kb-safe (the home-bar space, 0 while the keyboard is open),
-// --sheet-max (how tall a sheet may be) — and `.lh-screen` (index.html) is placed with them. So a
-// sheet rides on the keyboard with one smooth move instead of fighting iOS's own scrolling.
-const vv = { top: 0, h: typeof window !== "undefined" ? window.innerHeight : 0, kb: 0 };
-export const vvNow = () => vv;
-const vvSubs = new Set<() => void>();
-// the visible screen in a component: re-renders when the keyboard opens / closes or the screen turns
-export function useViewport() {
-  const [, tick] = useState(0);
-  useEffect(() => { const fn = () => tick(x => x + 1); vvSubs.add(fn); return () => { vvSubs.delete(fn); }; }, []);
-  return vv;
-}
-(function trackViewport() {
-  if (typeof window === "undefined" || typeof document === "undefined") return;
-  const root = document.documentElement.style;
-  const v: any = (window as any).visualViewport;
-  const apply = () => {
-    const top = v ? Math.max(0, Math.round(v.offsetTop)) : 0;
-    const h   = v ? Math.round(v.height) : window.innerHeight;
-    const gap = Math.max(0, Math.round(window.innerHeight - h - top));
-    const kb  = gap > 60 ? gap : 0;                 // small differences (browser bars) aren't a keyboard
-    vv.top = top; vv.h = h; vv.kb = kb;
-    root.setProperty("--vv-top", `${top}px`);
-    root.setProperty("--vv-h", `${h}px`);
-    root.setProperty("--kb", `${kb}px`);
-    root.setProperty("--kb-safe", kb ? "0px" : "env(safe-area-inset-bottom, 0px)");
-    root.setProperty("--sheet-max", kb ? "calc(100% - 12px)" : "88%");
-    vvSubs.forEach(fn => fn());
-  };
-  let raf = 0;
-  const onChange = () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; apply(); }); };
-  apply();
-  if (v) { v.addEventListener("resize", onChange); v.addEventListener("scroll", onChange); }
-  window.addEventListener("resize", onChange);
-})();
-
-// ─── PAGE LOCK — while a window is open, the page behind stays put ─
-// (its scroll position comes back when the last window closes; a desktop scrollbar's width is kept)
-let locks = 0, lockedY = 0;
-export function useScrollLock() {
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const html = document.documentElement.style, body = document.body.style;
-    if (locks++ === 0) {
-      lockedY = window.scrollY || 0;
-      const bar = window.innerWidth - document.documentElement.clientWidth;
-      html.overflow = "hidden";                       // on <html> only: <body> as well would reset the scroll position
-      if (bar > 0) body.paddingRight = `${bar}px`;
-    }
-    return () => {
-      if (--locks === 0) { html.overflow = ""; body.paddingRight = ""; window.scrollTo(0, lockedY); }
-    };
-  }, []);
-}
 
 // ─── SCREEN SIZE ─────────────────────────────────────────────
 // phone below 700 px · iPad 700–1199 · computer from 1200 (same numbers in every app)
@@ -525,8 +467,8 @@ export const ConfirmDialog = ({ title, text, dateLabel, okLabel, cancelLabel = "
   const [date, setDate] = useState(today());
   useEscape(true, onCancel);
   return createPortal(
-    <div className="lh-dim lh-in" style={{ position: "fixed", inset: 0, zIndex: Z.dialog, display: "flex", alignItems: "center", justifyContent: "center", background: SHEET.dim, padding: 16 }}>
-      <div role="alertdialog" aria-modal="true" aria-label={title} className="lh-pop"
+    <div style={{ position: "fixed", inset: 0, zIndex: Z.dialog, display: "flex", alignItems: "center", justifyContent: "center", background: SHEET.dim, padding: 16 }}>
+      <div role="alertdialog" aria-modal="true" aria-label={title}
         style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, padding: "20px 22px 18px", boxShadow: SHADOW.pop, width: "100%", maxWidth: 340 }}>
         <p style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black, margin: "0 0 8px" }}>{title}</p>
         {text && <p style={{ fontSize: TYPE.label.size, fontFamily: SANS, color: C.muted, margin: "0 0 12px", lineHeight: 1.5 }}>{text}</p>}
@@ -557,7 +499,7 @@ export const SaveToast = () => {
     const t = setTimeout(() => setShowSaved(false), 1500);
     return () => clearTimeout(t);
   }, [st.savedAt, st.pending]);
-  const base: any = { position: "fixed", left: "50%", top: "calc(var(--vv-top) + var(--vv-h) - 20px - var(--toast-lift, 0px))", transform: "translate(-50%, -100%)", zIndex: Z.toast, borderRadius: RADIUS.tile, padding: "8px 14px", fontFamily: SANS, fontSize: TYPE.label.size, letterSpacing: TRACK.tag, boxShadow: SHADOW.pop, display: "flex", alignItems: "center", gap: 12, maxWidth: "calc(100vw - 32px)" };
+  const base: any = { position: "fixed", left: "50%", bottom: "calc(20px + var(--toast-lift, 0px))", transform: "translateX(-50%)", zIndex: Z.toast, borderRadius: RADIUS.tile, padding: "8px 14px", fontFamily: SANS, fontSize: TYPE.label.size, letterSpacing: TRACK.tag, boxShadow: SHADOW.pop, display: "flex", alignItems: "center", gap: 12, maxWidth: "calc(100vw - 32px)" };
   if (st.error) return (
     <div style={{ ...base, background: TINT_RED, border: `1px solid ${PAL.late.fill}`, color: C.red }}>
       <span>Couldn't save — {st.error}. Your last change was undone.</span>
@@ -805,8 +747,8 @@ export const BottomBar = ({ children, maxW }: { children: any; maxW?: number }) 
   const { isMobile, isWide } = useScreen();
   const w = maxW ?? (isMobile ? undefined : (isWide ? 1200 : 960) - 40);   // the page's width minus its 20 px sides
   return (
-    <div className="lh-bar" style={{ position: "fixed", left: 0, right: 0, top: "calc(var(--vv-top) + var(--vv-h))", transform: "translateY(-100%)", zIndex: 40, background: C.white, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar,
-      padding: "11px 14px calc(14px + var(--kb-safe))", fontFamily: SANS }}>
+    <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: C.white, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar,
+      padding: "11px 14px calc(14px + env(safe-area-inset-bottom, 0px))", fontFamily: SANS }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", maxWidth: w, margin: "0 auto" }}>
         {children}
       </div>
@@ -897,97 +839,55 @@ export const SwitchPill = ({ children, s }: { children: any; s?: any }) => (
   <span style={{ display: "inline-flex", alignItems: "center", border: `1px solid ${C.rule}`, borderRadius: RADIUS.card, background: C.white, height: 28, fontSize: TYPE.subtext.size, ...s }}>{children}</span>
 );
 
+// How much of the screen the on-screen keyboard covers (iPhone / iPad), so a bottom sheet can sit on top
+// of it — its buttons stay visible while typing. 0 on a computer or with the keyboard closed.
+export function useKeyboardInset(): number {
+  const [kb, setKb] = useState(0);
+  useEffect(() => {
+    const vv: any = (window as any).visualViewport;
+    if (!vv) return;
+    const calc = () => setKb(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)));
+    calc();
+    vv.addEventListener("resize", calc); vv.addEventListener("scroll", calc);
+    return () => { vv.removeEventListener("resize", calc); vv.removeEventListener("scroll", calc); };
+  }, []);
+  return kb > 60 ? kb : 0;                         // small differences (browser bars) aren't a keyboard
+}
 
 // ─── SHEET — every item window, one build, one look (SHEET in constants) ─
-// A bottom sheet, one level above the screen: only as tall as its content (up to 88 % of the screen),
-// the page dimmed and locked behind; ✕, tap outside or Escape closes; centred and at most 560 px wide
-// on iPad / computer. Motion: it slides up when it opens, slides down when it closes (Done too). With
-// the keyboard it keeps its top where it is — only its bottom glides to the keyboard, the footer rides
-// on it, the content scrolls and the field you type in stays in view; a short sheet that wouldn't fit
-// moves up just as much as it needs. The layer itself follows the visible screen at once (no gap).
+// A bottom sheet, one level above the screen: only as tall as its content (up to 88 %),
+// the page dimmed behind; ✕, tap outside or Escape closes; sits above the iPhone keyboard;
+// centred and at most 560 px wide on iPad / computer.
 //   header   48 px on the cream: ✕ · TITLE (small caps) · right (⋯, a pill …)
 //   content  the cream, with white cards (SHEET_CARD) under section heads (SheetHead)
 //   footer   white bar with the bottom-bar shadow: one SheetButton — Done, or the main action
 //   dirty    something typed that isn't saved: ✕, tap outside and Escape ask first (Discard · Keep editing)
-const SheetCtx = createContext<{ close: () => void } | null>(null);
-const KEEP_TOP_MIN = 300;      // keep the sheet's top as long as at least this much of it stays above the keyboard
 export const Sheet = ({ title, onClose, right, children, footer, dirty }: { title: string; onClose: () => void; right?: any; children: any; footer?: any; dirty?: boolean }) => {
-  const { h, kb } = useViewport();
+  const kb = useKeyboardInset();
   const [ask, setAsk] = useState(false);
-  const [leaving, setLeaving] = useState(false);
-  const gone = useRef(false);
-  const timer = useRef<any>(null);
-  const head = useRef<HTMLDivElement | null>(null);
-  const body = useRef<HTMLDivElement | null>(null);
-  const inner = useRef<HTMLDivElement | null>(null);
-  const foot = useRef<HTMLDivElement | null>(null);
-  const [nat, setNat] = useState(0);                 // the sheet's own height: header + content + footer
-  useScrollLock();
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
-  // how tall the sheet wants to be (measured; again whenever its content changes)
-  const measure = () => {
-    const n = (head.current?.offsetHeight || 0) + (body.current?.scrollHeight || 0) + (foot.current?.offsetHeight || 0);
-    setNat(x => (Math.abs(x - n) < 1 ? x : n));
-  };
-  useLayoutEffect(measure);
-  useEffect(() => {
-    const el = inner.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => measure()); ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  // where it sits: at rest at the bottom, up to 88 %; with the keyboard it keeps its top
-  const rest = useRef<{ h0: number } | null>(null);
-  if (!kb) rest.current = { h0: h };
-  const h0 = rest.current?.h0 || h;
-  const rH = Math.min(nat || h, Math.max(120, Math.round(h0 * 0.88)));   // its height when the keyboard is closed
-  const rT = h0 - rH;                                                     // its top when the keyboard is closed
-  let T = rT, H = rH;
-  if (kb) {
-    const avail = h - rT;                                                 // what's left above the keyboard if the top stays
-    if (avail >= Math.min(rH, KEEP_TOP_MIN)) { T = rT; H = Math.min(rH, avail); }
-    else { T = Math.max(12, h - rH); H = Math.min(rH, h - T); }
-  }
-  // slides down, then it's gone
-  const leave = () => {
-    if (leaving || gone.current) return;
-    setLeaving(true);
-    timer.current = setTimeout(() => { if (!gone.current) { gone.current = true; onClose(); } }, MOTION.close + 20);
-  };
-  const close = () => { if (dirty) setAsk(true); else leave(); };
+  const close = () => { if (dirty) setAsk(true); else onClose(); };
   useEscape(true, close);                         // the question, once open, answers Escape itself (Keep editing)
-  // the sheet glided with the keyboard: keep the field you type in in view
-  const settled = (e: any) => {
-    if (e.target !== e.currentTarget) return;
-    const el = document.activeElement as HTMLElement | null;
-    if (el && body.current?.contains(el)) el.scrollIntoView?.({ block: "nearest" });
-  };
   const pad = SHEET.pad;
   return createPortal(
-    <SheetCtx.Provider value={{ close }}>
-      <div className="lh-screen" style={{ zIndex: Z.modal, fontFamily: SANS, pointerEvents: leaving ? "none" : undefined }}>
-        {ask && <DiscardDialog onDiscard={() => { setAsk(false); leave(); }} onKeep={() => setAsk(false)} />}
-        <div onClick={close} aria-hidden="true" className={`lh-dim ${leaving ? "lh-out" : "lh-in"}`} style={{ position: "absolute", inset: 0, background: SHEET.dim, touchAction: "none" }} />
-        <div role="dialog" aria-modal="true" aria-label={title} className={`lh-sheet ${leaving ? "lh-out" : "lh-in"}`} onTransitionEnd={settled}
-          style={{ position: "absolute", left: 0, right: 0, width: "100%", maxWidth: SHEET.width, margin: "0 auto", boxSizing: "border-box" as const,
-            ...(nat ? { top: T, height: H } : { bottom: 0, maxHeight: "88%" }),
-            background: SHEET.surface, borderRadius: `${RADIUS.button}px ${RADIUS.button}px 0 0`, boxShadow: SHADOW.sheet, display: "flex", flexDirection: "column", color: C.black }}>
-          <div ref={head} style={{ height: SHEET.head, display: "flex", alignItems: "center", gap: 4, padding: "0 10px 0 4px", flexShrink: 0 }}>
-            <button onClick={close} aria-label="Close" style={{ width: DENSITY.tap, height: DENSITY.tap, background: "none", border: "none", fontSize: ICON.close, color: C.muted, cursor: "pointer", flexShrink: 0 }}>✕</button>
-            <span style={{ ...SHEET_CAPS, flex: 1, minWidth: 0, textAlign: "center" as const, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, padding: "0 6px" }}>{title}</span>
-            <span style={{ minWidth: DENSITY.tap, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2, flexShrink: 0 }}>{right}</span>
-          </div>
-          <div ref={body} className="lh-sheet-body" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: footer ? `2px ${pad}px ${pad}px` : `2px ${pad}px calc(${pad}px + var(--kb-safe))`, WebkitOverflowScrolling: "touch" as any }}>
-            <div ref={inner}>{children}</div>
-          </div>
-          {footer && (
-            <div ref={foot} className="lh-bar" style={{ padding: `12px ${pad}px calc(12px + var(--kb-safe))`, background: SHEET.bar, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              {footer}
-            </div>
-          )}
+    <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", flexDirection: "column", justifyContent: "flex-end", fontFamily: SANS, paddingBottom: kb }}>
+      {ask && <DiscardDialog onDiscard={() => { setAsk(false); onClose(); }} onKeep={() => setAsk(false)} />}
+      <div onClick={close} aria-hidden="true" style={{ position: "absolute", inset: 0, background: SHEET.dim }} />
+      <div role="dialog" aria-modal="true" aria-label={title}
+        style={{ position: "relative", background: SHEET.surface, borderRadius: `${RADIUS.button}px ${RADIUS.button}px 0 0`, boxShadow: SHADOW.sheet,
+          maxHeight: kb ? `calc(100vh - ${kb + 12}px)` : "88vh", display: "flex", flexDirection: "column", width: "100%", maxWidth: SHEET.width, margin: "0 auto", color: C.black }}>
+        <div style={{ height: SHEET.head, display: "flex", alignItems: "center", gap: 4, padding: "0 10px 0 4px", flexShrink: 0 }}>
+          <button onClick={close} aria-label="Close" style={{ width: DENSITY.tap, height: DENSITY.tap, background: "none", border: "none", fontSize: ICON.close, color: C.muted, cursor: "pointer", flexShrink: 0 }}>✕</button>
+          <span style={{ ...SHEET_CAPS, flex: 1, minWidth: 0, textAlign: "center" as const, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, padding: "0 6px" }}>{title}</span>
+          <span style={{ minWidth: DENSITY.tap, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2, flexShrink: 0 }}>{right}</span>
         </div>
+        <div style={{ overflowY: "auto", padding: footer ? `2px ${pad}px ${pad}px` : `2px ${pad}px calc(${pad}px + env(safe-area-inset-bottom, 0px))`, WebkitOverflowScrolling: "touch" as any }}>{children}</div>
+        {footer && (
+          <div style={{ padding: kb ? `10px ${pad}px` : `12px ${pad}px calc(16px + env(safe-area-inset-bottom, 0px))`, background: SHEET.bar, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {footer}
+          </div>
+        )}
       </div>
-    </SheetCtx.Provider>,
+    </div>,
     document.body
   );
 };
@@ -1091,8 +991,8 @@ export function MoreMenu({ items, size = 40 }: { items: { label: string; danger?
   const btn = useRef<HTMLButtonElement | null>(null);
   const open = () => {
     const r = btn.current?.getBoundingClientRect(); if (!r) return;
-    const h = items.length * 32 + 12, right = Math.max(8, window.innerWidth - r.right), V = vvNow();
-    setBox(V.top + V.h - r.bottom >= h + 8 ? { top: r.bottom + 2, right } : { bottom: window.innerHeight - r.top + 2, right });   // above the keyboard too
+    const h = items.length * 32 + 12, vh = window.innerHeight, right = Math.max(8, window.innerWidth - r.right);
+    setBox(vh - r.bottom >= h + 8 ? { top: r.bottom + 2, right } : { bottom: vh - r.top + 2, right });
   };
   return (
     <>
@@ -1102,7 +1002,7 @@ export function MoreMenu({ items, size = 40 }: { items: { label: string; danger?
       </button>
       {box && createPortal(
         <div onClick={() => setBox(null)} style={{ position: "fixed", inset: 0, zIndex: Z.dialog + 50 }}>
-          <div role="menu" onClick={(e) => e.stopPropagation()} className="lh-pop"
+          <div role="menu" onClick={(e) => e.stopPropagation()}
             style={{ position: "fixed", top: box.top, bottom: box.bottom, right: box.right, minWidth: 170, background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, boxShadow: SHADOW.pop, padding: "5px 0", fontFamily: SANS }}>
             {items.map(it => (
               <button key={it.label} role="menuitem" onClick={() => { setBox(null); it.onClick(); }}
@@ -1158,16 +1058,13 @@ export function MiniArea({ value, onChange, placeholder, ariaLabel, minRows = 4,
 //   DocFoot  the white bottom bar with its shadow: a message line · a light button left, the dark one right
 //   DOC_PAGES the grey behind the pages
 export const DOC_PAGES = C.muted;
-export const DocBar = ({ title, onClose, right }: { title?: any; onClose: () => void; right?: any }) => {
-  useScrollLock();
-  return (
+export const DocBar = ({ title, onClose, right }: { title?: any; onClose: () => void; right?: any }) => (
   <div style={{ height: SHEET.head, borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", gap: 6, padding: "0 8px 0 2px", flexShrink: 0, background: C.bg }}>
     <button onClick={onClose} aria-label="Close" title="Close" style={{ width: DENSITY.tap, height: DENSITY.tap, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: ICON.close, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
     <span style={{ ...SHEET_CAPS, flex: 1, minWidth: 0, textAlign: "center" as const, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, padding: "0 6px" }}>{title}</span>
     <span style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>{right}</span>
   </div>
-  );
-};
+);
 export const DocTabs = ({ view, onView }: { view: "edit" | "preview"; onView: (v: "edit" | "preview") => void }) => (
   <div style={{ display: "flex", gap: 6, padding: "8px 10px", borderBottom: `1px solid ${C.rule}`, flexShrink: 0, background: C.bg }}>
     <Pill size="sm" on={view === "edit"} onClick={() => onView("edit")}>Edit</Pill>
@@ -1175,16 +1072,15 @@ export const DocTabs = ({ view, onView }: { view: "edit" | "preview"; onView: (v
   </div>
 );
 export const DocFoot = ({ msg, children }: { msg?: { text: string; err?: boolean } | null; children: any }) => (
-  <div className="lh-bar" style={{ flexShrink: 0, background: C.white, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar, padding: "11px 14px calc(14px + var(--kb-safe))", fontFamily: SANS }}>
+  <div style={{ flexShrink: 0, background: C.white, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar, padding: "11px 14px calc(14px + env(safe-area-inset-bottom, 0px))", fontFamily: SANS }}>
     {msg && <div role="status" style={{ fontSize: TYPE.subtext.size, color: msg.err ? C.red : C.muted, lineHeight: 1.4, margin: "0 2px 9px" }}>{msg.text}</div>}
     <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center" }}>{children}</div>
   </div>
 );
 // the footer button: Done (light) · Save, Add …, the main action (dark) — full width in the white bar
-export const SheetButton = ({ dark, dim, onClick, children, flex = 1, title, close }: { dark?: boolean; dim?: boolean; onClick?: () => void; children: any; flex?: number; title?: string; close?: boolean }) => {
-  const ctx = useContext(SheetCtx);
-  return <PillBtn dark={dark} dim={dim} onClick={close ? (ctx?.close || onClick) : onClick} title={title} s={{ flex, height: SHEET.button, justifyContent: "center", fontSize: TYPE.row.size }}>{children}</PillBtn>;
-};
+export const SheetButton = ({ dark, dim, onClick, children, flex = 1, title }: { dark?: boolean; dim?: boolean; onClick?: () => void; children: any; flex?: number; title?: string }) => (
+  <PillBtn dark={dark} dim={dim} onClick={onClick} title={title} s={{ flex, height: SHEET.button, justifyContent: "center", fontSize: TYPE.row.size }}>{children}</PillBtn>
+);
 
 
 // ── ValuePill: a number shown as a small value (14 px in a 28 px pill); tap = edit in place.
@@ -1298,7 +1194,7 @@ export function MenuSelect({ value, onChange, children, disabled, muted, bare, p
     const want = Math.min(380, opts.length * 36 + 10 + new Set(opts.map(o => o.group).filter(Boolean)).size * 26);
     const width = Math.min(Math.max(r.width, 180), 300, vw - 16);
     const left = Math.max(8, Math.min(r.left, vw - width - 8));
-    const V = vvNow(), below = V.top + V.h - r.bottom - 12, above = r.top - V.top - 12;   // the visible screen (above the keyboard)
+    const below = vh - r.bottom - 12, above = r.top - 12;
     if (below >= Math.min(want, 220) || below >= above) setBox({ left, top: r.bottom + 4, width, maxH: Math.max(120, Math.min(want, below)) });
     else setBox({ left, bottom: vh - r.top + 4, width, maxH: Math.max(120, Math.min(want, above)) });
   };
@@ -1338,7 +1234,7 @@ export function MenuSelect({ value, onChange, children, disabled, muted, bare, p
       {open && box && createPortal(
         <div onPointerDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }} onWheel={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
           style={{ position: "fixed", inset: 0, zIndex: Z.dialog + 50, fontFamily: SANS }}>
-          <div ref={panel} role="listbox" aria-label={p["aria-label"]} tabIndex={-1} onKeyDown={key} className="lh-pop"
+          <div ref={panel} role="listbox" aria-label={p["aria-label"]} tabIndex={-1} onKeyDown={key}
             style={{ position: "fixed", left: box.left, top: box.top, bottom: box.bottom, width: box.width, maxHeight: box.maxH, overflowY: "auto",
               background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.pop, padding: "4px 0", outline: "none", boxSizing: "border-box" as const }}>
             {groups.map((g, gi) => (

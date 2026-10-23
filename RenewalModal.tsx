@@ -271,7 +271,7 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
   );
 
   return createPortal(
-    <div className="lh-screen" style={{ background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
+    <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
       <DocBar title={<>{isAmendMode ? `Rights extension · ${p.name}` : `Renewal · ${p.name}`}</>} onClose={tryClose} right={<LangSwitch lang={lang} onChange={setLang as any} />} />
       {isM && <DocTabs view={view} onView={setView} />}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>

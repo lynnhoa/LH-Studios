@@ -299,7 +299,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   const winOk    = !!win && (win.kind === "era" ? !!winEra : !!winArc);
   useEffect(() => { if (win && !winOk && !planner.loading) setWin(null); }, [win, winOk, planner.loading]);
   const close = () => setWin(null);
-  const done  = <SheetButton close>Done</SheetButton>;
+  const done  = <SheetButton onClick={close}>Done</SheetButton>;
 
   const columns = <T,>(list: T[], render: (x: T) => any) => {
     const column = (l: T[]) => <div style={{ display: "flex", flexDirection: "column" as const, gap: SPACING.cardGap, minWidth: 0 }}>{l.map(render)}</div>;

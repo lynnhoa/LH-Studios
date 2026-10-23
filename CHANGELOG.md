@@ -176,37 +176,6 @@ Goal: make the Supabase app functionally identical to the old reference
 - Dashboard: an odd last Creator tile spans both columns (like Manager).
 - No SQL. Changed: `planner.ts`, `PlannerCreator.tsx`, `PlannerOverview.tsx`.
 
-## Modals · the sheet keeps its top with the keyboard (23.10.2026)
-- The sheet layer follows the visible screen at once (no glide, so no lag and no gap under the sheet
-  when the keyboard closes). Only the sheet glides, inside the dimming.
-- A sheet keeps its top where it is when the keyboard opens: its bottom glides to the keyboard, the
-  footer rides on it, the content scrolls, the field you tapped stays in view. A sheet that wouldn't
-  keep at least 300 px above the keyboard moves up just as much as it needs (short sheets sit on it).
-  The sheet now has its own measured top / height (`useViewport`, a measured content height).
-- Page bottom bars follow at once too (their height still eases).
-- Checked: simulated keyboard + pan (tall, short and template sheets, iPad), the earlier motion and
-  window suites, type-check, build. Changed: `index.html`, `atoms.tsx`.
-
-## Modals · in motion: on the keyboard, no jumps, no blinks (23.10.2026)
-- The visible screen (atoms.tsx, index.html): one tracker follows the part of the screen you can see
-  (iPhone visualViewport) and sets --vv-top / --vv-h / --kb / --kb-safe / --sheet-max on <html>.
-  `.lh-screen` places sheets and the document windows with them; bottom bars (BottomBar, DocFoot,
-  the sheet footer), the save toast and the Undo bar sit on it too — everything rides on the keyboard
-  in one glide (MOTION.keyboard) instead of fighting iOS's own scrolling. A sheet is never taller than
-  what's visible (✕ and the title stay), sits exactly on the keyboard, and keeps the field you type
-  in in view.
-- Motion: a sheet slides up when it opens and down when it closes (✕, outside, Escape, Done — the
-  Done button closes through the sheet), the dimming fades, dialogs and menus fade in; Reduce Motion
-  on the phone → fades only. Values: MOTION in constants.ts, CSS in index.html.
-- The page behind is locked while a window is open (html overflow, scroll position kept and restored).
-- No auto-keyboard: New contact, New template, new catalog items and Add comments open calmly.
-- Add contact / Add template: the same window turns into the saved item (no reopening blink).
-- ⋯ menus and dropdowns open within the visible screen (above the keyboard).
-- Checked: 32 simulated keyboard / pan / motion checks + the window flows, type-check, build.
-- No SQL. Changed: `index.html`, `constants.ts`, `atoms.tsx`, `undo.tsx`, `EmailList.tsx`,
-  `EmailKit.tsx`, `PlannerWindows.tsx`, `PlannerConcept.tsx`, `ServiceCatalog.tsx`,
-  `CreatorWorkspace.tsx`, `Comments.tsx`, `PDFModal.tsx`, `RenewalModal.tsx`.
-
 ## Modals · clean-up: one draft helper, the sheet guards closing (23.10.2026)
 - `useDraft` (atoms.tsx): the one keeper of what you type — Contact, Media kits, Template, Sprint,
   the catalog windows and the Workspace item all use it. Spaces at the ends and empty vs. missing

@@ -514,18 +514,15 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
       {/* ── FILTER (phone): the same sheet as every window ── */}
       {open === "filter" && isMobile && (
         <Sheet title="Filter" onClose={() => setOpen(null)} right={resetBtn}
-          footer={<SheetButton dark close>{showLabel}</SheetButton>}>
+          footer={<SheetButton dark onClick={() => setOpen(null)}>{showLabel}</SheetButton>}>
           {filterFields}
         </Sheet>
       )}
 
       {/* ── CONTACT WINDOW ── */}
-      {/* one window for a contact and for a new one: after Add contact it turns into the saved contact (no reopening) */}
-      {(current || (adding && newC)) && (
-        <ContactWindow key="contact-window" c={current || newC!} isNew={!current} outreach={outreach} kit={kit} onWritten={written} isMobile={isMobile}
-          onClose={current ? () => setOpenId(null) : () => setAdding(false)} onCopy={(t) => copy(t, "Email copied ✓")}
-          onOpen={(id) => { setAdding(false); setOpenId(id); }} />
-      )}
+      {current && <ContactWindow c={current} outreach={outreach} kit={kit} onWritten={written} isMobile={isMobile} onClose={() => setOpenId(null)} onCopy={(t) => copy(t, "Email copied ✓")} />}
+      {adding && !current && newC && <ContactWindow c={newC} isNew outreach={outreach} kit={kit} isMobile={isMobile} onClose={() => setAdding(false)} onCopy={(t) => copy(t, "Email copied ✓")}
+        onOpen={(id) => { setAdding(false); setOpenId(id); }} />}
 
       {/* ── LOG A PITCH FOR THE CONTACTS IN VIEW ── */}
       {showLog && <LogWindow ids={shown.map((c: OutreachContact) => c.id)} followUp={view.status === "followup"} outreach={outreach} isMobile={isMobile}
@@ -533,7 +530,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
 
       {/* ── IMPORT WINDOW: the three steps ── */}
       {showCols && (
-        <Sheet title="Import contacts" onClose={() => setShowCols(false)} footer={<SheetButton close>Done</SheetButton>}>
+        <Sheet title="Import contacts" onClose={() => setShowCols(false)} footer={<SheetButton onClick={() => setShowCols(false)}>Done</SheetButton>}>
           <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: "0 0 10px", lineHeight: 1.6 }}>
             1 · Build your Excel with these columns (first row).<br />
             2 · Copy the prompt, paste it into Claude and attach the Excel.<br />
@@ -673,7 +670,6 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
     setBusy(true);
     try {
       if (isNew) {
-        dr.saving();                                   // the saved contact replaces the draft in this same window
         const n = await outreach.addContact(clean);
         try { localStorage.setItem(DEFAULTS_KEY, JSON.stringify({ category: clean.category, tier: clean.tier })); } catch { /* ignore */ }
         onOpen?.(n.id);
@@ -796,7 +792,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
         right={isNew ? null : <MoreMenu bare items={[{ label: "Delete contact", danger: true, onClick: () => setAskDelete(true) }]} />}
         footer={isNew ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Add contact"}</SheetButton>
           : changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton>
-          : <SheetButton close>Done</SheetButton>}>
+          : <SheetButton onClick={onClose}>Done</SheetButton>}>
         {err && <SheetErr>{err}</SheetErr>}
         {dupId && onOpen && <B v="sec" onClick={() => onOpen(dupId)} s={{ marginBottom: 10 }}>Open that contact</B>}
 
@@ -870,7 +866,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
             {lbl("Email")}
             <div style={{ flex: 1, minWidth: 0 }}>
               <MiniInput bare data-k="email" type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} enterKeyHint="next"
-                placeholder="name@brand.com" value={f.email} aria-label="Email"
+                autoFocus={!!isNew} placeholder="name@brand.com" value={f.email} aria-label="Email"
                 onChange={(e: any) => setF({ ...f, email: e.target.value })} onBlur={fillFromEmail} onKeyDown={onEnter} />
             </div>
             {!isNew && (

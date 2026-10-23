@@ -509,7 +509,7 @@ export default function PDFModal({
 
   // a portal: the window always covers the whole screen, wherever it is opened from
   return createPortal(
-    <div className="lh-screen" style={{ background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
+    <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
 
       {/* ── TOP BAR: ✕ · the document · EN/DE · status (the shared document bar) ── */}
       <DocBar title={[kind ? kind.charAt(0).toUpperCase() + kind.slice(1) : "Document", current.docNo].filter(Boolean).join(" · ")} onClose={tryClose}
