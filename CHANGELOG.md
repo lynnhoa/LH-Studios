@@ -1,3 +1,20 @@
+# Planner · @createbylynn content concept (23.10.2026)
+- Profile menu › "@createbylynn concept": Hair | Makeup & skincare | Both under the title (remembered
+  on this device), one section per arc (Look · Product · Personality · Editorial), one card per series,
+  numbered 1, 2, 3 … in each arc. Open: what the series is and its labels (Look) or texts; a journey's
+  texts show their step ("1 · …"), views stay grey ("(1.531)"). "labels · 9" / "texts · 6" and "links"
+  open the same windows as an arc's texts and links (Undo, saved right away). "expand all / collapse
+  all" works on the chosen category. iPad / computer: two columns per arc.
+- @lynnhoa is unchanged (Arcs | Phases).
+- Idea window (@createbylynn): one field, Series, grouped by category · arc (no phase, era or format).
+  A name used in two categories says which: "Techniques (hair)" · "Techniques (makeup)".
+- Creator lists (@createbylynn): an idea with a series shows it first in its small line
+  ("Hairstyles · Content").
+- Data: run the @createbylynn concept SQL once — two new fields on `planner_concept_arcs` (category,
+  arc; empty on the @lynnhoa arcs) and the 22 series with their 129 labels and texts. Safe to rerun:
+  it never overwrites what's written in the app.
+- Changed: `planner.ts`, `usePlanner.ts`, `PlannerConcept.tsx`, `PlannerWindows.tsx`, `PlannerCreator.tsx`.
+
 # Phase 4 · Clean-up · one way for every sheet (23.10.2026)
 - Every sheet stays still with the iPhone keyboard by itself now: the old keyboard code is gone
   (`useKeyboardInset`, the sheet's keyboard padding and height changes) and so is the `still`

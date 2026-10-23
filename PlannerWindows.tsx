@@ -17,6 +17,7 @@ import { fmtD, today, monthStart, monthEnd, ymd } from "./formatters";
 import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN, Switch, TextInline, MiniInput, MiniSelect, Sheet, SheetHead, SheetButton, SheetRow, SheetPair, SheetAction, SheetMeta, SheetErr, MoreMenu, useDraft, SHEET_CARD, SHEET_CAPS } from "./atoms";
 import type { ToneSet } from "./atoms";
 import {
+  CONCEPT_CATEGORIES, CONCEPT_ARCS, isSeries, seriesOf, seriesName,
   ACCOUNTS, PHASES, OWNERS, RHYTHMS, STATUSES, STAGE_SHORT, DAY_SHORT, accLook, phaseLabel, ownerLabel, rhythmLabel, rowKind, entryKey, periodOf, snapKey, addDays, isoWeek, weekRange, weekLabel, thisMonday, monthName, todayIndex, gateOf, stageNumOf, taskAccounts, isVisible, byOrder, fmtInt, fmtPct2, parseDec, parseIntDe, ITEM_STATUSES, FORMATS, CLASSIC, formatLook, itemStatusLabel, daysBetween, OWNER_LOOK, monthGoalOf, monthGoalPatch, loadWorkAccount, storyLines,
   isPostedStatus, isFilmedStatus, linkInfo, isUrlLike, itemStageOf, ITEM_STAGE_LABEL, TYPES, typeOf, typePatch, CONTENT, PLATFORM_TONE,
 } from "./planner";
@@ -471,7 +472,8 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
           </div>
         )}
 
-        {/* the content concept: Phase · Era, then Arc · Format (the era's arcs first) */}
+        {/* the content concept: Phase · Era, then Arc · Format (the era's arcs first) ·
+            @createbylynn: one field, its series (by category and arc) */}
         <WinHead icon={IC.bulb} label="Concept" tone={accT} />
         {(() => {
           const arcs = planner.arcs.filter(a => a.account === it.account).sort((a, b) => a.num - b.num);
@@ -491,6 +493,23 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
             const keep = !!next && !!it.plan.era && next.eras.some(e => e.key === it.plan.era);
             savePlan({ phase: n, era: keep ? it.plan.era : null });
           };
+          // @createbylynn: a series, picked by category · arc (no phases, no formats)
+          if (arcs.some(isSeries)) {
+            const groups = CONCEPT_CATEGORIES.flatMap(c => CONCEPT_ARCS.map(g => ({ key: `${c.key}-${g.key}`, label: `${c.label} · ${g.label}`, list: seriesOf(arcs, c.key, g.key) })))
+              .filter(g => g.list.length);
+            return (
+              <MiniSelect value={it.plan.arc || ""} muted={!it.plan.arc} aria-label="Series"
+                onChange={(e: any) => savePlan({ arc: String(e.target.value || "") || null, arcFormat: null })}>
+                <option value="">Pick a series</option>
+                {it.plan.arc && !arc && <option value={it.plan.arc}>Not in the concept any more</option>}
+                {groups.map(g => (
+                  <optgroup key={g.key} label={g.label}>
+                    {g.list.map((a, k) => <option key={a.id} value={a.id}>{`${k + 1}. ${seriesName(arcs, a)}`}</option>)}
+                  </optgroup>
+                ))}
+              </MiniSelect>
+            );
+          }
           // a new arc keeps the format if it has one of the same name
           const pickArc = (id: string) => {
             if (!id) { savePlan({ arc: null, arcFormat: null }); return; }

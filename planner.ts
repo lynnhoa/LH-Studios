@@ -229,18 +229,48 @@ export const typePatch = (acc: Account, type: string): Partial<Item> =>
 // ── Content concept (profile menu › @… concept): one row per arc ─────────────
 // Arcs, purpose, formats and their platform ticks come from the SQL (fixed);
 // the texts and links of each arc are written in the app.
+// @createbylynn: one row per SERIES instead — its category (Hair · Makeup & skincare ·
+// Both) and its arc (Look · Product · Personality · Editorial) say where it sits;
+// num is the order over the whole account (unique), the page numbers each arc 1, 2, 3 …
 export interface ConceptFormat { name: string; main: boolean; tt: boolean; ig: boolean; }
 export interface ConceptLink   { url: string; note: string; }
+export type ConceptCategory = "hair" | "makeup" | "both";
+export type ConceptArcKey   = "look" | "product" | "personality" | "editorial";
 export interface ConceptArc {
-  id:      string;
-  account: Account;
-  num:     number;            // 1, 2, 3 … top to bottom
-  name:    string;
-  purpose: string;
-  formats: ConceptFormat[];   // in order; main = the arc's main format(s)
-  texts:   string[];          // example lines
-  links:   ConceptLink[];     // reference posts: link + what it shows
+  id:       string;
+  account:  Account;
+  num:      number;            // 1, 2, 3 … top to bottom
+  name:     string;
+  purpose:  string;
+  formats:  ConceptFormat[];   // in order; main = the arc's main format(s)
+  texts:    string[];          // example lines (a series of the Look arc: its labels)
+  links:    ConceptLink[];     // reference posts: link + what it shows
+  category: ConceptCategory | null;   // a series only (@createbylynn)
+  arc:      ConceptArcKey | null;     // a series only: the arc it belongs to
 }
+// @createbylynn's concept: the three categories (the switch) and the four arcs (the sections)
+export const CONCEPT_CATEGORIES: { key: ConceptCategory; label: string }[] = [
+  { key: "hair", label: "Hair" }, { key: "makeup", label: "Makeup & skincare" }, { key: "both", label: "Both" },
+];
+export const CONCEPT_ARCS: { key: ConceptArcKey; label: string }[] = [
+  { key: "look", label: "Look" }, { key: "product", label: "Product" }, { key: "personality", label: "Personality" }, { key: "editorial", label: "Editorial" },
+];
+export const isSeries = (a: ConceptArc) => !!a.category && !!a.arc;
+// a series of the Look arc has labels (the title on the video), every other one texts
+export const seriesWord = (a: ConceptArc): "labels" | "texts" => (a.arc === "look" ? "labels" : "texts");
+// "Hair · Look" — where a series sits
+export const seriesPlace = (a: ConceptArc) =>
+  `${CONCEPT_CATEGORIES.find(c => c.key === a.category)?.label || ""} · ${CONCEPT_ARCS.find(x => x.key === a.arc)?.label || ""}`;
+// the series of one category and arc, in order (the page numbers them 1, 2, 3 …)
+export const seriesOf = (list: ConceptArc[], cat: ConceptCategory, arc: ConceptArcKey) =>
+  list.filter(a => a.category === cat && a.arc === arc).sort((a, b) => a.num - b.num);
+// a series' name where it's picked or shown outside the page: names used in two categories get
+// theirs ("Techniques (hair)" · "Techniques (makeup)")
+export const seriesName = (list: ConceptArc[], a: ConceptArc) =>
+  isSeries(a) && list.filter(x => x.account === a.account && isSeries(x) && x.name === a.name).length > 1 ? `${a.name} (${a.category})` : a.name;
+// a series' number on the page: its place within its category and arc
+export const seriesNum = (list: ConceptArc[], a: ConceptArc) =>
+  isSeries(a) ? seriesOf(list.filter(x => x.account === a.account), a.category!, a.arc!).findIndex(x => x.id === a.id) + 1 : a.num;
 // Phases (fixed by the SQL): where you are in life (Home, Occasion, Invited …). Each phase has
 // its recurring eras; each era names its core arcs by number, in posting order. An era's arcs
 // ARE the arcs above (same purpose, formats, texts and links): nothing is copied.

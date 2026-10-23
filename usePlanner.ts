@@ -65,6 +65,9 @@ const rowToArc = (r: any): ConceptArc => ({
   links:   (Array.isArray(r.links) ? r.links : [])
     .map((l: any) => ({ url: String(l?.url ?? "").trim(), note: String(l?.note ?? "").trim() }))
     .filter((l: { url: string; note: string }) => l.url || l.note),
+  // @createbylynn: a series — its category and its arc (empty on @lynnhoa's arcs)
+  category: ["hair", "makeup", "both"].includes(r.category) ? r.category : null,
+  arc:      ["look", "product", "personality", "editorial"].includes(r.arc) ? r.arc : null,
 });
 const CONCEPT_MISSING = "The concept table doesn't exist yet — run the concept SQL in Supabase once.";
 // one phase with its eras (fixed by the SQL); an era's arcs are numbers pointing at the arcs above
