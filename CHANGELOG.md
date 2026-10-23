@@ -1,3 +1,12 @@
+# Contacts tab · smooth with the keyboard (23.10.2026)
+- Contact, New contact, Log pitch, Import and Filter don't move or resize with the iPhone keyboard
+  any more (Sheet `still`): iPhone scrolls the screen itself, in one smooth move. The title stays,
+  no strip of the page shows, nothing jumps back when the keyboard closes. While typing, the
+  footer waits under the keyboard (tap ✓). The other windows are unchanged for now.
+- Add contact: the same window becomes the saved contact (no close + reopen blink).
+  "Open that contact" (same email) still opens a fresh window with that contact's own values.
+- Changed: `atoms.tsx` (`useKeyboardInset(on)`, Sheet `still`), `EmailList.tsx`.
+
 # CHANGELOG — Old-app parity implementation (Phases 0–4 + PWA)
 
 Goal: make the Supabase app functionally identical to the old reference

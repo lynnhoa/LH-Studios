@@ -129,6 +129,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
   const [openId, setOpenId]   = useState<string | null>(null);
   const [adding, setAdding]   = useState(false);                 // "+ Add": the contact window, empty
   const newC = useMemo(() => (adding ? newContact() : null), [adding]);
+  const [winKey, setWinKey] = useState(0);                        // a new key = a fresh contact window
   const setToast = (t: string | null) => { if (t) showNote(t); };   // the app-wide message (same look as the save message)
   const [busy, setBusy]       = useState(false);
   const [showLog, setShowLog] = useState(false);
@@ -513,16 +514,18 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
 
       {/* ── FILTER (phone): the same sheet as every window ── */}
       {open === "filter" && isMobile && (
-        <Sheet title="Filter" onClose={() => setOpen(null)} right={resetBtn}
+        <Sheet title="Filter" still onClose={() => setOpen(null)} right={resetBtn}
           footer={<SheetButton dark onClick={() => setOpen(null)}>{showLabel}</SheetButton>}>
           {filterFields}
         </Sheet>
       )}
 
       {/* ── CONTACT WINDOW ── */}
-      {current && <ContactWindow c={current} outreach={outreach} kit={kit} onWritten={written} isMobile={isMobile} onClose={() => setOpenId(null)} onCopy={(t) => copy(t, "Email copied ✓")} />}
-      {adding && !current && newC && <ContactWindow c={newC} isNew outreach={outreach} kit={kit} isMobile={isMobile} onClose={() => setAdding(false)} onCopy={(t) => copy(t, "Email copied ✓")}
-        onOpen={(id) => { setAdding(false); setOpenId(id); }} />}
+      {/* one window: after Add contact the same window becomes the saved contact (no close + reopen blink);
+          "Open that contact" (same email) opens a fresh window for the other contact */}
+      {(current || (adding && newC)) && <ContactWindow key={`contact-${winKey}`} c={(current || newC)!} isNew={!current} outreach={outreach} kit={kit} onWritten={current ? written : undefined} isMobile={isMobile}
+        onClose={() => { setOpenId(null); setAdding(false); }} onCopy={(t) => copy(t, "Email copied ✓")}
+        onOpen={current ? undefined : (id, fresh) => { if (fresh) setWinKey(k => k + 1); setAdding(false); setOpenId(id); }} />}
 
       {/* ── LOG A PITCH FOR THE CONTACTS IN VIEW ── */}
       {showLog && <LogWindow ids={shown.map((c: OutreachContact) => c.id)} followUp={view.status === "followup"} outreach={outreach} isMobile={isMobile}
@@ -530,7 +533,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
 
       {/* ── IMPORT WINDOW: the three steps ── */}
       {showCols && (
-        <Sheet title="Import contacts" onClose={() => setShowCols(false)} footer={<SheetButton onClick={() => setShowCols(false)}>Done</SheetButton>}>
+        <Sheet title="Import contacts" still onClose={() => setShowCols(false)} footer={<SheetButton onClick={() => setShowCols(false)}>Done</SheetButton>}>
           <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: "0 0 10px", lineHeight: 1.6 }}>
             1 · Build your Excel with these columns (first row).<br />
             2 · Copy the prompt, paste it into Claude and attach the Excel.<br />
@@ -624,7 +627,7 @@ const linkBtn: any = { background: "none", border: "none", padding: "4px 2px", c
 // Card: Status · Last contact · (Lead → Client) · Template + Write
 // Contact card: 34 px rows, label left, value right — tap a value to type (City · Country share a row)
 // Timeline card · added · footer: one button — Done, Save as soon as you type (stays open after Save)
-function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy, isNew, onOpen }: { c: OutreachContact; outreach: any; kit?: any; onWritten?: (msg: string, undo: () => Promise<void>) => void; isMobile: boolean; onClose: () => void; onCopy: (t: string) => void; isNew?: boolean; onOpen?: (id: string) => void }) {
+function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy, isNew, onOpen }: { c: OutreachContact; outreach: any; kit?: any; onWritten?: (msg: string, undo: () => Promise<void>) => void; isMobile: boolean; onClose: () => void; onCopy: (t: string) => void; isNew?: boolean; onOpen?: (id: string, fresh?: boolean) => void }) {
   // what you type: the shared draft (atoms) — status, dates and the rest always come from the stored contact
   const dr = useDraft<Partial<OutreachContact>>(pickFields(c), { frozen: !!isNew, same: (a, b) => sameFields(a as any, b as any) });
   const f = { ...c, ...dr.d } as OutreachContact;
@@ -670,6 +673,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
     setBusy(true);
     try {
       if (isNew) {
+        dr.saving();                              // the same window becomes the saved contact: take what's stored
         const n = await outreach.addContact(clean);
         try { localStorage.setItem(DEFAULTS_KEY, JSON.stringify({ category: clean.category, tier: clean.tier })); } catch { /* ignore */ }
         onOpen?.(n.id);
@@ -788,13 +792,13 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
   return (
     <>
       {askDelete && <ConfirmDialog title={`Delete ${c.company || c.email}?`} text="The contact is removed from your email list." okLabel="Delete" danger onOk={del} onCancel={() => setAskDelete(false)} />}
-      <Sheet title={isNew ? "New contact" : c.company || c.email} onClose={onClose} dirty={changed}
+      <Sheet title={isNew ? "New contact" : c.company || c.email} still onClose={onClose} dirty={changed}
         right={isNew ? null : <MoreMenu bare items={[{ label: "Delete contact", danger: true, onClick: () => setAskDelete(true) }]} />}
         footer={isNew ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Add contact"}</SheetButton>
           : changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton>
           : <SheetButton onClick={onClose}>Done</SheetButton>}>
         {err && <SheetErr>{err}</SheetErr>}
-        {dupId && onOpen && <B v="sec" onClick={() => onOpen(dupId)} s={{ marginBottom: 10 }}>Open that contact</B>}
+        {dupId && onOpen && <B v="sec" onClick={() => onOpen(dupId, true)} s={{ marginBottom: 10 }}>Open that contact</B>}
 
         {/* ── status · last contact · (lead → client) · template + write ── */}
         {!isNew && !outreach.pitchError && (
@@ -965,7 +969,7 @@ function LogWindow({ ids, followUp, outreach, isMobile, onClose, onDone }: { ids
     finally { setBusy(false); }
   };
   return (
-    <Sheet title="Log pitch" onClose={onClose}
+    <Sheet title="Log pitch" still onClose={onClose}
       footer={<SheetButton dark dim={busy} onClick={go}>{busy ? "Logging…" : `Log ${n}`}</SheetButton>}>
       {err && <SheetErr>{err}</SheetErr>}
       <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>For the {n} {n === 1 ? "contact" : "contacts"} in view — one entry each in the pitch log. UGC contacts count for @createbylynn, all others for @lynnhoa.</p>

@@ -841,17 +841,17 @@ export const SwitchPill = ({ children, s }: { children: any; s?: any }) => (
 
 // How much of the screen the on-screen keyboard covers (iPhone / iPad), so a bottom sheet can sit on top
 // of it — its buttons stay visible while typing. 0 on a computer or with the keyboard closed.
-export function useKeyboardInset(): number {
+export function useKeyboardInset(on = true): number {
   const [kb, setKb] = useState(0);
   useEffect(() => {
     const vv: any = (window as any).visualViewport;
-    if (!vv) return;
+    if (!on || !vv) { setKb(0); return; }
     const calc = () => setKb(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)));
     calc();
     vv.addEventListener("resize", calc); vv.addEventListener("scroll", calc);
     return () => { vv.removeEventListener("resize", calc); vv.removeEventListener("scroll", calc); };
-  }, []);
-  return kb > 60 ? kb : 0;                         // small differences (browser bars) aren't a keyboard
+  }, [on]);
+  return on && kb > 60 ? kb : 0;                         // small differences (browser bars) aren't a keyboard
 }
 
 // ─── SHEET — every item window, one build, one look (SHEET in constants) ─
@@ -862,8 +862,10 @@ export function useKeyboardInset(): number {
 //   content  the cream, with white cards (SHEET_CARD) under section heads (SheetHead)
 //   footer   white bar with the bottom-bar shadow: one SheetButton — Done, or the main action
 //   dirty    something typed that isn't saved: ✕, tap outside and Escape ask first (Discard · Keep editing)
-export const Sheet = ({ title, onClose, right, children, footer, dirty }: { title: string; onClose: () => void; right?: any; children: any; footer?: any; dirty?: boolean }) => {
-  const kb = useKeyboardInset();
+//   still    the keyboard doesn't move or resize the sheet: iPhone scrolls the screen itself, in one smooth move,
+//            and the footer waits under the keyboard (tap ✓). Tried on the Contacts tab first.
+export const Sheet = ({ title, onClose, right, children, footer, dirty, still }: { title: string; onClose: () => void; right?: any; children: any; footer?: any; dirty?: boolean; still?: boolean }) => {
+  const kb = useKeyboardInset(!still);
   const [ask, setAsk] = useState(false);
   const close = () => { if (dirty) setAsk(true); else onClose(); };
   useEscape(true, close);                         // the question, once open, answers Escape itself (Keep editing)
