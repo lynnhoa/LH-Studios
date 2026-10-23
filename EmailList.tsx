@@ -12,7 +12,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { C, SANS, SERIF, TYPE, Z, PAL, RADIUS, SHADOW } from "./constants";
 import { fmtD } from "./formatters";
-import { B, I, MenuSelect, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet, SheetHead, SheetButton, SHEET_CARD, SHEET_CAPS, useEscape, Chip, ChipRow, MiniInput } from "./atoms";
+import { B, I, MenuSelect, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet, SheetHead, SheetButton, SheetErr, SHEET_CARD, SHEET_CAPS, useEscape, useDraft, Chip, ChipRow, MiniInput } from "./atoms";
 import { MoreMenu } from "./PlannerWindows";
 import {
   OUTREACH_CATEGORIES, OUTREACH_TIERS, OUTREACH_COLUMNS, STATUS_FILTERS, SORTS, ADDED, DEFAULT_VIEW, CHIPS, PIPELINES, NO_TIER,
@@ -625,19 +625,16 @@ const linkBtn: any = { background: "none", border: "none", padding: "4px 2px", c
 // Contact card: 34 px rows, label left, value right — tap a value to type (City · Country share a row)
 // Timeline card · added · footer: one button — Done, Save as soon as you type (stays open after Save)
 function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy, isNew, onOpen }: { c: OutreachContact; outreach: any; kit?: any; onWritten?: (msg: string, undo: () => Promise<void>) => void; isMobile: boolean; onClose: () => void; onCopy: (t: string) => void; isNew?: boolean; onOpen?: (id: string) => void }) {
-  const [f, setF] = useState(c);
+  // what you type: the shared draft (atoms) — status, dates and the rest always come from the stored contact
+  const dr = useDraft<Partial<OutreachContact>>(pickFields(c), { frozen: !!isNew, same: (a, b) => sameFields(a as any, b as any) });
+  const f = { ...c, ...dr.d } as OutreachContact;
+  const setF = (next: OutreachContact | ((x: OutreachContact) => OutreachContact)) =>
+    dr.setD(x => pickFields(typeof next === "function" ? next({ ...c, ...x } as OutreachContact) : next));
   const [dupId, setDupId] = useState<string | null>(null);     // the contact that already has this email
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [askDelete, setAskDelete] = useState(false);
-  const [askDiscard, setAskDiscard] = useState(false);
-  const changed = !sameFields(f, c);
-  // the stored contact changed (status, a save, a reload): keep what's being typed, take over the rest
-  const prevC = useRef(c);
-  useEffect(() => {
-    setF(x => (sameFields(x, prevC.current) ? { ...c } : { ...x, status: c.status, lastContact: c.lastContact, replyAt: c.replyAt, replyNew: c.replyNew, clientId: c.clientId }));
-    prevC.current = c;
-  }, [c]);
+  const changed = dr.changed;
   // opening a contact clears its new-reply dot
   useEffect(() => { if (!isNew && c.replyNew && outreach.markSeen) outreach.markSeen(c.id).catch(() => {}); }, [c.id, c.replyNew]);
 
@@ -679,14 +676,13 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
         return;
       }
       setF(clean);
+      dr.saving();
       await outreach.updateContact(c.id, pickFields(clean));
       showNote("Saved ✓");
     }
-    catch (e: any) { setErr(e?.message || "Couldn't save."); if (e?.existingId) setDupId(e.existingId); }
+    catch (e: any) { dr.failed(); setErr(e?.message || "Couldn't save."); if (e?.existingId) setDupId(e.existingId); }
     finally { setBusy(false); }
   };
-  // ✕, tap outside, Escape: with unsaved typing, ask first
-  const close = () => { if (changed) setAskDiscard(true); else onClose(); };
   const del = async () => {
     setAskDelete(false);
     try { await outreach.deleteContact(c.id); onClose(); }
@@ -792,13 +788,12 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
   return (
     <>
       {askDelete && <ConfirmDialog title={`Delete ${c.company || c.email}?`} text="The contact is removed from your email list." okLabel="Delete" danger onOk={del} onCancel={() => setAskDelete(false)} />}
-      {askDiscard && <ConfirmDialog title="Discard your changes?" text="What you typed isn't saved yet." okLabel="Discard" cancelLabel="Keep editing" onOk={() => { setAskDiscard(false); onClose(); }} onCancel={() => setAskDiscard(false)} />}
-      <Sheet title={isNew ? "New contact" : c.company || c.email} onClose={close}
+      <Sheet title={isNew ? "New contact" : c.company || c.email} onClose={onClose} dirty={changed}
         right={isNew ? null : <MoreMenu bare items={[{ label: "Delete contact", danger: true, onClick: () => setAskDelete(true) }]} />}
         footer={isNew ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Add contact"}</SheetButton>
           : changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton>
           : <SheetButton onClick={onClose}>Done</SheetButton>}>
-        {err && <p role="alert" style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 2px 8px" }}>{err}</p>}
+        {err && <SheetErr>{err}</SheetErr>}
         {dupId && onOpen && <B v="sec" onClick={() => onOpen(dupId)} s={{ marginBottom: 10 }}>Open that contact</B>}
 
         {/* ── status · last contact · (lead → client) · template + write ── */}
@@ -972,7 +967,7 @@ function LogWindow({ ids, followUp, outreach, isMobile, onClose, onDone }: { ids
   return (
     <Sheet title="Log pitch" onClose={onClose}
       footer={<SheetButton dark dim={busy} onClick={go}>{busy ? "Logging…" : `Log ${n}`}</SheetButton>}>
-      {err && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
+      {err && <SheetErr>{err}</SheetErr>}
       <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>For the {n} {n === 1 ? "contact" : "contacts"} in view — one entry each in the pitch log. UGC contacts count for @createbylynn, all others for @lynnhoa.</p>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
         <div><Lbl>Type</Lbl>

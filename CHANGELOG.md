@@ -176,6 +176,47 @@ Goal: make the Supabase app functionally identical to the old reference
 - Dashboard: an odd last Creator tile spans both columns (like Manager).
 - No SQL. Changed: `planner.ts`, `PlannerCreator.tsx`, `PlannerOverview.tsx`.
 
+## Modals · clean-up: one draft helper, the sheet guards closing (23.10.2026)
+- `useDraft` (atoms.tsx): the one keeper of what you type — Contact, Media kits, Template, Sprint,
+  the catalog windows and the Workspace item all use it. Spaces at the ends and empty vs. missing
+  don't count as a change (Template: categories in any order). A background update replaces the
+  values only while nothing is typed. `saving()` right before a save: the stored value comes back
+  and Save turns into Done. `frozen` for something new (a new template keeps its picked kit).
+- `Sheet dirty`: ✕, tap outside and Escape ask before throwing typing away — in every window,
+  Add comments and new catalog items included; something new and empty just goes.
+- Usage / exclusivity: Move up / down keeps the window open and the typing.
+- Documents: a new, unsaved document (from the Calculator) shows its pages only, as before; a saved
+  draft opens ready to edit.
+- MiniArea re-measures when its width changes (rotating the iPad); volume discount fields at the
+  standard height; a wrong media-kit link shows its error under that kit; errors scroll into view.
+- Checked: 30 click tests on the windows, type-check, build, screenshots on iPhone and iPad.
+- No SQL. Changed: `atoms.tsx`, `EmailList.tsx`, `EmailKit.tsx`, `PlannerWindows.tsx`,
+  `ServiceCatalog.tsx`, `CreatorWorkspace.tsx`, `Comments.tsx`, `PDFModal.tsx`.
+
+## Modals · Phases 2–5: every window one level (23.10.2026)
+- Shared parts (atoms.tsx): `SheetRow` / `SheetPair` (label-left rows), `SheetAction` (top card),
+  `SheetMeta`, `SheetErr`, `DiscardDialog`, `MiniArea` (text of several lines, drawn at 13 px,
+  grows), `NumField bare`, `ROW_ICON`; `MoreMenu` (⋯) moved here and drawn on top of everything
+  (a portal), so no card cuts it off — PlannerWindows re-exports it. Document windows: `DocBar`,
+  `DocTabs`, `DocFoot`, `DOC_PAGES`.
+- The rule everywhere: the fields are the view (no Edit step), Done → Save as soon as you type
+  (the window stays open), something new → Add …, ✕ with unsaved typing asks first, Delete /
+  Move up / Move down in ⋯ top right.
+- Phase 2 · Email kit: Media kits (View link with ↗ · PDF with Share and ⋯ Replace / Delete or
+  Upload PDF · File · Focus; "Link updated …" under each kit) and Template (top card: media kit
+  — saved at once — · Share PDF · Copy text; Template card; Text card with Subject and the text).
+- Phase 3 · Sprint: one view — top card (running day, pitches / follow-ups against the goals in
+  pistachio once reached, End sprint), Plan card, Results card always there. No review mode.
+- Phase 4 · Service catalog (item · usage / exclusivity · card settings) and Creator › Workspace
+  item: one level; section icons in the card's colour.
+- Phase 5 · Document windows (quote / contract / invoice / license, rate card, renewal, new rate
+  card): the same 48 px bar (✕ · title · EN/DE · status), Edit | Preview on the phone, the same
+  bottom bar with its shadow, the same grey behind the pages. A draft opens ready to edit (fields
+  next to the pages on iPad / computer) — Save appears when you type; EN/DE on an unchanged draft
+  is still kept right away.
+- No SQL. Changed: `atoms.tsx`, `EmailKit.tsx`, `PlannerWindows.tsx`, `ServiceCatalog.tsx`,
+  `CreatorWorkspace.tsx`, `PDFModal.tsx`, `RenewalModal.tsx`.
+
 ## Modals · one sheet, one stylesheet, colour and depth — Phase 1 (23.10.2026)
 - One build for every item window: `Sheet` (atoms.tsx) with its parts `SheetHead`
   (section: coloured icon circle + small caps), `SHEET_CARD`, `SHEET_CAPS` and
@@ -194,8 +235,6 @@ Goal: make the Supabase app functionally identical to the old reference
   Log pitch and Add comments one dark button (✕ cancels); Import gets Done; Filter:
   Reset top right, "Show n contacts" at the bottom.
 - Media kits: the rows sit in white cards.
-- Still to come: Phase 2 Outreach + Email kit one level (Media kits, Template),
-  Phase 3 Sprint, Phase 4 Service catalog + Workspace item, Phase 5 document windows.
 - No SQL. Changed: `constants.ts`, `atoms.tsx`, `PlannerWindows.tsx`,
   `PlannerConcept.tsx`, `EmailList.tsx`, `EmailKit.tsx`, `Comments.tsx`.
 

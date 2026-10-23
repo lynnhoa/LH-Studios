@@ -6,23 +6,29 @@
 //   read view → Edit (name, note, card, own date) → Save back to the read view.
 //   No tap-to-change on tags or names any more.
 // ─────────────────────────────────────────────────────────────
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { C, SANS, SERIF, TYPE, PAL, RADIUS, SHADOW, Z, TRACK, SPACING } from "./constants";
 import { fmtD } from "./formatters";
-import { SummaryLine, Strong, Chip, ChipRow, SearchField, SectionHead, ListCard, TonedTag, Sheet, PillBtn, I, S, Row, ColGroups } from "./atoms";
+import { SummaryLine, Strong, Chip, ChipRow, SearchField, SectionHead, ListCard, TonedTag, Sheet, PillBtn, I, S, Row, ColGroups,
+  SheetHead, SheetRow, SheetAction, SheetMeta, SheetErr, SheetButton, MoreMenu, useDraft, MiniInput, MenuSelect, SHEET_CARD, SHEET_CAPS } from "./atoms";
+import { Ico, IC } from "./PlannerWindows";
 import { getWsItems, isOverdue, isThisWeek, fmtDeadline, finalStatus, statusRank, shownStatus, WS_CATS, WS_CAT_LABEL } from "./wsHelpers";
 import { catTone, statusTone, Tick2 } from "./CreatorShared";
-import { showUndo } from "./undo";
+import { showUndo, showNote } from "./undo";
 
 type By = "urgency" | "client" | "card" | "status";
 
+// ── Item window — one level, the fields are the view (like the contact window) ──
+// Top card: status · deadline · its steps. Card: Name · Card · Own date · Note. ⋯ Remove item (with Undo).
+// Footer: Done → Save as soon as you type (the window stays open); ✕ with unsaved typing asks first.
 function ItemWindow({ item, project, clientsHook, onClose }: any) {
-  const [mode, setMode] = useState<"read" | "edit">("read");
-  const [d, setD] = useState({ name: item.name, note: item.notes || "", cat: item.category, own: item.ownDate || "" });
+  // what you type: the shared draft (atoms)
+  const { d, setD, changed, saving, failed } = useDraft({ name: item.name as string, note: (item.notes || "") as string, cat: item.category as string, own: (item.ownDate || "") as string });
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { if (mode === "read") setD({ name: item.name, note: item.notes || "", cat: item.category, own: item.ownDate || "" }); }, [item, mode]);
+  const [busy, setBusy] = useState(false);
   const save = async () => {
-    setErr(null);
+    if (busy) return;
+    setErr(null); setBusy(true); saving();             // the saved values come back and replace the draft
     try {
       const h = clientsHook, cid = item.clientId, pid = item.projectId, id = item.id;
       if (d.name.trim() !== item.name) await h.patchWs(cid, pid, "workspaceNames", { [id]: d.name.trim() && d.name.trim() !== item.defaultName ? d.name.trim() : null });
@@ -33,48 +39,53 @@ function ItemWindow({ item, project, clientsHook, onClose }: any) {
         if (d.own) map[id] = d.own; else delete map[id];
         await h.updateProject(cid, pid, { workspacePlanner: map });
       }
-      setMode("read");
-    } catch (e: any) { setErr(e?.message || "Couldn't save."); }
+      showNote("Saved ✓");
+    } catch (e: any) { failed(); setErr(e?.message || "Couldn't save."); }
+    finally { setBusy(false); }
+  };
+  // not needed any more: gone from the Workspace and the counts; Undo here, Restore in Projects › Production
+  const remove = async () => {
+    try {
+      await clientsHook.setWsStatus(item.clientId, item.projectId, [{ id: item.id, status: "Removed" }]);
+      showUndo("Item removed", () => clientsHook.revertWsStatus(item.clientId, item.projectId, [item.id], "Removed"));
+      onClose();
+    } catch (e: any) { setErr(e?.message || "Couldn't remove."); }
   };
   const steps = (item.history || []).map((x: any) => `${shownStatus(x.status)} ${fmtDeadline(x.date)}`).join(" · ");
-  const LBL: any = { fontSize: TYPE.micro.size, textTransform: "uppercase", letterSpacing: TRACK.caps, color: C.muted, margin: "12px 0 5px" };
+  const late = !item.done && isOverdue(item.deadline), soon = !item.done && !late && isThisWeek(item.deadline);
   return (
-    <Sheet title={`Item · ${WS_CAT_LABEL[item.category] || item.category}`} onClose={mode === "edit" ? () => setMode("read") : onClose}
-      right={mode === "read" ? <PillBtn onClick={() => setMode("edit")}>Edit</PillBtn> : null}
-      footer={mode === "edit" ? <>
-        <PillBtn onClick={() => setMode("read")} s={{ flex: 1, height: 40, justifyContent: "center" }}>Cancel</PillBtn>
-        <PillBtn dark onClick={save} s={{ flex: 1.4, height: 40, justifyContent: "center" }}>Save</PillBtn>
-      </> : undefined}>
-      {mode === "read" ? <>
-        <div style={{ fontFamily: SERIF, fontSize: TYPE.tile.size }}>{item.name}</div>
-        <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 3 }}>{item.clientName} · {item.projectName}</div>
-        <ListCard s={{ marginTop: 12 }}>
-          <Row first title="Card" right={<TonedTag tone={catTone(item.category)}>{WS_CAT_LABEL[item.category] || item.category}</TonedTag>} s={{ minHeight: 44 }} />
-          <Row title="Deadline" meta={item.ownDate ? "your own date" : item.deadline ? "the delivery date" : "none yet"} right={<span style={{ fontSize: TYPE.row.size }}>{item.deadline ? fmtD(item.deadline) : "—"}</span>} />
-          <Row title="Status" meta={steps || "no steps yet"} right={<TonedTag tone={statusTone(item.status, item.done)}>{shownStatus(item.status)}</TonedTag>} />
-          {item.notes && <Row title="Note" meta={item.notes} />}
-        </ListCard>
-        {/* not needed any more: gone from the Workspace and the counts; Undo here, Restore in Projects › Production */}
-        <button onClick={async () => {
-            try {
-              await clientsHook.setWsStatus(item.clientId, item.projectId, [{ id: item.id, status: "Removed" }]);
-              showUndo("Item removed", () => clientsHook.revertWsStatus(item.clientId, item.projectId, [item.id], "Removed"));
-              onClose();
-            } catch (e: any) { setErr(e?.message || "Couldn't remove."); }
-          }}
-          style={{ marginTop: 14, background: "none", border: "none", padding: "0 2px", minHeight: 36, cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.red }}>Remove item</button>
-        {err && <div style={{ fontSize: TYPE.subtext.size, color: PAL.late.ink, marginTop: 4 }}>{err}</div>}
-      </> : <>
-        <div style={{ ...LBL, marginTop: 0 }}>Name</div><I value={d.name} onChange={(e: any) => setD(x => ({ ...x, name: e.target.value }))} aria-label="Name" />
-        <div style={LBL}>Note</div><I value={d.note} onChange={(e: any) => setD(x => ({ ...x, note: e.target.value }))} aria-label="Note" />
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
-          <div><div style={LBL}>Card</div><S value={d.cat} aria-label="Card" onChange={(e: any) => setD(x => ({ ...x, cat: e.target.value }))}>{WS_CATS.map(c => <option key={c} value={c}>{WS_CAT_LABEL[c]}</option>)}</S></div>
-          <div><div style={LBL}>Own date</div><I type="date" value={d.own} onChange={(e: any) => setD(x => ({ ...x, own: e.target.value }))} aria-label="Own date" /></div>
+    <>
+      <Sheet title={`Item · ${WS_CAT_LABEL[item.category] || item.category}`} onClose={onClose} dirty={changed}
+        right={<MoreMenu items={[{ label: "Remove item", danger: true, onClick: remove }]} />}
+        footer={changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton> : <SheetButton onClick={onClose}>Done</SheetButton>}>
+        {err && <SheetErr>{err}</SheetErr>}
+        <SheetAction>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
+            <div><div style={{ ...SHEET_CAPS, margin: "0 2px 4px" }}>Status</div>
+              <div style={{ height: 24, display: "flex", alignItems: "center" }}><TonedTag tone={statusTone(item.status, item.done)}>{shownStatus(item.status)}</TonedTag></div></div>
+            <div><div style={{ ...SHEET_CAPS, margin: "0 2px 4px" }}>Deadline</div>
+              <div style={{ height: 24, display: "flex", alignItems: "center", padding: "0 2px", fontSize: TYPE.row.size, color: late ? PAL.late.ink : soon ? PAL.waiting.ink : item.deadline ? C.black : C.light }}>
+                {item.deadline ? fmtD(item.deadline) : "—"}
+              </div></div>
+          </div>
+          <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "6px 2px 0", lineHeight: 1.4 }}>
+            {steps || "No steps yet"} · {item.ownDate ? "your own date" : item.deadline ? "the delivery date" : "no deadline yet"}
+          </p>
+        </SheetAction>
+        <SheetHead icon={<Ico d={IC.camera} size={11} />} label="Item" tone={catTone(item.category)} />
+        <div style={SHEET_CARD}>
+          <SheetRow first label="Name"><MiniInput bare value={d.name} aria-label="Name" onChange={(e: any) => setD(x => ({ ...x, name: e.target.value }))} /></SheetRow>
+          <SheetRow label="Card">
+            <MenuSelect bare value={d.cat} aria-label="Card" onChange={(e: any) => setD(x => ({ ...x, cat: e.target.value }))}>
+              {WS_CATS.map(c => <option key={c} value={c}>{WS_CAT_LABEL[c]}</option>)}
+            </MenuSelect>
+          </SheetRow>
+          <SheetRow label="Own date"><MiniInput bare type="date" value={d.own} aria-label="Own date" onChange={(e: any) => setD(x => ({ ...x, own: e.target.value }))} /></SheetRow>
+          <SheetRow label="Note"><MiniInput bare value={d.note} placeholder="Add a note" aria-label="Note" onChange={(e: any) => setD(x => ({ ...x, note: e.target.value }))} /></SheetRow>
         </div>
-        <div style={{ fontSize: TYPE.subtext.size, color: C.muted, marginTop: 6 }}>Empty = the project's delivery date.</div>
-        {err && <div style={{ fontSize: TYPE.subtext.size, color: PAL.late.ink, marginTop: 8 }}>{err}</div>}
-      </>}
-    </Sheet>
+        <SheetMeta>{item.clientName} · {item.projectName} · Own date empty = the project's delivery date</SheetMeta>
+      </Sheet>
+    </>
   );
 }
 

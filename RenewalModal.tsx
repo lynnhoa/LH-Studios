@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 import { editLock } from "./saveStatus";
 import { C, SANS, SERIF, TYPE, Z, TRACK, RADIUS, ICON } from "./constants";
 import { fmt, fmtD, addM, addD, today, r2 } from "./formatters";
-import { I, S, B, Lbl, Pill, CatPill, LangSwitch, BAR_BTN, NumField, ConfirmDialog, MiniInput, MiniSelect, PillBtn } from "./atoms";
+import { I, S, B, Lbl, Pill, CatPill, LangSwitch, BAR_BTN, NumField, ConfirmDialog, MiniInput, MiniSelect, PillBtn, DocBar, DocTabs, DocFoot, DOC_PAGES } from "./atoms";
 import { currentContractOf } from "./money";
 import { retainerMonths } from "./wsHelpers";
 import DocPages from "./DocPages";
@@ -272,34 +272,22 @@ export default function RenewalModal({ p, onSave, onClose, rc: rawRc, settings, 
 
   return createPortal(
     <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
-      <div style={{ borderBottom: `1px solid ${C.rule}`, flexShrink: 0 }}>
-        <div style={{ height: 48, display: "flex", alignItems: "center", padding: "0 8px 0 2px", gap: 6 }}>
-          <button onClick={tryClose} aria-label="Close" style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: ICON.close }}>✕</button>
-          <span style={{ flex: 1, minWidth: 0, textAlign: "center" as const, fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{isAmendMode ? `Rights extension · ${p.name}` : `Renewal · ${p.name}`}</span>
-          <LangSwitch lang={lang} onChange={setLang as any} />
-        </div>
-        {isM && (
-          <div style={{ display: "flex", gap: 6, padding: "0 10px 8px" }}>
-            <Pill size="sm" on={view === "edit"} onClick={() => setView("edit")}>Edit</Pill>
-            <Pill size="sm" on={view === "preview"} onClick={() => setView("preview")}>Preview</Pill>
-          </div>
-        )}
-      </div>
+      <DocBar title={<>{isAmendMode ? `Rights extension · ${p.name}` : `Renewal · ${p.name}`}</>} onClose={tryClose} right={<LangSwitch lang={lang} onChange={setLang as any} />} />
+      {isM && <DocTabs view={view} onView={setView} />}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {(!isM || view === "edit") && (
           <div style={{ width: isM ? "100%" : 400, flexShrink: 0, display: "flex", flexDirection: "column", borderRight: isM ? "none" : `1px solid ${C.rule}` }}>
             <div style={{ flex: 1, overflowY: "auto", padding: "0 14px 16px", background: C.bg }}>{panel}</div>
-            {!isM && <div style={{ padding: "11px 14px 14px", borderTop: `1px solid ${C.line}`, flexShrink: 0, background: C.white }}>{footer}</div>}
           </div>
         )}
         {(!isM || view === "preview") && (
-          <div style={{ flex: 1, background: C.muted, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isM ? "20px 12px" : "32px 28px", gap: isM ? 16 : 28 }}>
+          <div style={{ flex: 1, background: DOC_PAGES, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isM ? "20px 12px" : "32px 28px", gap: isM ? 16 : 28 }}>
             <DocPages doc={{ ...doc, lang: lang as any }} settings={settings} client={client} lang={lang} scale={scale} />
           </div>
         )}
       </div>
-      {/* phone: the total and Save stay at the bottom in Edit and in Preview */}
-      {isM && <div style={{ padding: "11px 14px calc(14px + env(safe-area-inset-bottom))", borderTop: `1px solid ${C.line}`, flexShrink: 0, background: C.white }}>{footer}</div>}
+      {/* the total and Save: the shared bottom bar (in Edit and in Preview) */}
+      <DocFoot><div style={{ flex: 1, minWidth: 0 }}>{footer}</div></DocFoot>
       {askClose && <ConfirmDialog title={isAmendMode ? "Discard this amendment?" : "Discard this renewal?"} text="What you chose here isn't saved." okLabel="Discard" danger
         onOk={() => { setAskClose(false); onClose(); }} onCancel={() => setAskClose(false)} />}
     </div>,

@@ -4,7 +4,7 @@
 // Desktop + iPad + PWA iOS safe.
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { C, SANS, SERIF, TYPE, STATUS_COLOR, STATUS_NAME, catInfo, Z, SIZE, PAL, STATUS_TONE, TRACK, RADIUS, SHADOW, ICON, expiryTone, DENSITY, SPACING, BREAKPOINT, WIDE, SHEET } from "./constants";
 import { fmtD, dLeft, today, parseDE, fmtNumDE } from "./formatters";
@@ -191,16 +191,16 @@ export const Pill = ({ on, onClick, children, size }: any) => (
 // Keeps what you type while the field is active; shows German format
 // when you leave it. onChange gets a number (or null when empty).
 // mini = drawn at row size (13 px) inside panels — see MiniInput.
-export function NumField({ value, onChange, minDec = 2, placeholder, s, ariaLabel, mini }: {
+export function NumField({ value, onChange, minDec = 2, placeholder, s, ariaLabel, mini, bare }: {
   value: number | null | undefined; onChange: (n: number | null) => void; minDec?: number;
-  placeholder?: string; s?: any; ariaLabel?: string; mini?: boolean;
+  placeholder?: string; s?: any; ariaLabel?: string; mini?: boolean; bare?: boolean;   // bare: no frame (a value in a sheet row)
 }) {
   const [text, setText] = useState(() => fmtNumDE(value, minDec));
   const [focused, setFocused] = useState(false);
   useEffect(() => { if (!focused) setText(fmtNumDE(value, minDec)); }, [value, focused, minDec]);
   const Field = mini ? MiniInput : I;
   return (
-    <Field type="text" inputMode="decimal" value={text} placeholder={placeholder} s={s} aria-label={ariaLabel}
+    <Field type="text" inputMode="decimal" value={text} placeholder={placeholder} s={s} aria-label={ariaLabel} {...(mini && bare ? { bare: true } : {})}
       onFocus={() => setFocused(true)}
       onBlur={() => { setFocused(false); setText(fmtNumDE(parseDE(text), minDec)); }}
       onChange={(e: any) => { setText(e.target.value); onChange(parseDE(e.target.value)); }} />
@@ -861,18 +861,22 @@ export function useKeyboardInset(): number {
 //   header   48 px on the cream: ✕ · TITLE (small caps) · right (⋯, a pill …)
 //   content  the cream, with white cards (SHEET_CARD) under section heads (SheetHead)
 //   footer   white bar with the bottom-bar shadow: one SheetButton — Done, or the main action
-export const Sheet = ({ title, onClose, right, children, footer }: { title: string; onClose: () => void; right?: any; children: any; footer?: any }) => {
+//   dirty    something typed that isn't saved: ✕, tap outside and Escape ask first (Discard · Keep editing)
+export const Sheet = ({ title, onClose, right, children, footer, dirty }: { title: string; onClose: () => void; right?: any; children: any; footer?: any; dirty?: boolean }) => {
   const kb = useKeyboardInset();
-  useEscape(true, onClose);
+  const [ask, setAsk] = useState(false);
+  const close = () => { if (dirty) setAsk(true); else onClose(); };
+  useEscape(true, close);                         // the question, once open, answers Escape itself (Keep editing)
   const pad = SHEET.pad;
   return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", flexDirection: "column", justifyContent: "flex-end", fontFamily: SANS, paddingBottom: kb }}>
-      <div onClick={onClose} aria-hidden="true" style={{ position: "absolute", inset: 0, background: SHEET.dim }} />
+      {ask && <DiscardDialog onDiscard={() => { setAsk(false); onClose(); }} onKeep={() => setAsk(false)} />}
+      <div onClick={close} aria-hidden="true" style={{ position: "absolute", inset: 0, background: SHEET.dim }} />
       <div role="dialog" aria-modal="true" aria-label={title}
         style={{ position: "relative", background: SHEET.surface, borderRadius: `${RADIUS.button}px ${RADIUS.button}px 0 0`, boxShadow: SHADOW.sheet,
           maxHeight: kb ? `calc(100vh - ${kb + 12}px)` : "88vh", display: "flex", flexDirection: "column", width: "100%", maxWidth: SHEET.width, margin: "0 auto", color: C.black }}>
         <div style={{ height: SHEET.head, display: "flex", alignItems: "center", gap: 4, padding: "0 10px 0 4px", flexShrink: 0 }}>
-          <button onClick={onClose} aria-label="Close" style={{ width: DENSITY.tap, height: DENSITY.tap, background: "none", border: "none", fontSize: ICON.close, color: C.muted, cursor: "pointer", flexShrink: 0 }}>✕</button>
+          <button onClick={close} aria-label="Close" style={{ width: DENSITY.tap, height: DENSITY.tap, background: "none", border: "none", fontSize: ICON.close, color: C.muted, cursor: "pointer", flexShrink: 0 }}>✕</button>
           <span style={{ ...SHEET_CAPS, flex: 1, minWidth: 0, textAlign: "center" as const, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, padding: "0 6px" }}>{title}</span>
           <span style={{ minWidth: DENSITY.tap, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2, flexShrink: 0 }}>{right}</span>
         </div>
@@ -898,6 +902,179 @@ export const SheetHead = ({ icon, label, tone, right, first }: { icon: any; labe
       {label}
     </span>
     {right}
+  </div>
+);
+// one row of a sheet card: the small-caps label on the left, the value (a field) on the right ·
+// right = a small action at the end (copy, open …) · top = the label stays at the top (a text of several lines)
+export const SheetRow = ({ label, children, first, right, top, labelW = SHEET.label }: { label: any; children: any; first?: boolean; right?: any; top?: boolean; labelW?: number }) => (
+  <div className="lh-cfrow" style={{ display: "flex", alignItems: top ? "flex-start" : "center", gap: 8, minHeight: SHEET.row, padding: "0 6px 0 12px", borderTop: first ? "none" : `1px solid ${C.hair}` }}>
+    <span style={{ ...SHEET_CAPS, width: labelW, flexShrink: 0, paddingTop: top ? 11 : 2 }}>{label}</span>
+    <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+    {right}
+  </div>
+);
+// two short values in one row (City · Country): each half with its own label
+export const SheetPair = ({ first, left, right }: { first?: boolean; left: { label: any; w: number; node: any }; right: { label: any; w: number; node: any } }) => (
+  <div style={{ display: "flex", minHeight: SHEET.row, borderTop: first ? "none" : `1px solid ${C.hair}` }}>
+    {[left, right].map((h, i) => (
+      <div key={i} className="lh-cfrow" style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0, minHeight: SHEET.row, padding: i ? "0 6px 0 10px" : "0 6px 0 12px", borderLeft: i ? `1px solid ${C.hair}` : "none" }}>
+        <span style={{ ...SHEET_CAPS, width: h.w, flexShrink: 0, paddingTop: 2 }}>{h.label}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>{h.node}</div>
+      </div>
+    ))}
+  </div>
+);
+// the top card of a window: where it stands + its main action (Status · Write, Copy text, End sprint …)
+export const SheetAction = ({ children, s }: { children: any; s?: any }) => <div style={{ ...SHEET_CARD, padding: "8px 10px 10px", ...s }}>{children}</div>;
+// a small grey line under a card (Added …, Link updated …, a hint)
+export const SheetMeta = ({ children, s }: { children: any; s?: any }) => <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "6px 2px 0", lineHeight: 1.5, overflowWrap: "anywhere" as const, ...s }}>{children}</p>;
+// what went wrong, at the top of the window
+export const SheetErr = ({ children }: { children: any }) => {
+  const ref = useRef<HTMLParagraphElement | null>(null);
+  useEffect(() => { ref.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }); }, [children]);   // seen, wherever you were scrolled
+  return <p ref={ref} role="alert" style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 2px 8px", lineHeight: 1.5 }}>{children}</p>;
+};
+// ─── DRAFT — what you type in a window, kept apart from what's stored ─────
+// One helper for every window (Contact, Media kits, Template, Sprint, catalog, Workspace):
+//   d · setD   what's on screen (your typing)
+//   changed    something typed that isn't stored yet. Spaces at the ends and empty vs. missing
+//              don't count; a window can pass its own same() (e.g. categories in any order)
+//   saving()   call it right before a save starts: the stored value that comes back replaces the
+//              draft (Save → Done), even when it was cleaned up on the way
+//   failed()   the save didn't go through: the typing stays
+// A new stored value (a save elsewhere, a reload) replaces the draft only while nothing is typed.
+// frozen (something new, not saved yet): updates from outside are ignored.
+const normDraft = (v: any): any => {
+  if (typeof v === "string") { const t = v.trim(); return t === "" ? undefined : t; }
+  if (v === null || v === undefined) return undefined;
+  if (Array.isArray(v)) return v.map(normDraft);
+  if (typeof v === "object") { const o: any = {}; Object.keys(v).sort().forEach(k => { const x = normDraft(v[k]); if (x !== undefined) o[k] = x; }); return o; }
+  return v;
+};
+export const sameDraft = (a: any, b: any) => JSON.stringify(normDraft(a) ?? null) === JSON.stringify(normDraft(b) ?? null);
+const copyDraft = <T,>(v: T): T => (v === undefined || v === null ? v : JSON.parse(JSON.stringify(v)));
+export function useDraft<T>(stored: T, opts: { frozen?: boolean; same?: (a: T, b: T) => boolean } = {}) {
+  const same = opts.same || sameDraft;
+  const [d, setD] = useState<T>(() => copyDraft(stored));
+  const key = JSON.stringify(stored ?? null);
+  const seen  = useRef(key);       // the stored value this window last took
+  const base  = useRef(stored);
+  const adopt = useRef(false);
+  useEffect(() => {
+    if (key === seen.current) return;
+    seen.current = key;
+    const before = base.current;
+    base.current = stored;
+    if (opts.frozen) return;
+    const take = adopt.current;    // read now (not later inside setD): no timing surprises
+    adopt.current = false;
+    setD(x => (take || same(x, before) ? copyDraft(stored) : x));
+  }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps
+  return {
+    d, setD, changed: !same(d, stored),
+    saving: () => { adopt.current = true; },
+    failed: () => { adopt.current = false; },
+  };
+}
+
+// ✕, tap outside or Escape with unsaved typing: ask first
+export const DiscardDialog = ({ onDiscard, onKeep }: { onDiscard: () => void; onKeep: () => void }) => (
+  <ConfirmDialog title="Discard your changes?" text="What you typed isn't saved yet." okLabel="Discard" cancelLabel="Keep editing" onOk={onDiscard} onCancel={onKeep} />
+);
+// a small round-free icon button at the end of a row (copy, open the link …)
+export const ROW_ICON: any = { width: 30, height: 30, background: "none", border: "none", cursor: "pointer", color: C.light, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 };
+
+// ⋯ — a window's extra actions (Delete, Move up …) in a small card under the dots.
+// Drawn on top of everything (a portal), so no card or sheet cuts it off; opens upwards near the bottom.
+export function MoreMenu({ items, size = 40 }: { items: { label: string; danger?: boolean; onClick: () => void }[]; size?: number; bare?: boolean }) {
+  const [box, setBox] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
+  const btn = useRef<HTMLButtonElement | null>(null);
+  const open = () => {
+    const r = btn.current?.getBoundingClientRect(); if (!r) return;
+    const h = items.length * 32 + 12, vh = window.innerHeight, right = Math.max(8, window.innerWidth - r.right);
+    setBox(vh - r.bottom >= h + 8 ? { top: r.bottom + 2, right } : { bottom: vh - r.top + 2, right });
+  };
+  return (
+    <>
+      <button ref={btn} onClick={(e) => { e.stopPropagation(); if (box) setBox(null); else open(); }} aria-label="More" title="More" aria-expanded={!!box}
+        style={{ width: size, height: size, border: "none", background: "none", color: C.muted, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M5 12h.01M12 12h.01M19 12h.01" /></svg>
+      </button>
+      {box && createPortal(
+        <div onClick={() => setBox(null)} style={{ position: "fixed", inset: 0, zIndex: Z.dialog + 50 }}>
+          <div role="menu" onClick={(e) => e.stopPropagation()}
+            style={{ position: "fixed", top: box.top, bottom: box.bottom, right: box.right, minWidth: 170, background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, boxShadow: SHADOW.pop, padding: "5px 0", fontFamily: SANS }}>
+            {items.map(it => (
+              <button key={it.label} role="menuitem" onClick={() => { setBox(null); it.onClick(); }}
+                style={{ display: "flex", alignItems: "center", width: "100%", height: 32, padding: "0 13px", border: "none", background: "none", color: it.danger ? C.red : C.black, fontFamily: SANS, fontSize: TYPE.row.size, cursor: "pointer", textAlign: "left" as const }}>
+                {it.label}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body)}
+    </>
+  );
+}
+
+// a text of several lines in a sheet card (a template's text, fine print): drawn at 13 px like the rows,
+// typed at 16 px underneath (no iPhone zoom), grows with the text. pad = [top · bottom, sides] in px
+export function MiniArea({ value, onChange, placeholder, ariaLabel, minRows = 4, pad = [10, 12] }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; ariaLabel?: string; minRows?: number; pad?: [number, number];
+}) {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+  const box = useRef<HTMLSpanElement | null>(null);
+  const k = TYPE.row.size / TYPE.field.size;
+  const [h, setH] = useState(0);
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const el = box.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(es => { const cw = Math.round(es[0]?.contentRect.width || 0); setW(x => (x === cw ? x : cw)); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return;
+    el.style.height = "0px";
+    const sh = Math.max(el.scrollHeight, Math.ceil(minRows * 16 * 1.5 + (2 * pad[0]) / k));
+    el.style.height = `${sh}px`;
+    setH(Math.ceil(sh * k));
+  }, [value, minRows, w]);
+  return (
+    <span ref={box} style={{ position: "relative", display: "block", width: "100%", height: h || undefined }}>
+      <textarea ref={ref} value={value} placeholder={placeholder} aria-label={ariaLabel} onChange={(e) => onChange(e.target.value)}
+        style={{ position: "absolute", left: 0, top: 0, width: `${100 / k}%`, transform: `scale(${k})`, transformOrigin: "left top", boxSizing: "border-box" as const,
+          fontSize: 16, lineHeight: 1.5, fontFamily: SANS, color: C.black, padding: `${pad[0] / k}px ${pad[1] / k}px`, border: "none", outline: "none",
+          resize: "none" as const, background: "transparent", overflow: "hidden", margin: 0, display: "block", WebkitAppearance: "none" as const }} />
+    </span>
+  );
+}
+
+// ─── DOCUMENT WINDOWS — one build for the full-screen windows with A4 pages ─
+// (quote · contract · invoice · license, rate card, renewal / amendment, new rate card)
+//   DocBar   48 px: ✕ · TITLE (small caps, centred) · EN/DE, the status on the right
+//   DocTabs  phone only: Edit | Preview (the fields and the pages can't sit side by side)
+//   DocFoot  the white bottom bar with its shadow: a message line · a light button left, the dark one right
+//   DOC_PAGES the grey behind the pages
+export const DOC_PAGES = C.muted;
+export const DocBar = ({ title, onClose, right }: { title?: any; onClose: () => void; right?: any }) => (
+  <div style={{ height: SHEET.head, borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", gap: 6, padding: "0 8px 0 2px", flexShrink: 0, background: C.bg }}>
+    <button onClick={onClose} aria-label="Close" title="Close" style={{ width: DENSITY.tap, height: DENSITY.tap, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: ICON.close, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+    <span style={{ ...SHEET_CAPS, flex: 1, minWidth: 0, textAlign: "center" as const, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, padding: "0 6px" }}>{title}</span>
+    <span style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>{right}</span>
+  </div>
+);
+export const DocTabs = ({ view, onView }: { view: "edit" | "preview"; onView: (v: "edit" | "preview") => void }) => (
+  <div style={{ display: "flex", gap: 6, padding: "8px 10px", borderBottom: `1px solid ${C.rule}`, flexShrink: 0, background: C.bg }}>
+    <Pill size="sm" on={view === "edit"} onClick={() => onView("edit")}>Edit</Pill>
+    <Pill size="sm" on={view === "preview"} onClick={() => onView("preview")}>Preview</Pill>
+  </div>
+);
+export const DocFoot = ({ msg, children }: { msg?: { text: string; err?: boolean } | null; children: any }) => (
+  <div style={{ flexShrink: 0, background: C.white, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar, padding: "11px 14px calc(14px + env(safe-area-inset-bottom, 0px))", fontFamily: SANS }}>
+    {msg && <div role="status" style={{ fontSize: TYPE.subtext.size, color: msg.err ? C.red : C.muted, lineHeight: 1.4, margin: "0 2px 9px" }}>{msg.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center" }}>{children}</div>
   </div>
 );
 // the footer button: Done (light) · Save, Add …, the main action (dark) — full width in the white bar

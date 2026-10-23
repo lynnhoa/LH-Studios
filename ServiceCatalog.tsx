@@ -10,9 +10,11 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
-import { C, SANS, SERIF, TYPE, Z, catInfo, PDF, PAL, DENSITY, RADIUS, SHADOW, TRACK, ICON, cardTone } from "./constants";
+import { C, SANS, SERIF, TYPE, Z, catInfo, PDF, PAL, DENSITY, RADIUS, SHADOW, TRACK, ICON, cardTone, SHEET } from "./constants";
 import { uid, fmt, pctSpace, fmtD, today } from "./formatters";
-import { I, S, B, Lbl, Pill, Tick, ConfirmDialog, LangSwitch, BAR_BTN, NumField, PillBtn, Chip, ChipRow, SummaryLine, Strong, SectionHead, ListCard, Row, Switch, Stepper, Sheet } from "./atoms";
+import { I, S, B, Lbl, Pill, Tick, ConfirmDialog, LangSwitch, BAR_BTN, NumField, PillBtn, Chip, ChipRow, SummaryLine, Strong, SectionHead, ListCard, Row, Switch, Stepper, Sheet,
+  SheetHead, SheetRow, SheetPair, SheetMeta, SheetErr, SheetButton, MoreMenu, useDraft, MiniInput, MenuSelect, MiniArea, SHEET_CARD, DocBar, DocTabs, DocFoot, DOC_PAGES } from "./atoms";
+import { showNote } from "./undo";
 import { SETTINGS_DEFAULT } from "./rateCards";
 import { pagesToPdf, isMobileDevice } from "./PDFExport";
 import { editLock } from "./saveStatus";
@@ -235,41 +237,31 @@ function CardShell({ title, card, settings, panel, footer, onClose }: any) {
 
   return createPortal(
     <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
-      <div style={{ borderBottom: `1px solid ${C.rule}`, flexShrink: 0 }}>
-        <div style={{ height: 44, display: "flex", alignItems: "center", padding: "0 8px 0 2px", gap: 6 }}>
-          <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 20 }}>✕</button>
-          <span style={{ fontFamily: SERIF, fontSize: TYPE.body.size, color: C.black, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{title}</span>
-          <div style={{ flex: 1 }} />
-          <LangSwitch lang={lang} onChange={setLang} />
-          <B onClick={download} s={{ ...BAR_BTN, opacity: busy ? 0.5 : 1 }}>{busy ? "Preparing…" : "Share PDF"}</B>
-        </div>
+      <div style={{ flexShrink: 0 }}>
+        <DocBar title={title} onClose={onClose}
+          right={<><LangSwitch lang={lang} onChange={setLang} /><B onClick={download} s={{ ...BAR_BTN, opacity: busy ? 0.5 : 1 }}>{busy ? "Preparing…" : "Share PDF"}</B></>} />
         {ready && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: PAL.done.wash, borderTop: `1px solid ${C.rule}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: PAL.done.wash, borderBottom: `1px solid ${C.rule}` }}>
             <span style={{ flex: 1, fontSize: 13, color: PAL.done.ink }}>PDF ready</span>
             {ready.canShare && <B onClick={share} s={{ minHeight: 36 }}>Share</B>}
             <B v="sec" onClick={() => window.open(ready.url, "_blank")} s={{ minHeight: 36 }}>Open</B>
           </div>
         )}
-        {isM && (
-          <div style={{ display: "flex", gap: 6, padding: "0 10px 8px" }}>
-            <Pill size="sm" on={view === "edit"} onClick={() => setView("edit")}>Edit</Pill>
-            <Pill size="sm" on={view === "preview"} onClick={() => setView("preview")}>Preview</Pill>
-          </div>
-        )}
+        {isM && <DocTabs view={view} onView={setView} />}
       </div>
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {(!isM || view === "edit") && (
           <div style={{ width: isM ? "100%" : 380, flexShrink: 0, display: "flex", flexDirection: "column", borderRight: isM ? "none" : `1px solid ${C.rule}` }}>
             <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px 14px", WebkitOverflowScrolling: "touch" as any }}>{panel}</div>
-            {footer && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.rule}`, flexShrink: 0 }}>{footer}</div>}
           </div>
         )}
         {(!isM || view === "preview") && (
-          <div ref={previewRef} style={{ flex: 1, background: "#888", overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isM ? "20px 12px" : "32px 28px", gap: isM ? 16 : 28 }}>
+          <div ref={previewRef} style={{ flex: 1, background: DOC_PAGES, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isM ? "20px 12px" : "32px 28px", gap: isM ? 16 : 28 }}>
             <RCPages card={card} lang={lang} settings={settings} scale={scale} />
           </div>
         )}
       </div>
+      {footer && <DocFoot><div style={{ flex: 1, minWidth: 0 }}>{footer}</div></DocFoot>}
     </div>,
     document.body
   );
@@ -386,6 +378,8 @@ function RateCardWindow({ card, cardKey, cardName, settings, clientNames, onClos
   const isMobile  = winW < 768;
   const scale     = isMobile ? Math.min(1, (winW - 32) / 595) : 1;
   const editing   = staged !== null;
+  const [view, setView] = useState<"edit" | "preview">("edit");               // phone: Edit | Preview while "For a client"
+  useEffect(() => { if (editing) setView("edit"); }, [editing]);
   const forName   = applied.forName.trim();
   const adjusted  = rcAdjusted(applied);
   const shownCard = useMemo(() => adjustCard(card, applied), [card, applied]);
@@ -535,27 +529,23 @@ function RateCardWindow({ card, cardKey, cardName, settings, clientNames, onClos
     </div>
   );
 
-  const showPreview = !isMobile || !editing;
+  const showPreview = !isMobile || !editing || view === "preview";
   return createPortal(
     <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS, color: C.black }}>
 
-      {/* ── TOP BAR: close · language · status ── */}
-      <div style={{ height: 44, borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", padding: "0 8px 0 2px", gap: 6, flexShrink: 0 }}>
-        <button onClick={onClose} aria-label="Close" title="Close"
-          style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: ICON.close, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
-        <LangSwitch lang={lang} onChange={setLang} />
-        {badge}
-      </div>
+      {/* ── TOP BAR: ✕ · the card · EN/DE · status (the shared document bar) ── */}
+      <DocBar title={cardName} onClose={onClose} right={<><LangSwitch lang={lang} onChange={setLang} />{badge}</>} />
+      {isMobile && editing && <DocTabs view={view} onView={setView} />}
 
       {/* ── BODY: the "For a client" view (phone: instead of the pages) · the pages ── */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden", flexDirection: isMobile ? "column" : "row" }}>
-        {editing && (
+        {editing && (!isMobile || view === "edit") && (
           <div style={{ width: isMobile ? "100%" : 360, flexShrink: 0, display: "flex", flexDirection: "column", borderRight: isMobile ? "none" : `1px solid ${C.rule}`, flex: isMobile ? 1 : undefined, minHeight: 0 }}>
             {panel}
           </div>
         )}
         {showPreview && (
-          <div style={{ flex: 1, background: C.muted, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isMobile ? "16px 0" : "32px 28px", gap: isMobile ? 16 : 28, WebkitOverflowScrolling: "touch" as any }}>
+          <div style={{ flex: 1, background: DOC_PAGES, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isMobile ? "16px 0" : "32px 28px", gap: isMobile ? 16 : 28, WebkitOverflowScrolling: "touch" as any }}>
             <RCPages card={stagedCard || shownCard} lang={lang} settings={settings} scale={scale} cardKey={cardKey}
               prepared={staged ? preparedFor(staged.forName) : prepared} />
             {!editing && (
@@ -568,14 +558,11 @@ function RateCardWindow({ card, cardKey, cardName, settings, clientNames, onClos
         )}
       </div>
 
-      {/* ── BOTTOM BAR: one main button (right) · one more (left) ── */}
-      <div style={{ flexShrink: 0, background: C.white, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar, padding: "11px 14px calc(14px + env(safe-area-inset-bottom, 0px))", fontFamily: SANS }}>
-        {msg && <div role="status" style={{ fontSize: TYPE.subtext.size, color: msg.err ? C.red : C.muted, lineHeight: 1.4, margin: "0 2px 9px" }}>{msg.text}</div>}
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          {barBtn(side, false)}
-          {barBtn(main, true)}
-        </div>
-      </div>
+      {/* ── BOTTOM BAR: one main button (right) · one more (left) — the shared document bar ── */}
+      <DocFoot msg={msg}>
+        {barBtn(side, false)}
+        {barBtn(main, true)}
+      </DocFoot>
     </div>,
     document.body
   );
@@ -762,233 +749,211 @@ const LBLS: any = { fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTr
 const SMALLT: any = { fontSize: TYPE.subtext.size, color: C.muted };
 const redLink: any = { background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: C.red, minHeight: 36, padding: "0 4px" };
 
+// ── the catalog windows — one level, like the contact window ─────────────
+// The fields are the view; ⋯ Move up · Move down · Delete…; footer Done → Save as soon as you type
+// (the window stays open) · something new: Add (✕ before adding drops it). Section icons in the
+// card's colour (Brand Collab pink · UGC blue · Editorial butter · Hotels pistachio).
+const P_BOX  = "M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10";
+const P_PCT  = "M19 5L5 19M7 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM17 19.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z";
+const P_LIST = "M9 6h11M9 12h11M9 18h11M5 6h.01M5 12h.01M5 18h.01";
+const xBtn: any = { width: 30, height: 30, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 13, flexShrink: 0, padding: 0 };
+const arrowBtn: any = { ...xBtn, fontSize: TYPE.figure.size };
+const addRow: any = { display: "flex", alignItems: "center", width: "100%", minHeight: SHEET.row, padding: "0 12px", background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.row.size, color: C.muted, textAlign: "left" };
+const tinyMuted: any = { fontSize: TYPE.row.size, color: C.muted };
+// a switch inside a 34 px row (its 44 px tap area reaches over the row's edges)
+const RowSwitch = ({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) => <span style={{ margin: "-5px -6px -5px 0", display: "flex" }}><Switch on={on} onChange={onChange} label={label} /></span>;
+
 // ── Item window (deliverable · package · add-on · line) ─────
 function ItemWindow({ kind, item, card, cardKey, cardName, isNew, onSave, onDelete, onMove, onClose }: any) {
-  const clone = (x: any) => JSON.parse(JSON.stringify(x || {}));
-  const [mode, setMode] = useState<"read" | "edit">(isNew ? "edit" : "read");
-  const [d, setD] = useState<any>(() => clone(item));
+  const { d, setD, changed, saving } = useDraft<any>(item || {}, { frozen: !!isNew });
   const [askDel, setAskDel] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { if (mode === "read") setD(clone(item)); }, [item, mode]);
   const delivs = delivsOf(card);
   const pv = kind === "packages" ? packValue(d, delivs) : null;
   // the packages that contain this deliverable (named when it's deleted)
   const usedIn = kind === "deliverables" ? (card.sections || []).filter((s: any) => sectionKind(s) === "packages").flatMap((s: any) => s.items || [])
     .filter((p: any) => (p.includes || []).some((x: any) => norm(x.n) === norm(item?.n))) : [];
   const pct = retainerPctOf(card);
-  const cancel = () => { setErr(null); if (isNew) onDelete(true); else { setD(clone(item)); setMode("read"); } };
+  const tone = cardTone(cardKey);
+  const up = (patch: any) => setD((x: any) => ({ ...x, ...patch }));
   const save = () => {
     if (!String(d.n || "").trim()) { setErr("Add a name."); return; }
-    onSave({ ...d, n: String(d.n).trim() }); setErr(null); setMode("read");
+    setErr(null); saving(); onSave({ ...d, n: String(d.n).trim() }); showNote(isNew ? "Added ✓" : "Saved ✓");
   };
-  const up = (patch: any) => setD((x: any) => ({ ...x, ...patch }));
+  // ✕ / outside / Escape: the sheet asks first when anything is typed; something new and empty just goes
+  const close = isNew ? () => onDelete(true) : onClose;
   const volRow = kind === "info" && isVolRow(item);
-  const priceText = kind === "addons" ? addonPriceText(d) : kind === "info" ? (volRow ? "" : pctSpace(d.m || "")) : d.p !== null && d.p !== undefined ? money(d.p) : "";
+  const eur = d.p !== null && d.p !== undefined;
+  const retainerText = kind === "info" ? withRetainer(d.note, pct) : "";
   return (
-    <Sheet title={`${KIND_NAME[kind] || "Item"} · ${cardName}`} onClose={mode === "edit" ? cancel : onClose}
-      right={mode === "read" ? <PillBtn onClick={() => setMode("edit")}>Edit</PillBtn> : null}
-      footer={mode === "edit" ? <>
-        <PillBtn onClick={cancel} s={{ flex: 1, height: 40, justifyContent: "center" }}>Cancel</PillBtn>
-        <PillBtn dark onClick={save} s={{ flex: 1.4, height: 40, justifyContent: "center" }}>Save</PillBtn>
-      </> : undefined}>
+    <>
       {askDel && <ConfirmDialog title={`Delete "${item.n}"?`} text={`It's removed from this rate card${usedIn.length ? ` and from ${usedIn.length === 1 ? "the package" : `${usedIn.length} packages:`} ${usedIn.map((p: any) => `“${p.n}”`).join(", ")}` : ""}. Quotes already made keep their prices.`} okLabel="Delete" danger onOk={() => { setAskDel(false); onDelete(false); }} onCancel={() => setAskDel(false)} />}
-      {mode === "read" ? <>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-          <span style={{ fontFamily: SERIF, fontSize: TYPE.tile.size }}>{pctSpace(item.n)}</span>
-          <span style={{ fontFamily: SERIF, fontSize: TYPE.tile.size, whiteSpace: "nowrap" as const }}>{priceText}</span>
+      <Sheet title={`${KIND_NAME[kind] || "Item"} · ${cardName}`} onClose={close} dirty={changed}
+        right={isNew ? null : <MoreMenu items={[{ label: "Move up", onClick: () => onMove(-1) }, { label: "Move down", onClick: () => onMove(1) }, { label: "Delete…", danger: true, onClick: () => setAskDel(true) }]} />}
+        footer={isNew ? <SheetButton dark onClick={save}>Add</SheetButton> : changed ? <SheetButton dark onClick={save}>Save</SheetButton> : <SheetButton onClick={onClose}>Done</SheetButton>}>
+        {err && <SheetErr>{err}</SheetErr>}
+        <div style={{ ...SHEET_CARD, marginTop: 2 }}>
+          <SheetRow first label="Name"><MiniInput bare value={d.n || ""} autoFocus={!!isNew} placeholder="Name" aria-label="Name" onChange={(e: any) => up({ n: e.target.value })} /></SheetRow>
+          {(kind === "deliverables" || kind === "packages") && (
+            <SheetRow label="Price" right={<span style={{ ...tinyMuted, paddingRight: 6 }}>€</span>}>
+              <NumField mini bare value={d.p ?? null} placeholder="0,00" onChange={(n) => up({ p: n === null ? null : Math.max(0, n) })} ariaLabel="Price" />
+            </SheetRow>
+          )}
+          {kind === "addons" && (
+            <SheetPair
+              left={{ label: "As", w: 22, node: (
+                <MenuSelect bare value={d.pct !== null && d.pct !== undefined && !eur ? "pct" : "eur"} aria-label="Charged as"
+                  onChange={(e: any) => up(e.target.value === "pct" ? { pct: d.pct ?? 30, p: null } : { p: d.p ?? 50, pct: null })}>
+                  <option value="eur">€</option><option value="pct">%</option>
+                </MenuSelect>) }}
+              right={{ label: eur ? "Price" : "Percent", w: 56, node: (
+                <NumField mini bare minDec={eur ? 2 : 0} value={eur ? d.p : (d.pct ?? null)} ariaLabel="Add-on price"
+                  onChange={(n) => { const v = Math.max(0, n || 0); up(eur ? { p: v } : { pct: v }); }} />) }} />
+          )}
+          {kind === "info" && !volRow && <SheetRow label="Value"><MiniInput bare value={d.m || ""} placeholder="Text on the right" aria-label="Text on the right" onChange={(e: any) => up({ m: e.target.value })} /></SheetRow>}
+          <SheetRow label="Note"><MiniInput bare value={d.note || ""} placeholder="Add a note" aria-label="Note" onChange={(e: any) => up({ note: e.target.value })} /></SheetRow>
+          {kind === "addons" && <>
+            <SheetRow label="Per month" right={<RowSwitch on={!!d.perMonth} onChange={v => up({ perMonth: v })} label="Per month" />}><span style={tinyMuted}>{d.perMonth ? "charged per month" : "charged once"}</span></SheetRow>
+            <SheetRow label="Info only" right={<RowSwitch on={!!d.info} onChange={v => up({ info: v })} label="Info only" />}><span style={tinyMuted}>{d.info ? "shown, not charged" : "charged"}</span></SheetRow>
+            <SheetRow label="To make" right={<RowSwitch on={!!d.work} onChange={v => up({ work: v })} label="Content to produce" />}><span style={tinyMuted}>{d.work ? "content · listed in Production" : "no content to make"}</span></SheetRow>
+          </>}
         </div>
-        {(item.note || kind === "info") && <div style={{ ...SMALLT, marginTop: 3 }}>{kind === "info" ? withRetainer(item.note, pct) : pctSpace(item.note)}</div>}
-        {volRow && <div style={{ ...SMALLT, marginTop: 6 }}>{tiersText(volTiersOf(card, cardKey))} · set in Card settings</div>}
-        {kind === "addons" && <div style={{ ...SMALLT, marginTop: 6 }}>{[item.info ? "info only, not charged" : item.perMonth ? "charged per month" : "charged once", item.work && !item.info ? "content to produce · listed in Production" : null].filter(Boolean).join(" · ")}</div>}
+        {volRow && <SheetMeta>{tiersText(volTiersOf(card, cardKey))} · set in Card settings</SheetMeta>}
+        {retainerText && retainerText !== (d.note || "") && <SheetMeta>On the PDF: {pctSpace(retainerText)}</SheetMeta>}
+
         {kind === "packages" && <>
-          <div style={{ ...LBLS }}>Contents</div>
-          {(item.includes || []).length ? (
-            <ListCard>
-              {(item.includes || []).map((x: any, i: number) => {
-                const dv = delivs.find((dd: any) => norm(dd.n) === norm(x.n));
-                return <Row key={i} first={i === 0} s={{ minHeight: 44 }} title={`${x.qty || 1} × ${x.n}`}
-                  right={<span style={{ fontSize: TYPE.body.size }}>{dv && dv.p !== null && dv.p !== undefined ? money((Number(dv.p) || 0) * (Number(x.qty) || 1)) : "—"}</span>} />;
-              })}
-            </ListCard>
-          ) : <div style={{ fontSize: TYPE.row.size, color: PAL.waiting.ink }}>No contents yet — Edit to add them.</div>}
-          {pv && <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minHeight: 40, padding: "0 12px", marginTop: 8, borderRadius: RADIUS.field, fontSize: TYPE.row.size,
+          <SheetHead icon={<SVG d={P_BOX} size={11} />} label={`Contents · ${(d.includes || []).length}`} tone={tone} />
+          <div style={SHEET_CARD}>
+            {(d.includes || []).map((x: any, i: number) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, minHeight: SHEET.row, padding: "3px 6px 3px 8px", borderTop: i ? `1px solid ${C.hair}` : "none" }}>
+                <div style={{ width: 96, flexShrink: 0 }}><Stepper h={28} value={Number(x.qty) || 1} onChange={v => up({ includes: d.includes.map((y: any, j: number) => (j === i ? { ...y, qty: v } : y)) })} label={`${x.n} quantity`} /></div>
+                <span style={{ flex: 1, minWidth: 0, fontSize: TYPE.row.size, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{x.n}</span>
+                <button onClick={() => up({ includes: d.includes.filter((_: any, j: number) => j !== i) })} aria-label={`Remove ${x.n}`} title="Remove" style={xBtn}>✕</button>
+              </div>
+            ))}
+            {delivs.length > 0 && (
+              <div style={{ padding: "0 6px 0 12px", borderTop: (d.includes || []).length ? `1px solid ${C.hair}` : "none" }}>
+                <MenuSelect bare muted value="" aria-label="Add content" onChange={(e: any) => { const n = e.target.value; if (n) up({ includes: [...(d.includes || []), { n, qty: 1 }] }); }}>
+                  <option value="">+ Add content</option>
+                  {delivs.map((dv: any) => <option key={dv.id || dv.n} value={dv.n}>{dv.n}</option>)}
+                </MenuSelect>
+              </div>
+            )}
+          </div>
+          {pv && <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minHeight: 36, padding: "0 12px", marginTop: 8, borderRadius: RADIUS.field, fontSize: TYPE.row.size,
             background: pv.saves > 0 ? PAL.done.wash : PAL.neutral.wash, color: pv.saves > 0 ? PAL.done.ink : PAL.neutral.ink }}>
             <span>Value {money(pv.value)}</span><span>{pv.saves > 0 ? `saves ${money(pv.saves)} · ${pv.pct} %` : "no saving"}</span>
           </div>}
         </>}
-        {(kind === "deliverables" || kind === "packages") && <div style={{ ...SMALLT, marginTop: 12 }}>Shown as a tile in the Calculator · {cardName}</div>}
-      </> : <>
-        <div style={{ display: "grid", gridTemplateColumns: kind === "info" || kind === "addons" ? "1fr" : "minmax(0,1.4fr) minmax(0,1fr)", gap: 8 }}>
-          <div><div style={{ ...LBLS, marginTop: 0 }}>Name</div><I value={d.n || ""} onChange={(e: any) => up({ n: e.target.value })} aria-label="Name" /></div>
-          {(kind === "deliverables" || kind === "packages") && <div><div style={{ ...LBLS, marginTop: 0 }}>Price</div><NumField value={d.p ?? null} onChange={(n) => up({ p: n === null ? null : Math.max(0, n) })} ariaLabel="Price" /></div>}
-        </div>
-        {kind === "addons" && (
-          <div style={{ display: "grid", gridTemplateColumns: "96px minmax(0,1fr)", gap: 8 }}>
-            <div><div style={LBLS}>Charged as</div>
-              <S value={d.pct !== null && d.pct !== undefined && (d.p === null || d.p === undefined) ? "pct" : "eur"} aria-label="Charged as"
-                onChange={(e: any) => up(e.target.value === "pct" ? { pct: d.pct ?? 30, p: null } : { p: d.p ?? 50, pct: null })}>
-                <option value="eur">€</option><option value="pct">%</option>
-              </S></div>
-            <div><div style={LBLS}>{d.p !== null && d.p !== undefined ? "Price" : "Percent"}</div>
-              <NumField minDec={d.p !== null && d.p !== undefined ? 2 : 0} value={d.p !== null && d.p !== undefined ? d.p : (d.pct ?? null)} ariaLabel="Add-on price"
-                onChange={(n) => { const v = Math.max(0, n || 0); up(d.p !== null && d.p !== undefined ? { p: v } : { pct: v }); }} /></div>
-          </div>
-        )}
-        {kind === "info" && !volRow && <><div style={LBLS}>Text on the right</div><I value={d.m || ""} onChange={(e: any) => up({ m: e.target.value })} aria-label="Text on the right" /></>}
-        {volRow && <div style={{ ...SMALLT, marginTop: 10 }}>The pieces and percentages come from Card settings → Volume discount.</div>}
-        <div style={LBLS}>Note</div><I value={d.note || ""} onChange={(e: any) => up({ note: e.target.value })} aria-label="Note" />
-        {kind === "addons" && (
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const, marginTop: 6 }}>
-            <span style={{ display: "flex", alignItems: "center" }}><Switch on={!!d.perMonth} onChange={v => up({ perMonth: v })} label="Per month" /><span style={{ fontSize: TYPE.row.size }}>Per month</span></span>
-            <span style={{ display: "flex", alignItems: "center" }}><Switch on={!!d.info} onChange={v => up({ info: v })} label="Info only" /><span style={{ fontSize: TYPE.row.size }}>Info only (not charged)</span></span>
-            <span style={{ display: "flex", alignItems: "center" }}><Switch on={!!d.work} onChange={v => up({ work: v })} label="Content to produce" /><span style={{ fontSize: TYPE.row.size }}>Content to produce</span></span>
-          </div>
-        )}
-        {kind === "packages" && <>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", ...LBLS }}>
-            <span>Contents</span>{pv && <span style={{ letterSpacing: 0, textTransform: "none" as const, fontSize: TYPE.subtext.size, color: pv.saves > 0 ? PAL.done.ink : C.muted }}>value {money(pv.value)}{pv.saves > 0 ? ` · saves ${pv.pct} %` : ""}</span>}
-          </div>
-          {(d.includes || []).map((x: any, i: number) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "116px minmax(0,1fr) auto", alignItems: "center", gap: 8, marginTop: i ? 6 : 0 }}>
-              <Stepper value={Number(x.qty) || 1} onChange={v => up({ includes: d.includes.map((y: any, j: number) => (j === i ? { ...y, qty: v } : y)) })} label={`${x.n} quantity`} />
-              <span style={{ fontSize: TYPE.body.size, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{x.n}</span>
-              <button onClick={() => up({ includes: d.includes.filter((_: any, j: number) => j !== i) })} style={redLink}>Remove</button>
-            </div>
-          ))}
-          {delivs.length > 0 && (
-            <S value="" aria-label="Add content" s={{ marginTop: 6 }} onChange={(e: any) => { const n = e.target.value; if (n) up({ includes: [...(d.includes || []), { n, qty: 1 }] }); }}>
-              <option value="">+ Add content</option>
-              {delivs.map((dv: any) => <option key={dv.id || dv.n} value={dv.n}>{dv.n}</option>)}
-            </S>
-          )}
-        </>}
-        {err && <div style={{ fontSize: TYPE.subtext.size, color: PAL.late.ink, marginTop: 8 }}>{err}</div>}
-        {!isNew && (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
-            <span style={{ display: "flex", gap: 6 }}><PillBtn onClick={() => onMove(-1)}>↑ Up</PillBtn><PillBtn onClick={() => onMove(1)}>↓ Down</PillBtn></span>
-            <button onClick={() => setAskDel(true)} style={redLink}>Delete…</button>
-          </div>
-        )}
-      </>}
-    </Sheet>
+        {(kind === "deliverables" || kind === "packages") && <SheetMeta>Shown as a tile in the Calculator · {cardName}</SheetMeta>}
+      </Sheet>
+    </>
   );
 }
 
 // ── Option window (usage right · exclusivity) ───────────────
 function OptWindow({ kind, opt, cardName, isNew, onSave, onDelete, onMove, onClose }: any) {
-  const [mode, setMode] = useState<"read" | "edit">(isNew ? "edit" : "read");
-  const [d, setD] = useState<any>(() => ({ l: optName(opt?.l), mo: Number(opt?.mo) || 0, pct: Number(opt?.pct) || 0 }));
+  const { d, setD, changed, saving } = useDraft<any>({ l: optName(opt?.l), mo: Number(opt?.mo) || 0, pct: Number(opt?.pct) || 0 }, { frozen: !!isNew });
   const [askDel, setAskDel] = useState(false);
-  useEffect(() => { if (mode === "read") setD({ l: optName(opt?.l), mo: Number(opt?.mo) || 0, pct: Number(opt?.pct) || 0 }); }, [opt, mode]);
-  const cancel = () => { if (isNew) onDelete(true); else setMode("read"); };
-  const save = () => { if (!String(d.l || "").trim()) return; onSave({ l: String(d.l).trim(), mo: d.mo, pct: d.pct }); setMode("read"); };
+  const [err, setErr] = useState<string | null>(null);
+  const save = () => {
+    if (!String(d.l || "").trim()) { setErr("Add a name."); return; }
+    setErr(null); saving(); onSave({ l: String(d.l).trim(), mo: d.mo, pct: d.pct }); showNote(isNew ? "Added ✓" : "Saved ✓");
+  };
+  const close = isNew ? () => onDelete(true) : onClose;
   return (
-    <Sheet title={`${KIND_NAME[kind]} · ${cardName}`} onClose={mode === "edit" ? cancel : onClose}
-      right={mode === "read" ? <PillBtn onClick={() => setMode("edit")}>Edit</PillBtn> : null}
-      footer={mode === "edit" ? <>
-        <PillBtn onClick={cancel} s={{ flex: 1, height: 40, justifyContent: "center" }}>Cancel</PillBtn>
-        <PillBtn dark onClick={save} s={{ flex: 1.4, height: 40, justifyContent: "center" }}>Save</PillBtn>
-      </> : undefined}>
+    <>
       {askDel && <ConfirmDialog title={`Delete "${optName(opt?.l)}"?`} text="It's removed from this rate card. Quotes and licenses already made keep theirs." okLabel="Delete" danger onOk={() => { setAskDel(false); onDelete(false); }} onCancel={() => setAskDel(false)} />}
-      {mode === "read" ? <>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-          <span style={{ fontFamily: SERIF, fontSize: TYPE.tile.size }}>{optName(opt?.l)}</span>
-          <span style={{ fontFamily: SERIF, fontSize: TYPE.tile.size }}>{optValue(opt)}</span>
+      <Sheet title={`${KIND_NAME[kind]} · ${cardName}`} onClose={close} dirty={changed}
+        right={isNew ? null : <MoreMenu items={[{ label: "Move up", onClick: () => onMove(-1) }, { label: "Move down", onClick: () => onMove(1) }, { label: "Delete…", danger: true, onClick: () => setAskDel(true) }]} />}
+        footer={isNew ? <SheetButton dark onClick={save}>Add</SheetButton> : changed ? <SheetButton dark onClick={save}>Save</SheetButton> : <SheetButton onClick={onClose}>Done</SheetButton>}>
+        {err && <SheetErr>{err}</SheetErr>}
+        <div style={{ ...SHEET_CARD, marginTop: 2 }}>
+          <SheetRow first label="Name"><MiniInput bare value={d.l} autoFocus={!!isNew} placeholder="Name" aria-label="Name" onChange={(e: any) => setD((x: any) => ({ ...x, l: e.target.value }))} /></SheetRow>
+          <SheetRow label="Months" right={<span style={{ width: 104, margin: "-2px 0", flexShrink: 0 }}><Stepper h={28} min={0} value={d.mo} onChange={v => setD((x: any) => ({ ...x, mo: v }))} label="Months" /></span>}>
+            <span style={tinyMuted}>{d.mo ? `${d.mo} ${d.mo === 1 ? "month" : "months"}` : "no time limit"}</span>
+          </SheetRow>
+          <SheetRow label="Surcharge" right={<span style={{ ...tinyMuted, paddingRight: 6 }}>%</span>}>
+            <NumField mini bare minDec={0} value={d.pct} onChange={(n) => setD((x: any) => ({ ...x, pct: Math.max(0, n || 0) }))} ariaLabel="Surcharge in percent" />
+          </SheetRow>
         </div>
-        <div style={{ ...SMALLT, marginTop: 3 }}>{Number(opt?.mo) ? `${opt.mo} ${Number(opt.mo) === 1 ? "month" : "months"}` : "no time limit"} · used by the Calculator, the PDFs and renewals</div>
-      </> : <>
-        <div style={{ ...LBLS, marginTop: 0 }}>Name</div><I value={d.l} onChange={(e: any) => setD((x: any) => ({ ...x, l: e.target.value }))} aria-label="Name" />
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
-          <div><div style={LBLS}>Months</div><Stepper value={d.mo} min={0} onChange={v => setD((x: any) => ({ ...x, mo: v }))} label="Months" /></div>
-          <div><div style={LBLS}>Surcharge (%)</div><NumField minDec={0} value={d.pct} onChange={(n) => setD((x: any) => ({ ...x, pct: Math.max(0, n || 0) }))} ariaLabel="Surcharge in percent" /></div>
-        </div>
-        <div style={{ ...SMALLT, marginTop: 6 }}>0 % = included.</div>
-        {!isNew && (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
-            <span style={{ display: "flex", gap: 6 }}><PillBtn onClick={() => onMove(-1)}>↑ Up</PillBtn><PillBtn onClick={() => onMove(1)}>↓ Down</PillBtn></span>
-            <button onClick={() => setAskDel(true)} style={redLink}>Delete…</button>
-          </div>
-        )}
-      </>}
-    </Sheet>
+        <SheetMeta>0 % = included · used by the Calculator, the PDFs and renewals</SheetMeta>
+      </Sheet>
+    </>
   );
 }
 
-// ── Card settings window (name · subtitle · fine print · retainer · sections) ──
+// ── Card settings window (name · subtitle · fine print · retainer · volume discount · sections) ──
 function CardWindow({ card, cardKey, cardName, onSave, onDeleteCard, onClose }: any) {
   const pick = (c: any) => ({ label: c.label || "", sub: c.sub || "", fine: c.fine || "", retainerPct: retainerPctOf(c),
     volumeTiers: volTiersOf(c, cardKey).map(t => ({ ...t })), sections: JSON.parse(JSON.stringify(c.sections || [])) });
-  const setTier = (i: number, patch: any) => setD((x: any) => ({ ...x, volumeTiers: x.volumeTiers.map((t: any, j: number) => (j === i ? { ...t, ...patch } : t)) }));
-  const addTier = () => setD((x: any) => { const last = x.volumeTiers[x.volumeTiers.length - 1]; return { ...x, volumeTiers: [...x.volumeTiers, { from: last ? (Number(last.from) || 0) + 3 : 3, pct: last ? Math.min(90, (Number(last.pct) || 0) + 5) : 10 }] }; });
-  const [mode, setMode] = useState<"read" | "edit">("read");
-  const [d, setD] = useState<any>(() => pick(card));
+  const { d, setD, changed, saving } = useDraft<any>(pick(card));
   const [askSec, setAskSec] = useState<number | null>(null);
   const [askCard, setAskCard] = useState(false);
-  useEffect(() => { if (mode === "read") setD(pick(card)); }, [card, mode]);
+  const setTier = (i: number, patch: any) => setD((x: any) => ({ ...x, volumeTiers: x.volumeTiers.map((t: any, j: number) => (j === i ? { ...t, ...patch } : t)) }));
+  const addTier = () => setD((x: any) => { const last = x.volumeTiers[x.volumeTiers.length - 1]; return { ...x, volumeTiers: [...x.volumeTiers, { from: last ? (Number(last.from) || 0) + 3 : 3, pct: last ? Math.min(90, (Number(last.pct) || 0) + 5) : 10 }] }; });
   const moveSec = (i: number, dir: number) => setD((x: any) => {
     const s = [...x.sections]; const j = i + dir; if (j < 0 || j >= s.length) return x;
     [s[i], s[j]] = [s[j], s[i]]; return { ...x, sections: s };
   });
   const custom = !BASE_CARD_KEYS.includes(cardKey);
+  const tone = cardTone(cardKey);
+  const save = () => { saving(); onSave(d); showNote("Saved ✓"); };
   return (
-    <Sheet title={`Card settings · ${cardName}`} onClose={mode === "edit" ? () => setMode("read") : onClose}
-      right={mode === "read" ? <PillBtn onClick={() => setMode("edit")}>Edit</PillBtn> : null}
-      footer={mode === "edit" ? <>
-        <PillBtn onClick={() => setMode("read")} s={{ flex: 1, height: 40, justifyContent: "center" }}>Cancel</PillBtn>
-        <PillBtn dark onClick={() => { onSave(d); setMode("read"); }} s={{ flex: 1.4, height: 40, justifyContent: "center" }}>Save</PillBtn>
-      </> : undefined}>
+    <>
       {askSec !== null && <ConfirmDialog title={`Remove "${cleanSecT(d.sections[askSec]?.t)}"?`} text="The section and its items are removed when you save." okLabel="Remove" danger
         onOk={() => { const i = askSec; setAskSec(null); setD((x: any) => ({ ...x, sections: x.sections.filter((_: any, j: number) => j !== i) })); }} onCancel={() => setAskSec(null)} />}
       {askCard && <ConfirmDialog title={`Delete "${cardName}"?`} text="This rate card is removed. Quotes already made keep their prices." okLabel="Delete" danger onOk={() => { setAskCard(false); onDeleteCard(); }} onCancel={() => setAskCard(false)} />}
-      {mode === "read" ? <>
-        <ListCard>
-          <Row first title="Name on the PDF" meta={card.label || cardName} />
-          <Row title="Subtitle" meta={card.sub || "—"} />
-          <Row title="Retainer discount" meta={`−${pctText(retainerPctOf(card))} per month · the Calculator and the Brand Ambassador line use it`} />
-          <Row title="Volume discount" meta={`${tiersText(volTiersOf(card, cardKey))} · same item · switched on per line in the Calculator`} />
-          <Row title="Fine print" meta={card.fine ? pctSpace(card.fine) : "—"} />
-        </ListCard>
-        <div style={LBLS}>Sections · {(card.sections || []).length}</div>
-        <div style={{ ...SMALLT, lineHeight: 1.6 }}>{(card.sections || []).map((s: any) => cleanSecT(s.t)).join(" · ")}</div>
-      </> : <>
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
-          <div><div style={{ ...LBLS, marginTop: 0 }}>Name on the PDF</div><I value={d.label} onChange={(e: any) => setD((x: any) => ({ ...x, label: e.target.value }))} aria-label="Name on the PDF" /></div>
-          <div><div style={{ ...LBLS, marginTop: 0 }}>Retainer discount (%)</div><NumField minDec={0} value={d.retainerPct} onChange={(n) => setD((x: any) => ({ ...x, retainerPct: n === null ? 20 : Math.max(0, Math.min(90, n)) }))} ariaLabel="Retainer discount in percent" /></div>
+      <Sheet title={`Card settings · ${cardName}`} onClose={onClose} dirty={changed}
+        right={custom ? <MoreMenu items={[{ label: "Delete this rate card…", danger: true, onClick: () => setAskCard(true) }]} /> : null}
+        footer={changed ? <SheetButton dark onClick={save}>Save</SheetButton> : <SheetButton onClick={onClose}>Done</SheetButton>}>
+        <div style={{ ...SHEET_CARD, marginTop: 2 }}>
+          <SheetRow first label="PDF name"><MiniInput bare value={d.label} placeholder={cardName} aria-label="Name on the PDF" onChange={(e: any) => setD((x: any) => ({ ...x, label: e.target.value }))} /></SheetRow>
+          <SheetRow label="Subtitle"><MiniInput bare value={d.sub} placeholder="Add a subtitle" aria-label="Subtitle" onChange={(e: any) => setD((x: any) => ({ ...x, sub: e.target.value }))} /></SheetRow>
+          <SheetRow label="Retainer" right={<span style={{ ...tinyMuted, paddingRight: 6, whiteSpace: "nowrap" as const }}>% off per month</span>}>
+            <NumField mini bare minDec={0} value={d.retainerPct} onChange={(n) => setD((x: any) => ({ ...x, retainerPct: n === null ? 20 : Math.max(0, Math.min(90, n)) }))} ariaLabel="Retainer discount in percent" />
+          </SheetRow>
+          <SheetRow label="Fine print" top>
+            <MiniArea value={d.fine} minRows={3} pad={[8, 0]} placeholder="The small text at the end of the PDF" ariaLabel="Fine print" onChange={(v) => setD((x: any) => ({ ...x, fine: v }))} />
+          </SheetRow>
         </div>
-        <div style={LBLS}>Volume discount · same item</div>
-        {d.volumeTiers.map((t: any, i: number) => (
-          <div key={i} style={{ display: "grid", gridTemplateColumns: "auto minmax(0,1fr) auto minmax(0,1fr) auto 36px", alignItems: "center", gap: 6, marginTop: i ? 6 : 0 }}>
-            <span style={SMALLT}>From</span>
-            <NumField minDec={0} value={t.from ?? null} onChange={(n) => setTier(i, { from: n })} ariaLabel={`Volume tier ${i + 1}: from pieces`} />
-            <span style={SMALLT}>pieces −</span>
-            <NumField minDec={0} value={t.pct ?? null} onChange={(n) => setTier(i, { pct: n })} ariaLabel={`Volume tier ${i + 1}: percent`} />
-            <span style={SMALLT}>%</span>
-            <button onClick={() => setD((x: any) => ({ ...x, volumeTiers: x.volumeTiers.filter((_: any, j: number) => j !== i) }))} aria-label="Remove tier"
-              style={{ width: 36, height: 40, background: "none", border: "none", cursor: "pointer", color: C.red, fontSize: TYPE.figure.size }}>✕</button>
+        <SheetMeta>The retainer discount is used by the Calculator and the Brand Ambassador line.</SheetMeta>
+
+        <SheetHead icon={<SVG d={P_PCT} size={11} />} label="Volume discount · same item" tone={tone} />
+        <div style={SHEET_CARD}>
+          {d.volumeTiers.map((t: any, i: number) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, minHeight: SHEET.row, padding: "0 6px 0 12px", borderTop: i ? `1px solid ${C.hair}` : "none", fontSize: TYPE.row.size }}>
+              <span style={{ color: C.muted }}>From</span>
+              <span style={{ width: 46, flexShrink: 0 }}><NumField mini minDec={0} value={t.from ?? null} onChange={(n) => setTier(i, { from: n })} ariaLabel={`Volume tier ${i + 1}: from pieces`} /></span>
+              <span style={{ color: C.muted }}>pieces −</span>
+              <span style={{ width: 42, flexShrink: 0 }}><NumField mini minDec={0} value={t.pct ?? null} onChange={(n) => setTier(i, { pct: n })} ariaLabel={`Volume tier ${i + 1}: percent`} /></span>
+              <span style={{ color: C.muted, flex: 1 }}>%</span>
+              <button onClick={() => setD((x: any) => ({ ...x, volumeTiers: x.volumeTiers.filter((_: any, j: number) => j !== i) }))} aria-label="Remove tier" title="Remove" style={xBtn}>✕</button>
+            </div>
+          ))}
+          <button onClick={addTier} style={{ ...addRow, borderTop: d.volumeTiers.length ? `1px solid ${C.hair}` : "none" }}>+ Add a tier</button>
+        </div>
+        <SheetMeta>{d.volumeTiers.length ? "Switched on per line in the Calculator." : "No volume discount on this card."}</SheetMeta>
+
+        <SheetHead icon={<SVG d={P_LIST} size={11} />} label={`Sections · ${d.sections.length}`} tone={tone} />
+        <div style={SHEET_CARD}>
+          {d.sections.map((s: any, i: number) => (
+            <div key={s.id || i} style={{ display: "flex", alignItems: "center", gap: 2, minHeight: SHEET.row, padding: "0 4px 0 12px", borderTop: i ? `1px solid ${C.hair}` : "none" }}>
+              <div style={{ flex: 1, minWidth: 0 }}><MiniInput bare value={s.t || ""} aria-label={`Section ${i + 1} name`} onChange={(e: any) => setD((x: any) => ({ ...x, sections: x.sections.map((y: any, j: number) => (j === i ? { ...y, t: e.target.value } : y)) }))} /></div>
+              <button onClick={() => moveSec(i, -1)} aria-label="Move section up" title="Up" style={{ ...arrowBtn, color: i === 0 ? C.faint : C.muted }}>↑</button>
+              <button onClick={() => moveSec(i, 1)} aria-label="Move section down" title="Down" style={{ ...arrowBtn, color: i === d.sections.length - 1 ? C.faint : C.muted }}>↓</button>
+              <button onClick={() => setAskSec(i)} aria-label="Remove section" title="Remove" style={xBtn}>✕</button>
+            </div>
+          ))}
+          <div style={{ padding: "0 6px 0 12px", borderTop: d.sections.length ? `1px solid ${C.hair}` : "none" }}>
+            <MenuSelect bare muted value="" aria-label="Add a section" onChange={(e: any) => { const k = e.target.value as SectionKind; if (k) setD((x: any) => ({ ...x, sections: [...x.sections, { id: uid(), t: KIND_LABEL[k], kind: k, items: [] }] })); }}>
+              <option value="">+ Add a section</option>
+              {(Object.keys(KIND_LABEL) as SectionKind[]).map(k => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+            </MenuSelect>
           </div>
-        ))}
-        {!d.volumeTiers.length && <div style={SMALLT}>No volume discount on this card.</div>}
-        <button onClick={addTier} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.subtext.size, color: PAL.progress.ink, minHeight: 36, padding: "0 2px" }}>+ Add a tier</button>
-        <div style={LBLS}>Subtitle</div><I value={d.sub} onChange={(e: any) => setD((x: any) => ({ ...x, sub: e.target.value }))} aria-label="Subtitle" />
-        <div style={LBLS}>Fine print</div>
-        <textarea value={d.fine} onChange={(e: any) => setD((x: any) => ({ ...x, fine: e.target.value }))} aria-label="Fine print"
-          style={{ width: "100%", minHeight: 80, padding: "8px 10px", border: `1px solid ${C.field}`, borderRadius: RADIUS.field, background: C.white, fontFamily: SANS, fontSize: TYPE.field.size, color: C.black, boxSizing: "border-box" as const, resize: "vertical" as const }} />
-        <div style={LBLS}>Sections</div>
-        {d.sections.map((s: any, i: number) => (
-          <div key={s.id || i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto auto auto", alignItems: "center", gap: 4, marginTop: i ? 6 : 0 }}>
-            <I value={s.t || ""} onChange={(e: any) => setD((x: any) => ({ ...x, sections: x.sections.map((y: any, j: number) => (j === i ? { ...y, t: e.target.value } : y)) }))} aria-label={`Section ${i + 1} name`} />
-            <button onClick={() => moveSec(i, -1)} aria-label="Move section up" style={{ width: 36, height: 40, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: TYPE.figure.size }}>↑</button>
-            <button onClick={() => moveSec(i, 1)} aria-label="Move section down" style={{ width: 36, height: 40, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: TYPE.figure.size }}>↓</button>
-            <button onClick={() => setAskSec(i)} aria-label="Remove section" style={{ width: 36, height: 40, background: "none", border: "none", cursor: "pointer", color: C.red, fontSize: TYPE.figure.size }}>✕</button>
-          </div>
-        ))}
-        <S value="" aria-label="Add a section" s={{ marginTop: 8 }} onChange={(e: any) => { const k = e.target.value as SectionKind; if (k) setD((x: any) => ({ ...x, sections: [...x.sections, { id: uid(), t: KIND_LABEL[k], kind: k, items: [] }] })); }}>
-          <option value="">+ Add a section…</option>
-          {(Object.keys(KIND_LABEL) as SectionKind[]).map(k => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
-        </S>
-        {custom && <div style={{ marginTop: 14, textAlign: "right" as const }}><button onClick={() => setAskCard(true)} style={redLink}>Delete this rate card…</button></div>}
-      </>}
-    </Sheet>
+        </div>
+      </Sheet>
+    </>
   );
 }
 
@@ -1003,7 +968,7 @@ interface ServiceCatalogProps {
 }
 
 // a new item / option lives only in its window (draft) until Save — nothing empty is ever stored
-type Win = { type: "item"; si: number; id: string; isNew?: boolean; draft?: any } | { type: "opt"; kind: "usage" | "exclusivity"; i: number; isNew?: boolean; draft?: any } | { type: "card" };
+type Win = { type: "item"; si: number; id: string; isNew?: boolean; draft?: any } | { type: "opt"; kind: "usage" | "exclusivity"; i: number; isNew?: boolean; draft?: any; k?: number } | { type: "card" };
 
 export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, clientNames, ready = true }: ServiceCatalogProps) {
   const [tab,         setTab]         = useState("influencer");
@@ -1063,7 +1028,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, c
   };
   const addOpt = (kind: "usage" | "exclusivity") => {
     const list = card[optKey(kind)] || [];
-    setWin({ type: "opt", kind, i: list.length, isNew: true, draft: { l: "", pct: 0, mo: 1 } });
+    setWin({ type: "opt", kind, i: list.length, isNew: true, draft: { l: "", pct: 0, mo: 1 }, k: Date.now() });
   };
 
   // ── header numbers ──
@@ -1111,7 +1076,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, c
     const list = card[optKey(win.kind)] || [];
     const opt = list[win.i] ?? (win.isNew ? win.draft : undefined);
     if (opt) windowEl = (
-      <OptWindow key={`${win.kind}-${win.i}`} kind={win.kind} opt={opt} cardName={cardName} isNew={!!win.isNew}
+      <OptWindow key={`${win.kind}-${win.k ?? win.i}`} kind={win.kind} opt={opt} cardName={cardName} isNew={!!win.isNew}
         onSave={(next: any) => {
           setCard(c => { const cur = c[optKey(win.kind)] || []; return { ...c, [optKey(win.kind)]: win.i < cur.length ? cur.map((o: any, j: number) => (j === win.i ? { ...o, ...next } : o)) : [...cur, { ...(win.draft || {}), ...next }] }; });
           setWin({ ...win, isNew: false, draft: undefined });
@@ -1208,7 +1173,7 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, c
             </div>
             {isOpt ? (
               opts.length ? <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: DENSITY.tileGap }}>
-                {opts.map(({ o, i }: any) => tile(`${kind}-${i}`, optName(o.l), optValue(o), () => setWin({ type: "opt", kind: kind as any, i })))}
+                {opts.map(({ o, i }: any) => tile(`${kind}-${i}`, optName(o.l), optValue(o), () => setWin({ type: "opt", kind: kind as any, i, k: Date.now() })))}
               </div> : <div style={{ ...SMALLT, padding: "4px 4px 0" }}>Nothing yet — tap + Add.</div>
             ) : kind === "addons" ? (
               items.length ? <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: DENSITY.tileGap }}>

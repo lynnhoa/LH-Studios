@@ -12,9 +12,9 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { C, SANS, SERIF, TYPE, PAL, RADIUS, TRACK, SHADOW } from "./constants";
+import { C, SANS, SERIF, TYPE, PAL, RADIUS, TRACK, SHADOW, SHEET } from "./constants";
 import { fmtD, today, monthStart, monthEnd, ymd } from "./formatters";
-import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN, Switch, TextInline, MiniInput, MiniSelect, Sheet, SheetHead, SheetButton, SHEET_CARD } from "./atoms";
+import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN, Switch, TextInline, MiniInput, MiniSelect, Sheet, SheetHead, SheetButton, SheetRow, SheetPair, SheetAction, SheetMeta, SheetErr, MoreMenu, useDraft, SHEET_CARD, SHEET_CAPS } from "./atoms";
 import type { ToneSet } from "./atoms";
 import {
   ACCOUNTS, PHASES, OWNERS, RHYTHMS, STATUSES, STAGE_SHORT, DAY_SHORT, accLook, phaseLabel, ownerLabel, rhythmLabel, rowKind, entryKey, periodOf, snapKey, addDays, isoWeek, weekRange, weekLabel, thisMonday, monthName, todayIndex, gateOf, stageNumOf, taskAccounts, isVisible, byOrder, fmtInt, fmtPct2, parseDec, parseIntDe, ITEM_STATUSES, FORMATS, CLASSIC, formatLook, itemStatusLabel, daysBetween, OWNER_LOOK, monthGoalOf, monthGoalPatch, loadWorkAccount, storyLines,
@@ -23,7 +23,7 @@ import {
 import type { Task, Stage, TaskAccount, AccountFilter, Phase, Rhythm, Item, ItemList, ItemStatus, ItemPlan, Account, NoteKind, Sprint, SprintResults, Owner, ItemStage } from "./planner";
 import { OUTREACH_CATEGORIES, OUTREACH_TIERS, catOf } from "./outreach";
 import type { PlannerHook } from "./usePlanner";
-import { showUndo, XBtn } from "./undo";
+import { showUndo, showNote, XBtn } from "./undo";
 
 // ── small line icons (same drawing style as Outreach) ─────────
 export const Ico = ({ d, size = 14, color = "currentColor" }: { d: string; size?: number; color?: string }) => (
@@ -352,33 +352,8 @@ function TitleField({ value, onSave }: { value: string; onSave: (v: string) => v
   );
 }
 
-// ⋯ menu: extra actions in a small dropdown (opens upwards from the footer)
-export function MoreMenu({ items, bare }: { items: { label: string; danger?: boolean; onClick: () => void }[]; bare?: boolean }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div style={{ position: "relative", flexShrink: 0 }}>
-      {open && <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1 }} />}
-      <button onClick={() => setOpen(o => !o)} aria-label="More" title="More" aria-expanded={open}
-        style={bare
-          ? { width: 40, height: 40, border: "none", background: "none", color: C.muted, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 2, padding: 0 }
-          : { width: 36, height: 36, border: `1px solid ${C.rule}`, borderRadius: 2, background: "transparent", color: C.black, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 2 }}>
-        <Ico d={IC.more} size={18} />
-      </button>
-      {open && (
-        <div role="menu" style={bare
-          ? { position: "absolute", right: 0, top: "calc(100% + 2px)", minWidth: 170, background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, boxShadow: SHADOW.pop, padding: "5px 0", zIndex: 3 }
-          : { position: "absolute", left: 0, bottom: "calc(100% + 6px)", minWidth: 170, background: C.bg, border: `1px solid ${C.rule}`, borderRadius: 2, boxShadow: "0 6px 20px rgba(0,0,0,0.10)", padding: "4px 0", zIndex: 3 }}>
-          {items.map(it => (
-            <button key={it.label} role="menuitem" onClick={() => { setOpen(false); it.onClick(); }}
-              style={{ display: "flex", alignItems: "center", width: "100%", height: bare ? 32 : 34, padding: "0 13px", border: "none", background: "none", color: it.danger ? C.red : C.black, fontFamily: SANS, fontSize: 13, cursor: "pointer", textAlign: "left" as const }}>
-              {it.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+// ⋯ menu: the shared one (atoms) — kept here too, for the files that import it from the Planner
+export { MoreMenu } from "./atoms";
 
 const textBlock = (label: string, text: string) => !text ? null : (
   <>
@@ -737,9 +712,12 @@ export function LinkList({ initial, onSave, pillTone }: { initial: { url: string
 }
 
 // ═════════════════════════════════════════════════════════════
-// SPRINT WINDOW (Stage 2) — focus, goals, results and the review
-// Read view → Edit → Save returns to the read view. End sprint
-// moves it to the past sprints; the review can follow any time.
+// SPRINT WINDOW (Stage 2) — one level, like the contact window (no Edit, no review step)
+// Top card: account · running day x of y (or done) · dates · pitches and follow-ups against
+// the goals · End sprint (moves it to the past sprints; the results stay editable here).
+// Plan card: start · weeks · category · tier · goals. Results card: replied · gifted · deals ·
+// worked · change — always there. ⋯ Delete sprint. Footer: Done → Save as soon as you type
+// (the window stays open) · a new sprint: Start sprint (it then opens as itself).
 // ═════════════════════════════════════════════════════════════
 const shortDM = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.`;
 export const sprintRange = (sp: { startOn: string; endOn: string }) => `${shortDM(sp.startOn)}–${fmtD(sp.endOn)}`;
@@ -754,39 +732,48 @@ export function SprintWindow({ planner, sprintId, draft, isMobile, onClose, revi
 }) {
   const [id, setId] = useState<string | undefined>(sprintId);
   const sp = planner.sprints.find(x => x.id === id);
+  const isNew = !id;
   const weeksOf = (x?: Partial<Sprint>) => (x?.startOn && x?.endOn ? Math.max(1, Math.round((daysBetween(x.startOn, x.endOn) + 1) / 7)) : 2);
-  // "new" = start a sprint · "review" = End & review · "edit" = change it · "read"
-  const [mode, setMode] = useState<"new" | "review" | "edit" | "read">(!sprintId ? "new" : review ? "review" : "read");
-  const [f, setF]       = useState<Partial<Sprint>>(sp || draft || {});
-  const [res, setRes]   = useState<SprintResults>(sp?.results || {});
-  const [weeks, setWeeks] = useState<number>(weeksOf(sp || draft));
+  // what you type (plan · results · weeks): the shared draft (atoms) — a new sprint ignores updates from outside
+  const src = sp || draft || {};
+  const dr = useDraft({ account: (src.account || "lynnhoa") as Account, startOn: src.startOn || "", focusCategory: src.focusCategory || "", focusTier: src.focusTier || "",
+    pitchGoal: src.pitchGoal ?? null, followUpGoal: src.followUpGoal ?? null, results: (src.results || {}) as SprintResults, weeks: weeksOf(src) }, { frozen: !sp });
+  const f = dr.d, res = dr.d.results, weeks = dr.d.weeks;
+  const setF = (patch: Partial<typeof f>) => dr.setD(x => ({ ...x, ...patch }));
+  const setRes = (patch: Partial<SprintResults>) => dr.setD(x => ({ ...x, results: { ...x.results, ...patch } }));
+  const changed = dr.changed;
   const [err, setErr]   = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [ask, setAsk]   = useState<null | "delete">(null);
-  useEffect(() => { if (mode === "read" && sp) { setF(sp); setRes(sp.results || {}); setWeeks(weeksOf(sp)); } }, [sp, mode]);
+  const [ask, setAsk]   = useState<null | "delete" | "end">(null);
   useEffect(() => { if (id && !sp && !planner.loading) onClose(); }, [id, sp, planner.loading]);
 
+  const fields = (): Partial<Sprint> => ({ startOn: f.startOn, endOn: addDays(f.startOn!, weeks * 7 - 1), focusCategory: f.focusCategory || "", focusTier: f.focusTier || "",
+    pitchGoal: f.pitchGoal ?? null, followUpGoal: f.followUpGoal ?? null });
+  const check = () => {
+    if (!f.startOn) { setErr("Pick the start day."); return false; }
+    if (!weeks || weeks < 1) { setErr("A sprint is at least 1 week."); return false; }
+    return true;
+  };
   const save = async () => {
+    if (busy) return;
     setErr(null);
-    if (mode === "new" || mode === "edit") {
-      if (!f.startOn) { setErr("Pick the start day."); return; }
-      if (!weeks || weeks < 1) { setErr("A sprint is at least 1 week."); return; }
-    }
-    setBusy(true);
+    if (!check()) return;
+    setBusy(true); dr.saving();
     try {
-      if (mode === "review" && sp) {
-        await planner.updateSprint(sp.id, { results: res, status: "done" });
-        setMode("read");
-      } else {
-        const fields: Partial<Sprint> = {
-          startOn: f.startOn, endOn: addDays(f.startOn!, weeks * 7 - 1), focusCategory: f.focusCategory || "", focusTier: f.focusTier || "",
-          pitchGoal: f.pitchGoal ?? null, followUpGoal: f.followUpGoal ?? null, ...(sp ? { results: res } : {}),
-        };
-        if (sp) await planner.updateSprint(sp.id, fields);
-        else { const n = await planner.createSprint({ ...fields, account: f.account as Account, days: {}, results: {} }); setId(n.id); }
-        setMode("read");
-      }
-    } catch (e: any) { setErr(e?.message || "Couldn't save."); }
+      if (sp) { await planner.updateSprint(sp.id, { ...fields(), results: res }); showNote("Saved ✓"); }
+      else { const n = await planner.createSprint({ ...fields(), account: f.account, days: {}, results: {} }); setId(n.id); }
+    } catch (e: any) { dr.failed(); setErr(e?.message || "Couldn't save."); }
+    finally { setBusy(false); }
+  };
+  // End sprint: what you typed is saved with it; it moves to the past sprints
+  const end = async () => {
+    setAsk(null);
+    if (!sp || busy) return;
+    setErr(null);
+    if (!check()) return;
+    setBusy(true); dr.saving();
+    try { await planner.updateSprint(sp.id, { ...fields(), results: res, status: "done" }); showNote(`Sprint ${sp.num} ended ✓`); }
+    catch (e: any) { dr.failed(); setErr(e?.message || "Couldn't save."); }
     finally { setBusy(false); }
   };
   const del = async () => { setAsk(null); if (!sp) return; try { await planner.deleteSprint(sp.id); onClose(); } catch (e: any) { setErr(e?.message || "Couldn't delete."); } };
@@ -794,111 +781,116 @@ export function SprintWindow({ planner, sprintId, draft, isMobile, onClose, revi
   const st = sp ? planner.sprintStats(sp) : null;
   const d = sp ? sprintDay(sp, today()) : null;
   const num = (v: any) => (v === "" || v == null ? null : parseIntDe(String(v)));
-  const statRow = (label: string, value: any) => (
-    <div style={{ minHeight: 36, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottom: `1px solid ${C.rule}`, fontSize: 14 }}>
-      <span style={microLabel}>{label}</span><span style={{ textAlign: "right" as const }}>{value}</span>
+  const numIn = (v: number | null | undefined, set: (n: number | null) => void, label: string) => (
+    <MiniInput bare inputMode="numeric" aria-label={label} placeholder="–" value={v == null ? "" : String(v)} onChange={(e: any) => set(num(e.target.value))} />
+  );
+  // a number in the top card: what's done / the goal — pistachio once the goal is reached
+  const stat = (label: string, n: number, goal: number | null | undefined) => (
+    <div>
+      <div style={{ ...SHEET_CAPS, margin: "0 2px 3px" }}>{label}</div>
+      <div style={{ padding: "0 2px", fontSize: TYPE.row.size, color: goal && n >= goal ? PAL.done.ink : C.black }}>{n} <span style={{ color: C.muted }}>/ {goal ?? "–"}</span></div>
     </div>
   );
-  const resultFields = (
-    <>
-      <Lbl>Results · from your contacts</Lbl>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8 }}>
-        <div><Lbl>Replied</Lbl><MiniInput inputMode="numeric" aria-label="Replied" placeholder="–" value={res.replied == null ? "" : String(res.replied)} onChange={(e: any) => setRes({ ...res, replied: num(e.target.value) })} /></div>
-        <div><Lbl>Gifted</Lbl><MiniInput inputMode="numeric" aria-label="Gifted" placeholder="–" value={res.gifted == null ? "" : String(res.gifted)} onChange={(e: any) => setRes({ ...res, gifted: num(e.target.value) })} /></div>
-        <div><Lbl>Deals</Lbl><MiniInput inputMode="numeric" aria-label="Deals" placeholder="–" value={res.deals == null ? "" : String(res.deals)} onChange={(e: any) => setRes({ ...res, deals: num(e.target.value) })} /></div>
-      </div>
-      <Lbl>Worked</Lbl>
-      <MiniInput aria-label="Worked" value={res.worked || ""} placeholder="What worked" onChange={(e: any) => setRes({ ...res, worked: e.target.value })} />
-      <Lbl>Change</Lbl>
-      <MiniInput aria-label="Change" value={res.change || ""} placeholder="What to do differently next sprint" onChange={(e: any) => setRes({ ...res, change: e.target.value })} />
-    </>
+  const third = (label: string, w: number, node: any, i: number) => (
+    <div className="lh-cfrow" style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, minHeight: SHEET.row, padding: i ? "0 6px 0 10px" : "0 6px 0 12px", borderLeft: i ? `1px solid ${C.hair}` : "none" }}>
+      <span style={{ ...SHEET_CAPS, width: w, flexShrink: 0, paddingTop: 2 }}>{label}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>{node}</div>
+    </div>
   );
-  const title = mode === "new" ? "New sprint" : mode === "review" && sp ? `Sprint ${sp.num} · review` : sp ? `Sprint ${sp.num}` : "Sprint";
+  const title = isNew ? "New sprint" : sp ? `Sprint ${sp.num}` : "Sprint";
 
   return (
     <>
       {ask === "delete" && sp && <ConfirmDialog title={`Delete Sprint ${sp.num}?`} text="The sprint, its day numbers and its review are removed." okLabel="Delete" danger onOk={del} onCancel={() => setAsk(null)} />}
-      <Sheet title={title}
-        onClose={() => { if ((mode === "edit") && sp) { setMode("read"); setErr(null); } else onClose(); }}
-        footer={mode === "read" ? (
-          <div style={{ flex: 1, display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
-            <MoreMenu items={[{ label: "Delete sprint", danger: true, onClick: () => setAsk("delete") }]} />
-            <div style={{ display: "flex", gap: 8 }}>
-              {sp?.status === "active" && <B v="sec" onClick={() => { setRes(sp.results || {}); setMode("review"); }}>End &amp; review</B>}
-              <B onClick={() => setMode("edit")}>Edit</B>
-            </div>
-          </div>
-        ) : (
-          <div style={{ flex: 1, display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <B v="sec" onClick={() => { if (sp && mode !== "review") { setMode("read"); setErr(null); } else onClose(); }}>Cancel</B>
-            <B onClick={save} s={{ opacity: busy ? 0.5 : 1 }}>{busy ? "Saving…" : mode === "new" ? "Start sprint" : mode === "review" ? "Close sprint" : "Save"}</B>
-          </div>
-        )}>
-        {err && <p style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
-        {mode === "read" && sp && st && d ? (
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const }}>
+      {ask === "end" && sp && <ConfirmDialog title={`End Sprint ${sp.num}?`} text="It moves to your past sprints. The results stay editable here." okLabel="End sprint" onOk={end} onCancel={() => setAsk(null)} />}
+      <Sheet title={title} onClose={onClose} dirty={changed}
+        right={sp ? <MoreMenu items={[{ label: "Delete sprint", danger: true, onClick: () => setAsk("delete") }]} /> : null}
+        footer={isNew ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Start sprint"}</SheetButton>
+          : changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton>
+          : <SheetButton onClick={onClose}>Done</SheetButton>}>
+        {err && <SheetErr>{err}</SheetErr>}
+
+        {/* ── where it stands · End sprint ── */}
+        {sp && st && d && (
+          <SheetAction>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const, margin: "0 2px" }}>
               <AccChip acc={sp.account} />
-              <span style={microLabel}>{sp.status === "active" ? `Running · day ${d.day} of ${d.total}` : "Done"}</span>
+              <span style={SHEET_CAPS}>{sp.status === "active" ? `Running · day ${d.day} of ${d.total}` : "Done"}</span>
             </div>
-            <p style={{ fontSize: 14, margin: "8px 0 0" }}>{sprintRange(sp)} · {weeksOf(sp)} {weeksOf(sp) === 1 ? "week" : "weeks"}</p>
-            <Lbl>Focus</Lbl>
-            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" as const }}>
-              {sp.focusCategory ? <CatChip k={sp.focusCategory} /> : <span style={{ fontSize: 14 }}>Any category</span>}
-              <span style={{ fontSize: 14 }}>· {OUTREACH_TIERS.find(t => t.key === sp.focusTier)?.label || "Any tier"}</span>
+            <div style={{ fontSize: TYPE.row.size, margin: "6px 2px 8px" }}>{sprintRange(sp)} · {weeksOf(sp)} {weeksOf(sp) === 1 ? "week" : "weeks"}</div>
+            <div style={{ display: "grid", gridTemplateColumns: sp.status === "done" ? "repeat(3, minmax(0,1fr))" : "repeat(2, minmax(0,1fr))", gap: 8 }}>
+              {stat("Pitches", st.pitches, sp.pitchGoal)}
+              {stat("Follow-ups", st.followUps, sp.followUpGoal)}
+              {sp.status === "done" && (
+                <div>
+                  <div style={{ ...SHEET_CAPS, margin: "0 2px 3px" }}>Reply rate</div>
+                  <div style={{ padding: "0 2px", fontSize: TYPE.row.size }}>{st.rate == null ? "–" : fmtPct2(st.rate)}</div>
+                </div>
+              )}
             </div>
-            <Lbl>Numbers</Lbl>
-            <div style={{ borderTop: `1px solid ${C.rule}` }}>
-              {statRow("Pitches", `${st.pitches} / ${sp.pitchGoal ?? "–"}`)}
-              {statRow("Follow-ups", `${st.followUps} / ${sp.followUpGoal ?? "–"}`)}
-              {sp.status === "done" && <>
-                {statRow("Replied", sp.results.replied ?? "–")}
-                {statRow("Gifted", sp.results.gifted ?? "–")}
-                {statRow("Deals", sp.results.deals ?? "–")}
-                {statRow("Reply rate", st.rate == null ? "–" : fmtPct2(st.rate))}
-              </>}
-            </div>
-            {sp.status === "done" && <>{textBlock("Worked", sp.results.worked || "")}{textBlock("Change", sp.results.change || "")}</>}
-            {sp.status === "active" && <p style={{ fontSize: 12, color: C.muted, margin: "10px 0 0" }}>At the end: End &amp; review, then type the results and what to change.</p>}
-          </div>
-        ) : mode === "review" && sp && st ? (
-          <div>
-            <p style={{ fontSize: 14, margin: 0 }}>{sprintRange(sp)} · {st.pitches} pitches · {st.followUps} follow-ups</p>
-            {resultFields}
-          </div>
-        ) : (
-          <div>
-            {mode === "new" && (
-              <>
-                <Lbl>Account</Lbl>
-                <MiniSelect value={f.account || "lynnhoa"} onChange={(e: any) => setF({ ...f, account: e.target.value })}>
-                  {ACCOUNTS.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
-                </MiniSelect>
-              </>
+            {sp.status === "active" && (
+              <PillBtnLite onClick={() => setAsk("end")}>{review ? "End sprint · results below" : "End sprint"}</PillBtnLite>
             )}
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
-              <div><Lbl>Start</Lbl><MiniInput type="date" value={f.startOn || ""} onChange={(e: any) => setF({ ...f, startOn: e.target.value })} /></div>
-              <div><Lbl>Weeks</Lbl><MiniInput inputMode="numeric" aria-label="Weeks" value={String(weeks || "")} onChange={(e: any) => setWeeks(Number(e.target.value.replace(/[^\d]/g, "")) || 0)} /></div>
-              <div><Lbl>Focus category</Lbl>
-                <MiniSelect value={f.focusCategory || ""} aria-label="Focus category" onChange={(e: any) => setF({ ...f, focusCategory: e.target.value })}>
-                  <option value="">Any category</option>
-                  {OUTREACH_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
-                </MiniSelect>
-              </div>
-              <div><Lbl>Focus tier</Lbl>
-                <MiniSelect value={OUTREACH_TIERS.some(t => t.key === f.focusTier) ? f.focusTier : ""} aria-label="Focus tier" onChange={(e: any) => setF({ ...f, focusTier: e.target.value })}>
-                  <option value="">Any tier</option>
-                  {OUTREACH_TIERS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-                </MiniSelect>
-              </div>
-              <div><Lbl>Pitch goal</Lbl><MiniInput inputMode="numeric" aria-label="Pitch goal" value={f.pitchGoal == null ? "" : String(f.pitchGoal)} placeholder="–" onChange={(e: any) => setF({ ...f, pitchGoal: num(e.target.value) })} /></div>
-              <div><Lbl>Follow-up goal</Lbl><MiniInput inputMode="numeric" aria-label="Follow-up goal" value={f.followUpGoal == null ? "" : String(f.followUpGoal)} placeholder="–" onChange={(e: any) => setF({ ...f, followUpGoal: num(e.target.value) })} /></div>
+          </SheetAction>
+        )}
+
+        {/* ── the plan ── */}
+        {!isNew && <WinHead icon={IC.hourglass} label="Plan" tone={PAL.neutral} />}
+        <div style={{ ...SHEET_CARD, marginTop: isNew ? 2 : 0 }}>
+          {isNew && (
+            <SheetRow first label="Account">
+              <MiniSelect bare value={f.account || "lynnhoa"} aria-label="Account" onChange={(e: any) => setF({ account: e.target.value })}>
+                {ACCOUNTS.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
+              </MiniSelect>
+            </SheetRow>
+          )}
+          <SheetPair first={!isNew}
+            left={{ label: "Start", w: 44, node: <MiniInput bare type="date" aria-label="Start" value={f.startOn || ""} onChange={(e: any) => setF({ startOn: e.target.value })} /> }}
+            right={{ label: "Weeks", w: 48, node: <MiniInput bare inputMode="numeric" aria-label="Weeks" value={String(weeks || "")} onChange={(e: any) => setF({ weeks: Number(String(e.target.value).replace(/[^\d]/g, "")) || 0 })} /> }} />
+          <SheetRow label="Category">
+            <MiniSelect bare value={f.focusCategory || ""} aria-label="Focus category" onChange={(e: any) => setF({ focusCategory: e.target.value })}>
+              <option value="">Any category</option>
+              {OUTREACH_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </MiniSelect>
+          </SheetRow>
+          <SheetRow label="Tier">
+            <MiniSelect bare value={OUTREACH_TIERS.some(t => t.key === f.focusTier) ? f.focusTier : ""} aria-label="Focus tier" onChange={(e: any) => setF({ focusTier: e.target.value })}>
+              <option value="">Any tier</option>
+              {OUTREACH_TIERS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+            </MiniSelect>
+          </SheetRow>
+          <SheetRow label="Goals">
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: TYPE.row.size, color: C.muted }}>
+              <span style={{ width: 42, flexShrink: 0 }}>{numIn(f.pitchGoal, n => setF({ pitchGoal: n }), "Pitch goal")}</span>pitches ·
+              <span style={{ width: 42, flexShrink: 0 }}>{numIn(f.followUpGoal, n => setF({ followUpGoal: n }), "Follow-up goal")}</span>follow-ups
             </div>
-            {f.startOn && weeks > 0 && <p style={{ fontSize: 12, color: C.muted, margin: "8px 0 0" }}>Ends {fmtD(addDays(f.startOn, weeks * 7 - 1))}{f.pitchGoal ? ` · daily target ${Math.ceil(f.pitchGoal / (weeks * 5))} pitches over ${weeks * 5} work days` : ""}</p>}
-            {mode === "edit" && sp?.status === "done" && resultFields}
-          </div>
+          </SheetRow>
+        </div>
+        {f.startOn && weeks > 0 && (
+          <SheetMeta>Ends {fmtD(addDays(f.startOn, weeks * 7 - 1))}{f.pitchGoal ? ` · daily target ${Math.ceil(f.pitchGoal / (weeks * 5))} pitches over ${weeks * 5} work days` : ""}</SheetMeta>
+        )}
+
+        {/* ── the results: always here ── */}
+        {!isNew && (
+          <>
+            <WinHead icon={IC.checkCircle} label="Results" tone={PAL.done} />
+            <div style={SHEET_CARD}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))" }}>
+                {third("Replied", 50, numIn(res.replied, n => setRes({ replied: n }), "Replied"), 0)}
+                {third("Gifted", 44, numIn(res.gifted, n => setRes({ gifted: n }), "Gifted"), 1)}
+                {third("Deals", 38, numIn(res.deals, n => setRes({ deals: n }), "Deals"), 2)}
+              </div>
+              <SheetRow label="Worked"><MiniInput bare aria-label="Worked" value={res.worked || ""} placeholder="What worked" onChange={(e: any) => setRes({ worked: e.target.value })} /></SheetRow>
+              <SheetRow label="Change"><MiniInput bare aria-label="Change" value={res.change || ""} placeholder="What to do differently next sprint" onChange={(e: any) => setRes({ change: e.target.value })} /></SheetRow>
+            </div>
+            {sp?.status === "active" && <SheetMeta>From your contacts · type them any time, End sprint when it's over.</SheetMeta>}
+          </>
         )}
       </Sheet>
     </>
   );
 }
+// a light full-width button inside a top card (End sprint)
+const PillBtnLite = ({ onClick, children }: { onClick: () => void; children: any }) => (
+  <button onClick={onClick} style={{ width: "100%", height: 32, marginTop: 8, borderRadius: RADIUS.pill, border: `1px solid ${C.edge}`, background: C.white, color: C.black, fontFamily: SANS, fontSize: TYPE.row.size, cursor: "pointer" }}>{children}</button>
+);

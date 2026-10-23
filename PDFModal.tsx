@@ -1,12 +1,13 @@
 import { createPortal } from "react-dom";
 // ─────────────────────────────────────────────────────────────
 // PDFModal — the one document window
-// Top bar: ✕ · EN/DE · status. Bottom bar (where "Preview quote" sits in the
-// Calculator): the main button on the right = the next step, at most one more on
-// the left. Rare actions sit under the page.
-//   not saved   Save draft · Send to client
-//   draft       Edit · Send to client          under the page: Share draft …
-//   editing     Cancel · Save                  Save returns to the read view
+// Top bar (the shared DocBar): ✕ · the document · EN/DE · status. Bottom bar (DocFoot): the
+// main button on the right = the next step, at most one more on the left. Rare actions sit
+// under the page. Phone: Edit | Preview (DocTabs) for a draft.
+//   not saved   Save draft · Send to client        (pages only; it's set in the Calculator)
+//   draft       its fields beside the pages (iPad / computer) — no Edit step
+//               Send to client                     under the page: Share draft …
+//   typed       Save (stays open; ✕ asks before throwing the typing away)
 //   sent …      Share PDF · the next step (Mark signed / Mark paid)
 //               or the caller's side action (Revise) · Share PDF
 // Send to client opens the phone's share sheet in the same tap — the PDF is made
@@ -18,7 +19,7 @@ import { createPortal } from "react-dom";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { C, SANS, SERIF, TYPE, Z, PAL, TRACK, ICON, RADIUS, SHADOW } from "./constants";
 import type { Tone } from "./constants";
-import { I, B, Lbl, ConfirmDialog, LangSwitch, NumField, PillBtn } from "./atoms";
+import { I, B, Lbl, ConfirmDialog, LangSwitch, NumField, PillBtn, DocBar, DocTabs, DocFoot, DOC_PAGES } from "./atoms";
 import { isMobileDevice } from "./PDFExport";
 import { editLock } from "./saveStatus";
 import { fmt, r2 } from "./formatters";
@@ -113,6 +114,7 @@ export default function PDFModal({
   const [busy,       setBusy]       = useState<string | null>(null);
   const [msg,        setMsg]        = useState<{ text: string; err?: boolean } | null>(null);
   const [showEdit,   setShowEdit]   = useState(false);
+  const [view,       setView]       = useState<"edit" | "preview">("preview");   // phone: Edit | Preview
   const [askDiscard, setAskDiscard] = useState<"cancel" | "close" | null>(null);
   const [dialog,     setDialog]     = useState<{ action: DocAction; files?: File[] } | null>(null);
   const [pdfAsk,     setPdfAsk]     = useState<string | null>(null);
@@ -135,7 +137,9 @@ export default function PDFModal({
   const isMobile = winW < 768;
   const pageScale = isMobile ? Math.min(1, (winW - 32) / 595) : 1;
   const canEdit  = editable && !!onSave;
-  const editing  = canEdit && showEdit && !isNew;
+  // one level: a saved draft shows its fields right away — no Edit step. A new document (not saved
+  // yet, from the Calculator) shows the pages only: what it holds is set in the Calculator.
+  const editing  = canEdit && !isNew && current.status === "draft";
   const isDraft  = current.status === "draft";
   const canSend  = isDraft && SENDABLE.includes(current.kind) && !!onPdf && (!isNew || !!onSave);
   const settingsReady = !(settings && settings.__ready === false);
@@ -232,10 +236,10 @@ export default function PDFModal({
   };
   // ready as soon as the window shows the document (and again after every change)
   useEffect(() => {
-    if (!target || editing || !settingsReady) return;
+    if (!target || (editing && dirty) || !settingsReady) return;
     const t = setTimeout(() => { buildFor(target).catch(() => {}); }, 300);
     return () => clearTimeout(t);
-  }, [targetKey, editing, settingsReady]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [targetKey, editing, dirty, settingsReady]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Save ────────────────────────────────────────────────────
   const save = async (): Promise<boolean> => {
@@ -244,7 +248,7 @@ export default function PDFModal({
     try {
       await onSave(current);
       baseRef.current = JSON.stringify(current);
-      setShowEdit(false);                     // back to the read view
+      say("Saved ✓");                         // the window stays open
       return true;
     } catch (e: any) {
       say(e?.message || "Save failed", true);
@@ -258,7 +262,7 @@ export default function PDFModal({
   const changeLang = (l: "en" | "de") => {
     if (l === lang) return;
     setLang(l);
-    if (canEdit && !isNew && !editing && onSave) {
+    if (canEdit && !isNew && !dirty && onSave) {
       const next = { ...staged, lang: l } as DocView;
       baseRef.current = JSON.stringify(next);
       onSave(next).catch(fail);
@@ -465,8 +469,8 @@ export default function PDFModal({
 
   const taStyle: any = { width: "100%", padding: "8px 10px", border: `1px solid ${C.field}`, background: C.white, fontFamily: SANS, fontSize: TYPE.field.size, color: C.black, borderRadius: RADIUS.field, outline: "none", resize: "vertical", boxSizing: "border-box", minHeight: 72 };
 
-  const showPanel   = editing;
-  const showPreview = !isMobile || !editing;
+  const showPanel   = editing && (!isMobile || view === "edit");
+  const showPreview = !isMobile || !editing || view === "preview";
 
   // ── The two buttons at the bottom + rare actions under the page ──
   type Btn = { key: string; label: string; run: () => void; dim?: boolean };
@@ -480,14 +484,14 @@ export default function PDFModal({
   let side: Btn | null = null;
   let main: Btn | null = null;
   const more: { key: string; label: string; danger?: boolean; run: () => void }[] = [];
-  if (editing) {
-    side = { key: "cancel", label: "Cancel", run: cancelEdit };
+  if (editing && dirty && !isNew) {
+    // something typed: Save (✕ asks before it's thrown away)
     main = { key: "save", label: saving ? "Saving…" : "Save", run: () => { if (!saving) save(); }, dim: saving };
   } else if (isNew) {
     if (canEdit) side = { key: "savedraft", label: saving && busy !== "send" ? "Saving…" : "Save draft", run: () => { if (!saving && !busy) save(); }, dim: !!busy };
     if (canSend) main = sendBtn;
   } else if (isDraft) {
-    side = canEdit ? { key: "edit", label: "Edit", run: () => { setMsg(null); setShowEdit(true); } } : callerSide ? actBtn(callerSide) : null;
+    side = callerSide ? actBtn(callerSide) : null;
     if (canSend) { main = sendBtn; more.push({ key: "sharedraft", label: draftLabel, run: shareDraft }); }
     else main = { key: "sharedraft", label: draftLabel, run: shareDraft };
   } else if (callerMain) {
@@ -495,7 +499,7 @@ export default function PDFModal({
   } else {
     main = shareBtn; side = callerSide ? actBtn(callerSide) : null;
   }
-  if (!editing && !isNew) callerMore.forEach(a => more.push({ key: a.key, label: busy === a.key ? "…" : a.label, danger: a.kind === "danger", run: () => clickAction(a) }));
+  if (!(editing && dirty) && !isNew) callerMore.forEach(a => more.push({ key: a.key, label: busy === a.key ? "…" : a.label, danger: a.kind === "danger", run: () => clickAction(a) }));
   const barBtn = (b: Btn, dark: boolean) => (
     <PillBtn key={b.key} dark={dark} dim={b.dim} onClick={b.run}
       s={{ height: 40, padding: "0 16px", fontSize: TYPE.row.size, justifyContent: "center", flex: isMobile ? 1 : "0 0 auto", minWidth: isMobile ? 0 : 150 }}>
@@ -507,13 +511,10 @@ export default function PDFModal({
   return createPortal(
     <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
 
-      {/* ── TOP BAR: close · language · status ── */}
-      <div style={{ height: 48, borderBottom: `1px solid ${C.rule}`, display: "flex", alignItems: "center", padding: "0 8px 0 2px", gap: 6, flexShrink: 0 }}>
-        <button onClick={tryClose} aria-label="Close" title="Close"
-          style={{ width: 44, height: 44, flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: ICON.close, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
-        <LangSwitch lang={lang} onChange={changeLang} />
-        {statusBadge}
-      </div>
+      {/* ── TOP BAR: ✕ · the document · EN/DE · status (the shared document bar) ── */}
+      <DocBar title={[kind ? kind.charAt(0).toUpperCase() + kind.slice(1) : "Document", current.docNo].filter(Boolean).join(" · ")} onClose={tryClose}
+        right={<><LangSwitch lang={lang} onChange={changeLang} />{statusBadge}</>} />
+      {isMobile && editing && <DocTabs view={view} onView={setView} />}
 
       {/* ── BODY ── */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden", flexDirection: isMobile ? "column" : "row" }}>
@@ -608,7 +609,7 @@ export default function PDFModal({
         )}
 
         {showPreview && (
-          <div ref={pagesRef} style={{ flex: 1, background: C.muted, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isMobile ? "16px 0" : "32px 28px", gap: isMobile ? 16 : 28 }}>
+          <div ref={pagesRef} style={{ flex: 1, background: DOC_PAGES, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: isMobile ? "16px 0" : "32px 28px", gap: isMobile ? 16 : 28 }}>
             {/* the read view's note (e.g. "Signed 21.10.2026 · signed copy · 2 pages") above the pages */}
             {!showPanel && note && (
               <p style={{ margin: 0, padding: "6px 12px", borderRadius: RADIUS.pill, background: C.bg, color: C.black, fontSize: TYPE.label.size, maxWidth: "calc(100% - 24px)", boxSizing: "border-box" as const, textAlign: "center" as const }}>{note}</p>
@@ -626,14 +627,11 @@ export default function PDFModal({
         )}
       </div>
 
-      {/* ── BOTTOM BAR: one main button (right) · at most one more (left) ── */}
-      <div style={{ flexShrink: 0, background: C.white, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar, padding: "11px 14px calc(14px + env(safe-area-inset-bottom, 0px))", fontFamily: SANS }}>
-        {msg && <div role="status" style={{ fontSize: TYPE.subtext.size, color: msg.err ? C.red : C.muted, lineHeight: 1.4, margin: "0 2px 9px" }}>{msg.text}</div>}
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          {side && barBtn(side, false)}
-          {main && barBtn(main, true)}
-        </div>
-      </div>
+      {/* ── BOTTOM BAR: one main button (right) · at most one more (left) — the shared document bar ── */}
+      <DocFoot msg={msg}>
+        {side && barBtn(side, false)}
+        {main && barBtn(main, true)}
+      </DocFoot>
 
       {/* ── DIALOGS ── */}
       {askDiscard && (

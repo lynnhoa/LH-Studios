@@ -17,7 +17,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { C, SANS, SERIF, TYPE, PAL, RADIUS, TRACK, SPACING } from "./constants";
-import { I, S, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Sheet, SheetButton, ColGroups } from "./atoms";
+import { I, S, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Sheet, SheetButton, SheetErr, ColGroups } from "./atoms";
 import { copyText } from "./outreach";
 import { showNote, showUndo } from "./undo";
 import { DEFAULT_GROUP, parseLines, usedToday } from "./useComments";
@@ -190,9 +190,9 @@ function AddWindow({ hook, groups, start, onClose }: { hook: CommentsHook; group
   };
 
   return (
-    <Sheet title="Add comments" onClose={onClose}
+    <Sheet title="Add comments" onClose={onClose} dirty={!!text.trim()}
       footer={<SheetButton dark dim={!n || busy} onClick={add}>{busy ? "Saving…" : `Add ${n}`}</SheetButton>}>
-      {err && <p role="alert" style={{ fontSize: TYPE.label.size, color: C.red, margin: "0 0 8px" }}>{err}</p>}
+      {err && <SheetErr>{err}</SheetErr>}
       <Lbl>Group</Lbl>
       <GroupPick groups={groups} value={group} onChange={setGroup} />
       <Lbl>Comments · one per line</Lbl>
