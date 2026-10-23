@@ -275,7 +275,10 @@ export const seriesNum = (list: ConceptArc[], a: ConceptArc) =>
 // its recurring eras; each era names its core arcs by number, in posting order. An era's arcs
 // ARE the arcs above (same purpose, formats, texts and links): nothing is copied.
 export interface ConceptEraArc { num: number; optional: boolean; note: string; }
-export interface ConceptEra    { key: string; name: string; desc: string; arcs: ConceptEraArc[]; }
+// grp: the group an era sits in ("Moments", "On you" …), shown as a heading in the phase card
+export interface ConceptEra    { key: string; name: string; desc: string; arcs: ConceptEraArc[]; grp: string | null; }
+// unit: what the phase's list holds — eras (the usual) or, for Home base, blocks of base content
+export type ConceptUnit = "eras" | "base";
 export interface ConceptPhase {
   id:      string;
   account: Account;
@@ -283,7 +286,18 @@ export interface ConceptPhase {
   name:    string;
   purpose: string;
   eras:    ConceptEra[];      // in order
+  unit:    ConceptUnit;
 }
+export const isBasePhase = (p: ConceptPhase | undefined | null) => !!p && p.unit === "base";
+// the words for a phase's list: "Eras · 14" / "Base · 5", "Pick an era" / "Pick a block"
+export const phaseListWord = (p: ConceptPhase | undefined | null) => (isBasePhase(p) ? "Base" : "Eras");
+export const phaseItemWord = (p: ConceptPhase | undefined | null) => (isBasePhase(p) ? "block" : "era");
+// the eras of a phase with their group headings, in order: [{ grp, eras }]
+export const eraGroups = (p: ConceptPhase): { grp: string | null; eras: ConceptEra[] }[] => {
+  const out: { grp: string | null; eras: ConceptEra[] }[] = [];
+  p.eras.forEach(e => { const g = out[out.length - 1]; if (g && g.grp === e.grp) g.eras.push(e); else out.push({ grp: e.grp, eras: [e] }); });
+  return out;
+};
 // Creator › Now: the phase and era you're in, per account (synced between devices)
 export interface ConceptNow { phase: number | null; era: string | null; }
 // the concept page's two colours: arcs pastel blue, phases butter (lavender stays the account's)

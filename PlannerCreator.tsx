@@ -6,7 +6,9 @@
 //   Concept (one line, opens on tap)
 //   Now (accounts with phases): the phase and era you're in (synced between devices), then one
 //     row per arc of that era in posting order — its idea and where it is (Shoot › while it's
-//     an idea), or "+ Add an idea" when the arc is empty (a new idea with phase, era and arc set)
+//     an idea), or "+ Add an idea" when the arc is empty (a new idea with phase, era and arc set).
+//     Home base (no era picked = all blocks): one row per block with its ideas, or "+ Add an idea"
+//     for an empty block (a new idea with the phase and the block set).
 //   The lists, by what needs you first — every one folds (tap its title; remembered):
 //     To post  · filmed, waiting to go live — tick = posted
 //     To shoot · on the shoot list (a date is optional) — tick = filmed
@@ -25,7 +27,7 @@ import { parseYMD, monthStart, monthEnd, today } from "./formatters";
 import {
   FORMATS, CLASSIC, OWNER_LOOK, TONE, isVisible, monthName, entryKey, monthGoalOf, monthGoalPatch, thisMonday, storyLines, isoWeek,
   CREATOR_GOAL, creatorOrder, shortName, parseIntDe,
-  isPostedStatus, linkInfo, isUrlLike, EMPTY_PLAN, itemStageOf, typeOf, TYPES, typePatch, CONTENT, PHASE_TONE, isSeries, seriesName,
+  isPostedStatus, linkInfo, isUrlLike, EMPTY_PLAN, itemStageOf, typeOf, TYPES, typePatch, CONTENT, PHASE_TONE, isSeries, seriesName, isBasePhase,
 } from "./planner";
 import { monthOfWeek } from "./planner";
 import type { Account, Item, ItemList, ItemStage, Task } from "./planner";
@@ -102,7 +104,8 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
   const nowEra    = nowPhase?.eras.find(e => e.key === nowSel.era);
   const accArcs   = planner.arcs.filter(a => a.account === acc);
   const arcNumOf  = (it: Item): number | null => accArcs.find(a => a.id === it.plan?.arc)?.num ?? null;
-  const inNow     = (it: Item) => !!nowPhase && !!nowEra && it.plan?.phase === nowPhase.num && it.plan?.era === nowEra.key;
+  const nowBase   = isBasePhase(nowPhase) && !nowEra;        // Home base with no block picked: all its blocks
+  const inNow     = (it: Item) => !!nowPhase && (nowEra ? it.plan?.phase === nowPhase.num && it.plan?.era === nowEra.key : nowBase && it.plan?.phase === nowPhase.num);
   const nowItems  = mine.filter(inNow).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const eraNums   = nowEra ? nowEra.arcs.map(a => a.num) : [];
   const coreNums  = nowEra ? nowEra.arcs.filter(a => !a.optional).map(a => a.num) : [];
@@ -145,11 +148,21 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
   };
   const pickNowEra = (key: string) => quiet(planner.setNow(acc, nowSel.phase, key || null));
   // Use now ›: a saved idea moves into the Now era (its arc stays) · Undo puts it back
+  // Home base without a block: it moves into the base (no block yet)
   const useNow = (it: Item) => {
-    if (!nowPhase || !nowEra) return;
+    if (!nowPhase || (!nowEra && !nowBase)) return;
     const before = it.plan;
-    quiet(planner.updateItem(it.id, { plan: { ...it.plan, phase: nowPhase.num, era: nowEra.key } }));
-    showUndo(`Moved to ${nowEra.name}`, () => planner.updateItem(it.id, { plan: before }));
+    quiet(planner.updateItem(it.id, { plan: { ...it.plan, phase: nowPhase.num, era: nowEra ? nowEra.key : null } }));
+    showUndo(`Moved to ${nowEra ? nowEra.name : nowPhase.name}`, () => planner.updateItem(it.id, { plan: before }));
+  };
+  // + Add an idea (an empty block of Home base): a new idea with the phase and the block set
+  const [addBlock, setAddBlock] = useState<string | null>(null);
+  const addForBlock = (key: string, text: string) => {
+    if (!nowPhase) return;
+    const link = isUrlLike(text) ? text.trim() : "";
+    const title = link ? `${linkInfo(link).platform} idea` : text;
+    quiet(planner.createItem({ account: acc, title, status: "idea", plannedOn: null, views: null, link: "", direction: "", ...typePatch(acc, CONTENT),
+      plan: { ...EMPTY_PLAN, phase: nowPhase.num, era: key, ...(link ? { refs: [{ url: link, note: "" }] } : {}) } }));
   };
   // + Add an idea (an empty arc in Now): a new idea with phase, era and arc set (a pasted link works too)
   const [addArc, setAddArc] = useState<number | null>(null);
@@ -306,6 +319,30 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
       .forEach(it => { const n = arcNumOf(it); out.push(row(it, 1, { right: stageRight(it), meta: n != null ? `${arcLabel(n)} · not one of this era's arcs` : "No arc yet" })); });
     return out;
   };
+  // Home base, no block picked: one row per block with its ideas, or "+ Add an idea"; then ideas of the base with no block
+  const baseRows = () => {
+    if (!nowPhase || !nowBase) return null;
+    const out: any[] = [];
+    nowPhase.eras.forEach(b => {
+      const its = nowItems.filter(i => i.plan?.era === b.key);
+      if (its.length) its.forEach(it => out.push(row(it, 1, { right: stageRight(it), meta: conceptMeta(it) })));
+      else if (addBlock === b.key) out.push(
+        <div key={`add-block-${b.key}`} style={{ ...rowS(1), minHeight: SPACING.row2, paddingRight: SPACING.rowSide }}>
+          <TextInline size={SPACING.plannerText} value="" placeholder={`New idea for ${b.name}`} ariaLabel={`New idea for ${b.name}`} autoFocus
+            onSave={v => { if (v.trim()) addForBlock(b.key, v.trim()); setAddBlock(null); }} />
+        </div>);
+      else out.push(
+        <button key={`empty-block-${b.key}`} onClick={() => setAddBlock(b.key)} aria-label={`Add an idea for ${b.name}`}
+          style={{ width: "100%", minHeight: SPACING.row2, display: "flex", flexDirection: "column" as const, justifyContent: "center", alignItems: "flex-start", padding: `6px 6px 6px ${SPACING.rowSide}px`,
+            background: "none", border: "none", borderTop: `1px solid ${C.hair}`, cursor: "pointer", fontFamily: SANS, textAlign: "left" as const, boxSizing: "border-box" as const }}>
+          <span style={{ fontSize: SPACING.plannerText, color: C.light }}>+ Add an idea</span>
+          <span style={{ fontSize: SPACING.listMeta, color: C.muted, marginTop: 2 }}>{b.name}</span>
+        </button>);
+    });
+    nowItems.filter(i => !nowPhase.eras.some(b => b.key === i.plan?.era))
+      .forEach(it => out.push(row(it, 1, { right: stageRight(it), meta: "No block yet" })));
+    return out;
+  };
   const addRow = adding > 0 && (
     <div key={`add-${adding}`} style={{ ...rowS(0), paddingRight: SPACING.rowSide }}>
       <TextInline size={SPACING.plannerText} value="" placeholder={show === "editorial" ? "New portfolio idea or a pasted link" : "New idea or a pasted link"} ariaLabel={show === "editorial" ? "New portfolio idea" : "New idea"} autoFocus
@@ -322,7 +359,7 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
         <SwitchPill s={{ padding: "0 12px" }}>Week {isoWeek(now)}</SwitchPill>
       </div>
       {guide.open && <GuideCard onClose={guide.close} steps={hasPhases ? [
-        "Now: pick the phase and era you're in. Each arc of the era gets a row: + Add an idea fills an empty one, Shoot › puts an idea on your shoot list.",
+        "Now: pick the phase and era you're in. Each arc of the era gets a row (Home base: each block): + Add an idea fills an empty one, Shoot › puts an idea on your shoot list.",
         "Saved ideas keep everything for later (+ Add, a pasted link works too). Use now › moves one into the Now era.",
         "Tick it in To shoot once it's filmed: it waits in To post. Tick it there once it's live: Posted. The days count for your goals.",
         "Tap an idea to write its storyline, clips and links. Tap a list's title to fold it.",
@@ -367,14 +404,14 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
                   <option value="">Pick a phase</option>
                   {phases.map(p => <option key={p.id} value={String(p.num)}>{`${p.num}. ${p.name}`}</option>)}
                 </MiniSelect>
-                <MiniSelect value={nowEra ? nowEra.key : ""} muted={!nowEra} disabled={!nowPhase} aria-label="Era now"
+                <MiniSelect value={nowEra ? nowEra.key : ""} muted={!nowEra && !nowBase} disabled={!nowPhase} aria-label={isBasePhase(nowPhase) ? "Block now" : "Era now"}
                   onChange={(e: any) => pickNowEra(String(e.target.value || ""))}>
-                  <option value="">{nowPhase ? "Pick an era" : "Era"}</option>
+                  <option value="">{nowPhase ? (isBasePhase(nowPhase) ? "All blocks" : "Pick an era") : "Era"}</option>
                   {(nowPhase?.eras || []).map(e => <option key={e.key} value={e.key}>{e.name}</option>)}
                 </MiniSelect>
               </div>
               {planner.nowError && <div style={{ padding: `0 ${SPACING.rowSide}px 10px`, fontSize: SPACING.listMeta, color: C.red }}>{planner.nowError}</div>}
-              {nowEra ? nowRows()
+              {nowEra ? nowRows() : nowBase ? baseRows()
                 : <div style={{ padding: `12px ${SPACING.rowSide}px`, borderTop: `1px solid ${C.hair}`, fontSize: TYPE.subtext.size, color: C.muted, lineHeight: 1.4 }}>
                     {nowPhase ? "Pick the era you're in: its arcs show here." : "Pick the phase and era you're in: its arcs show here."}
                   </div>}
@@ -403,7 +440,7 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
                         fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.light }}>
                         <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: g.dot, flexShrink: 0 }} />{g.label} · {g.items.length}
                       </div>
-                      {g.items.map((it, k) => row(it, k, { right: nowEra ? useNowBtn(it) : shootBtn(it), meta: conceptMeta(it) }))}
+                      {g.items.map((it, k) => row(it, k, { right: nowEra || nowBase ? useNowBtn(it) : shootBtn(it), meta: conceptMeta(it) }))}
                     </div>
                   ))
                 : saved.map((it, k) => row(it, k + (adding ? 1 : 0), { right: shootBtn(it) }))}</>)

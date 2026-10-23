@@ -6,8 +6,9 @@
 //   arc to open or close it. Open: its purpose, its formats with the
 //   TikTok / Instagram ticks, and "texts · links" small in the top right —
 //   one window each (add, change, delete with Undo, saved right away).
-//   Phases (butter): Home, Occasion, Invited … one card each. Open: its
-//   purpose and its recurring eras. Tap an era: one window with the era's
+//   Phases (butter): Home base, Home eras, Occasion … one card each. Open: its
+//   purpose and its list — "Eras · 14", or "Base · 5" for Home base — with the
+//   eras under their group headings ("Moments", "On you" …). Tap an era: one window with the era's
 //   core arcs in posting order (optional ones last, in grey), as cards —
 //   all closed when it opens; tap one to open it. Each arc there IS the arc
 //   of the Arcs view — same purpose, formats, texts and links, edited right
@@ -26,7 +27,7 @@
 import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, ICON, PAL } from "./constants";
 import { SectionHead, Sheet, SheetButton } from "./atoms";
-import { ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, CONCEPT_CATEGORIES, CONCEPT_ARCS, isSeries, seriesWord, seriesOf, seriesNum } from "./planner";
+import { ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, CONCEPT_CATEGORIES, CONCEPT_ARCS, isSeries, seriesWord, seriesOf, seriesNum, phaseListWord, eraGroups } from "./planner";
 import type { Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptCategory } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
@@ -204,8 +205,9 @@ const eraCount = (e: ConceptEra) => {
   return { core, opt, label: opt ? `${core} + ${opt}` : String(core) };
 };
 
-// one phase: number · name · ▾ — open: purpose and its eras (tap one: its arcs)
+// one phase: number · name · ▾ — open: purpose and its eras under their group headings (tap one: its arcs)
 function PhaseCard({ phase, open, onToggle, onEra }: { phase: ConceptPhase; open: boolean; onToggle: () => void; onEra: (e: ConceptEra) => void }) {
+  const groups = eraGroups(phase);
   return (
     <div style={cardBox}>
       <div style={{ display: "flex", alignItems: "center" }}>
@@ -220,10 +222,18 @@ function PhaseCard({ phase, open, onToggle, onEra }: { phase: ConceptPhase; open
           {phase.purpose && <div style={{ margin: `-8px 22px 0 ${INDENT}px`, fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4 }}>{phase.purpose}</div>}
           <div style={{ margin: `8px 0 0 ${INDENT}px` }}>
             <div style={{ display: "flex", alignItems: "center", height: 22 }}>
-              <span style={{ ...caps, flex: 1, color: C.light }}>{count("Eras", phase.eras.length)}</span>
+              <span style={{ ...caps, flex: 1, color: C.light }}>{count(phaseListWord(phase), phase.eras.length)}</span>
               <span style={{ ...caps, color: C.light, paddingRight: 22 }}>Arcs</span>
             </div>
-            {phase.eras.map(e => {
+            {groups.map((g, gi) => (
+            <div key={g.grp ?? `g${gi}`}>
+            {g.grp && (
+              <div style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 30, paddingTop: gi ? 8 : 0, borderTop: `1px solid ${C.hair}` }}>
+                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: PHASE_TONE.mid, flexShrink: 0 }} />
+                <span style={{ ...caps, color: PAL.neutral.ink }}>{g.grp}</span>
+              </div>
+            )}
+            {g.eras.map(e => {
               const n = eraCount(e);
               return (
                 <button key={e.key} onClick={() => onEra(e)}
@@ -240,6 +250,8 @@ function PhaseCard({ phase, open, onToggle, onEra }: { phase: ConceptPhase; open
                 </button>
               );
             })}
+            </div>
+            ))}
           </div>
         </div>
       )}

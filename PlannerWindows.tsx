@@ -17,7 +17,7 @@ import { fmtD, today, monthStart, monthEnd, ymd } from "./formatters";
 import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN, Switch, TextInline, MiniInput, MiniSelect, Sheet, SheetHead, SheetButton, SheetRow, SheetPair, SheetAction, SheetMeta, SheetErr, MoreMenu, useDraft, SHEET_CARD, SHEET_CAPS } from "./atoms";
 import type { ToneSet } from "./atoms";
 import {
-  CONCEPT_CATEGORIES, CONCEPT_ARCS, isSeries, seriesOf, seriesName,
+  CONCEPT_CATEGORIES, CONCEPT_ARCS, isSeries, seriesOf, seriesName, isBasePhase, eraGroups,
   ACCOUNTS, PHASES, OWNERS, RHYTHMS, STATUSES, STAGE_SHORT, DAY_SHORT, accLook, phaseLabel, ownerLabel, rhythmLabel, rowKind, entryKey, periodOf, snapKey, addDays, isoWeek, weekRange, weekLabel, thisMonday, monthName, todayIndex, gateOf, stageNumOf, taskAccounts, isVisible, byOrder, fmtInt, fmtPct2, parseDec, parseIntDe, ITEM_STATUSES, FORMATS, CLASSIC, formatLook, itemStatusLabel, daysBetween, OWNER_LOOK, monthGoalOf, monthGoalPatch, loadWorkAccount, storyLines,
   isPostedStatus, isFilmedStatus, linkInfo, isUrlLike, itemStageOf, ITEM_STAGE_LABEL, TYPES, typeOf, typePatch, CONTENT, PLATFORM_TONE,
 } from "./planner";
@@ -527,11 +527,13 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
                     {!!it.plan.phase && !phase && <option value={String(it.plan.phase)}>Not in the concept any more</option>}
                     {phases.map(p => <option key={p.id} value={String(p.num)}>{`${p.num}. ${p.name}`}</option>)}
                   </MiniSelect>
-                  <MiniSelect value={it.plan.era || ""} muted={!it.plan.era} disabled={!phase} aria-label="Era"
+                  <MiniSelect value={it.plan.era || ""} muted={!it.plan.era} disabled={!phase} aria-label={isBasePhase(phase) ? "Block" : "Era"}
                     onChange={(e: any) => savePlan({ era: String(e.target.value || "") || null })}>
-                    <option value="">{phase ? "Pick an era" : "Era"}</option>
+                    <option value="">{phase ? (isBasePhase(phase) ? "Pick a block" : "Pick an era") : "Era"}</option>
                     {phase && it.plan.era && !era && <option value={it.plan.era}>Not in this phase any more</option>}
-                    {(phase?.eras || []).map(e => <option key={e.key} value={e.key}>{e.name}</option>)}
+                    {phase && eraGroups(phase).map((g, gi) => g.grp
+                      ? <optgroup key={g.grp} label={g.grp}>{g.eras.map(e => <option key={e.key} value={e.key}>{e.name}</option>)}</optgroup>
+                      : g.eras.map(e => <option key={`${gi}-${e.key}`} value={e.key}>{e.name}</option>))}
                   </MiniSelect>
                 </div>
               )}

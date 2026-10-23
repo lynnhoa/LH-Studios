@@ -85,8 +85,10 @@ const rowToPhase = (r: any): ConceptPhase => ({
       arcs: (Array.isArray(e?.arcs) ? e.arcs : [])
         .map((a: any): ConceptEraArc => ({ num: Number(a?.num) || 0, optional: !!a?.optional, note: String(a?.note ?? "").trim() }))
         .filter((a: ConceptEraArc) => a.num > 0),
+      grp:  String(e?.grp ?? "").trim() || null,
     }))
     .filter((e: ConceptEra) => e.key && e.name),
+  unit:    r.unit === "base" ? "base" : "eras",
 });
 const PHASES_MISSING = "The phases table doesn't exist yet — run the phases SQL in Supabase once.";
 const NOW_MISSING = "Now isn't saved yet — run the Now SQL in Supabase once.";

@@ -1,3 +1,18 @@
+# Planner · @lynnhoa concept: Home base + Home eras (23.10.2026)
+- Home is two phases now. 1 · Home base: what's always there — Signatures, Today's look, New in,
+  Thoughts, Trends (its card says "Base · 5"). 2 · Home eras: 14 eras under five group headings
+  (Moments · Maintenance · On you · On your body · In your head). Occasion … Brand partner are 3–7.
+- Creator › Now: with Home base and no block picked ("All blocks") the card lists the five blocks —
+  their ideas, or "+ Add an idea" for an empty block (the new idea gets the phase and the block).
+  Pick a block to see its arcs as before. Use now › moves a saved idea into the base.
+- Idea window: for Home base the second field says Block; the era picker shows the group headings.
+- Data: run the @lynnhoa home phases SQL once — two new things on `planner_concept_phases` (a phase's
+  `unit`, an era's `grp`), the two home phases, and the move: your tagged ideas and the Now card go
+  one phase up, the old Home eras map to the new ones (After a trip → Coming home, Maintenance →
+  Appointments & results, Dreaming → Prep for the next trip, Normal day → Home base). Safe to rerun:
+  the move happens only the first time.
+- Changed: `planner.ts`, `usePlanner.ts`, `PlannerConcept.tsx`, `PlannerWindows.tsx`, `PlannerCreator.tsx`.
+
 # Planner · Content concept: Phases | Arcs (23.10.2026)
 - The switch under "Content concept" (@lynnhoa) is now Phases | Arcs, with Phases first.
 - It always opens on Arcs. Phases shows when you tap it; the last choice is no longer remembered.
