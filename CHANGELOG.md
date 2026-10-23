@@ -1,3 +1,9 @@
+# Phase 2 · Planner · smooth with the keyboard (23.10.2026)
+- Idea / Editorial, Arc texts / links, Era, Sprint and New sprint stay still with the iPhone keyboard
+  (Sheet `still`): iPhone scrolls the screen itself in one smooth move.
+- New sprint → Start sprint already stays the same window (checked).
+- Changed: `PlannerWindows.tsx`, `PlannerConcept.tsx`.
+
 # Phase 1 · Email kit + Comments · smooth with the keyboard (23.10.2026)
 - Media kits, Template, New template and Add comments stay still with the iPhone keyboard (Sheet
   `still`, as on the Contacts tab): iPhone scrolls the screen itself in one smooth move.

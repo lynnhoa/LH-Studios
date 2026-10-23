@@ -447,7 +447,7 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
 
   return (
     <>
-      <Sheet title={it.list === "editorial" ? "Editorial" : "Idea"} onClose={onClose}
+      <Sheet title={it.list === "editorial" ? "Editorial" : "Idea"} still onClose={onClose}
         right={<>{accPill}<MoreMenu bare items={[{ label: `Delete ${it.list === "editorial" ? "editorial" : "idea"}`, danger: true, onClick: del }]} /></>}
         footer={<SheetButton onClick={onClose}>Done</SheetButton>}>
         <TitleField value={it.title} onSave={v => save({ title: v })} />
@@ -803,7 +803,7 @@ export function SprintWindow({ planner, sprintId, draft, isMobile, onClose, revi
     <>
       {ask === "delete" && sp && <ConfirmDialog title={`Delete Sprint ${sp.num}?`} text="The sprint, its day numbers and its review are removed." okLabel="Delete" danger onOk={del} onCancel={() => setAsk(null)} />}
       {ask === "end" && sp && <ConfirmDialog title={`End Sprint ${sp.num}?`} text="It moves to your past sprints. The results stay editable here." okLabel="End sprint" onOk={end} onCancel={() => setAsk(null)} />}
-      <Sheet title={title} onClose={onClose} dirty={changed}
+      <Sheet title={title} still onClose={onClose} dirty={changed}
         right={sp ? <MoreMenu items={[{ label: "Delete sprint", danger: true, onClick: () => setAsk("delete") }]} /> : null}
         footer={isNew ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Start sprint"}</SheetButton>
           : changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton>
