@@ -210,11 +210,11 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
       )}
 
       {editLinks && <LinksWindow kit={kit} onShare={sharePdf} onClose={() => setEditLinks(false)} />}
-      {current && <TemplateWindow t={current} kit={kit} purposes={purposes} urlOf={urlOf} onCopy={copyTemplate} onShare={sharePdf} onCopySubject={(s) => copy(s, "Subject copied ✓")} onClose={() => setOpenId(null)} />}
-      {adding && !current && (
-        <TemplateWindow isNew t={{ id: "", name: "", purpose: purpose !== "all" && purpose !== NO_PURPOSE ? purpose : "", subject: "", body: "", kit: null, createdAt: "", pipeline: "lynnhoa", kind: "pitch", categories: [], sortOrder: null, channel: "email" }}
+      {/* one window: after Add template the same window becomes the saved template (no close + reopen blink) */}
+      {(current || adding) && (
+        <TemplateWindow key="template" isNew={!current} t={current || { id: "", name: "", purpose: purpose !== "all" && purpose !== NO_PURPOSE ? purpose : "", subject: "", body: "", kit: null, createdAt: "", pipeline: "lynnhoa", kind: "pitch", categories: [], sortOrder: null, channel: "email" }}
           kit={kit} purposes={purposes} urlOf={urlOf} onCopy={copyTemplate} onShare={sharePdf} onCopySubject={(s) => copy(s, "Subject copied ✓")}
-          onClose={() => setAdding(false)} onCreated={(id) => { setAdding(false); setOpenId(id); }} />
+          onClose={() => { setOpenId(null); setAdding(false); }} onCreated={(id) => { setAdding(false); setOpenId(id); }} />
       )}
     </div>
   );
@@ -277,7 +277,7 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
   return (
     <>
       {askDel && <ConfirmDialog title={`Delete the ${kitInfo(askDel)!.short} PDF?`} text="The PDF is removed from this media kit. The Canva link stays." okLabel="Delete" danger onOk={() => removePdf(askDel)} onCancel={() => setAskDel(null)} />}
-      <Sheet title="Media kits" onClose={onClose} dirty={dr.changed}
+      <Sheet title="Media kits" still onClose={onClose} dirty={dr.changed}
         footer={dr.changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton> : <SheetButton onClick={onClose}>Done</SheetButton>}>
         {err && <SheetErr>{err}</SheetErr>}
         <p style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "0 2px 6px", lineHeight: 1.4 }}>Use Canva's view-only link (Share → Public view link), never the edit link.</p>
@@ -351,7 +351,7 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
     if (!f.name.trim()) { setErr("Please enter a name."); return; }
     setBusy(true);
     try {
-      if (isNew) { const n = await kit.addTemplate(f); onCreated?.(n.id); return; }
+      if (isNew) { dr.saving(); const n = await kit.addTemplate(f); onCreated?.(n.id); return; }   // the same window becomes the template: take what's stored
       dr.saving();
       await kit.updateTemplate(t.id, f); showNote("Saved ✓");
     } catch (e: any) { dr.failed(); setErr(e?.message || "Couldn't save."); }
@@ -367,7 +367,7 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
   return (
     <>
       {askDelete && <ConfirmDialog title={`Delete ${t.name || "this template"}?`} text="The template is removed from your Email kit." okLabel="Delete" danger onOk={del} onCancel={() => setAskDelete(false)} />}
-      <Sheet title={isNew ? "New template" : t.purpose || "Template"} onClose={onClose} dirty={changed}
+      <Sheet title={isNew ? "New template" : t.purpose || "Template"} still onClose={onClose} dirty={changed}
         right={isNew ? null : <MoreMenu items={[{ label: "Delete template", danger: true, onClick: () => setAskDelete(true) }]} />}
         footer={isNew ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Add template"}</SheetButton>
           : changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton>

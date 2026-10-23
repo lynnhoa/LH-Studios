@@ -1,3 +1,10 @@
+# Phase 1 · Email kit + Comments · smooth with the keyboard (23.10.2026)
+- Media kits, Template, New template and Add comments stay still with the iPhone keyboard (Sheet
+  `still`, as on the Contacts tab): iPhone scrolls the screen itself in one smooth move.
+- Add template: the same window becomes the saved template (no close + reopen blink); the kit picked
+  in the new template stays.
+- Changed: `EmailKit.tsx`, `Comments.tsx`.
+
 # Contacts tab · smooth with the keyboard (23.10.2026)
 - Contact, New contact, Log pitch, Import and Filter don't move or resize with the iPhone keyboard
   any more (Sheet `still`): iPhone scrolls the screen itself, in one smooth move. The title stays,
