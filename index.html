@@ -82,21 +82,22 @@
          Everything that sits on the screen (sheets, document windows, bottom bars, toasts) is placed with
          these, so it rides on the iPhone keyboard instead of fighting its scrolling. Values = MOTION in constants.ts. */
       :root { --vv-top: 0px; --vv-h: 100dvh; --kb: 0px; --kb-safe: env(safe-area-inset-bottom, 0px); --sheet-max: 88%; --lh-ease: cubic-bezier(.2,.8,.2,1); }
-      .lh-screen { position: fixed; left: 0; right: 0; top: var(--vv-top); height: var(--vv-h); transition: top .25s var(--lh-ease), height .25s var(--lh-ease); }
+      .lh-screen { position: fixed; left: 0; right: 0; top: var(--vv-top); height: var(--vv-h); }   /* follows at once — no lag, no gap */
+      .lh-sheet  { transition: top .25s var(--lh-ease), height .25s var(--lh-ease); }                /* only the sheet glides, inside the dimming */
       .lh-sheet.lh-in  { animation: lh-sheet-in .26s var(--lh-ease) both; }
       .lh-sheet.lh-out { animation: lh-sheet-out .2s ease-in both; }
       .lh-dim.lh-in    { animation: lh-fade-in .2s ease-out both; }
       .lh-dim.lh-out   { animation: lh-fade-out .2s ease-in both; }
       .lh-pop          { animation: lh-pop-in .15s var(--lh-ease) both; }
       .lh-sheet-body   { overscroll-behavior: contain; }
-      .lh-bar          { transition: top .25s var(--lh-ease), padding .25s var(--lh-ease); }
+      .lh-bar          { transition: padding .25s var(--lh-ease); }
       @keyframes lh-sheet-in  { from { transform: translateY(100%); } to { transform: none; } }
       @keyframes lh-sheet-out { from { transform: none; } to { transform: translateY(100%); } }
       @keyframes lh-fade-in   { from { opacity: 0; } to { opacity: 1; } }
       @keyframes lh-fade-out  { from { opacity: 1; } to { opacity: 0; } }
       @keyframes lh-pop-in    { from { opacity: 0; transform: scale(.98); } to { opacity: 1; transform: none; } }
       @media (prefers-reduced-motion: reduce) {
-        .lh-screen, .lh-bar { transition: none; }
+        .lh-sheet, .lh-bar { transition: none; }
         .lh-sheet.lh-in, .lh-sheet.lh-out, .lh-pop { animation-duration: 1ms; }
         .lh-dim.lh-in, .lh-dim.lh-out { animation-duration: .12s; }
       }

@@ -18,6 +18,13 @@ import { saveStatus } from "./saveStatus";
 // sheet rides on the keyboard with one smooth move instead of fighting iOS's own scrolling.
 const vv = { top: 0, h: typeof window !== "undefined" ? window.innerHeight : 0, kb: 0 };
 export const vvNow = () => vv;
+const vvSubs = new Set<() => void>();
+// the visible screen in a component: re-renders when the keyboard opens / closes or the screen turns
+export function useViewport() {
+  const [, tick] = useState(0);
+  useEffect(() => { const fn = () => tick(x => x + 1); vvSubs.add(fn); return () => { vvSubs.delete(fn); }; }, []);
+  return vv;
+}
 (function trackViewport() {
   if (typeof window === "undefined" || typeof document === "undefined") return;
   const root = document.documentElement.style;
@@ -33,6 +40,7 @@ export const vvNow = () => vv;
     root.setProperty("--kb", `${kb}px`);
     root.setProperty("--kb-safe", kb ? "0px" : "env(safe-area-inset-bottom, 0px)");
     root.setProperty("--sheet-max", kb ? "calc(100% - 12px)" : "88%");
+    vvSubs.forEach(fn => fn());
   };
   let raf = 0;
   const onChange = () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; apply(); }); };
@@ -891,24 +899,55 @@ export const SwitchPill = ({ children, s }: { children: any; s?: any }) => (
 
 
 // ─── SHEET — every item window, one build, one look (SHEET in constants) ─
-// A bottom sheet, one level above the screen: only as tall as its content (up to 88 %, with the
-// keyboard: all of the visible screen but 12 px), the page dimmed and locked behind; ✕, tap outside
-// or Escape closes; centred and at most 560 px wide on iPad / computer. Motion: it slides up when it
-// opens, slides down when it closes (Done too) and glides with the keyboard — the field you type in
-// stays in view.
+// A bottom sheet, one level above the screen: only as tall as its content (up to 88 % of the screen),
+// the page dimmed and locked behind; ✕, tap outside or Escape closes; centred and at most 560 px wide
+// on iPad / computer. Motion: it slides up when it opens, slides down when it closes (Done too). With
+// the keyboard it keeps its top where it is — only its bottom glides to the keyboard, the footer rides
+// on it, the content scrolls and the field you type in stays in view; a short sheet that wouldn't fit
+// moves up just as much as it needs. The layer itself follows the visible screen at once (no gap).
 //   header   48 px on the cream: ✕ · TITLE (small caps) · right (⋯, a pill …)
 //   content  the cream, with white cards (SHEET_CARD) under section heads (SheetHead)
 //   footer   white bar with the bottom-bar shadow: one SheetButton — Done, or the main action
 //   dirty    something typed that isn't saved: ✕, tap outside and Escape ask first (Discard · Keep editing)
 const SheetCtx = createContext<{ close: () => void } | null>(null);
+const KEEP_TOP_MIN = 300;      // keep the sheet's top as long as at least this much of it stays above the keyboard
 export const Sheet = ({ title, onClose, right, children, footer, dirty }: { title: string; onClose: () => void; right?: any; children: any; footer?: any; dirty?: boolean }) => {
+  const { h, kb } = useViewport();
   const [ask, setAsk] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const gone = useRef(false);
   const timer = useRef<any>(null);
+  const head = useRef<HTMLDivElement | null>(null);
   const body = useRef<HTMLDivElement | null>(null);
+  const inner = useRef<HTMLDivElement | null>(null);
+  const foot = useRef<HTMLDivElement | null>(null);
+  const [nat, setNat] = useState(0);                 // the sheet's own height: header + content + footer
   useScrollLock();
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  // how tall the sheet wants to be (measured; again whenever its content changes)
+  const measure = () => {
+    const n = (head.current?.offsetHeight || 0) + (body.current?.scrollHeight || 0) + (foot.current?.offsetHeight || 0);
+    setNat(x => (Math.abs(x - n) < 1 ? x : n));
+  };
+  useLayoutEffect(measure);
+  useEffect(() => {
+    const el = inner.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => measure()); ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // where it sits: at rest at the bottom, up to 88 %; with the keyboard it keeps its top
+  const rest = useRef<{ h0: number } | null>(null);
+  if (!kb) rest.current = { h0: h };
+  const h0 = rest.current?.h0 || h;
+  const rH = Math.min(nat || h, Math.max(120, Math.round(h0 * 0.88)));   // its height when the keyboard is closed
+  const rT = h0 - rH;                                                     // its top when the keyboard is closed
+  let T = rT, H = rH;
+  if (kb) {
+    const avail = h - rT;                                                 // what's left above the keyboard if the top stays
+    if (avail >= Math.min(rH, KEEP_TOP_MIN)) { T = rT; H = Math.min(rH, avail); }
+    else { T = Math.max(12, h - rH); H = Math.min(rH, h - T); }
+  }
   // slides down, then it's gone
   const leave = () => {
     if (leaving || gone.current) return;
@@ -917,7 +956,7 @@ export const Sheet = ({ title, onClose, right, children, footer, dirty }: { titl
   };
   const close = () => { if (dirty) setAsk(true); else leave(); };
   useEscape(true, close);                         // the question, once open, answers Escape itself (Keep editing)
-  // the layer moved with the keyboard: keep the field you type in in view
+  // the sheet glided with the keyboard: keep the field you type in in view
   const settled = (e: any) => {
     if (e.target !== e.currentTarget) return;
     const el = document.activeElement as HTMLElement | null;
@@ -926,21 +965,23 @@ export const Sheet = ({ title, onClose, right, children, footer, dirty }: { titl
   const pad = SHEET.pad;
   return createPortal(
     <SheetCtx.Provider value={{ close }}>
-      <div className="lh-screen" onTransitionEnd={settled}
-        style={{ zIndex: Z.modal, display: "flex", flexDirection: "column", justifyContent: "flex-end", fontFamily: SANS, pointerEvents: leaving ? "none" : undefined }}>
+      <div className="lh-screen" style={{ zIndex: Z.modal, fontFamily: SANS, pointerEvents: leaving ? "none" : undefined }}>
         {ask && <DiscardDialog onDiscard={() => { setAsk(false); leave(); }} onKeep={() => setAsk(false)} />}
         <div onClick={close} aria-hidden="true" className={`lh-dim ${leaving ? "lh-out" : "lh-in"}`} style={{ position: "absolute", inset: 0, background: SHEET.dim, touchAction: "none" }} />
-        <div role="dialog" aria-modal="true" aria-label={title} className={`lh-sheet ${leaving ? "lh-out" : "lh-in"}`}
-          style={{ position: "relative", background: SHEET.surface, borderRadius: `${RADIUS.button}px ${RADIUS.button}px 0 0`, boxShadow: SHADOW.sheet,
-            maxHeight: "var(--sheet-max)", display: "flex", flexDirection: "column", width: "100%", maxWidth: SHEET.width, margin: "0 auto", color: C.black }}>
-          <div style={{ height: SHEET.head, display: "flex", alignItems: "center", gap: 4, padding: "0 10px 0 4px", flexShrink: 0 }}>
+        <div role="dialog" aria-modal="true" aria-label={title} className={`lh-sheet ${leaving ? "lh-out" : "lh-in"}`} onTransitionEnd={settled}
+          style={{ position: "absolute", left: 0, right: 0, width: "100%", maxWidth: SHEET.width, margin: "0 auto", boxSizing: "border-box" as const,
+            ...(nat ? { top: T, height: H } : { bottom: 0, maxHeight: "88%" }),
+            background: SHEET.surface, borderRadius: `${RADIUS.button}px ${RADIUS.button}px 0 0`, boxShadow: SHADOW.sheet, display: "flex", flexDirection: "column", color: C.black }}>
+          <div ref={head} style={{ height: SHEET.head, display: "flex", alignItems: "center", gap: 4, padding: "0 10px 0 4px", flexShrink: 0 }}>
             <button onClick={close} aria-label="Close" style={{ width: DENSITY.tap, height: DENSITY.tap, background: "none", border: "none", fontSize: ICON.close, color: C.muted, cursor: "pointer", flexShrink: 0 }}>✕</button>
             <span style={{ ...SHEET_CAPS, flex: 1, minWidth: 0, textAlign: "center" as const, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, padding: "0 6px" }}>{title}</span>
             <span style={{ minWidth: DENSITY.tap, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2, flexShrink: 0 }}>{right}</span>
           </div>
-          <div ref={body} className="lh-sheet-body" style={{ overflowY: "auto", padding: footer ? `2px ${pad}px ${pad}px` : `2px ${pad}px calc(${pad}px + var(--kb-safe))`, WebkitOverflowScrolling: "touch" as any }}>{children}</div>
+          <div ref={body} className="lh-sheet-body" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: footer ? `2px ${pad}px ${pad}px` : `2px ${pad}px calc(${pad}px + var(--kb-safe))`, WebkitOverflowScrolling: "touch" as any }}>
+            <div ref={inner}>{children}</div>
+          </div>
           {footer && (
-            <div className="lh-bar" style={{ padding: `12px ${pad}px calc(12px + var(--kb-safe))`, background: SHEET.bar, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <div ref={foot} className="lh-bar" style={{ padding: `12px ${pad}px calc(12px + var(--kb-safe))`, background: SHEET.bar, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
               {footer}
             </div>
           )}

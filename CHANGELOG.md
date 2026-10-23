@@ -176,6 +176,17 @@ Goal: make the Supabase app functionally identical to the old reference
 - Dashboard: an odd last Creator tile spans both columns (like Manager).
 - No SQL. Changed: `planner.ts`, `PlannerCreator.tsx`, `PlannerOverview.tsx`.
 
+## Modals · the sheet keeps its top with the keyboard (23.10.2026)
+- The sheet layer follows the visible screen at once (no glide, so no lag and no gap under the sheet
+  when the keyboard closes). Only the sheet glides, inside the dimming.
+- A sheet keeps its top where it is when the keyboard opens: its bottom glides to the keyboard, the
+  footer rides on it, the content scrolls, the field you tapped stays in view. A sheet that wouldn't
+  keep at least 300 px above the keyboard moves up just as much as it needs (short sheets sit on it).
+  The sheet now has its own measured top / height (`useViewport`, a measured content height).
+- Page bottom bars follow at once too (their height still eases).
+- Checked: simulated keyboard + pan (tall, short and template sheets, iPad), the earlier motion and
+  window suites, type-check, build. Changed: `index.html`, `atoms.tsx`.
+
 ## Modals · in motion: on the keyboard, no jumps, no blinks (23.10.2026)
 - The visible screen (atoms.tsx, index.html): one tracker follows the part of the screen you can see
   (iPhone visualViewport) and sets --vv-top / --vv-h / --kb / --kb-safe / --sheet-max on <html>.
