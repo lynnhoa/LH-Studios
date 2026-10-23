@@ -8,7 +8,10 @@
 //   one window each (add, change, delete with Undo, saved right away).
 //   Phases (butter): Home base, Home eras, Occasion … one card each. Open: its
 //   purpose and its list — "Eras · 14", or "Base · 5" for Home base — with the
-//   eras under their group headings ("Moments", "On you" …). Tap an era: one window with the era's
+//   eras under their group headings ("Moments", "On you" …). A Home base block's window starts with
+//   its lines in sections (Signatures: Rituals · Things · How you look · Rules): the label black, how
+//   it shows in grey; "edit" turns them into lists to add, change, delete (Undo), "done" back.
+//   Tap an era: one window with the era's
 //   core arcs in posting order (optional ones last, in grey), as cards —
 //   all closed when it opens; tap one to open it. Each arc there IS the arc
 //   of the Arcs view — same purpose, formats, texts and links, edited right
@@ -27,7 +30,7 @@
 import { useState, useEffect } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, ICON, PAL } from "./constants";
 import { SectionHead, Sheet, SheetButton } from "./atoms";
-import { ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, CONCEPT_CATEGORIES, CONCEPT_ARCS, isSeries, seriesWord, seriesOf, seriesNum, phaseListWord, eraGroups } from "./planner";
+import { ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, CONCEPT_CATEGORIES, CONCEPT_ARCS, isSeries, seriesWord, seriesOf, seriesNum, phaseListWord, eraGroups, isBasePhase, blockLineCount, splitBlockLine } from "./planner";
 import type { Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptCategory } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
@@ -285,16 +288,60 @@ const listHead: any = { ...caps, color: C.light, padding: "8px 10px 2px", border
 // One era's window: its arcs as cards in posting order, all closed when it opens (tap one to
 // open it; "expand all" next to the era's line). An open arc shows the arc itself — purpose,
 // formats, texts and links — and its texts and links are edited right here (saved on the arc).
+// a Home base line, read only: the label, and how it shows in grey under it
+const BlockLineRow = ({ t, first }: { t: string; first: boolean }) => {
+  const [label, rest] = splitBlockLine(t);
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: GAP, borderTop: first ? "none" : `1px solid ${C.hair}`, padding: "8px 10px" }}>
+      <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: C.faint, flexShrink: 0, marginTop: 7 }} />
+      <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" as const }}>
+        <span style={{ display: "block", fontSize: SPACING.listText, color: C.black, lineHeight: 1.35 }}>{label}</span>
+        {rest && <span style={{ display: "block", fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4, marginTop: 1 }}>{rest}</span>}
+      </span>
+    </div>
+  );
+};
+
+// a Home base block's lines in their sections: read, or (edit) a list per section — saved right away
+function BlockLines({ planner, phase, era }: { planner: PlannerHook; phase: ConceptPhase; era: ConceptEra }) {
+  const n = blockLineCount(era);
+  const [edit, setEdit] = useState(n === 0);
+  const secs = era.sections.length ? era.sections : [{ name: "", lines: [] as string[] }];
+  return (
+    <>
+      <WinHead first icon={IC.list} tone={PHASE_TONE} label={count("Lines", n)}
+        right={n > 0 ? <button onClick={() => setEdit(e => !e)} aria-label={edit ? "Done editing lines" : "Edit lines"} style={mini}>{edit ? "done" : "edit"}</button> : undefined} />
+      <div style={winCard}>
+        {secs.map((s, k) => (
+          <div key={`${k}-${s.name}`}>
+            {s.name && <div style={{ ...listHead, borderTop: k ? listHead.borderTop : "none" }}>{count(s.name, s.lines.length)}</div>}
+            {edit
+              ? <LineList key={`bl-${era.key}-${k}`} initial={s.lines} marker="bullets" placeholder="A line · how it shows" addLabel="Add a line"
+                  onSave={lines => { quiet(planner.updateBlockLines(phase.id, era.key, k, lines)); }} />
+              : s.lines.map((t, i) => <BlockLineRow key={i} t={t} first={i === 0 && !s.name && k === 0} />)}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function EraSheet({ planner, phase, era }: { planner: PlannerHook; phase: ConceptPhase; era: ConceptEra }) {
   const [open, setOpen] = useState<number[]>([]);
   const anyOpen = open.length > 0;
   const toggle  = (n: number) => setOpen(o => (o.includes(n) ? o.filter(x => x !== n) : [...o, n]));
+  const base    = isBasePhase(phase);
+  const expand  = <button onClick={() => setOpen(anyOpen ? [] : era.arcs.map(a => a.num))} style={{ ...mini, marginTop: base ? 0 : -6 }}>{anyOpen ? "collapse all" : "expand all"}</button>;
   return (
     <>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, margin: "2px 2px 10px" }}>
         <span style={{ flex: 1, minWidth: 0, fontSize: TYPE.subtext.size, color: C.muted, lineHeight: 1.4 }}>{era.desc}</span>
-        <button onClick={() => setOpen(anyOpen ? [] : era.arcs.map(a => a.num))} style={{ ...mini, marginTop: -6 }}>{anyOpen ? "collapse all" : "expand all"}</button>
+        {!base && expand}
       </div>
+      {base && <>
+        <BlockLines key={`${phase.id}-${era.key}`} planner={planner} phase={phase} era={era} />
+        <WinHead icon={IC.list} tone={ARC_TONE} label={count("Arcs", era.arcs.length)} right={expand} />
+      </>}
       <div style={{ display: "flex", flexDirection: "column" as const, gap: SPACING.gridGap }}>
         {era.arcs.map(ea => {
           const arc  = planner.arcs.find(a => a.account === phase.account && a.num === ea.num);

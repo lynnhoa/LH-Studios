@@ -275,8 +275,18 @@ export const seriesNum = (list: ConceptArc[], a: ConceptArc) =>
 // its recurring eras; each era names its core arcs by number, in posting order. An era's arcs
 // ARE the arcs above (same purpose, formats, texts and links): nothing is copied.
 export interface ConceptEraArc { num: number; optional: boolean; note: string; }
+// a block's lines (Home base), in sections ("Rituals" …; one unnamed section when there are none).
+// A line is "label · how it shows": the label black, the rest grey.
+export interface ConceptBlockSection { name: string; lines: string[]; }
 // grp: the group an era sits in ("Moments", "On you" …), shown as a heading in the phase card
-export interface ConceptEra    { key: string; name: string; desc: string; arcs: ConceptEraArc[]; grp: string | null; }
+// sections: a Home base block's lines (empty for eras)
+export interface ConceptEra    { key: string; name: string; desc: string; arcs: ConceptEraArc[]; grp: string | null; sections: ConceptBlockSection[]; }
+export const blockLineCount = (e: ConceptEra) => e.sections.reduce((n, s) => n + s.lines.length, 0);
+// "Perfume before leaving · how it shows" → ["Perfume before leaving", "how it shows"]
+export const splitBlockLine = (t: string): [string, string] => {
+  const i = t.indexOf(" · ");
+  return i > 0 ? [t.slice(0, i), t.slice(i + 3)] : [t, ""];
+};
 // unit: what the phase's list holds — eras (the usual) or, for Home base, blocks of base content
 export type ConceptUnit = "eras" | "base";
 export interface ConceptPhase {

@@ -1,3 +1,17 @@
+# Planner · @lynnhoa concept: Home base lines (23.10.2026)
+- A Home base block's window starts with its lines, in sections: Signatures has Rituals · Things
+  you're never without · How you look · Your rules (20 lines), Thoughts its six topics. Each line is
+  "label · how it shows": the label black, how it shows in grey under it. The core arcs follow
+  ("Arcs · 3", expand all next to it).
+- "edit" next to "Lines · 20" turns the sections into lists (add, change, ✕ with Undo, saved right
+  away); "done" goes back to reading. An empty block (Today's look, New in, Trends) opens straight
+  on "+ Add a line". Era windows are unchanged.
+- Signatures' summary now names "Miu Miu sunglasses on your head".
+- Data: the same SQL as the home phases, now with the lines — one SQL for both. It adds the lines
+  only to a block that has none (never over what you wrote in the app), an `updated_at` field and
+  permission to save your own phases.
+- Changed: `planner.ts`, `usePlanner.ts`, `PlannerConcept.tsx`.
+
 # Planner · @lynnhoa concept: Home base + Home eras (23.10.2026)
 - Home is two phases now. 1 · Home base: what's always there — Signatures, Today's look, New in,
   Thoughts, Trends (its card says "Base · 5"). 2 · Home eras: 14 eras under five group headings

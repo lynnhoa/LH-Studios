@@ -86,6 +86,8 @@ const rowToPhase = (r: any): ConceptPhase => ({
         .map((a: any): ConceptEraArc => ({ num: Number(a?.num) || 0, optional: !!a?.optional, note: String(a?.note ?? "").trim() }))
         .filter((a: ConceptEraArc) => a.num > 0),
       grp:  String(e?.grp ?? "").trim() || null,
+      sections: (Array.isArray(e?.sections) ? e.sections : [])
+        .map((s: any) => ({ name: String(s?.name ?? "").trim(), lines: (Array.isArray(s?.lines) ? s.lines : []).map((t: any) => String(t ?? "").trim()).filter(Boolean) })),
     }))
     .filter((e: ConceptEra) => e.key && e.name),
   unit:    r.unit === "base" ? "base" : "eras",
@@ -576,6 +578,30 @@ export function usePlanner(userId: string | null, monday: string) {
     fail(error);
   }, [userId]);
 
+  // ── Home base: a block's lines (the phase's eras are written back whole) ─
+  // Only a real change is saved; compared with what is on screen, so Undo is saved too.
+  const phasesRef = useRef(phases); phasesRef.current = phases;
+  const eraToJson = (e: ConceptEra) => ({
+    key: e.key, name: e.name, desc: e.desc,
+    arcs: e.arcs.map(a => ({ num: a.num, ...(a.optional ? { optional: true } : {}), ...(a.note ? { note: a.note } : {}) })),
+    ...(e.grp ? { grp: e.grp } : {}),
+    ...(e.sections.length ? { sections: e.sections } : {}),
+  });
+  const updateBlockLines = useCallback(async (phaseId: string, eraKey: string, section: number, lines: string[]) => {
+    const ph = phasesRef.current.find(p => p.id === phaseId);
+    const era = ph?.eras.find(e => e.key === eraKey);
+    if (!ph || !era) return;
+    const cur = era.sections[section]?.lines || [];
+    if (JSON.stringify(cur) === JSON.stringify(lines)) return;
+    const sections = era.sections.length ? era.sections.map((s, k) => (k === section ? { ...s, lines } : s)) : [{ name: "", lines }];
+    const eras = ph.eras.map(e => (e.key === eraKey ? { ...e, sections } : e));
+    phasesRef.current = phasesRef.current.map(p => (p.id === phaseId ? { ...p, eras } : p));
+    setPhases(prev => prev.map(p => (p.id === phaseId ? { ...p, eras } : p)));
+    const { error } = await supabase.from("planner_concept_phases")
+      .update({ eras: eras.map(eraToJson), updated_at: new Date().toISOString() }).eq("id", phaseId).eq("user_id", userId);
+    fail(error);
+  }, [userId]);
+
   // ── Creator › Now: the phase and era you're in (one row per account, synced) ─
   const nowOf = useCallback((acc: Account): ConceptNow => nows[acc] || NO_NOW, [nows]);
   const setNow = useCallback(async (acc: Account, phase: number | null, era: string | null) => {
@@ -751,7 +777,7 @@ export function usePlanner(userId: string | null, monday: string) {
     createItem, updateItem, setItemStatus, deleteItem, noteOf, saveNote,
     pitches, sprints, stage2Error, createSprint, updateSprint, deleteSprint, activeSprint, sprintStats, followUpsDue, pitchesInWeek, contactName,
     restoreItem, deletePitch, restorePitch,
-    arcs, conceptError, updateArc, phases, phasesError, nowOf, setNow, nowError,
+    arcs, conceptError, updateArc, phases, phasesError, updateBlockLines, nowOf, setNow, nowError,
   };
 }
 
