@@ -449,7 +449,7 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
     <>
       <Sheet title={it.list === "editorial" ? "Editorial" : "Idea"} onClose={onClose}
         right={<>{accPill}<MoreMenu bare items={[{ label: `Delete ${it.list === "editorial" ? "editorial" : "idea"}`, danger: true, onClick: del }]} /></>}
-        footer={<SheetButton onClick={onClose}>Done</SheetButton>}>
+        footer={<SheetButton close>Done</SheetButton>}>
         <TitleField value={it.title} onSave={v => save({ title: v })} />
 
         {/* Shot · Filmed · Posted — the same status as the Creator list */}
@@ -807,7 +807,7 @@ export function SprintWindow({ planner, sprintId, draft, isMobile, onClose, revi
         right={sp ? <MoreMenu items={[{ label: "Delete sprint", danger: true, onClick: () => setAsk("delete") }]} /> : null}
         footer={isNew ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Start sprint"}</SheetButton>
           : changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton>
-          : <SheetButton onClick={onClose}>Done</SheetButton>}>
+          : <SheetButton close>Done</SheetButton>}>
         {err && <SheetErr>{err}</SheetErr>}
 
         {/* ── where it stands · End sprint ── */}

@@ -236,7 +236,7 @@ function CardShell({ title, card, settings, panel, footer, onClose }: any) {
   const share = async () => { if (!ready) return; try { await (navigator as any).share({ files: [ready.file], title: card.label || "Rate card" }); } catch { /* closed */ } };
 
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
+    <div className="lh-screen" style={{ background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS }}>
       <div style={{ flexShrink: 0 }}>
         <DocBar title={title} onClose={onClose}
           right={<><LangSwitch lang={lang} onChange={setLang} /><B onClick={download} s={{ ...BAR_BTN, opacity: busy ? 0.5 : 1 }}>{busy ? "Preparing…" : "Share PDF"}</B></>} />
@@ -531,7 +531,7 @@ function RateCardWindow({ card, cardKey, cardName, settings, clientNames, onClos
 
   const showPreview = !isMobile || !editing || view === "preview";
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS, color: C.black }}>
+    <div className="lh-screen" style={{ background: C.bg, zIndex: Z.modal, display: "flex", flexDirection: "column", fontFamily: SANS, color: C.black }}>
 
       {/* ── TOP BAR: ✕ · the card · EN/DE · status (the shared document bar) ── */}
       <DocBar title={cardName} onClose={onClose} right={<><LangSwitch lang={lang} onChange={setLang} />{badge}</>} />
@@ -790,10 +790,10 @@ function ItemWindow({ kind, item, card, cardKey, cardName, isNew, onSave, onDele
       {askDel && <ConfirmDialog title={`Delete "${item.n}"?`} text={`It's removed from this rate card${usedIn.length ? ` and from ${usedIn.length === 1 ? "the package" : `${usedIn.length} packages:`} ${usedIn.map((p: any) => `“${p.n}”`).join(", ")}` : ""}. Quotes already made keep their prices.`} okLabel="Delete" danger onOk={() => { setAskDel(false); onDelete(false); }} onCancel={() => setAskDel(false)} />}
       <Sheet title={`${KIND_NAME[kind] || "Item"} · ${cardName}`} onClose={close} dirty={changed}
         right={isNew ? null : <MoreMenu items={[{ label: "Move up", onClick: () => onMove(-1) }, { label: "Move down", onClick: () => onMove(1) }, { label: "Delete…", danger: true, onClick: () => setAskDel(true) }]} />}
-        footer={isNew ? <SheetButton dark onClick={save}>Add</SheetButton> : changed ? <SheetButton dark onClick={save}>Save</SheetButton> : <SheetButton onClick={onClose}>Done</SheetButton>}>
+        footer={isNew ? <SheetButton dark onClick={save}>Add</SheetButton> : changed ? <SheetButton dark onClick={save}>Save</SheetButton> : <SheetButton close>Done</SheetButton>}>
         {err && <SheetErr>{err}</SheetErr>}
         <div style={{ ...SHEET_CARD, marginTop: 2 }}>
-          <SheetRow first label="Name"><MiniInput bare value={d.n || ""} autoFocus={!!isNew} placeholder="Name" aria-label="Name" onChange={(e: any) => up({ n: e.target.value })} /></SheetRow>
+          <SheetRow first label="Name"><MiniInput bare value={d.n || ""} placeholder="Name" aria-label="Name" onChange={(e: any) => up({ n: e.target.value })} /></SheetRow>
           {(kind === "deliverables" || kind === "packages") && (
             <SheetRow label="Price" right={<span style={{ ...tinyMuted, paddingRight: 6 }}>€</span>}>
               <NumField mini bare value={d.p ?? null} placeholder="0,00" onChange={(n) => up({ p: n === null ? null : Math.max(0, n) })} ariaLabel="Price" />
@@ -866,10 +866,10 @@ function OptWindow({ kind, opt, cardName, isNew, onSave, onDelete, onMove, onClo
       {askDel && <ConfirmDialog title={`Delete "${optName(opt?.l)}"?`} text="It's removed from this rate card. Quotes and licenses already made keep theirs." okLabel="Delete" danger onOk={() => { setAskDel(false); onDelete(false); }} onCancel={() => setAskDel(false)} />}
       <Sheet title={`${KIND_NAME[kind]} · ${cardName}`} onClose={close} dirty={changed}
         right={isNew ? null : <MoreMenu items={[{ label: "Move up", onClick: () => onMove(-1) }, { label: "Move down", onClick: () => onMove(1) }, { label: "Delete…", danger: true, onClick: () => setAskDel(true) }]} />}
-        footer={isNew ? <SheetButton dark onClick={save}>Add</SheetButton> : changed ? <SheetButton dark onClick={save}>Save</SheetButton> : <SheetButton onClick={onClose}>Done</SheetButton>}>
+        footer={isNew ? <SheetButton dark onClick={save}>Add</SheetButton> : changed ? <SheetButton dark onClick={save}>Save</SheetButton> : <SheetButton close>Done</SheetButton>}>
         {err && <SheetErr>{err}</SheetErr>}
         <div style={{ ...SHEET_CARD, marginTop: 2 }}>
-          <SheetRow first label="Name"><MiniInput bare value={d.l} autoFocus={!!isNew} placeholder="Name" aria-label="Name" onChange={(e: any) => setD((x: any) => ({ ...x, l: e.target.value }))} /></SheetRow>
+          <SheetRow first label="Name"><MiniInput bare value={d.l} placeholder="Name" aria-label="Name" onChange={(e: any) => setD((x: any) => ({ ...x, l: e.target.value }))} /></SheetRow>
           <SheetRow label="Months" right={<span style={{ width: 104, margin: "-2px 0", flexShrink: 0 }}><Stepper h={28} min={0} value={d.mo} onChange={v => setD((x: any) => ({ ...x, mo: v }))} label="Months" /></span>}>
             <span style={tinyMuted}>{d.mo ? `${d.mo} ${d.mo === 1 ? "month" : "months"}` : "no time limit"}</span>
           </SheetRow>
@@ -906,7 +906,7 @@ function CardWindow({ card, cardKey, cardName, onSave, onDeleteCard, onClose }: 
       {askCard && <ConfirmDialog title={`Delete "${cardName}"?`} text="This rate card is removed. Quotes already made keep their prices." okLabel="Delete" danger onOk={() => { setAskCard(false); onDeleteCard(); }} onCancel={() => setAskCard(false)} />}
       <Sheet title={`Card settings · ${cardName}`} onClose={onClose} dirty={changed}
         right={custom ? <MoreMenu items={[{ label: "Delete this rate card…", danger: true, onClick: () => setAskCard(true) }]} /> : null}
-        footer={changed ? <SheetButton dark onClick={save}>Save</SheetButton> : <SheetButton onClick={onClose}>Done</SheetButton>}>
+        footer={changed ? <SheetButton dark onClick={save}>Save</SheetButton> : <SheetButton close>Done</SheetButton>}>
         <div style={{ ...SHEET_CARD, marginTop: 2 }}>
           <SheetRow first label="PDF name"><MiniInput bare value={d.label} placeholder={cardName} aria-label="Name on the PDF" onChange={(e: any) => setD((x: any) => ({ ...x, label: e.target.value }))} /></SheetRow>
           <SheetRow label="Subtitle"><MiniInput bare value={d.sub} placeholder="Add a subtitle" aria-label="Subtitle" onChange={(e: any) => setD((x: any) => ({ ...x, sub: e.target.value }))} /></SheetRow>

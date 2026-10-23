@@ -30,7 +30,7 @@ export function UndoBar() {
   };
   // the save message's look (cream, thin line, rounded), just above it
   return createPortal(
-    <div role="status" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: "calc(84px + env(safe-area-inset-bottom))", zIndex: Z.toast + 1,
+    <div role="status" style={{ position: "fixed", left: "50%", transform: "translate(-50%, -100%)", top: "calc(var(--vv-top) + var(--vv-h) - 84px - var(--kb-safe))", zIndex: Z.toast + 1,
       background: C.bg, border: `1px solid ${C.rule}`, color: C.black, borderRadius: RADIUS.tile, padding: u.undo ? "4px 6px 4px 14px" : "8px 14px", fontFamily: SANS,
       fontSize: TYPE.label.size, letterSpacing: TRACK.tag, boxShadow: SHADOW.pop, display: "flex", alignItems: "center", gap: 12, minHeight: 36, boxSizing: "border-box" as const, maxWidth: "calc(100vw - 32px)" }}>
       <span style={{ whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{u.text}</span>

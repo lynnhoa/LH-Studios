@@ -210,11 +210,11 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
       )}
 
       {editLinks && <LinksWindow kit={kit} onShare={sharePdf} onClose={() => setEditLinks(false)} />}
-      {current && <TemplateWindow t={current} kit={kit} purposes={purposes} urlOf={urlOf} onCopy={copyTemplate} onShare={sharePdf} onCopySubject={(s) => copy(s, "Subject copied ✓")} onClose={() => setOpenId(null)} />}
-      {adding && !current && (
-        <TemplateWindow isNew t={{ id: "", name: "", purpose: purpose !== "all" && purpose !== NO_PURPOSE ? purpose : "", subject: "", body: "", kit: null, createdAt: "", pipeline: "lynnhoa", kind: "pitch", categories: [], sortOrder: null, channel: "email" }}
+      {/* one window for a template and for a new one: after Add template it turns into the saved template (no reopening) */}
+      {(current || adding) && (
+        <TemplateWindow key="template-window" isNew={!current} t={current || { id: "", name: "", purpose: purpose !== "all" && purpose !== NO_PURPOSE ? purpose : "", subject: "", body: "", kit: null, createdAt: "", pipeline: "lynnhoa", kind: "pitch", categories: [], sortOrder: null, channel: "email" }}
           kit={kit} purposes={purposes} urlOf={urlOf} onCopy={copyTemplate} onShare={sharePdf} onCopySubject={(s) => copy(s, "Subject copied ✓")}
-          onClose={() => setAdding(false)} onCreated={(id) => { setAdding(false); setOpenId(id); }} />
+          onClose={current ? () => setOpenId(null) : () => setAdding(false)} onCreated={(id) => { setAdding(false); setOpenId(id); }} />
       )}
     </div>
   );
@@ -278,7 +278,7 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
     <>
       {askDel && <ConfirmDialog title={`Delete the ${kitInfo(askDel)!.short} PDF?`} text="The PDF is removed from this media kit. The Canva link stays." okLabel="Delete" danger onOk={() => removePdf(askDel)} onCancel={() => setAskDel(null)} />}
       <Sheet title="Media kits" onClose={onClose} dirty={dr.changed}
-        footer={dr.changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton> : <SheetButton onClick={onClose}>Done</SheetButton>}>
+        footer={dr.changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton> : <SheetButton close>Done</SheetButton>}>
         {err && <SheetErr>{err}</SheetErr>}
         <p style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "0 2px 6px", lineHeight: 1.4 }}>Use Canva's view-only link (Share → Public view link), never the edit link.</p>
         {f.map((k, i) => {
@@ -351,7 +351,7 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
     if (!f.name.trim()) { setErr("Please enter a name."); return; }
     setBusy(true);
     try {
-      if (isNew) { const n = await kit.addTemplate(f); onCreated?.(n.id); return; }
+      if (isNew) { dr.saving(); const n = await kit.addTemplate(f); onCreated?.(n.id); return; }   // it turns into the saved template here
       dr.saving();
       await kit.updateTemplate(t.id, f); showNote("Saved ✓");
     } catch (e: any) { dr.failed(); setErr(e?.message || "Couldn't save."); }
@@ -371,7 +371,7 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
         right={isNew ? null : <MoreMenu items={[{ label: "Delete template", danger: true, onClick: () => setAskDelete(true) }]} />}
         footer={isNew ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Add template"}</SheetButton>
           : changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton>
-          : <SheetButton onClick={onClose}>Done</SheetButton>}>
+          : <SheetButton close>Done</SheetButton>}>
         {err && <SheetErr>{err}</SheetErr>}
 
         {/* ── the media kit · Copy text ── */}
@@ -393,7 +393,7 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
         {/* ── the template ── */}
         {!isNew && <SheetHead icon={<Ico d={IC.file} size={11} />} label="Template" tone={PAL.neutral} />}
         <div style={{ ...SHEET_CARD, marginTop: isNew ? 2 : 0 }}>
-          <SheetRow first label="Name"><MiniInput bare value={f.name} autoFocus={!!isNew} placeholder="First pitch · brand" aria-label="Name" onChange={sel("name")} /></SheetRow>
+          <SheetRow first label="Name"><MiniInput bare value={f.name} placeholder="First pitch · brand" aria-label="Name" onChange={sel("name")} /></SheetRow>
           <SheetRow label="Purpose"><MiniInput bare value={f.purpose} list="lh-email-purposes" placeholder="Pitch" aria-label="Purpose" onChange={sel("purpose")} /></SheetRow>
           <SheetRow label="For">
             <MenuSelect bare value={f.pipeline || "lynnhoa"} aria-label="For" onChange={sel("pipeline")}>

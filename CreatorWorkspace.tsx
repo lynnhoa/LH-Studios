@@ -57,7 +57,7 @@ function ItemWindow({ item, project, clientsHook, onClose }: any) {
     <>
       <Sheet title={`Item · ${WS_CAT_LABEL[item.category] || item.category}`} onClose={onClose} dirty={changed}
         right={<MoreMenu items={[{ label: "Remove item", danger: true, onClick: remove }]} />}
-        footer={changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton> : <SheetButton onClick={onClose}>Done</SheetButton>}>
+        footer={changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton> : <SheetButton close>Done</SheetButton>}>
         {err && <SheetErr>{err}</SheetErr>}
         <SheetAction>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>

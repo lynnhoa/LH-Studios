@@ -232,3 +232,8 @@ export const SHEET = {
   icon:    18,                      // the section icon circle
   button:  38,                      // the footer button (Done · Save · Add …)
 } as const;
+
+// ─── MOTION — how windows move (the CSS in index.html uses the same values) ─
+//   open   a sheet slides up · close  it slides down · keyboard  everything on the screen glides
+//   with the keyboard · fade  the dimming · pop  dialogs and menus. Reduce Motion on the phone → fades only.
+export const MOTION = { open: 260, close: 200, keyboard: 250, fade: 200, pop: 150 } as const;
