@@ -1,3 +1,8 @@
+# Planner · Content concept: Phases | Arcs (23.10.2026)
+- The switch under "Content concept" (@lynnhoa) is now Phases | Arcs, with Phases first.
+- It always opens on Arcs. Phases shows when you tap it; the last choice is no longer remembered.
+- Changed: `PlannerConcept.tsx`.
+
 # Planner · @createbylynn content concept (23.10.2026)
 - Profile menu › "@createbylynn concept": Hair | Makeup & skincare | Both under the title (remembered
   on this device), one section per arc (Look · Product · Personality · Editorial), one card per series,

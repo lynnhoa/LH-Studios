@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // PlannerConcept — Planner › Content concept, opened from the
 // profile menu ("@lynnhoa concept" / "@createbylynn concept").
-//   Arcs | Phases: a switch under the title (remembered on this device).
+//   Phases | Arcs: a switch under the title. It always opens on Arcs.
 //   Arcs (pastel blue): one card per arc, numbered top to bottom. Tap an
 //   arc to open or close it. Open: its purpose, its formats with the
 //   TikTok / Instagram ticks, and "texts · links" small in the top right —
@@ -32,10 +32,9 @@ import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
 import { IC, Subtitle, TabTitle, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
 
-// remembered on this device: the open arcs and phases per account (none the first time) and the view
+// remembered on this device: the open arcs and phases per account (none the first time)
 const OPEN_KEY    = "lh_planner_concept_open";
 const OPEN_PH_KEY = "lh_planner_concept_open_phases";
-const VIEW_KEY    = "lh_planner_concept_view";
 const CAT_KEY     = "lh_planner_concept_cat";     // @createbylynn: Hair | Makeup & skincare | Both
 type OpenMap = Partial<Record<Account, number[]>>;
 type ConceptView = "arcs" | "phases";
@@ -44,7 +43,6 @@ const loadMap = (key: string): OpenMap => {
   return {};
 };
 const saveMap = (key: string, m: OpenMap) => { try { localStorage.setItem(key, JSON.stringify(m)); } catch { /* ignore */ } };
-const loadView = (): ConceptView => { try { return localStorage.getItem(VIEW_KEY) === "phases" ? "phases" : "arcs"; } catch { return "arcs"; } };
 const loadCat = (): ConceptCategory => {
   try { const v = localStorage.getItem(CAT_KEY); return v === "makeup" || v === "both" ? v : "hair"; } catch { return "hair"; }
 };
@@ -249,9 +247,9 @@ function PhaseCard({ phase, open, onToggle, onEra }: { phase: ConceptPhase; open
   );
 }
 
-// Arcs | Phases (@createbylynn: Hair | Makeup & skincare | Both) — like the account switch,
+// Phases | Arcs (@createbylynn: Hair | Makeup & skincare | Both) — like the account switch,
 // the chosen one in warm grey
-const VIEWS: { key: ConceptView; label: string }[] = [{ key: "arcs", label: "Arcs" }, { key: "phases", label: "Phases" }];
+const VIEWS: { key: ConceptView; label: string }[] = [{ key: "phases", label: "Phases" }, { key: "arcs", label: "Arcs" }];
 function ViewSwitch<K extends string>({ options, value, onPick, label }: { options: { key: K; label: string }[]; value: K; onPick: (v: K) => void; label: string }) {
   return (
   <span role="group" aria-label={label} style={{ display: "inline-flex", alignItems: "center", gap: 2, height: 28, padding: 2, boxSizing: "border-box" as const, border: `1px solid ${C.rule}`, borderRadius: 14, background: C.white }}>
@@ -339,9 +337,9 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   const phases = planner.phases.filter(p => p.account === acc).sort((a, b) => a.num - b.num);
   const accLabel = ACCOUNTS.find(a => a.key === acc)?.label || `@${acc}`;
 
-  // Arcs | Phases
-  const [show, setShow] = useState<ConceptView>(loadView);
-  const pickView = (v: ConceptView) => { setShow(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* ignore */ } };
+  // Phases | Arcs — always opens on Arcs (not remembered)
+  const [show, setShow] = useState<ConceptView>("arcs");
+  const pickView = (v: ConceptView) => setShow(v);
   // @createbylynn: its series, by category (Hair | Makeup & skincare | Both)
   const seriesMode = acc === "createbylynn";
   const series = arcs.filter(isSeries);
