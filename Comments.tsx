@@ -190,7 +190,7 @@ function AddWindow({ hook, groups, start, onClose }: { hook: CommentsHook; group
   };
 
   return (
-    <Sheet title="Add comments" still onClose={onClose} dirty={!!text.trim()}
+    <Sheet title="Add comments" onClose={onClose} dirty={!!text.trim()}
       footer={<SheetButton dark dim={!n || busy} onClick={add}>{busy ? "Saving…" : `Add ${n}`}</SheetButton>}>
       {err && <SheetErr>{err}</SheetErr>}
       <Lbl>Group</Lbl>

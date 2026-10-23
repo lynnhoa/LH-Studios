@@ -1,3 +1,10 @@
+# Phase 4 · Clean-up · one way for every sheet (23.10.2026)
+- Every sheet stays still with the iPhone keyboard by itself now: the old keyboard code is gone
+  (`useKeyboardInset`, the sheet's keyboard padding and height changes) and so is the `still`
+  switch on each window. Nothing changes on screen (same positions in every check).
+- Changed: `atoms.tsx` and the windows that had `still`: `EmailList.tsx`, `EmailKit.tsx`,
+  `Comments.tsx`, `PlannerWindows.tsx`, `PlannerConcept.tsx`, `ServiceCatalog.tsx`, `CreatorWorkspace.tsx`.
+
 # Phase 3 · Manager + Creator · smooth with the keyboard (23.10.2026)
 - Catalog item, Usage / exclusivity, Card settings and Workspace item stay still with the iPhone
   keyboard (Sheet `still`): iPhone scrolls the screen itself in one smooth move.

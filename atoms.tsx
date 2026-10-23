@@ -839,44 +839,29 @@ export const SwitchPill = ({ children, s }: { children: any; s?: any }) => (
   <span style={{ display: "inline-flex", alignItems: "center", border: `1px solid ${C.rule}`, borderRadius: RADIUS.card, background: C.white, height: 28, fontSize: TYPE.subtext.size, ...s }}>{children}</span>
 );
 
-// How much of the screen the on-screen keyboard covers (iPhone / iPad), so a bottom sheet can sit on top
-// of it — its buttons stay visible while typing. 0 on a computer or with the keyboard closed.
-export function useKeyboardInset(on = true): number {
-  const [kb, setKb] = useState(0);
-  useEffect(() => {
-    const vv: any = (window as any).visualViewport;
-    if (!on || !vv) { setKb(0); return; }
-    const calc = () => setKb(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)));
-    calc();
-    vv.addEventListener("resize", calc); vv.addEventListener("scroll", calc);
-    return () => { vv.removeEventListener("resize", calc); vv.removeEventListener("scroll", calc); };
-  }, [on]);
-  return on && kb > 60 ? kb : 0;                         // small differences (browser bars) aren't a keyboard
-}
-
 // ─── SHEET — every item window, one build, one look (SHEET in constants) ─
 // A bottom sheet, one level above the screen: only as tall as its content (up to 88 %),
-// the page dimmed behind; ✕, tap outside or Escape closes; sits above the iPhone keyboard;
-// centred and at most 560 px wide on iPad / computer.
+// the page dimmed behind; ✕, tap outside or Escape closes; centred and at most 560 px wide
+// on iPad / computer.
+// The keyboard never moves or resizes it: iPhone scrolls the screen itself, in one smooth move,
+// and the footer waits under the keyboard (tap ✓). No keyboard code here on purpose — moving the
+// sheet with the keyboard fought iPhone's own scroll and made it jump.
 //   header   48 px on the cream: ✕ · TITLE (small caps) · right (⋯, a pill …)
 //   content  the cream, with white cards (SHEET_CARD) under section heads (SheetHead)
 //   footer   white bar with the bottom-bar shadow: one SheetButton — Done, or the main action
 //   dirty    something typed that isn't saved: ✕, tap outside and Escape ask first (Discard · Keep editing)
-//   still    the keyboard doesn't move or resize the sheet: iPhone scrolls the screen itself, in one smooth move,
-//            and the footer waits under the keyboard (tap ✓). Tried on the Contacts tab first.
-export const Sheet = ({ title, onClose, right, children, footer, dirty, still }: { title: string; onClose: () => void; right?: any; children: any; footer?: any; dirty?: boolean; still?: boolean }) => {
-  const kb = useKeyboardInset(!still);
+export const Sheet = ({ title, onClose, right, children, footer, dirty }: { title: string; onClose: () => void; right?: any; children: any; footer?: any; dirty?: boolean }) => {
   const [ask, setAsk] = useState(false);
   const close = () => { if (dirty) setAsk(true); else onClose(); };
   useEscape(true, close);                         // the question, once open, answers Escape itself (Keep editing)
   const pad = SHEET.pad;
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", flexDirection: "column", justifyContent: "flex-end", fontFamily: SANS, paddingBottom: kb }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: Z.modal, display: "flex", flexDirection: "column", justifyContent: "flex-end", fontFamily: SANS }}>
       {ask && <DiscardDialog onDiscard={() => { setAsk(false); onClose(); }} onKeep={() => setAsk(false)} />}
       <div onClick={close} aria-hidden="true" style={{ position: "absolute", inset: 0, background: SHEET.dim }} />
       <div role="dialog" aria-modal="true" aria-label={title}
         style={{ position: "relative", background: SHEET.surface, borderRadius: `${RADIUS.button}px ${RADIUS.button}px 0 0`, boxShadow: SHADOW.sheet,
-          maxHeight: kb ? `calc(100vh - ${kb + 12}px)` : "88vh", display: "flex", flexDirection: "column", width: "100%", maxWidth: SHEET.width, margin: "0 auto", color: C.black }}>
+          maxHeight: "88vh", display: "flex", flexDirection: "column", width: "100%", maxWidth: SHEET.width, margin: "0 auto", color: C.black }}>
         <div style={{ height: SHEET.head, display: "flex", alignItems: "center", gap: 4, padding: "0 10px 0 4px", flexShrink: 0 }}>
           <button onClick={close} aria-label="Close" style={{ width: DENSITY.tap, height: DENSITY.tap, background: "none", border: "none", fontSize: ICON.close, color: C.muted, cursor: "pointer", flexShrink: 0 }}>✕</button>
           <span style={{ ...SHEET_CAPS, flex: 1, minWidth: 0, textAlign: "center" as const, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, padding: "0 6px" }}>{title}</span>
@@ -884,7 +869,7 @@ export const Sheet = ({ title, onClose, right, children, footer, dirty, still }:
         </div>
         <div style={{ overflowY: "auto", padding: footer ? `2px ${pad}px ${pad}px` : `2px ${pad}px calc(${pad}px + env(safe-area-inset-bottom, 0px))`, WebkitOverflowScrolling: "touch" as any }}>{children}</div>
         {footer && (
-          <div style={{ padding: kb ? `10px ${pad}px` : `12px ${pad}px calc(16px + env(safe-area-inset-bottom, 0px))`, background: SHEET.bar, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <div style={{ padding: `12px ${pad}px calc(16px + env(safe-area-inset-bottom, 0px))`, background: SHEET.bar, borderTop: `1px solid ${C.line}`, boxShadow: SHADOW.bar, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             {footer}
           </div>
         )}

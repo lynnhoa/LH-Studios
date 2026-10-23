@@ -365,7 +365,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
 
       {/* an arc's texts or links (from the Arcs view) */}
       {win && win.kind !== "era" && winArc && (
-        <Sheet title={`${winArc.num}. ${winArc.name}`} still onClose={close} footer={done}>
+        <Sheet title={`${winArc.num}. ${winArc.name}`} onClose={close} footer={done}>
           <WinHead first icon={win.kind === "texts" ? IC.list : IC.link} tone={ARC_TONE}
             label={win.kind === "texts" ? count("Texts", winArc.texts.length) : count("Links", winArc.links.length)} />
           <div style={winCard}>
@@ -380,7 +380,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
 
       {/* an era: its arcs in posting order — the same arcs, texts and links as the Arcs view */}
       {win && win.kind === "era" && winPhase && winEra && (
-        <Sheet title={`${winPhase.num}. ${winPhase.name} · ${winEra.name}`} still onClose={close} footer={done}>
+        <Sheet title={`${winPhase.num}. ${winPhase.name} · ${winEra.name}`} onClose={close} footer={done}>
           <EraSheet key={`${winPhase.id}-${winEra.key}`} planner={planner} phase={winPhase} era={winEra} />
         </Sheet>
       )}

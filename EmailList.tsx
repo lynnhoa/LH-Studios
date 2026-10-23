@@ -514,7 +514,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
 
       {/* ── FILTER (phone): the same sheet as every window ── */}
       {open === "filter" && isMobile && (
-        <Sheet title="Filter" still onClose={() => setOpen(null)} right={resetBtn}
+        <Sheet title="Filter" onClose={() => setOpen(null)} right={resetBtn}
           footer={<SheetButton dark onClick={() => setOpen(null)}>{showLabel}</SheetButton>}>
           {filterFields}
         </Sheet>
@@ -533,7 +533,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
 
       {/* ── IMPORT WINDOW: the three steps ── */}
       {showCols && (
-        <Sheet title="Import contacts" still onClose={() => setShowCols(false)} footer={<SheetButton onClick={() => setShowCols(false)}>Done</SheetButton>}>
+        <Sheet title="Import contacts" onClose={() => setShowCols(false)} footer={<SheetButton onClick={() => setShowCols(false)}>Done</SheetButton>}>
           <p style={{ fontSize: TYPE.subtext.size, color: C.muted, margin: "0 0 10px", lineHeight: 1.6 }}>
             1 · Build your Excel with these columns (first row).<br />
             2 · Copy the prompt, paste it into Claude and attach the Excel.<br />
@@ -792,7 +792,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
   return (
     <>
       {askDelete && <ConfirmDialog title={`Delete ${c.company || c.email}?`} text="The contact is removed from your email list." okLabel="Delete" danger onOk={del} onCancel={() => setAskDelete(false)} />}
-      <Sheet title={isNew ? "New contact" : c.company || c.email} still onClose={onClose} dirty={changed}
+      <Sheet title={isNew ? "New contact" : c.company || c.email} onClose={onClose} dirty={changed}
         right={isNew ? null : <MoreMenu bare items={[{ label: "Delete contact", danger: true, onClick: () => setAskDelete(true) }]} />}
         footer={isNew ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Add contact"}</SheetButton>
           : changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton>
@@ -969,7 +969,7 @@ function LogWindow({ ids, followUp, outreach, isMobile, onClose, onDone }: { ids
     finally { setBusy(false); }
   };
   return (
-    <Sheet title="Log pitch" still onClose={onClose}
+    <Sheet title="Log pitch" onClose={onClose}
       footer={<SheetButton dark dim={busy} onClick={go}>{busy ? "Logging…" : `Log ${n}`}</SheetButton>}>
       {err && <SheetErr>{err}</SheetErr>}
       <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>For the {n} {n === 1 ? "contact" : "contacts"} in view — one entry each in the pitch log. UGC contacts count for @createbylynn, all others for @lynnhoa.</p>

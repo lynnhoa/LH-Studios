@@ -55,7 +55,7 @@ function ItemWindow({ item, project, clientsHook, onClose }: any) {
   const late = !item.done && isOverdue(item.deadline), soon = !item.done && !late && isThisWeek(item.deadline);
   return (
     <>
-      <Sheet title={`Item · ${WS_CAT_LABEL[item.category] || item.category}`} still onClose={onClose} dirty={changed}
+      <Sheet title={`Item · ${WS_CAT_LABEL[item.category] || item.category}`} onClose={onClose} dirty={changed}
         right={<MoreMenu items={[{ label: "Remove item", danger: true, onClick: remove }]} />}
         footer={changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton> : <SheetButton onClick={onClose}>Done</SheetButton>}>
         {err && <SheetErr>{err}</SheetErr>}

@@ -788,7 +788,7 @@ function ItemWindow({ kind, item, card, cardKey, cardName, isNew, onSave, onDele
   return (
     <>
       {askDel && <ConfirmDialog title={`Delete "${item.n}"?`} text={`It's removed from this rate card${usedIn.length ? ` and from ${usedIn.length === 1 ? "the package" : `${usedIn.length} packages:`} ${usedIn.map((p: any) => `“${p.n}”`).join(", ")}` : ""}. Quotes already made keep their prices.`} okLabel="Delete" danger onOk={() => { setAskDel(false); onDelete(false); }} onCancel={() => setAskDel(false)} />}
-      <Sheet title={`${KIND_NAME[kind] || "Item"} · ${cardName}`} still onClose={close} dirty={changed}
+      <Sheet title={`${KIND_NAME[kind] || "Item"} · ${cardName}`} onClose={close} dirty={changed}
         right={isNew ? null : <MoreMenu items={[{ label: "Move up", onClick: () => onMove(-1) }, { label: "Move down", onClick: () => onMove(1) }, { label: "Delete…", danger: true, onClick: () => setAskDel(true) }]} />}
         footer={isNew ? <SheetButton dark onClick={save}>Add</SheetButton> : changed ? <SheetButton dark onClick={save}>Save</SheetButton> : <SheetButton onClick={onClose}>Done</SheetButton>}>
         {err && <SheetErr>{err}</SheetErr>}
@@ -864,7 +864,7 @@ function OptWindow({ kind, opt, cardName, isNew, onSave, onDelete, onMove, onClo
   return (
     <>
       {askDel && <ConfirmDialog title={`Delete "${optName(opt?.l)}"?`} text="It's removed from this rate card. Quotes and licenses already made keep theirs." okLabel="Delete" danger onOk={() => { setAskDel(false); onDelete(false); }} onCancel={() => setAskDel(false)} />}
-      <Sheet title={`${KIND_NAME[kind]} · ${cardName}`} still onClose={close} dirty={changed}
+      <Sheet title={`${KIND_NAME[kind]} · ${cardName}`} onClose={close} dirty={changed}
         right={isNew ? null : <MoreMenu items={[{ label: "Move up", onClick: () => onMove(-1) }, { label: "Move down", onClick: () => onMove(1) }, { label: "Delete…", danger: true, onClick: () => setAskDel(true) }]} />}
         footer={isNew ? <SheetButton dark onClick={save}>Add</SheetButton> : changed ? <SheetButton dark onClick={save}>Save</SheetButton> : <SheetButton onClick={onClose}>Done</SheetButton>}>
         {err && <SheetErr>{err}</SheetErr>}
@@ -904,7 +904,7 @@ function CardWindow({ card, cardKey, cardName, onSave, onDeleteCard, onClose }: 
       {askSec !== null && <ConfirmDialog title={`Remove "${cleanSecT(d.sections[askSec]?.t)}"?`} text="The section and its items are removed when you save." okLabel="Remove" danger
         onOk={() => { const i = askSec; setAskSec(null); setD((x: any) => ({ ...x, sections: x.sections.filter((_: any, j: number) => j !== i) })); }} onCancel={() => setAskSec(null)} />}
       {askCard && <ConfirmDialog title={`Delete "${cardName}"?`} text="This rate card is removed. Quotes already made keep their prices." okLabel="Delete" danger onOk={() => { setAskCard(false); onDeleteCard(); }} onCancel={() => setAskCard(false)} />}
-      <Sheet title={`Card settings · ${cardName}`} still onClose={onClose} dirty={changed}
+      <Sheet title={`Card settings · ${cardName}`} onClose={onClose} dirty={changed}
         right={custom ? <MoreMenu items={[{ label: "Delete this rate card…", danger: true, onClick: () => setAskCard(true) }]} /> : null}
         footer={changed ? <SheetButton dark onClick={save}>Save</SheetButton> : <SheetButton onClick={onClose}>Done</SheetButton>}>
         <div style={{ ...SHEET_CARD, marginTop: 2 }}>
