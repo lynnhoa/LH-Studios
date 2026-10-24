@@ -362,7 +362,7 @@ export function usePlanner(userId: string | null, monday: string) {
       const m: Partial<Record<Account, ConceptNow>> = {};
       (nw?.data || []).forEach((r: any) => {
         const acc: Account = r.account === "createbylynn" ? "createbylynn" : "lynnhoa";
-        m[acc] = { phase: Number(r.phase) > 0 ? Number(r.phase) : null, era: typeof r.era === "string" && r.era ? r.era : null };
+        m[acc] = { phase: r.phase != null && Number(r.phase) >= 0 ? Number(r.phase) : null, era: typeof r.era === "string" && r.era ? r.era : null };   // 0 = Base
       });
       setNows(m);
     }
@@ -578,7 +578,7 @@ export function usePlanner(userId: string | null, monday: string) {
     fail(error);
   }, [userId]);
 
-  // ── Home base: a block's lines (the phase's eras are written back whole) ─
+  // ── Base: a block's lines (the phase's eras are written back whole) ─
   // Only a real change is saved; compared with what is on screen, so Undo is saved too.
   const phasesRef = useRef(phases); phasesRef.current = phases;
   const eraToJson = (e: ConceptEra) => ({

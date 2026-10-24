@@ -1,3 +1,19 @@
+# Planner · @lynnhoa concept: Base tab (24.10.2026)
+- Content concept switch: Base | Phases | Arcs (still opens on Arcs).
+- Base (sage): what's always there, under every phase — five numbered cards (Signatures, Today's
+  look, New in, Thoughts, Trends). Open: what it is, its lines in sections (label black, how it
+  shows in grey) and its core arcs as small pills. "lines · 20" opens one window with a list per
+  section (add, change, ✕ with Undo, saved right away); an empty block shows "+ Add a line".
+  The old block window inside Phases is gone (one level less).
+- Phases: Base left the list. "Home eras" is "Home" again and the phases are 1–6:
+  Home · Occasion · Invited · City break · Long trip · Brand partner.
+- Base has number 0, shown as "Base" (never a number): first in the Phase pickers of the idea
+  window and Creator › Now (then Block), and in Saved ideas.
+- Data: run the @lynnhoa concept base SQL once (replaces the home phases SQL; fine from any earlier
+  state, safe to rerun). It allows 0, splits Home if that hasn't happened, adds the base lines to
+  empty blocks, moves Base to 0 and the phases back to 1–6 — tagged ideas and Now move along.
+- Changed: `planner.ts`, `usePlanner.ts`, `PlannerConcept.tsx`, `PlannerWindows.tsx`, `PlannerCreator.tsx`.
+
 # Planner · @lynnhoa concept: Home base lines (23.10.2026)
 - A Home base block's window starts with its lines, in sections: Signatures has Rituals · Things
   you're never without · How you look · Your rules (20 lines), Thoughts its six topics. Each line is

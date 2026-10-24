@@ -116,7 +116,7 @@ export function planOf(v: any): ItemPlan {
     filmedOn: typeof o.filmedOn === "string" ? o.filmedOn : null,
     arc:       typeof o.arc === "string" && o.arc ? o.arc : null,
     arcFormat: typeof o.arcFormat === "string" && o.arcFormat ? o.arcFormat : null,
-    phase:     Number.isInteger(o.phase) && o.phase > 0 ? o.phase : null,
+    phase:     Number.isInteger(o.phase) && o.phase >= 0 ? o.phase : null,   // 0 = Base
     era:       typeof o.era === "string" && o.era ? o.era : null,
   };
 }
@@ -275,11 +275,11 @@ export const seriesNum = (list: ConceptArc[], a: ConceptArc) =>
 // its recurring eras; each era names its core arcs by number, in posting order. An era's arcs
 // ARE the arcs above (same purpose, formats, texts and links): nothing is copied.
 export interface ConceptEraArc { num: number; optional: boolean; note: string; }
-// a block's lines (Home base), in sections ("Rituals" …; one unnamed section when there are none).
+// a block's lines (Base), in sections ("Rituals" …; one unnamed section when there are none).
 // A line is "label · how it shows": the label black, the rest grey.
 export interface ConceptBlockSection { name: string; lines: string[]; }
 // grp: the group an era sits in ("Moments", "On you" …), shown as a heading in the phase card
-// sections: a Home base block's lines (empty for eras)
+// sections: a Base block's lines (empty for eras)
 export interface ConceptEra    { key: string; name: string; desc: string; arcs: ConceptEraArc[]; grp: string | null; sections: ConceptBlockSection[]; }
 export const blockLineCount = (e: ConceptEra) => e.sections.reduce((n, s) => n + s.lines.length, 0);
 // "Perfume before leaving · how it shows" → ["Perfume before leaving", "how it shows"]
@@ -287,7 +287,7 @@ export const splitBlockLine = (t: string): [string, string] => {
   const i = t.indexOf(" · ");
   return i > 0 ? [t.slice(0, i), t.slice(i + 3)] : [t, ""];
 };
-// unit: what the phase's list holds — eras (the usual) or, for Home base, blocks of base content
+// unit: what the phase's list holds — eras (the usual) or, for Base, its blocks (the Base tab; number 0)
 export type ConceptUnit = "eras" | "base";
 export interface ConceptPhase {
   id:      string;
@@ -299,6 +299,11 @@ export interface ConceptPhase {
   unit:    ConceptUnit;
 }
 export const isBasePhase = (p: ConceptPhase | undefined | null) => !!p && p.unit === "base";
+// how a phase is named in pickers and lists: Base (number 0, never shown) or "1. Home" / "1 · Home"
+export const conceptPhaseLabel = (p: ConceptPhase) => (isBasePhase(p) ? "Base" : `${p.num}. ${p.name}`);
+export const conceptPhaseShort = (p: ConceptPhase) => (isBasePhase(p) ? "Base" : `${p.num} · ${p.name}`);
+// a phase number is set (0 = Base counts)
+export const hasPhase = (n: number | null | undefined): n is number => typeof n === "number" && n >= 0;
 // the words for a phase's list: "Eras · 14" / "Base · 5", "Pick an era" / "Pick a block"
 export const phaseListWord = (p: ConceptPhase | undefined | null) => (isBasePhase(p) ? "Base" : "Eras");
 export const phaseItemWord = (p: ConceptPhase | undefined | null) => (isBasePhase(p) ? "block" : "era");
@@ -313,6 +318,7 @@ export interface ConceptNow { phase: number | null; era: string | null; }
 // the concept page's two colours: arcs pastel blue, phases butter (lavender stays the account's)
 export const ARC_TONE   = PAL.progress;
 export const PHASE_TONE = PAL.waiting;
+export const BASE_TONE  = PAL.done;      // the Base tab (sage)
 // the two platforms on the concept page (ticks and link pills): TikTok pistachio, Instagram pink
 type PlatformTone = { fill: string; wash: string; mid: string; ink: string };
 export const PLATFORM_TONE: Record<"TikTok" | "Instagram", PlatformTone> = { TikTok: PAL.done, Instagram: PAL.late };

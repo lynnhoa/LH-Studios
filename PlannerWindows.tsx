@@ -17,7 +17,7 @@ import { fmtD, today, monthStart, monthEnd, ymd } from "./formatters";
 import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN, Switch, TextInline, MiniInput, MiniSelect, Sheet, SheetHead, SheetButton, SheetRow, SheetPair, SheetAction, SheetMeta, SheetErr, MoreMenu, useDraft, SHEET_CARD, SHEET_CAPS } from "./atoms";
 import type { ToneSet } from "./atoms";
 import {
-  CONCEPT_CATEGORIES, CONCEPT_ARCS, isSeries, seriesOf, seriesName, isBasePhase, eraGroups,
+  CONCEPT_CATEGORIES, CONCEPT_ARCS, isSeries, seriesOf, seriesName, isBasePhase, eraGroups, conceptPhaseLabel, hasPhase,
   ACCOUNTS, PHASES, OWNERS, RHYTHMS, STATUSES, STAGE_SHORT, DAY_SHORT, accLook, phaseLabel, ownerLabel, rhythmLabel, rowKind, entryKey, periodOf, snapKey, addDays, isoWeek, weekRange, weekLabel, thisMonday, monthName, todayIndex, gateOf, stageNumOf, taskAccounts, isVisible, byOrder, fmtInt, fmtPct2, parseDec, parseIntDe, ITEM_STATUSES, FORMATS, CLASSIC, formatLook, itemStatusLabel, daysBetween, OWNER_LOOK, monthGoalOf, monthGoalPatch, loadWorkAccount, storyLines,
   isPostedStatus, isFilmedStatus, linkInfo, isUrlLike, itemStageOf, ITEM_STAGE_LABEL, TYPES, typeOf, typePatch, CONTENT, PLATFORM_TONE,
 } from "./planner";
@@ -487,8 +487,8 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
           const others  = era ? arcs.filter(a => !era.arcs.some(ea => ea.num === a.num)) : arcs;
           // a new phase keeps the era if it has one with the same key; "Pick a phase" clears both
           const pickPhase = (v: string) => {
-            const n = Number(v) || 0;
-            if (!n) { savePlan({ phase: null, era: null }); return; }
+            const n = v === "" ? NaN : Number(v);   // 0 = Base
+            if (!hasPhase(n)) { savePlan({ phase: null, era: null }); return; }
             const next = phases.find(p => p.num === n);
             const keep = !!next && !!it.plan.era && next.eras.some(e => e.key === it.plan.era);
             savePlan({ phase: n, era: keep ? it.plan.era : null });
@@ -519,13 +519,13 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
           };
           return (
             <>
-              {(phases.length > 0 || !!it.plan.phase) && (
+              {(phases.length > 0 || hasPhase(it.plan.phase)) && (
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 6, marginBottom: 6 }}>
-                  <MiniSelect value={it.plan.phase ? String(it.plan.phase) : ""} muted={!it.plan.phase} aria-label="Phase"
-                    onChange={(e: any) => pickPhase(String(e.target.value || ""))}>
+                  <MiniSelect value={hasPhase(it.plan.phase) ? String(it.plan.phase) : ""} muted={!hasPhase(it.plan.phase)} aria-label="Phase"
+                    onChange={(e: any) => pickPhase(String(e.target.value ?? ""))}>
                     <option value="">Pick a phase</option>
-                    {!!it.plan.phase && !phase && <option value={String(it.plan.phase)}>Not in the concept any more</option>}
-                    {phases.map(p => <option key={p.id} value={String(p.num)}>{`${p.num}. ${p.name}`}</option>)}
+                    {hasPhase(it.plan.phase) && !phase && <option value={String(it.plan.phase)}>Not in the concept any more</option>}
+                    {phases.map(p => <option key={p.id} value={String(p.num)}>{conceptPhaseLabel(p)}</option>)}
                   </MiniSelect>
                   <MiniSelect value={it.plan.era || ""} muted={!it.plan.era} disabled={!phase} aria-label={isBasePhase(phase) ? "Block" : "Era"}
                     onChange={(e: any) => savePlan({ era: String(e.target.value || "") || null })}>
