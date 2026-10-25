@@ -10,7 +10,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { C, SANS, SERIF, TYPE, PAL, RADIUS, SHADOW, Z, TRACK, SPACING } from "./constants";
 import { fmtD } from "./formatters";
 import { SummaryLine, Strong, Chip, ChipRow, SearchField, SectionHead, ListCard, TonedTag, Sheet, PillBtn, I, S, Row, ColGroups,
-  SheetHead, SheetRow, SheetAction, SheetMeta, SheetErr, SheetButton, MoreMenu, useDraft, MiniInput, MenuSelect, SHEET_CARD, SHEET_CAPS } from "./atoms";
+  SheetHead, SheetRow, SheetAction, SheetMeta, SheetErr, SheetButton, MoreMenu, useDraft, MiniInput, MenuSelect, SHEET_CARD, SHEET_CAPS, OpenArrow } from "./atoms";
 import { Ico, IC } from "./PlannerWindows";
 import { getWsItems, isOverdue, isThisWeek, fmtDeadline, finalStatus, statusRank, shownStatus, WS_CATS, WS_CAT_LABEL } from "./wsHelpers";
 import { catTone, statusTone, Tick2 } from "./CreatorShared";
@@ -159,7 +159,7 @@ export default function CreatorWorkspace({ clients, isMobile, clientsHook }: { c
             {folded ? (
               <button onClick={() => setUnfold(u => ({ ...u, [g.key]: true }))} aria-expanded={false}
                 style={{ width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: SANS }}>
-                <SectionHead dot={g.dot} label={`${g.label} · ${g.list.length}`} right="▾" />
+                <SectionHead dot={g.dot} label={`${g.label} · ${g.list.length}`} right={<OpenArrow color={PAL.neutral.ink} />} />
               </button>
             ) : <SectionHead dot={g.dot} label={`${g.label} · ${g.list.length}`} right={gi === 0 ? "created · done" : g.folded ? "" : undefined} />}
             {!folded && (

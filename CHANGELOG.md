@@ -1,3 +1,36 @@
+# Planner · @lynnhoa concept: one structure for Base · Phases · Arcs (25.10.2026)
+- Every card works the same: number · name · (open: its small links) · arrow. Open: what it is in
+  grey, then its lists under one heading style (small grey caps with the count: "Rituals · 3",
+  "Moments · 3", "Formats · 5") and one row style (light dot, the name black, what it is grey, in
+  full). The cards are for reading; the small links and the windows are for changing.
+- Phases: the "Eras · 14 | Arcs" row is gone — the counts sit on the group headings, and a phase
+  without groups shows "Eras · 3". Each era shows its arcs as small numbers (blue, optional ones
+  grey) instead of "4", and its description is no longer cut.
+- Arcs: an open arc also shows its texts and links, read only ("texts · links" still open the
+  windows to change them). @createbylynn's series show their links too.
+- Base is warm grey now (the palette's colour for categories; green stays TikTok's). Its arcs show
+  their full names, optional ones grey — tap one: the block's arcs window with that arc open (the
+  same window as an era). Open blocks are remembered by block, not by place (all closed once).
+- The arcs window (an era or a block): "Arcs · 4" heading with expand all, cards spaced like the
+  page. Window titles: "6. The Obsession" · "1. Home · Coming home" · "Base · 1. Signatures".
+- Under the list, while a card is open: what its marks mean (Arcs: main format · TikTok ·
+  Instagram; Base and Phases: arc · optional arc). The line under the title says what the tab is:
+  "Always there, under every phase" · "Where you are, one era at a time" · "How each post is told".
+- The page opens on the tab you had last (remembered on this device, like @createbylynn's switch).
+- Grey text on the cards starts with a capital and ends with a full stop (quotes stay as typed).
+- Idea window and Creator › Now: "Base or phase" — Base first, then the phases under "Phases".
+- Arrows: one drawn arrow for every open/closed and sort arrow in LH Studio (concept page, To-do,
+  Creator, Comments, Projects, Calculator, Email list, select fields) — the ▴ / ▾ symbols came
+  out in two sizes on iPhone.
+- Data: run the @lynnhoa concept SQL (Phase 1) once — safe to rerun, ends with a check. Home's era
+  groups become "Eras: on you" · "Eras: on your body" · "Eras: in your head"; Appointments &
+  results and Shoot day move into Base (blocks 6 and 7 — tagged ideas and Now move along) and
+  Home's text drops "maintenance"; arcs 6–8 are The Obsession · The Story · The Editorial; Today's
+  look is Today's outfit. Keys and numbers stay, so every link holds.
+- Changed: `PlannerConcept.tsx`, `PlannerWindows.tsx`, `PlannerCreator.tsx`, `planner.ts`, `atoms.tsx`,
+  `PlannerTodo.tsx`, `CreatorProjects.tsx`, `CreatorWorkspace.tsx`, `Comments.tsx`, `ProjectsTab.tsx`,
+  `ProjectCard.tsx`, `Calculator.tsx`, `EmailList.tsx`.
+
 # Planner · @lynnhoa concept: Base tab (24.10.2026)
 - Content concept switch: Base | Phases | Arcs (still opens on Arcs).
 - Base (sage): what's always there, under every phase — five numbered cards (Signatures, Today's

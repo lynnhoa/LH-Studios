@@ -22,7 +22,7 @@
 
 import { useState } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, PAL, TRACK, SHADOW } from "./constants";
-import { B, Tick, BAR_BTN, SectionHead, SummaryLine, Strong, TonedTag, Chip, ChipRow, SwitchPill, ValuePill, TextInline, Cols, MiniSelect } from "./atoms";
+import { B, Tick, BAR_BTN, SectionHead, SummaryLine, Strong, TonedTag, Chip, ChipRow, SwitchPill, ValuePill, TextInline, Cols, MiniSelect, OpenArrow } from "./atoms";
 import { parseYMD, monthStart, monthEnd, today } from "./formatters";
 import {
   FORMATS, CLASSIC, OWNER_LOOK, TONE, isVisible, monthName, entryKey, monthGoalOf, monthGoalPatch, thisMonday, storyLines, isoWeek,
@@ -248,7 +248,7 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: dot, flexShrink: 0 }} />
           <span style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: PAL.neutral.ink, whiteSpace: "nowrap" as const }}>{label} · {n}</span>
           <span style={{ marginLeft: "auto", fontSize: TYPE.label.size, color: PAL.neutral.ink, whiteSpace: "nowrap" as const }}>{!f && hint ? hint : ""}</span>
-          <span aria-hidden="true" style={{ fontSize: TYPE.label.size, color: PAL.neutral.ink, width: 12, textAlign: "center" as const }}>{f ? "▾" : "▴"}</span>
+          <span aria-hidden="true" style={{ width: 12, display: "inline-flex", justifyContent: "center" }}><OpenArrow open={!f} color={PAL.neutral.ink} /></span>
         </button>
         {add && <button onClick={() => { if (f) setFold(key, false); add(); }} style={{ background: "none", border: "none", padding: "8px 0", margin: "-8px 0", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: PAL.neutral.ink, whiteSpace: "nowrap" as const }}>+ Add</button>}
       </div>
@@ -399,10 +399,15 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
             {head("Now", nowEra ? `${postedCore} of ${coreNums.length} posted` : undefined, PHASE_TONE.mid)}
             {card(<>
               <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 6, padding: `10px ${SPACING.rowSide}px` }}>
-                <MiniSelect value={nowPhase ? String(nowPhase.num) : ""} muted={!nowPhase} aria-label="Phase now"
+                <MiniSelect value={nowPhase ? String(nowPhase.num) : ""} muted={!nowPhase} aria-label="Base or phase now"
                   onChange={(e: any) => pickNowPhase(String(e.target.value ?? ""))}>
-                  <option value="">Pick a phase</option>
-                  {phases.map(p => <option key={p.id} value={String(p.num)}>{conceptPhaseLabel(p)}</option>)}
+                  <option value="">Base or phase</option>
+                  {phases.filter(isBasePhase).map(p => <option key={p.id} value={String(p.num)}>{conceptPhaseLabel(p)}</option>)}
+                  {phases.some(p => !isBasePhase(p)) && (
+                    <optgroup label="Phases">
+                      {phases.filter(p => !isBasePhase(p)).map(p => <option key={p.id} value={String(p.num)}>{conceptPhaseLabel(p)}</option>)}
+                    </optgroup>
+                  )}
                 </MiniSelect>
                 <MiniSelect value={nowEra ? nowEra.key : ""} muted={!nowEra && !nowBase} disabled={!nowPhase} aria-label={isBasePhase(nowPhase) ? "Block now" : "Era now"}
                   onChange={(e: any) => pickNowEra(String(e.target.value || ""))}>

@@ -12,7 +12,7 @@
 
 import { useState } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, PAL, TRACK } from "./constants";
-import { B, Tick, ConfirmDialog, SectionHead, SummaryLine, Strong, TonedTag, Sheet, PillBtn, I, S, DashCard, TextInline, Cols } from "./atoms";
+import { B, Tick, ConfirmDialog, SectionHead, SummaryLine, Strong, TonedTag, Sheet, PillBtn, I, S, DashCard, TextInline, Cols, OpenArrow } from "./atoms";
 import { fmtD } from "./formatters";
 import { OWNER_LOOK, accLook, rowKind, stageOf, gateOf, byOrder, STAGE_SHORT, thisMonday } from "./planner";
 import type { Task, AccountFilter, Owner, Phase, Account, Look, Stage } from "./planner";
@@ -166,7 +166,7 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
     return (
       <div key={s.id}>
         <button onClick={() => setOpenStage(open ? null : s.id)} aria-expanded={open} style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SANS }}>
-          <SectionHead dot={PAL.done.mid} label={`Stage ${s.num} · ${s.name}${s.doneOn ? ` · done ${fmtD(s.doneOn)}` : ""}`} right={open ? "▴" : "▾"} />
+          <SectionHead dot={PAL.done.mid} label={`Stage ${s.num} · ${s.name}${s.doneOn ? ` · done ${fmtD(s.doneOn)}` : ""}`} right={<OpenArrow open={open} color={PAL.neutral.ink} />} />
         </button>
         {open && (l.length ? listCard(l) : <p style={{ fontSize: SPACING.plannerText, color: C.muted, margin: 0, padding: "4px 2px" }}>No tasks.</p>)}
         {open && s.num === Math.max(...finished.map(x => x.num)) && (
@@ -207,7 +207,7 @@ export default function PlannerTodo({ planner, view, isMobile, onAccount }: Plan
               {doneOnes.length > 0 && (
                 <>
                   <button onClick={() => setShowDone(o => !o)} aria-expanded={showDone} style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SANS }}>
-                    <SectionHead dot={PAL.done.mid} label={`Done · ${doneOnes.length}`} right={showDone ? "▴" : "▾"} />
+                    <SectionHead dot={PAL.done.mid} label={`Done · ${doneOnes.length}`} right={<OpenArrow open={showDone} color={PAL.neutral.ink} />} />
                   </button>
                   {showDone && listCard(doneOnes)}
                 </>

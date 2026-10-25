@@ -17,7 +17,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { C, SANS, SERIF, TYPE, PAL, RADIUS, TRACK, SPACING } from "./constants";
-import { I, S, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Sheet, SheetButton, SheetErr, ColGroups } from "./atoms";
+import { I, S, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Sheet, SheetButton, SheetErr, ColGroups, OpenArrow } from "./atoms";
 import { copyText } from "./outreach";
 import { showNote, showUndo } from "./undo";
 import { DEFAULT_GROUP, parseLines, usedToday } from "./useComments";
@@ -150,7 +150,7 @@ export default function Comments({ hook, isMobile }: CommentsProps) {
                       fontFamily: SANS, fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: PAL.neutral.ink, textAlign: "left" as const, WebkitTapHighlightColor: "transparent" }}>
                     <span style={{ width: 7, height: 7, borderRadius: "50%", background: nUsedG ? PAL.done.mid : PAL.neutral.mid, flexShrink: 0 }} />
                     <span style={{ whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{g} · {list.length}</span>
-                    <span aria-hidden="true" style={{ fontSize: 10, color: C.faint, letterSpacing: 0 }}>{isOpen ? "▴" : "▾"}</span>
+                    <OpenArrow open={isOpen} />
                   </button>
                   {isOpen && (
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexShrink: 0 }}>

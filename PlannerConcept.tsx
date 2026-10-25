@@ -1,64 +1,73 @@
 // ─────────────────────────────────────────────────────────────
 // PlannerConcept — Planner › Content concept, opened from the
 // profile menu ("@lynnhoa concept" / "@createbylynn concept").
-//   Base | Phases | Arcs: a switch under the title. It always opens on Arcs.
-//   Base (sage): what's always there, under every phase — one card per block
-//   (Signatures, Today's look …), numbered. Open: what it is, its lines in
-//   sections (Signatures: Rituals · Things · How you look · Rules) — the label
-//   black, how it shows in grey — and its core arcs. "lines · 20" small in the
-//   top right opens one window to add, change, delete them (Undo, saved right away).
-//   Arcs (pastel blue): one card per arc, numbered top to bottom. Tap an
-//   arc to open or close it. Open: its purpose, its formats with the
-//   TikTok / Instagram ticks, and "texts · links" small in the top right —
-//   one window each (add, change, delete with Undo, saved right away).
-//   Phases (butter): Home, Occasion, Invited … one card each. Open: its purpose
-//   and its eras, under their group headings ("Moments", "On you" …).
-//   Tap an era: one window with the era's
-//   core arcs in posting order (optional ones last, in grey), as cards —
-//   all closed when it opens; tap one to open it. Each arc there IS the arc
-//   of the Arcs view — same purpose, formats, texts and links, edited right
-//   there (no jump to Arcs), so a change shows on both.
-//   "collapse all / expand all" next to Arcs / Phases. Open cards are
-//   remembered on this device; the first time, all are closed.
+//   Base | Phases | Arcs: a switch under the title — it opens on the tab you had last
+//   (remembered on this device). The line under the title says what the tab is.
+//   Every card works the same: number · name · (open: its small links) · arrow. Open: what it
+//   is in grey, then its lists — each under one heading (small grey caps with its count), one
+//   row per item: a light dot, the name in black, what it is in grey, in full. The cards are
+//   for reading; the small links ("lines", "texts · links") and the windows are for changing.
+//   Base (warm grey): what's always there, under every phase — one card per block. Open: what
+//   it is, its lines in sections ("label · how it shows") and its arcs as pills — tap one:
+//   the block's arcs window, with that arc open. "lines · 20" opens one window to add,
+//   change, delete them (Undo, saved right away).
+//   Phases (butter): Home, Occasion … one card each. Open: its purpose and its eras under
+//   their group headings ("Moments · 3"; a phase without groups: "Eras · 3"). Each era shows
+//   its arcs as small numbers (blue; optional ones grey) — tap the era: its arcs window.
+//   Arcs (pastel blue): one card per arc. Open: its purpose, its formats with the TikTok /
+//   Instagram ticks, its texts and its links. "texts · links" open one window each (add,
+//   change, delete with Undo, saved right away).
+//   The arcs window (an era, or a Base block): what it is, then "Arcs · 4" with expand all,
+//   the arcs as cards in posting order (optional ones last, in grey). Each IS the arc of the
+//   Arcs tab — its texts and links are edited right there, so a change shows everywhere.
+//   Under the list, while a card is open: what its marks mean. Open cards are remembered on
+//   this device; the first time, all are closed.
 // @createbylynn (no phases): Hair | Makeup & skincare | Both under the title (remembered on
 //   this device). One section per arc (Look · Product · Personality · Editorial), one card
-//   per series, numbered 1, 2, 3 … in each arc. Open: what the series is and its labels (Look)
-//   or texts — a journey's texts start with their step ("1 · …"), views stay grey ("(1.531)").
-//   "labels · 9" / "texts · 6" and "links" open the same window as an arc's texts and links.
+//   per series, numbered 1, 2, 3 … in each arc. Open: what the series is, its labels (Look)
+//   or texts — a journey's texts start with their step ("1 · …"), views stay grey ("(1.531)")
+//   — and its links. "labels · 9" / "texts · 6" and "links" open the same windows as an arc's.
 // Arcs, series, purpose, formats, ticks, phases and eras come from the SQL (fixed).
 // Phone: one column · iPad / computer: two columns (first half left).
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
-import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, ICON, PAL } from "./constants";
-import { SectionHead, Sheet, SheetButton } from "./atoms";
-import { ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, CONCEPT_CATEGORIES, CONCEPT_ARCS, isSeries, seriesWord, seriesOf, seriesNum, phaseListWord, eraGroups, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE } from "./planner";
-import type { Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptCategory } from "./planner";
+import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, PAL } from "./constants";
+import { SectionHead, Sheet, SheetButton, OpenArrow } from "./atoms";
+import { ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, CONCEPT_CATEGORIES, CONCEPT_ARCS, isSeries, seriesWord, seriesOf, seriesNum, phaseListWord, eraGroups, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE, conceptPhaseLabel, linkInfo } from "./planner";
+import type { Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEraArc, ConceptCategory, ConceptLink } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
-import { IC, Subtitle, TabTitle, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
+import { IC, Ico, Subtitle, TabTitle, WinHead, winCard, LineList, LinkList, LINK_PILL } from "./PlannerWindows";
 
-// remembered on this device: the open arcs and phases per account (none the first time)
+// remembered on this device: the tab, and the open arcs, phases and Base blocks per account
+// (none the first time)
+const VIEW_KEY    = "lh_planner_concept_view";        // Base | Phases | Arcs
 const OPEN_KEY    = "lh_planner_concept_open";
 const OPEN_PH_KEY = "lh_planner_concept_open_phases";
-const OPEN_BS_KEY = "lh_planner_concept_open_base";
-const CAT_KEY     = "lh_planner_concept_cat";     // @createbylynn: Hair | Makeup & skincare | Both
-type OpenMap = Partial<Record<Account, number[]>>;
+const OPEN_BS_KEY = "lh_planner_concept_open_blocks"; // Base: by the block's key (no longer by its place)
+const OLD_BS_KEY  = "lh_planner_concept_open_base";   // the old one, by place — cleared
+const CAT_KEY     = "lh_planner_concept_cat";         // @createbylynn: Hair | Makeup & skincare | Both
+type OpenMap  = Partial<Record<Account, number[]>>;
+type OpenKeys = Partial<Record<Account, string[]>>;
 type ConceptView = "base" | "phases" | "arcs";
-const loadMap = (key: string): OpenMap => {
+const loadMap = (key: string): any => {
   try { const v = JSON.parse(localStorage.getItem(key) || "null"); if (v && typeof v === "object") return v; } catch { /* ignore */ }
   return {};
 };
-const saveMap = (key: string, m: OpenMap) => { try { localStorage.setItem(key, JSON.stringify(m)); } catch { /* ignore */ } };
+const saveMap = (key: string, m: object) => { try { localStorage.setItem(key, JSON.stringify(m)); } catch { /* ignore */ } };
+const loadView = (): ConceptView => {
+  try { const v = localStorage.getItem(VIEW_KEY); return v === "base" || v === "phases" ? v : "arcs"; } catch { return "arcs"; }
+};
 const loadCat = (): ConceptCategory => {
   try { const v = localStorage.getItem(CAT_KEY); return v === "makeup" || v === "both" ? v : "hair"; } catch { return "hair"; }
 };
 
 const quiet = (p: Promise<any>) => p.catch(() => { /* the save toast reports it */ });
 
-const NUM    = 24;              // the number circle of an arc or a phase
+const NUM    = 24;              // the number circle of an arc, a phase or a block
 const GAP    = 9;
-const INDENT = NUM + GAP;       // purpose, formats and eras line up with the card's name
+const INDENT = NUM + GAP;       // what it is and its lists line up with the card's name
 const COL    = 30;              // the TikTok and Instagram columns
 
 const caps: any = { fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const };
@@ -70,6 +79,15 @@ const mini: any = {
 };
 const count = (word: string, n: number) => (n ? `${word} · ${n}` : word);
 type Tone = { fill: string; wash: string; mid: string; ink: string };
+
+// grey text that says what something is: starts with a capital and ends with a full stop
+// (a quote stays as typed) — the same on every card, however the SQL or the app saved it
+const tidy = (t: string) => {
+  const s = String(t || "").trim();
+  if (!s) return "";
+  const up = s.charAt(0).toUpperCase() + s.slice(1);
+  return /[.!?…"“”'’]$/.test(up) ? up : `${up}.`;
+};
 
 // a platform tick: soft fill, coloured outline and check · empty: light outline
 const PlatformTick = ({ on, platform }: { on: boolean; platform: "TikTok" | "Instagram" }) => {
@@ -95,14 +113,46 @@ const FormatRow = ({ f }: { f: ConceptFormat }) => (
   </div>
 );
 
-// "Formats · TT · IG" and one row per format (the arc card and the era window)
+// a heading inside a card: small grey caps with its count — the line under it is its first
+// row's · right = column labels (TT · IG)
+const InnerHead = ({ label, n, right }: { label: string; n?: number; right?: any }) => (
+  <div style={{ display: "flex", alignItems: "center", minHeight: 22 }}>
+    <span style={{ ...caps, flex: 1, minWidth: 0, color: C.light }}>{count(label, n || 0)}</span>
+    {right}
+  </div>
+);
+
+// one row inside a card: a light dot, the name in black and what it is in grey, in full ·
+// right = something at the end (an era's arcs) · onClick = the row opens a window
+const rowLine: any = { display: "flex", alignItems: "flex-start", gap: GAP, borderTop: `1px solid ${C.hair}`, padding: "8px 0" };
+const ItemRow = ({ name, text, right, onClick, label }: { name: string; text?: string; right?: any; onClick?: () => void; label?: string }) => {
+  const inner = (
+    <>
+      <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: C.faint, flexShrink: 0, marginTop: 6 }} />
+      <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" as const }}>
+        <span style={{ display: "block", fontSize: SPACING.listText, color: C.black, lineHeight: 1.35 }}>{name}</span>
+        {text && <span style={{ display: "block", fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4, marginTop: 1 }}>{text}</span>}
+      </span>
+      {right}
+    </>
+  );
+  if (!onClick) return <div style={rowLine}>{inner}</div>;
+  return (
+    <button onClick={onClick} aria-label={label}
+      style={{ ...rowLine, width: "100%", minHeight: SPACING.row1, background: "none", border: "none", borderTop: rowLine.borderTop, cursor: "pointer",
+        fontFamily: SANS, textAlign: "left" as const, color: C.black, WebkitTapHighlightColor: "transparent" }}>
+      {inner}
+    </button>
+  );
+};
+
+// "Formats · 5 · TT · IG" and one row per format (the arc card and the arcs window)
 const Formats = ({ formats }: { formats: ConceptFormat[] }) => (
   <>
-    <div style={{ display: "flex", alignItems: "center", height: 22 }}>
-      <span style={{ ...caps, flex: 1, color: C.light }}>Formats</span>
+    <InnerHead label="Formats" n={formats.length} right={<>
       <span style={{ ...caps, width: COL, textAlign: "center" as const, color: PLATFORM_TONE.TikTok.ink }} title="TikTok">TT</span>
       <span style={{ ...caps, width: COL, textAlign: "center" as const, color: PLATFORM_TONE.Instagram.ink }} title="Instagram">IG</span>
-    </div>
+    </>} />
     {formats.map((f, k) => <FormatRow key={k} f={f} />)}
   </>
 );
@@ -119,39 +169,16 @@ const headBtn: any = {
   background: "none", border: "none", cursor: "pointer", fontFamily: SANS, textAlign: "left" as const, color: C.black, WebkitTapHighlightColor: "transparent",
 };
 const nameText: any = { flex: 1, minWidth: 0, fontSize: SPACING.plannerText, fontWeight: 500, lineHeight: 1.3, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" };
+// an open card: what it is (grey) and its lists, lined up with the card's name
+const cardBody: any = { padding: `0 6px 8px ${SPACING.rowSide}px` };
+const descText: any = { margin: `-8px 22px 0 ${INDENT}px`, fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4 };
+const listBox: any  = { margin: `8px 0 0 ${INDENT}px` };
 const Caret = ({ open, onClick }: { open: boolean; onClick: () => void }) => (
   <span aria-hidden="true" onClick={onClick}
-    style={{ width: COL, minHeight: SPACING.row1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: ICON.caret, color: C.faint, flexShrink: 0, cursor: "pointer" }}>
-    {open ? "▴" : "▾"}
+    style={{ width: COL, minHeight: SPACING.row1, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer" }}>
+    <OpenArrow open={open} />
   </span>
 );
-
-// one arc: number · name · (open: texts · links) · ▾ — open: purpose and formats
-function ArcCard({ arc, open, onToggle, onOpen }: { arc: ConceptArc; open: boolean; onToggle: () => void; onOpen: (kind: "texts" | "links") => void }) {
-  return (
-    <div style={cardBox}>
-      <div style={{ display: "flex", alignItems: "center" }}>
-        <button onClick={onToggle} aria-expanded={open} aria-label={`${arc.num}. ${arc.name}`} style={headBtn}>
-          <NumCircle n={arc.num} tone={ARC_TONE} />
-          <span style={nameText}>{arc.name}</span>
-        </button>
-        {open && (
-          <span style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-            <button onClick={() => onOpen("texts")} aria-label={`Texts of ${arc.name}`} style={mini}>{count("texts", arc.texts.length)}</button>
-            <button onClick={() => onOpen("links")} aria-label={`Links of ${arc.name}`} style={mini}>{count("links", arc.links.length)}</button>
-          </span>
-        )}
-        <Caret open={open} onClick={onToggle} />
-      </div>
-      {open && (
-        <div style={{ padding: `0 6px 6px ${SPACING.rowSide}px` }}>
-          {arc.purpose && <div style={{ margin: `-8px 22px 0 ${INDENT}px`, fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4 }}>{arc.purpose}</div>}
-          <div style={{ margin: `8px 0 0 ${INDENT}px` }}><Formats formats={arc.formats} /></div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // one line of a series (read only — written in its window): a dot, or the step of a journey
 // ("1 · …" → a small 1), the text, and views in grey at the end ("(1.531)")
@@ -172,7 +199,80 @@ const LineRow = ({ t }: { t: string }) => {
   );
 };
 
-// one series (@createbylynn): number · name · (open: labels / texts · links) · ▾ — open: what it is and its lines
+// a link, read only (written in its window): the platform pill, what it shows, the short
+// address and a button to open it
+const LinkReadRow = ({ l }: { l: ConceptLink }) => {
+  const li = linkInfo(l.url), pl = l.url.trim() ? li.platform : "Note", tn = platformTone(pl);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: GAP, borderTop: `1px solid ${C.hair}`, padding: "7px 0", minHeight: 34 }}>
+      <span style={tn ? { ...LINK_PILL, background: tn.fill, color: tn.ink } : LINK_PILL}>{pl}</span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        {l.note && <span style={{ display: "block", fontSize: SPACING.listText, color: C.black, lineHeight: 1.35, overflowWrap: "anywhere" as const }}>{l.note}</span>}
+        {li.short && <span style={{ display: "block", fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.35, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{li.short}</span>}
+      </span>
+      {li.href && (
+        <a href={li.href} target="_blank" rel="noreferrer" aria-label={`Open the ${pl} link`} title="Open"
+          style={{ width: 24, height: 24, borderRadius: "50%", background: PAL.neutral.fill, color: PAL.neutral.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Ico d={IC.open} size={12} />
+        </a>
+      )}
+    </div>
+  );
+};
+
+// an arc's (or a series') texts and links, read only — written in their windows ·
+// first = nothing above them in the card's list
+const ArcLists = ({ a, word = "Texts", first = false }: { a: ConceptArc; word?: string; first?: boolean }) => {
+  const hasT = a.texts.length > 0, hasL = a.links.length > 0;
+  return (
+    <>
+      {hasT && (
+        <div style={{ marginTop: first ? 0 : 6 }}>
+          <InnerHead label={word} n={a.texts.length} />
+          {a.texts.map((t, k) => <LineRow key={k} t={t} />)}
+        </div>
+      )}
+      {hasL && (
+        <div style={{ marginTop: first && !hasT ? 0 : 6 }}>
+          <InnerHead label="Links" n={a.links.length} />
+          {a.links.map((l, k) => <LinkReadRow key={k} l={l} />)}
+        </div>
+      )}
+    </>
+  );
+};
+
+// one arc: number · name · (open: texts · links) · arrow — open: purpose, formats, texts, links
+function ArcCard({ arc, open, onToggle, onOpen }: { arc: ConceptArc; open: boolean; onToggle: () => void; onOpen: (kind: "texts" | "links") => void }) {
+  return (
+    <div style={cardBox}>
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <button onClick={onToggle} aria-expanded={open} aria-label={`${arc.num}. ${arc.name}`} style={headBtn}>
+          <NumCircle n={arc.num} tone={ARC_TONE} />
+          <span style={nameText}>{arc.name}</span>
+        </button>
+        {open && (
+          <span style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+            <button onClick={() => onOpen("texts")} aria-label={`Texts of ${arc.name}`} style={mini}>{count("texts", arc.texts.length)}</button>
+            <button onClick={() => onOpen("links")} aria-label={`Links of ${arc.name}`} style={mini}>{count("links", arc.links.length)}</button>
+          </span>
+        )}
+        <Caret open={open} onClick={onToggle} />
+      </div>
+      {open && (
+        <div style={cardBody}>
+          {arc.purpose && <div style={descText}>{tidy(arc.purpose)}</div>}
+          <div style={listBox}>
+            <Formats formats={arc.formats} />
+            <ArcLists a={arc} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// one series (@createbylynn): number · name · (open: labels / texts · links) · arrow — open: what it is, its lines and links
 function SeriesCard({ s, n, open, onToggle, onOpen }: { s: ConceptArc; n: number; open: boolean; onToggle: () => void; onOpen: (kind: "texts" | "links") => void }) {
   const word = seriesWord(s), Word = word === "labels" ? "Labels" : "Texts";
   return (
@@ -191,27 +291,30 @@ function SeriesCard({ s, n, open, onToggle, onOpen }: { s: ConceptArc; n: number
         <Caret open={open} onClick={onToggle} />
       </div>
       {open && (
-        <div style={{ padding: `0 6px 8px ${SPACING.rowSide}px` }}>
-          {s.purpose && <div style={{ margin: `-8px 22px 0 ${INDENT}px`, fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4 }}>{s.purpose}</div>}
-          {s.texts.length > 0 && (
-            <div style={{ margin: `8px 0 0 ${INDENT}px` }}>
-              <div style={{ display: "flex", alignItems: "center", height: 22 }}><span style={{ ...caps, color: C.light }}>{Word}</span></div>
-              {s.texts.map((t, k) => <LineRow key={k} t={t} />)}
-            </div>
-          )}
+        <div style={cardBody}>
+          {s.purpose && <div style={descText}>{tidy(s.purpose)}</div>}
+          {(s.texts.length > 0 || s.links.length > 0) && <div style={listBox}><ArcLists a={s} word={Word} first /></div>}
         </div>
       )}
     </div>
   );
 }
 
-// an era's core arcs and its optional ones: "4" or "4 + 1"
+// an era's core arcs and its optional ones (read out by the screen reader: "4 arcs and 1 optional")
 const eraCount = (e: ConceptEra) => {
   const core = e.arcs.filter(a => !a.optional).length, opt = e.arcs.length - core;
   return { core, opt, label: opt ? `${core} + ${opt}` : String(core) };
 };
 
-// one phase: number · name · ▾ — open: purpose and its eras under their group headings (tap one: its arcs)
+// an era's arcs as small numbers in posting order (optional ones grey), then › (the row opens its window)
+const EraArcs = ({ e }: { e: ConceptEra }) => (
+  <span style={{ display: "flex", alignItems: "center", gap: 3, alignSelf: "center", flexShrink: 0, paddingLeft: 6 }}>
+    {e.arcs.map((a, k) => <NumCircle key={`${a.num}-${k}`} n={a.num} tone={a.optional ? PAL.neutral : ARC_TONE} size={16} />)}
+    <span aria-hidden="true" style={{ width: 22, textAlign: "center" as const, color: C.faint, fontSize: 15 }}>›</span>
+  </span>
+);
+
+// one phase: number · name · arrow — open: purpose and its eras under their group headings (tap one: its arcs)
 function PhaseCard({ phase, open, onToggle, onEra }: { phase: ConceptPhase; open: boolean; onToggle: () => void; onEra: (e: ConceptEra) => void }) {
   const groups = eraGroups(phase);
   return (
@@ -224,39 +327,20 @@ function PhaseCard({ phase, open, onToggle, onEra }: { phase: ConceptPhase; open
         <Caret open={open} onClick={onToggle} />
       </div>
       {open && (
-        <div style={{ padding: `0 6px 6px ${SPACING.rowSide}px` }}>
-          {phase.purpose && <div style={{ margin: `-8px 22px 0 ${INDENT}px`, fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4 }}>{phase.purpose}</div>}
-          <div style={{ margin: `8px 0 0 ${INDENT}px` }}>
-            <div style={{ display: "flex", alignItems: "center", height: 22 }}>
-              <span style={{ ...caps, flex: 1, color: C.light }}>{count(phaseListWord(phase), phase.eras.length)}</span>
-              <span style={{ ...caps, color: C.light, paddingRight: 22 }}>Arcs</span>
-            </div>
+        <div style={cardBody}>
+          {phase.purpose && <div style={descText}>{tidy(phase.purpose)}</div>}
+          <div style={listBox}>
             {groups.map((g, gi) => (
-            <div key={g.grp ?? `g${gi}`}>
-            {g.grp && (
-              <div style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 30, paddingTop: gi ? 8 : 0, borderTop: `1px solid ${C.hair}` }}>
-                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: PHASE_TONE.mid, flexShrink: 0 }} />
-                <span style={{ ...caps, color: PAL.neutral.ink }}>{g.grp}</span>
+              <div key={`${gi}-${g.grp ?? ""}`} style={{ marginTop: gi ? 6 : 0 }}>
+                <InnerHead label={g.grp || phaseListWord(phase)} n={g.eras.length} />
+                {g.eras.map(e => {
+                  const n = eraCount(e);
+                  return (
+                    <ItemRow key={e.key} name={e.name} text={tidy(e.desc)} onClick={() => onEra(e)} right={<EraArcs e={e} />}
+                      label={`${e.name}: ${n.core} arcs${n.opt ? ` and ${n.opt} optional` : ""}`} />
+                  );
+                })}
               </div>
-            )}
-            {g.eras.map(e => {
-              const n = eraCount(e);
-              return (
-                <button key={e.key} onClick={() => onEra(e)}
-                  aria-label={`${e.name}: ${n.core} arcs${n.opt ? ` and ${n.opt} optional` : ""}`}
-                  style={{ width: "100%", display: "flex", alignItems: "center", minHeight: SPACING.row1, padding: "5px 0", background: "none", border: "none",
-                    borderTop: `1px solid ${C.hair}`, cursor: "pointer", fontFamily: SANS, textAlign: "left" as const, color: C.black, WebkitTapHighlightColor: "transparent" }}>
-                  <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: C.ink2, flexShrink: 0, marginRight: GAP }} />
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: "block", fontSize: SPACING.listText, fontWeight: 500, lineHeight: 1.3 }}>{e.name}</span>
-                    {e.desc && <span style={{ display: "block", fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.35, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{e.desc}</span>}
-                  </span>
-                  <span style={{ fontSize: SPACING.listMeta, color: C.muted, whiteSpace: "nowrap" as const, paddingLeft: 8 }}>{n.label}</span>
-                  <span aria-hidden="true" style={{ width: 22, textAlign: "center" as const, color: C.faint, fontSize: 15, flexShrink: 0 }}>›</span>
-                </button>
-              );
-            })}
-            </div>
             ))}
           </div>
         </div>
@@ -286,29 +370,23 @@ function ViewSwitch<K extends string>({ options, value, onPick, label }: { optio
   );
 }
 
-const listHead: any = { ...caps, color: C.light, padding: "8px 10px 2px", borderTop: `1px solid ${C.hair}` };
-
-// One era's window: its arcs as cards in posting order, all closed when it opens (tap one to
-// open it; "expand all" next to the era's line). An open arc shows the arc itself — purpose,
-// formats, texts and links — and its texts and links are edited right here (saved on the arc).
-// a Base line, read only: the label, and how it shows in grey under it
-const BlockLineRow = ({ t }: { t: string }) => {
-  const [label, rest] = splitBlockLine(t);
+// one of a Base block's arcs: its number and name (optional: grey) — tap: the block's arcs window, this one open
+const ArcPill = ({ ea, arc, onClick }: { ea: ConceptEraArc; arc?: ConceptArc; onClick: () => void }) => {
+  const t = ea.optional ? PAL.neutral : ARC_TONE, name = arc ? arc.name : `Arc ${ea.num}`;
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: GAP, borderTop: `1px solid ${C.hair}`, padding: "8px 0" }}>
-      <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: C.faint, flexShrink: 0, marginTop: 6 }} />
-      <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" as const }}>
-        <span style={{ display: "block", fontSize: SPACING.listText, color: C.black, lineHeight: 1.35 }}>{label}</span>
-        {rest && <span style={{ display: "block", fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4, marginTop: 1 }}>{rest}</span>}
-      </span>
-    </div>
+    <button onClick={onClick} aria-label={`${ea.num}. ${name}${ea.optional ? ", optional" : ""}`}
+      style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: 24, background: t.wash, color: t.ink, border: "none", borderRadius: RADIUS.tag,
+        padding: "3px 8px 3px 3px", fontFamily: SANS, fontSize: SPACING.listMeta, lineHeight: 1.2, cursor: "pointer", WebkitTapHighlightColor: "transparent" }}>
+      <NumCircle n={ea.num} tone={{ ...t, wash: C.white }} size={16} />
+      {name}
+    </button>
   );
 };
 
-// one Base block: number · name · (open: lines) · ▾ — open: what it is, its lines in sections, its core arcs
-function BlockCard({ block, n, arcs, open, onToggle, onLines }: { block: ConceptEra; n: number; arcs: ConceptArc[]; open: boolean; onToggle: () => void; onLines: () => void }) {
+// one Base block: number · name · (open: lines) · arrow — open: what it is, its lines in sections, its arcs
+function BlockCard({ block, n, arcs, open, onToggle, onLines, onArc }: { block: ConceptEra; n: number; arcs: ConceptArc[]; open: boolean; onToggle: () => void; onLines: () => void; onArc: (num: number) => void }) {
   const total = blockLineCount(block);
-  const sub: any = { ...caps, color: C.light, display: "flex", alignItems: "center", height: 22 };
+  const secs  = block.sections.filter(x => x.lines.length);
   return (
     <div style={cardBox}>
       <div style={{ display: "flex", alignItems: "center" }}>
@@ -320,13 +398,13 @@ function BlockCard({ block, n, arcs, open, onToggle, onLines }: { block: Concept
         <Caret open={open} onClick={onToggle} />
       </div>
       {open && (
-        <div style={{ padding: `0 6px 8px ${SPACING.rowSide}px` }}>
-          {block.desc && <div style={{ margin: `-8px 22px 0 ${INDENT}px`, fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4 }}>{block.desc}</div>}
-          <div style={{ margin: `8px 22px 0 ${INDENT}px` }}>
-            {block.sections.filter(x => x.lines.length).map((x, k) => (
+        <div style={cardBody}>
+          {block.desc && <div style={descText}>{tidy(block.desc)}</div>}
+          <div style={listBox}>
+            {secs.map((x, k) => (
               <div key={`${k}-${x.name}`} style={{ marginTop: k ? 6 : 0 }}>
-                <div style={sub}>{count(x.name || "Lines", x.lines.length)}</div>
-                {x.lines.map((t, i) => <BlockLineRow key={i} t={t} />)}
+                <InnerHead label={x.name || "Lines"} n={x.lines.length} />
+                {x.lines.map((t, i) => { const [label, rest] = splitBlockLine(t); return <ItemRow key={i} name={label} text={tidy(rest)} />; })}
               </div>
             ))}
             {!total && (
@@ -335,17 +413,9 @@ function BlockCard({ block, n, arcs, open, onToggle, onLines }: { block: Concept
             )}
             {block.arcs.length > 0 && (
               <div style={{ marginTop: 6 }}>
-                <div style={sub}>Core arcs</div>
+                <InnerHead label="Arcs" n={block.arcs.length} />
                 <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6, borderTop: `1px solid ${C.hair}`, paddingTop: 8 }}>
-                  {block.arcs.map(ea => {
-                    const a = arcs.find(x => x.num === ea.num);
-                    return (
-                      <span key={ea.num} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: ARC_TONE.wash, color: ARC_TONE.ink, borderRadius: RADIUS.tag, padding: "3px 8px 3px 3px", fontSize: SPACING.listMeta }}>
-                        <NumCircle n={ea.num} tone={{ ...ARC_TONE, wash: C.white }} size={16} />
-                        {a ? a.name.replace(/^The /, "") : `Arc ${ea.num}`}
-                      </span>
-                    );
-                  })}
+                  {block.arcs.map((ea, k) => <ArcPill key={`${ea.num}-${k}`} ea={ea} arc={arcs.find(x => x.num === ea.num)} onClick={() => onArc(ea.num)} />)}
                 </div>
               </div>
             )}
@@ -356,17 +426,26 @@ function BlockCard({ block, n, arcs, open, onToggle, onLines }: { block: Concept
   );
 }
 
-function EraSheet({ planner, phase, era }: { planner: PlannerHook; phase: ConceptPhase; era: ConceptEra }) {
-  const [open, setOpen] = useState<number[]>([]);
+// a list heading inside an arc card of the arcs window (above the texts and the links)
+const WinListHead = ({ label, n }: { label: string; n: number }) => (
+  <div style={{ padding: "4px 10px 0", borderTop: `1px solid ${C.hair}` }}><InnerHead label={label} n={n} /></div>
+);
+
+// The arcs window — one era, or one Base block: what it is, then "Arcs · 4" with expand all and
+// the arcs as cards in posting order — all closed when it opens (or the arc you tapped open).
+// An open arc shows the arc itself — purpose, formats, texts and links — and its texts and links
+// are edited right here (saved on the arc, so they change everywhere).
+function EraSheet({ planner, phase, era, focus }: { planner: PlannerHook; phase: ConceptPhase; era: ConceptEra; focus?: number }) {
+  const [open, setOpen] = useState<number[]>(focus ? [focus] : []);
   const anyOpen = open.length > 0;
   const toggle  = (n: number) => setOpen(o => (o.includes(n) ? o.filter(x => x !== n) : [...o, n]));
   return (
     <>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, margin: "2px 2px 10px" }}>
-        <span style={{ flex: 1, minWidth: 0, fontSize: TYPE.subtext.size, color: C.muted, lineHeight: 1.4 }}>{era.desc}</span>
-        <button onClick={() => setOpen(anyOpen ? [] : era.arcs.map(a => a.num))} style={{ ...mini, marginTop: -6 }}>{anyOpen ? "collapse all" : "expand all"}</button>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column" as const, gap: SPACING.gridGap }}>
+      {era.desc && <div style={{ fontSize: TYPE.subtext.size, color: C.muted, lineHeight: 1.4, margin: "2px 2px 0" }}>{tidy(era.desc)}</div>}
+      <WinHead first={!era.desc} icon={IC.bulb} tone={ARC_TONE} label={count("Arcs", era.arcs.length)}
+        right={era.arcs.length ? <button onClick={() => setOpen(anyOpen ? [] : era.arcs.map(a => a.num))} style={mini}>{anyOpen ? "collapse all" : "expand all"}</button> : undefined} />
+      {!era.arcs.length && <div style={{ ...winCard, padding: "12px 12px", fontSize: TYPE.subtext.size, color: C.muted }}>No arcs here yet.</div>}
+      <div style={{ display: "flex", flexDirection: "column" as const, gap: SPACING.cardGap }}>
         {era.arcs.map(ea => {
           const arc  = planner.arcs.find(a => a.account === phase.account && a.num === ea.num);
           const name = arc ? arc.name : `Arc ${ea.num}`;
@@ -383,14 +462,14 @@ function EraSheet({ planner, phase, era }: { planner: PlannerHook; phase: Concep
               </div>
               {isOpen && (arc ? (
                 <>
-                  <div style={{ padding: `0 6px 6px ${SPACING.rowSide}px` }}>
-                    {arc.purpose && <div style={{ margin: `-8px 22px 0 ${INDENT}px`, fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4 }}>{arc.purpose}</div>}
-                    <div style={{ margin: `8px 0 0 ${INDENT}px` }}><Formats formats={arc.formats} /></div>
+                  <div style={cardBody}>
+                    {arc.purpose && <div style={descText}>{tidy(arc.purpose)}</div>}
+                    <div style={listBox}><Formats formats={arc.formats} /></div>
                   </div>
-                  <div style={listHead}>{count("Texts", arc.texts.length)}</div>
+                  <WinListHead label="Texts" n={arc.texts.length} />
                   <LineList key={`et-${era.key}-${arc.id}`} initial={arc.texts} marker="bullets" placeholder="Write a text" addLabel="Add a text"
                     onSave={lines => { quiet(planner.updateArc(arc.id, { texts: lines })); }} />
-                  <div style={listHead}>{count("Links", arc.links.length)}</div>
+                  <WinListHead label="Links" n={arc.links.length} />
                   <LinkList key={`el-${era.key}-${arc.id}`} initial={arc.links} pillTone={platformTone}
                     onSave={links => { quiet(planner.updateArc(arc.id, { links })); }} />
                 </>
@@ -412,7 +491,14 @@ interface PlannerConceptProps {
   onAccount?: (a: Account) => void;
 }
 
-type Win = { kind: "texts" | "links"; id: string } | { kind: "era" | "block"; id: string; era: string };
+type Win = { kind: "texts" | "links"; id: string } | { kind: "era"; id: string; era: string; focus?: number } | { kind: "block"; id: string; era: string };
+
+// what each tab is (the line under the title)
+const SUBTITLE: Record<ConceptView, string> = {
+  base:   "Always there, under every phase",
+  phases: "Where you are, one era at a time",
+  arcs:   "How each post is told",
+};
 
 export default function PlannerConcept({ planner, view, isMobile, onAccount }: PlannerConceptProps) {
   const acc    = (view.acc === "all" ? "lynnhoa" : view.acc) as Account;
@@ -422,23 +508,23 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   const blocks = basePh?.eras || [];
   const accLabel = ACCOUNTS.find(a => a.key === acc)?.label || `@${acc}`;
 
-  // Phases | Arcs — always opens on Arcs (not remembered)
-  const [show, setShow] = useState<ConceptView>("arcs");
-  const pickView = (v: ConceptView) => setShow(v);
+  // Base | Phases | Arcs — opens on the tab you had last (remembered on this device)
+  const [show, setShow] = useState<ConceptView>(loadView);
+  const pickView = (v: ConceptView) => { setShow(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* ignore */ } };
   // @createbylynn: its series, by category (Hair | Makeup & skincare | Both)
   const seriesMode = acc === "createbylynn";
   const series = arcs.filter(isSeries);
   const [cat, setCat] = useState<ConceptCategory>(loadCat);
   const pickCat = (c: ConceptCategory) => { setCat(c); try { localStorage.setItem(CAT_KEY, c); } catch { /* ignore */ } };
 
-  // open cards, per account
+  // open cards, per account (Base by the block's key, arcs and phases by their number)
   const [openArcs, setOpenArcs] = useState<OpenMap>(() => loadMap(OPEN_KEY));
   const [openPhs,  setOpenPhs]  = useState<OpenMap>(() => loadMap(OPEN_PH_KEY));
-  const [openBs,   setOpenBs]   = useState<OpenMap>(() => loadMap(OPEN_BS_KEY));
-  const bsNums  = openBs[acc] || [];
-  const setBsOpen = (nums: number[]) => { const m = { ...openBs, [acc]: nums }; setOpenBs(m); saveMap(OPEN_BS_KEY, m); };
-  const toggleBs  = (n: number) => setBsOpen(bsNums.includes(n) ? bsNums.filter(x => x !== n) : [...bsNums, n]);
-  const anyBsOpen = blocks.some((_, k) => bsNums.includes(k + 1));
+  const [openBs,   setOpenBs]   = useState<OpenKeys>(() => { try { localStorage.removeItem(OLD_BS_KEY); } catch { /* ignore */ } return loadMap(OPEN_BS_KEY); });
+  const bsKeys  = (openBs[acc] || []).filter(k => typeof k === "string");
+  const setBsOpen = (keys: string[]) => { const m = { ...openBs, [acc]: keys }; setOpenBs(m); saveMap(OPEN_BS_KEY, m); };
+  const toggleBs  = (k: string) => setBsOpen(bsKeys.includes(k) ? bsKeys.filter(x => x !== k) : [...bsKeys, k]);
+  const anyBsOpen = blocks.some(b => bsKeys.includes(b.key));
   const arcNums = openArcs[acc] || [];
   const phNums  = openPhs[acc] || [];
   const setArcsOpen = (nums: number[]) => { const m = { ...openArcs, [acc]: nums }; setOpenArcs(m); saveMap(OPEN_KEY, m); };
@@ -454,7 +540,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
     ? arcNums.filter(n => !catSeries.some(x => x.num === n))
     : [...arcNums, ...catSeries.map(x => x.num).filter(n => !arcNums.includes(n))]);
 
-  // the window: one arc's texts or links, or one era with its arcs
+  // the window: one arc's texts or links, one era's or block's arcs, or one block's lines
   const [win, setWin] = useState<Win | null>(null);
   const winArc   = win && (win.kind === "texts" || win.kind === "links") ? planner.arcs.find(a => a.id === win.id) : undefined;
   const winPhase = win && (win.kind === "era" || win.kind === "block") ? planner.phases.find(p => p.id === win.id) : undefined;
@@ -465,6 +551,9 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   const done  = <SheetButton onClick={close}>Done</SheetButton>;
   // a series of the Look arc has labels, every other one (and every arc) texts
   const winLabels = !!winArc && isSeries(winArc) && seriesWord(winArc) === "labels";
+  // a window's title: "1. Home · Coming home" · "Base · 1. Signatures" (the numbers the page shows)
+  const eraTitle = (ph: ConceptPhase, e: ConceptEra) =>
+    isBasePhase(ph) ? `Base · ${ph.eras.indexOf(e) + 1}. ${e.name}` : `${conceptPhaseLabel(ph)} · ${e.name}`;
 
   const columns = <T,>(list: T[], render: (x: T) => any) => {
     const column = (l: T[]) => <div style={{ display: "flex", flexDirection: "column" as const, gap: SPACING.cardGap, minWidth: 0 }}>{l.map(render)}</div>;
@@ -477,9 +566,16 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
       </div>
     );
   };
-  const swatch = (t: { wash: string; mid: string }) => (
-    <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 3, boxSizing: "border-box" as const, background: t.wash, border: `1.5px solid ${t.mid}`, flexShrink: 0 }} />
+  const swatch = (t: { wash: string; mid: string }, round = false) => (
+    <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: round ? "50%" : 3, boxSizing: "border-box" as const, background: t.wash, border: `1.5px solid ${t.mid}`, flexShrink: 0 }} />
   );
+  // under the list, while a card is open: what its marks mean
+  const legend = (items: { mark: any; label: string }[]) => (
+    <div style={{ display: "flex", flexWrap: "wrap" as const, alignItems: "center", gap: "6px 14px", fontSize: SPACING.listMeta, color: C.muted, margin: `${SPACING.cardGap}px 2px 0` }}>
+      {items.map(x => <span key={x.label} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{x.mark}{x.label}</span>)}
+    </div>
+  );
+  const arcMarks = legend([{ mark: swatch(ARC_TONE, true), label: "arc" }, { mark: swatch(PAL.neutral, true), label: "optional arc" }]);
   const empty = (title: string, text: string) => (
     <div style={{ ...cardBox, padding: "14px 12px" }}>
       <div style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black }}>{title}</div>
@@ -495,31 +591,27 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
       {!arcs.length
         ? empty(`No arcs for ${accLabel} yet`, "They're added here once its concept is mapped, in the same layout: numbered arcs, formats, platforms, texts and links.")
         : columns(arcs, a => <ArcCard key={a.id} arc={a} open={arcNums.includes(a.num)} onToggle={() => toggleArc(a.num)} onOpen={kind => setWin({ kind, id: a.id })} />)}
-      {arcs.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap" as const, alignItems: "center", gap: "6px 14px", fontSize: SPACING.listMeta, color: C.muted, margin: `${SPACING.cardGap}px 2px 0` }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: C.ink2 }} />main format</span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{swatch(PLATFORM_TONE.TikTok)}TikTok</span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{swatch(PLATFORM_TONE.Instagram)}Instagram</span>
-        </div>
-      )}
+      {anyArcOpen && legend([
+        { mark: <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: C.ink2 }} />, label: "main format" },
+        { mark: swatch(PLATFORM_TONE.TikTok), label: "TikTok" },
+        { mark: swatch(PLATFORM_TONE.Instagram), label: "Instagram" },
+      ])}
     </>
   );
 
   const baseView = planner.phasesError ? note(planner.phasesError, C.red) : (
     <>
       <SectionHead dot={BASE_TONE.mid} label={`Base · ${blocks.length}`}
-        right={blocks.length ? <button onClick={() => setBsOpen(anyBsOpen ? [] : blocks.map((_, k) => k + 1))} style={mini}>{anyBsOpen ? "collapse all" : "expand all"}</button> : undefined} />
+        right={blocks.length ? <button onClick={() => setBsOpen(anyBsOpen ? [] : blocks.map(b => b.key))} style={mini}>{anyBsOpen ? "collapse all" : "expand all"}</button> : undefined} />
       {!basePh || !blocks.length
         ? empty(`No base for ${accLabel} yet`, "Run the @lynnhoa concept base SQL in Supabase once: it adds the base blocks with their lines.")
         : columns(blocks, b => {
             const n = blocks.indexOf(b) + 1;
-            return <BlockCard key={b.key} block={b} n={n} arcs={arcs} open={bsNums.includes(n)} onToggle={() => toggleBs(n)} onLines={() => setWin({ kind: "block", id: basePh.id, era: b.key })} />;
+            return <BlockCard key={b.key} block={b} n={n} arcs={arcs} open={bsKeys.includes(b.key)} onToggle={() => toggleBs(b.key)}
+              onLines={() => setWin({ kind: "block", id: basePh.id, era: b.key })}
+              onArc={num => setWin({ kind: "era", id: basePh.id, era: b.key, focus: num })} />;
           })}
-      {blocks.length > 0 && (
-        <div style={{ fontSize: SPACING.listMeta, color: C.muted, margin: `${SPACING.cardGap}px 2px 0`, lineHeight: 1.4 }}>
-          Always there, under every phase · lines opens them to add or change
-        </div>
-      )}
+      {blocks.some(b => bsKeys.includes(b.key) && b.arcs.length > 0) && arcMarks}
     </>
   );
 
@@ -530,11 +622,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
       {!phases.length
         ? empty(`No phases for ${accLabel} yet`, "They're added here once its concept is mapped: phases, their eras and each era's arcs.")
         : columns(phases, p => <PhaseCard key={p.id} phase={p} open={phNums.includes(p.num)} onToggle={() => togglePh(p.num)} onEra={e => setWin({ kind: "era", id: p.id, era: e.key })} />)}
-      {phases.length > 0 && (
-        <div style={{ fontSize: SPACING.listMeta, color: C.muted, margin: `${SPACING.cardGap}px 2px 0`, lineHeight: 1.4 }}>
-          Tap an era for its arcs · the number = core arcs + optional
-        </div>
-      )}
+      {anyPhOpen && arcMarks}
     </>
   );
 
@@ -561,7 +649,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   return (
     <div>
       <TabTitle title="Content concept" acc={acc} onAccount={onAccount} isMobile={isMobile} />
-      <Subtitle text={seriesMode ? "Categories · arcs · series" : show === "base" ? "Base · lines · core arcs" : show === "phases" ? "Phases · eras · core arcs" : "Arcs · formats · texts · links"} />
+      <Subtitle text={seriesMode ? "Categories · arcs · series" : SUBTITLE[show]} />
       <div style={{ marginTop: 12 }}>
         {seriesMode
           ? <ViewSwitch options={CONCEPT_CATEGORIES} value={cat} onPick={pickCat} label="Category" />
@@ -570,7 +658,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
 
       {planner.loading ? note("Loading…") : seriesMode ? seriesView : show === "base" ? baseView : show === "phases" ? phasesView : arcsView}
 
-      {/* an arc's texts or links (from the Arcs view) */}
+      {/* an arc's texts or links (from the Arcs tab) */}
       {win && (win.kind === "texts" || win.kind === "links") && winArc && (
         <Sheet title={`${seriesNum(planner.arcs, winArc)}. ${winArc.name}`} onClose={close} footer={done}>
           <WinHead first icon={win.kind === "texts" ? IC.list : IC.link} tone={ARC_TONE}
@@ -585,16 +673,16 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
         </Sheet>
       )}
 
-      {/* an era: its arcs in posting order — the same arcs, texts and links as the Arcs view */}
+      {/* an era's or a Base block's arcs, in posting order — the same arcs, texts and links as the Arcs tab */}
       {win && win.kind === "era" && winPhase && winEra && (
-        <Sheet title={`${winPhase.num}. ${winPhase.name} · ${winEra.name}`} onClose={close} footer={done}>
-          <EraSheet key={`${winPhase.id}-${winEra.key}`} planner={planner} phase={winPhase} era={winEra} />
+        <Sheet title={eraTitle(winPhase, winEra)} onClose={close} footer={done}>
+          <EraSheet key={`${winPhase.id}-${winEra.key}-${win.focus ?? ""}`} planner={planner} phase={winPhase} era={winEra} focus={win.focus} />
         </Sheet>
       )}
 
       {/* a Base block's lines: one list per section, saved right away (Undo on ✕) */}
       {win && win.kind === "block" && winPhase && winEra && (
-        <Sheet title={`Base · ${winEra.name}`} onClose={close} footer={done}>
+        <Sheet title={eraTitle(winPhase, winEra)} onClose={close} footer={done}>
           {(winEra.sections.length ? winEra.sections : [{ name: "", lines: [] as string[] }]).map((x, k) => (
             <div key={`${k}-${x.name}`}>
               <WinHead first={k === 0} icon={IC.list} tone={BASE_TONE} label={count(x.name || "Lines", x.lines.length)} />

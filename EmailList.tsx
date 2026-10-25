@@ -12,7 +12,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { C, SANS, SERIF, TYPE, Z, PAL, RADIUS, SHADOW } from "./constants";
 import { fmtD } from "./formatters";
-import { B, I, MenuSelect, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet, SheetHead, SheetButton, SheetErr, SHEET_CARD, SHEET_CAPS, useEscape, useDraft, Chip, ChipRow, MiniInput } from "./atoms";
+import { B, I, MenuSelect, Lbl, ConfirmDialog, BAR_BTN, SummaryLine, Strong, PillBtn, ListCard, Sheet, SheetHead, SheetButton, SheetErr, SHEET_CARD, SHEET_CAPS, useEscape, useDraft, Chip, ChipRow, MiniInput, OpenArrow } from "./atoms";
 import { MoreMenu } from "./PlannerWindows";
 import {
   OUTREACH_CATEGORIES, OUTREACH_TIERS, OUTREACH_COLUMNS, STATUS_FILTERS, SORTS, ADDED, DEFAULT_VIEW, CHIPS, PIPELINES, NO_TIER,
@@ -412,7 +412,11 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
     const [a, b] = c.sort;
     set({ sort: view.sort === a && b ? b : a });
   };
-  const arrow = (c: typeof cols[number]) => !c.sort ? "" : view.sort === c.sort[0] ? (c.key === "added" ? " ▾" : " ▴") : view.sort === c.sort[1] ? (c.key === "added" ? " ▴" : " ▾") : "";
+  // the sort arrow of a column: up or down (the shared drawn arrow), none when it isn't sorted by
+  const arrow = (c: typeof cols[number]) => {
+    const up = !c.sort ? null : view.sort === c.sort[0] ? c.key !== "added" : view.sort === c.sort[1] ? c.key === "added" : null;
+    return up === null ? null : <span style={{ display: "inline-flex", marginLeft: 4 }}><OpenArrow open={up} color={C.muted} /></span>;
+  };
   const td: any = { padding: "0 10px", height: 40, display: "flex", alignItems: "center", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", borderTop: `1px solid ${C.hair}`, minWidth: 0 };
   const cut = (t: any) => <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, minWidth: 0 }}>{t}</span>;
   const table = (

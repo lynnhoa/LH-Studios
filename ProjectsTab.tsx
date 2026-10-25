@@ -13,7 +13,7 @@ import { fmt, fmtD, fmtE, today, addM, dLeft } from "./formatters";
 import { projectLicenses, ACTION_LABEL, licenseTone, licenseTag } from "./licenses";
 import { pdfFlow, finalizeQuestion, invoiceActions } from "./docFlow";
 import { toSignedPdf, openSignedCopy } from "./signedPdf";
-import { I, B, TSel, TSelWrap, MenuSelect, StatusBadge, ConfirmDialog, TonedTag, SummaryLine, Strong, SectionHead, listSeg, ListCard } from "./atoms";
+import { I, B, TSel, TSelWrap, MenuSelect, StatusBadge, ConfirmDialog, TonedTag, SummaryLine, Strong, SectionHead, listSeg, ListCard, OpenArrow } from "./atoms";
 import RenewalModal from "./RenewalModal";
 import ProductionSection from "./ProductionSection";
 import PDFModal from "./PDFModal";
@@ -324,7 +324,7 @@ export function ProjectRow({
                 : (pr.paid || pr.status === "lost") ? <div style={{ marginTop: 3 }}><StatusBadge status={pr.paid ? "paid" : "lost"} /></div>
                 : tag ? <TonedTag tone={PAL[tag.tone]} s={{ marginTop: 3 }}>{tag.label}</TonedTag> : null}
             </div>
-            <span style={{ color: C.faint, fontSize: ICON.caret, flexShrink: 0 }}>{isExpanded ? "▴" : "▾"}</span>
+            <OpenArrow open={isExpanded} />
           </div>
         );
       })()}
@@ -661,7 +661,7 @@ export default function ProjectsTab({
                 btnS={{ height: 28, fontSize: 12, paddingRight: 18 }}>
                 {FILTERS.map(([val, lbl]) => <option key={val} value={val}>{lbl}</option>)}
               </MenuSelect>
-              <span style={{ position: "absolute", right: 10, pointerEvents: "none" as const, fontSize: ICON.caret }}>▾</span>
+              <span style={{ position: "absolute", right: 10, pointerEvents: "none" as const, display: "inline-flex" }}><OpenArrow color="currentColor" /></span>
             </span>
           );
         })()}
@@ -736,7 +736,7 @@ export default function ProjectsTab({
           <button onClick={() => setShowLost(o => !o)} aria-expanded={showLost}
             style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 4px", background: "none", border: "none", cursor: "pointer", fontFamily: SANS }}>
             <span style={{ fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted }}>Lost · {lost.length}</span>
-            <span style={{ fontSize: ICON.caret, color: C.muted }}>{showLost ? "▴" : "▾"}</span>
+            <OpenArrow open={showLost} color={C.muted} />
           </button>
           {showLost && (
             <ListCard s={{ padding: "0 12px", opacity: 0.85 }}>

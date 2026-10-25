@@ -8,7 +8,7 @@ import { C, SANS, SERIF, TYPE, expiryColor, expiryTint } from "./constants";
 import { fmt, fmtD, addM, today, dLeft } from "./formatters";
 import { projectLicenses, ACTION_LABEL } from "./licenses";
 import { pdfFlow } from "./docFlow";
-import { B, StatusBadge } from "./atoms";
+import { B, StatusBadge, OpenArrow } from "./atoms";
 import PDFModal from "./PDFModal";
 import { sortDocs, docLabel } from "./docs";
 import type { DocRecord } from "./types";
@@ -141,8 +141,8 @@ export default function ProjectCard({
         <div style={{ textAlign: "right" as const, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
           <p style={{ fontFamily: SERIF, fontSize: isMobile ? TYPE.amount.size : TYPE.sectionHeading.size, color: C.black, margin: 0 }}>{fmt(pr.amount)}</p>
           {readOnly && (
-            <span style={{ fontSize: TYPE.micro.size, color: C.muted }}>
-              {open ? "▲" : "▼"}
+            <span style={{ display: "inline-flex" }}>
+              <OpenArrow open={open} color={C.muted} />
             </span>
           )}
         </div>

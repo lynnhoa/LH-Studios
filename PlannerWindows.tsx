@@ -521,11 +521,16 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
             <>
               {(phases.length > 0 || hasPhase(it.plan.phase)) && (
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 6, marginBottom: 6 }}>
-                  <MiniSelect value={hasPhase(it.plan.phase) ? String(it.plan.phase) : ""} muted={!hasPhase(it.plan.phase)} aria-label="Phase"
+                  <MiniSelect value={hasPhase(it.plan.phase) ? String(it.plan.phase) : ""} muted={!hasPhase(it.plan.phase)} aria-label="Base or phase"
                     onChange={(e: any) => pickPhase(String(e.target.value ?? ""))}>
-                    <option value="">Pick a phase</option>
+                    <option value="">Base or phase</option>
                     {hasPhase(it.plan.phase) && !phase && <option value={String(it.plan.phase)}>Not in the concept any more</option>}
-                    {phases.map(p => <option key={p.id} value={String(p.num)}>{conceptPhaseLabel(p)}</option>)}
+                    {phases.filter(isBasePhase).map(p => <option key={p.id} value={String(p.num)}>{conceptPhaseLabel(p)}</option>)}
+                    {phases.some(p => !isBasePhase(p)) && (
+                      <optgroup label="Phases">
+                        {phases.filter(p => !isBasePhase(p)).map(p => <option key={p.id} value={String(p.num)}>{conceptPhaseLabel(p)}</option>)}
+                      </optgroup>
+                    )}
                   </MiniSelect>
                   <MiniSelect value={it.plan.era || ""} muted={!it.plan.era} disabled={!phase} aria-label={isBasePhase(phase) ? "Block" : "Era"}
                     onChange={(e: any) => savePlan({ era: String(e.target.value || "") || null })}>
@@ -677,6 +682,9 @@ const ROW_LINE = "#f0ece7";
 // Links: the platform (read from the link) · what it shows · open · delete.
 // As many as needed; paste one (or several) into the field at the bottom.
 // pillTone (concept page): the platform pill in that platform's colour; grey otherwise.
+// a link's platform as a small pill (TikTok / Instagram in their colours, others grey) — the link
+// list here and the read-only links on the concept page use the same one
+export const LINK_PILL: any = { display: "inline-block", fontSize: TYPE.micro.size, letterSpacing: TRACK.tag, padding: "2px 8px", borderRadius: RADIUS.tag, background: PAL.neutral.fill, color: PAL.neutral.ink, whiteSpace: "nowrap", flexShrink: 0 };
 export function LinkList({ initial, onSave, pillTone }: { initial: { url: string; note: string }[]; onSave: (refs: { url: string; note: string }[]) => void; pillTone?: (platform: string) => ToneSet | null }) {
   const [rows, setRows] = useState(initial.length ? initial : []);
   const [paste, setPaste] = useState("");
@@ -693,7 +701,7 @@ export function LinkList({ initial, onSave, pillTone }: { initial: { url: string
     setRows(rs); commit(rs); setPaste("");
     setFresh(links.length ? rows.length : null);
   };
-  const pill: any = { display: "inline-block", fontSize: TYPE.micro.size, letterSpacing: TRACK.tag, padding: "2px 8px", borderRadius: RADIUS.tag, background: PAL.neutral.fill, color: PAL.neutral.ink, whiteSpace: "nowrap", flexShrink: 0 };
+  const pill: any = LINK_PILL;
   return (
     <div>
       {rows.map((r, k) => {

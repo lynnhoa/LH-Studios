@@ -19,7 +19,7 @@ import { APP_HEADER_H } from "./AppNav";
 import { fmt, fmtD, fmtPct, today, uid, addD, pctSpace, r2 } from "./formatters";
 import {
   NumField, ConfirmDialog, PillBtn, Chip, ChipRow, Switch, Stepper, BottomBar, BOTTOM_BAR_SPACE,
-  SectionHead, DashCard, TonedTag, MiniInput, MiniSelect, Cols,
+  SectionHead, DashCard, TonedTag, MiniInput, MiniSelect, Cols, OpenArrow,
 } from "./atoms";
 import {
   normalizeCards, pricingCats, cardChoices, cardAddons, priceLine, optLabel, optName, addonPriceText,
@@ -729,7 +729,7 @@ export default function Calculator({
       {/* ── THE QUOTE ── */}
       <SectionHead label={`${isAmend ? "Amendment" : "Quote"} · ${items.length} ${items.length === 1 ? "item" : "items"}`}
         right={locked && (origLines.length > 0 || origTotal > 0)
-          ? <button onClick={() => setShowOrig(o => !o)} style={{ ...linkBtn(PAL.progress.ink), fontSize: TYPE.label.size, minHeight: 24 }}>{isAmend ? "Contract" : "Original"} {fmt(origTotal)} {showOrig ? "▴" : "›"}</button>
+          ? <button onClick={() => setShowOrig(o => !o)} style={{ ...linkBtn(PAL.progress.ink), fontSize: TYPE.label.size, minHeight: 24 }}>{isAmend ? "Contract" : "Original"} {fmt(origTotal)} <OpenArrow open={showOrig} color="currentColor" /></button>
           : undefined} />
       <DashCard s={{ marginTop: 0 }}>
         <div style={{ padding: "0 13px" }}>

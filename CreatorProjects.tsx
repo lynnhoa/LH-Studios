@@ -5,7 +5,7 @@
 import { useState, useMemo } from "react";
 import { C, SANS, SERIF, TYPE, PAL, RADIUS, SPACING, SHADOW } from "./constants";
 import { fmtD } from "./formatters";
-import { SummaryLine, Strong, Chip, ChipRow, SectionHead, TonedTag, Cols, ColGroups } from "./atoms";
+import { SummaryLine, Strong, Chip, ChipRow, SectionHead, TonedTag, Cols, ColGroups, OpenArrow } from "./atoms";
 import { projectItems, isInProduction, shownStatus } from "./wsHelpers";
 import { statusTone, catTone } from "./CreatorShared";
 
@@ -39,7 +39,7 @@ export default function CreatorProjects({ clients, isMobile }: { clients: any[];
             </div>
           </div>
           <span style={{ fontFamily: SERIF, fontSize: TYPE.figure.size, color: r.complete ? PAL.done.ink : C.black, whiteSpace: "nowrap" as const }}>{r.doneN}/{r.total}</span>
-          <span style={{ color: C.faint, fontSize: TYPE.label.size }}>{open ? "▴" : "▾"}</span>
+          <span style={{ display: "inline-flex" }}><OpenArrow open={open} /></span>
         </div>
         {open && (
           <div style={{ background: C.bg, borderRadius: RADIUS.field, margin: "0 0 10px", padding: "2px 8px 4px" }}>
@@ -82,7 +82,7 @@ export default function CreatorProjects({ clients, isMobile }: { clients: any[];
       {done.length > 0 && (
         <>
           <button onClick={() => setShowDone(o => !o)} aria-expanded={showDone} style={{ width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: SANS }}>
-            <SectionHead dot={PAL.done.mid} label={`Done · ${done.length}`} right={showDone ? "▴" : "▾"} />
+            <SectionHead dot={PAL.done.mid} label={`Done · ${done.length}`} right={<OpenArrow open={showDone} color={PAL.neutral.ink} />} />
           </button>
           {showDone && card(done)}
         </>

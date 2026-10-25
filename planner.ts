@@ -278,7 +278,8 @@ export interface ConceptEraArc { num: number; optional: boolean; note: string; }
 // a block's lines (Base), in sections ("Rituals" …; one unnamed section when there are none).
 // A line is "label · how it shows": the label black, the rest grey.
 export interface ConceptBlockSection { name: string; lines: string[]; }
-// grp: the group an era sits in ("Moments", "On you" …), shown as a heading in the phase card
+// grp: the group an era sits in ("Moments", "Eras: on you" …), shown as a heading in the phase
+// card (a phase without groups: "Eras")
 // sections: a Base block's lines (empty for eras)
 export interface ConceptEra    { key: string; name: string; desc: string; arcs: ConceptEraArc[]; grp: string | null; sections: ConceptBlockSection[]; }
 export const blockLineCount = (e: ConceptEra) => e.sections.reduce((n, s) => n + s.lines.length, 0);
@@ -304,7 +305,7 @@ export const conceptPhaseLabel = (p: ConceptPhase) => (isBasePhase(p) ? "Base" :
 export const conceptPhaseShort = (p: ConceptPhase) => (isBasePhase(p) ? "Base" : `${p.num} · ${p.name}`);
 // a phase number is set (0 = Base counts)
 export const hasPhase = (n: number | null | undefined): n is number => typeof n === "number" && n >= 0;
-// the words for a phase's list: "Eras · 14" / "Base · 5", "Pick an era" / "Pick a block"
+// the words for a phase's list: "Eras · 3" (a phase without groups) / "Base · 7", "Pick an era" / "Pick a block"
 export const phaseListWord = (p: ConceptPhase | undefined | null) => (isBasePhase(p) ? "Base" : "Eras");
 export const phaseItemWord = (p: ConceptPhase | undefined | null) => (isBasePhase(p) ? "block" : "era");
 // the eras of a phase with their group headings, in order: [{ grp, eras }]
@@ -315,10 +316,11 @@ export const eraGroups = (p: ConceptPhase): { grp: string | null; eras: ConceptE
 };
 // Creator › Now: the phase and era you're in, per account (synced between devices)
 export interface ConceptNow { phase: number | null; era: string | null; }
-// the concept page's two colours: arcs pastel blue, phases butter (lavender stays the account's)
+// the concept page's colours: arcs pastel blue, phases butter (lavender stays the account's),
+// Base warm grey — the palette's colour for categories (green stays TikTok's)
 export const ARC_TONE   = PAL.progress;
 export const PHASE_TONE = PAL.waiting;
-export const BASE_TONE  = PAL.done;      // the Base tab (sage)
+export const BASE_TONE  = PAL.neutral;   // the Base tab (warm grey)
 // the two platforms on the concept page (ticks and link pills): TikTok pistachio, Instagram pink
 type PlatformTone = { fill: string; wash: string; mid: string; ink: string };
 export const PLATFORM_TONE: Record<"TikTok" | "Instagram", PlatformTone> = { TikTok: PAL.done, Instagram: PAL.late };

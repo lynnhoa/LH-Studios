@@ -106,11 +106,21 @@ export const TSel = ({ s, className, ...p }: any) => (
   <MenuSelect plain {...p} btnS={{ fontSize: TYPE.micro.size, color: C.muted, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, padding: "4px 2px", ...s }} />
 );
 
+// ─── OPEN / CLOSED ARROW ─────────────────────────────────────
+// One drawn triangle for every open/closed (and sort) arrow in the four apps, turned when open.
+// (The ▴ / ▾ symbols came out in two different sizes on iPhone.)
+export const OpenArrow = ({ open = false, color = C.faint, size = ICON.caret }: { open?: boolean; color?: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 10 10" aria-hidden="true"
+    style={{ display: "inline-block", verticalAlign: "middle", flexShrink: 0, transform: open ? "rotate(180deg)" : undefined, transition: "transform 0.15s ease" }}>
+    <path d="M2 3.25h6L5 6.75z" fill={color} />
+  </svg>
+);
+
 // Caret + select wrapper so the ▾ affordance is consistent
 export const TSelWrap = ({ children }: any) => (
   <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
     {children}
-    <span style={{ fontSize: ICON.caret, color: C.light, pointerEvents: "none" as const }}>▾</span>
+    <span style={{ display: "inline-flex", pointerEvents: "none" as const }}><OpenArrow color={C.light} /></span>
   </span>
 );
 
