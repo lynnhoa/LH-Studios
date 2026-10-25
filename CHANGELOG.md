@@ -1,3 +1,16 @@
+# Planner · @lynnhoa concept: lists fold, nothing shown twice (25.10.2026)
+- Every list inside a card folds: tap its heading (small arrow after it). Formats on the Arcs tab,
+  the groups on Phases ("Moments · 3", "Eras: on you · 3" …), the sections and Arcs on Base, and
+  Formats · Texts · Links inside each arc of the arcs window (an arc folds the same in both places).
+  Lists are open when a card opens; what you fold stays folded on this device. "expand all /
+  collapse all" stay for the cards.
+- Nothing is shown twice: an open arc shows what it is and its formats — its texts and links live
+  behind "texts · links" top right. The same for @createbylynn's series: what it is, and "labels /
+  texts · links" open their windows.
+- Base: the small link top right is "edit" (opens the lines to add, change, delete); the lines stay
+  in the card.
+- Changed: `PlannerConcept.tsx`.
+
 # Planner · @lynnhoa concept: one structure for Base · Phases · Arcs (25.10.2026)
 - Every card works the same: number · name · (open: its small links) · arrow. Open: what it is in
   grey, then its lists under one heading style (small grey caps with the count: "Rituals · 3",
