@@ -1,9 +1,9 @@
 // ─────────────────────────────────────────────────────────────
 // OutreachApp — Outreach (tabs: Dashboard · Contacts · Email kit · Comments). Same frame as the
 // other apps: logo header, nav tab, account menu with all apps.
-// The menu also holds the account you're working on (as in the
-// Planner); the email list itself stays one shared list.
-// Profile menu › This app › Setup: the categories, tiers and follow-up days
+// The email list is one shared list: a pitch counts for the account of the contact's category
+// (Setup) or of its template; Dashboard and Contacts have their own account switch / filter.
+// Profile menu › This app › Setup (its only entry): the categories, tiers and follow-up days
 // (opens under the tabs, no tab underlined — tap any tab to leave it, like Manager's menu pages).
 // Phone, iPad and desktop layouts.
 // ─────────────────────────────────────────────────────────────
@@ -23,8 +23,6 @@ import { useOutreachLists } from "./useOutreachLists";
 import { useOutreach } from "./useOutreach";
 import { useEmailKit } from "./useEmailKit";
 import { useComments } from "./useComments";
-import { ACCOUNTS, loadWorkAccount, saveWorkAccount } from "./planner";
-import type { Account } from "./planner";
 import type { Role } from "./types";
 
 interface OutreachAppProps {
@@ -46,9 +44,6 @@ export default function OutreachApp({ userId, settings, signOut, switchTo, banne
   const TAB_KEY = "lh_outreach_tab";
   const [tab, setTab] = useState<Tab>(() => { try { const t = sessionStorage.getItem(TAB_KEY); return t === "contacts" || t === "kit" || t === "comments" || t === "setup" ? t : "dashboard"; } catch { return "dashboard"; } });
   const pickTab = (t: Tab) => { setTab(t); try { sessionStorage.setItem(TAB_KEY, t); } catch { /* ignore */ } window.scrollTo(0, 0); };
-  // the account you're working on (same choice as in the Planner): the default when you log a pitch
-  const [work, setWork] = useState<Account>(loadWorkAccount);
-  const pickAccount = (a: Account) => { saveWorkAccount(a); setWork(a); };
   const [winW, setWinW] = useState(() => window.innerWidth);
   useEffect(() => {
     const fn = () => setWinW(window.innerWidth);
@@ -62,8 +57,7 @@ export default function OutreachApp({ userId, settings, signOut, switchTo, banne
   // the avatar sits on the right of the top bar; its menu opens to the left
   const avatar = (dropLeft: boolean) => (
     <AvatarMenu settings={settings} roleLabel="Outreach" dropLeft={dropLeft}
-      items={[...ACCOUNTS.map(a => ({ key: a.key, label: a.label, active: work === a.key, onClick: () => pickAccount(a.key) })),
-        { key: "setup", label: "Setup", onClick: () => pickTab("setup") }]}
+      items={[{ key: "setup", label: "Setup", onClick: () => pickTab("setup") }]}
       apps={appItems("outreach", switchTo)} onSignOut={() => { signOut(); }} />
   );
 

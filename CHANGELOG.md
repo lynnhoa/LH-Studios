@@ -1,3 +1,10 @@
+# Outreach · profile menu: Setup only (26.10.2026)
+- The @lynnhoa / @createbylynn entries are gone from Outreach's profile menu: nothing in Outreach used them
+  (a pitch counts for the account of the contact's category or of its template; Dashboard and Contacts have
+  their own account switch / filter). This app now holds only Setup. The Planner keeps its own switch next to
+  its tab titles.
+- Changed: `OutreachApp.tsx`.
+
 # Outreach · Setup: categories, tiers, follow-up timing (26.10.2026)
 - New page Outreach › Setup: profile menu › This app, after @lynnhoa / @createbylynn. No tab is underlined
   while it's open; tap a tab to leave it (like Manager's menu pages). Phone: one column · iPad / computer:
