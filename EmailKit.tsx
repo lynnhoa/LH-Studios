@@ -22,7 +22,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { C, SANS, SERIF, TYPE, PAL, RADIUS, TRACK, SPACING, CARD_TONE } from "./constants";
 import { fmtD } from "./formatters";
-import { I, S, MenuSelect, MiniInput, MiniArea, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Row, Chip, ChipRow, TonedTag, Sheet, SheetHead, SheetRow, SheetAction, SheetMeta, SheetErr, SheetButton, MoreMenu, useDraft, sameDraft, SHEET_CARD, SHEET_CAPS, ROW_ICON, ConfirmDialog, ColGroups } from "./atoms";
+import { I, S, MenuSelect, MiniInput, MiniArea, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Row, Chip, ChipRow, TonedTag, Sheet, SheetHead, SheetRow, SheetAction, SheetMeta, SheetErr, SheetButton, MoreMenu, MoveBtn, useDraft, sameDraft, SHEET_CARD, SHEET_CAPS, ROW_ICON, ConfirmDialog, ColGroups } from "./atoms";
 import { copyText, OUTREACH_CATEGORIES, catOf } from "./outreach";
 import { showNote } from "./undo";
 import { KITS, KIT_TOKEN, kitInfo, fillText, fmtSize, TEMPLATE_PIPELINES, TEMPLATE_KINDS, TEMPLATE_CHANNELS, kindLabel } from "./useEmailKit";
@@ -59,12 +59,6 @@ const TA = (p: any) => (
 // the round copy button on a row (its own tap: doesn't open the row)
 // "Hotel, Restaurant" · "Any category" — the categories a template is for
 const catsText = (t: EmailTemplate) => (t.categories || []).length ? (t.categories || []).map(k => catOf(k).label).join(", ") : "Any category";
-// ↑ / ↓ while sorting (a light round button, faint at the ends)
-const MoveBtn = ({ dir, label, off, onClick }: { dir: "up" | "down"; label: string; off: boolean; onClick: () => void }) => (
-  <button onClick={off ? undefined : onClick} aria-label={label} title={label} aria-disabled={off}
-    style={{ width: 32, height: 32, borderRadius: "50%", border: `1px solid ${off ? C.line : C.edge}`, background: C.white, color: off ? C.faint : C.black,
-      cursor: off ? "default" : "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, fontSize: 14, fontFamily: SANS }}>{dir === "up" ? "↑" : "↓"}</button>
-);
 const CopyBtn = ({ onClick, label }: { onClick: () => void; label: string }) => (
   <button onClick={(e) => { e.stopPropagation(); onClick(); }} aria-label={label} title={label}
     style={{ width: 32, height: 32, borderRadius: "50%", border: `1px solid ${C.edge}`, background: C.white, color: C.ink2, display: "inline-flex",
@@ -364,6 +358,9 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
   };
   const sel = (key: keyof EmailTemplate) => (e: any) => { const v = e.target.value; dr.setD(x => ({ ...x, [key]: v } as EmailTemplate)); };
   const accT = f.pipeline === "ugc" ? PAL.createbylynn : PAL.lynnhoa;
+  // "Hotel and Restaurant": the categories whose contacts only get the templates made for them (Setup)
+  const own = OUTREACH_CATEGORIES.filter(c => c.ownTemplates).map(c => c.label);
+  const ownNames = own.length > 1 ? `${own.slice(0, -1).join(", ")} and ${own[own.length - 1]}` : own[0] || "";
   return (
     <>
       {askDelete && <ConfirmDialog title={`Delete ${t.name || "this template"}?`} text="The template is removed from your Email kit." okLabel="Delete" danger onOk={del} onCancel={() => setAskDelete(false)} />}
@@ -429,7 +426,7 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
           </SheetRow>
         </div>
         <datalist id="lh-email-purposes">{purposes.filter(p => p !== NO_PURPOSE).map(p => <option key={p} value={p} />)}</datalist>
-        <SheetMeta>None picked = any category. Hotel and Restaurant templates only show for hotel and restaurant contacts.</SheetMeta>
+        <SheetMeta>None picked = any category.{ownNames ? ` ${ownNames} contacts only get the templates made for them (Setup).` : ""}</SheetMeta>
 
         {/* ── the text ── */}
         <SheetHead icon={<Ico d={IC.mail} size={11} />} label="Text" tone={accT} />

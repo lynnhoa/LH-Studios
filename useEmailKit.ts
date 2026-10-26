@@ -234,7 +234,7 @@ export function useEmailKit(userId: string | null) {
     setTemplates(prev => prev.filter(t => t.id !== id));
   }, [userId]);
 
-  return { kits, templates, loading, loadError, saveKits, addTemplate, updateTemplate, deleteTemplate, saveOrder, uploadPdf, deletePdf, preloadPdfs, sharePdf };
+  return { kits, templates, loading, loadError, reload: load, saveKits, addTemplate, updateTemplate, deleteTemplate, saveOrder, uploadPdf, deletePdf, preloadPdfs, sharePdf };
 }
 
 export type EmailKitHook = ReturnType<typeof useEmailKit>;

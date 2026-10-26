@@ -17,11 +17,12 @@ import { MoreMenu } from "./PlannerWindows";
 import {
   OUTREACH_CATEGORIES, OUTREACH_TIERS, OUTREACH_COLUMNS, STATUS_FILTERS, SORTS, ADDED, DEFAULT_VIEW, CHIPS, PIPELINES, NO_TIER,
   catOf, tierOf, statusOf, statusesFor, isCategory, isTier, isChip, chipCounts, followUpDue, repitchReady, nextKind, handleOf, cleanHandle, CHANNELS, applyView, activeFilters, emailsText, copyText, headerRow, buildPrompt, NO_FILTERS, placeOf,
-  pipelineOf, statusAfterPitch,
+  pipelineOf, statusAfterPitch, accountOf, ownTemplatesOf,
 } from "./outreach";
+import { useListsVersion } from "./useOutreachLists";
 import { kitInfo } from "./useEmailKit";
 import type { EmailTemplate } from "./useEmailKit";
-import { fillFor, composeUrl, openMail, templatesFor, pickTemplate, kitUrlOf, accountOfTemplate, logKind, HOSPITALITY, igChatUrl, copyNow, openInstagram } from "./outlook";
+import { fillFor, composeUrl, openMail, templatesFor, pickTemplate, kitUrlOf, accountOfTemplate, logKind, igChatUrl, copyNow, openInstagram } from "./outlook";
 import type { Pitch, ChipKey, OutreachEvent } from "./outreach";
 import type { OutreachContact, OutreachView, SortKey } from "./outreach";
 import { downloadExcel, downloadTemplate, downloadListPdf } from "./outreachExport";
@@ -99,8 +100,9 @@ const statusLook = (c: OutreachContact) => {
   }
 };
 // no template for this contact yet: what to add in Email kit
-const noTemplateText = (category: string) => HOSPITALITY.includes(category)
-  ? "No hotel & restaurant template yet — add one in Email kit with the category Hotel or Restaurant"
+// (a category with "only its own templates" in Setup — like Hotel — needs one tagged with it)
+const noTemplateText = (category: string) => ownTemplatesOf(category)
+  ? `No ${catOf(category).label} template yet — add one in Email kit with the category ${catOf(category).label}`
   : `No ${pipelineOf(category) === "ugc" ? "UGC" : "@lynnhoa"} template yet — add one in Email kit`;
 // New · Pitched / Follow up (until the 2nd follow-up is out) · Re-pitch: the pill writes the email (✉) —
 // one tap, no window; the other pills open the contact
@@ -191,7 +193,8 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
     showUndo(msg, once);
   };
 
-  const shown  = useMemo(() => applyView(contacts, view), [contacts, view]);
+  const lv = useListsVersion();   // Setup changed the categories (order, account): work the list out again
+  const shown  = useMemo(() => applyView(contacts, view), [contacts, view, lv]);
   const uniq = (xs: string[]) => Array.from(new Set(xs.map(x => (x || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "de"));
   const countries = useMemo(() => uniq(contacts.map((c: OutreachContact) => c.country)), [contacts]);
   // with a country picked, only that country's cities
@@ -205,7 +208,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
   const set = (patch: Partial<OutreachView>) => setView(v => ({ ...v, ...patch }));
   // Active opens most urgent first; leaving it goes back to A–Z (unless another sort was picked)
   const setChip = (chip: ChipKey) => setView(v => ({ ...v, chip, sort: chip === "active" ? "urgent" : v.sort === "urgent" ? "az" : v.sort }));
-  const chipN = useMemo(() => chipCounts(contacts, view), [contacts, view]);
+  const chipN = useMemo(() => chipCounts(contacts, view), [contacts, view, lv]);
   const nNew  = useMemo(() => contacts.filter((c: OutreachContact) => c.replyNew).length, [contacts]);   // new replies (badge on Active)
 
   const copy = async (text: string, msg: string) => { const ok = await copyText(text); setToast(ok ? msg : "Couldn't copy"); };
@@ -574,12 +577,12 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
 // Status (saves at once) · Last contact · Log · fields · timeline · Delete;
 // footer Done → Cancel | Save as soon as you type; after Save the window stays open.
 // a new contact: the window opens empty, ready to type (Save → it opens as itself);
-// category and tier start with the last ones used for a new contact
+// category and tier start with the last ones used for a new contact (else the first category on your Setup list)
 const DEFAULTS_KEY = "lh_new_contact_defaults";
 const newContact = (): OutreachContact => {
   let d: any = {};
   try { d = JSON.parse(localStorage.getItem(DEFAULTS_KEY) || "{}") || {}; } catch { d = {}; }
-  return { id: "", company: "", contactName: "", email: "", category: (isCategory(d.category) ? d.category : "fashion") as any, tier: (isTier(d.tier) ? d.tier : "") as any, status: "new" as any,
+  return { id: "", company: "", contactName: "", email: "", category: isCategory(d.category) ? d.category : (OUTREACH_CATEGORIES[0]?.key || "fashion"), tier: isTier(d.tier) ? d.tier : "", status: "new" as any,
     lastContact: null, replyAt: null, replyNew: false, clientId: null, web: "", instagram: "", channel: "email", city: "", country: "", notes: "", source: "", createdAt: "" };
 };
 // pr@chanel.com → { company: "Chanel", web: "chanel.com" } · nothing for gmail, gmx, web.de, icloud …
@@ -727,7 +730,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
   };
 
   const due = !isNew && followUpDue(c);
-  const accKey = c.category === "ugc" ? "createbylynn" : "lynnhoa";
+  const accKey = accountOf(c.category);   // the category's account (Setup)
 
   // ── Lead → Client in Manager (also for a Client that isn't linked yet)
   const [clientBusy, setClientBusy] = useState(false);
@@ -750,7 +753,8 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
   //    (saved with each pitch, so it's the same on phone, iPad and Mac)
   const pipe = pipelineOf(c.category);
   const isDm = c.channel === "dm";
-  const tpls: EmailTemplate[] = useMemo(() => templatesFor(kit?.templates || [], c.category, isDm ? "dm" : "email"), [kit?.templates, c.category, isDm]);   // your Email kit order
+  const lv = useListsVersion();   // a category's account or "own templates" changed in Setup
+  const tpls: EmailTemplate[] = useMemo(() => templatesFor(kit?.templates || [], c.category, isDm ? "dm" : "email"), [kit?.templates, c.category, isDm, lv]);   // your Email kit order
   const wantKind = nextKind(c) || "follow_up_2";
   const preselect = useMemo(() => pickTemplate(tpls, c.category, wantKind, outreach.pitches || []), [tpls, wantKind, c.category, outreach.pitches]);
   const [tplId, setTplId] = useState(preselect);

@@ -1,3 +1,35 @@
+# Outreach · Setup: categories, tiers, follow-up timing (26.10.2026)
+- New page Outreach › Setup: profile menu › This app, after @lynnhoa / @createbylynn. No tab is underlined
+  while it's open; tap a tab to leave it (like Manager's menu pages). Phone: one column · iPad / computer:
+  Categories left, Tiers and Follow-up timing right.
+- Categories: your 8 + Bag, Shoes, Jewelry, Appliances (@lynnhoa, all @lynnhoa templates, at the end). Row:
+  name · account (lavender @lynnhoa / peach @createbylynn) · own templates · contacts. Window (one level, like
+  the contact window): Name · Account · Templates (all of the account's / only templates for it) · Used by;
+  ⋯ Delete category. + Add opens the same window empty, and it stays open as the new one.
+- Tiers: the same, with Name · Used by.
+- Sort: ↑ ↓ like Email kit (the buttons now live in atoms), saved right away. The first category is the
+  default for a new contact.
+- Delete asks where its contacts go (a tier: another tier or No tier); templates and Planner sprints that used
+  it switch to Any. The last category can't be deleted.
+- A category switched to UGC: its Gifted / Invited contacts become Replied (the window says how many first),
+  with a timeline line — the same rule as for one contact.
+- Follow-up timing: Follow-up 1 · Follow-up 2 · No reply · Re-pitch, whole days (1–365), saved when you leave
+  the number. Every due date follows at once (also the Dashboard's "Ready to re-pitch" text), and the server's
+  daily No reply uses your number.
+- Everything reads the lists from Setup: Contacts (category picker, filters, account filter, sort by category),
+  the contact window's templates and statuses, Email kit (category chips, the "own templates" hint), Dashboard,
+  Planner sprints, the Excel template and the import prompt. Hotel / Restaurant's "only their templates" rule
+  is now the Setup setting (outlook.ts › templatesFor).
+- The lists are also kept on the device, so they're there before the database answers. Before the Setup SQL
+  has run, the built-in lists are used and Setup says so (read only).
+- Data: run the Setup SQL once (safe to rerun): tables outreach_lists and outreach_settings (filled for every
+  login), the three Setup steps (outreach_list_update / _order / _remove), a check that a contact's category
+  and tier are on your lists (replaces the fixed rules; old values like Others stay until changed), and
+  outreach_close_no_reply with your No reply number.
+- New: `SetupPage.tsx`, `useOutreachLists.ts`. Changed: `outreach.ts`, `outlook.ts`, `EmailList.tsx`,
+  `EmailKit.tsx`, `useEmailKit.ts`, `useOutreach.ts`, `usePlanner.ts`, `OutreachDashboard.tsx`,
+  `OutreachApp.tsx`, `PlannerApp.tsx`, `atoms.tsx`.
+
 # Planner · @lynnhoa concept: lists fold, nothing shown twice (25.10.2026)
 - Every list inside a card folds: tap its heading (small arrow after it). Formats on the Arcs tab,
   the groups on Phases ("Moments · 3", "Eras: on you · 3" …), the sections and Arcs on Base, and

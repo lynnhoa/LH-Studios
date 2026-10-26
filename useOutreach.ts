@@ -14,6 +14,7 @@ import { supabase, selectAll } from "./useSupabase";
 import { registerReloader } from "./saveStatus";
 import { today, uid } from "./formatters";
 import { fitStatus, statusAfterPitch, accountOf, followInfo, cleanHandle } from "./outreach";
+import { useListsVersion } from "./useOutreachLists";
 import type { OutreachContact, OutreachCategory, OutreachTier, OutreachStatus, Pitch, PitchAccount, OutreachEvent, Channel } from "./outreach";
 
 const rowToContact = (r: any): OutreachContact => ({
@@ -353,13 +354,15 @@ export function useOutreach(userId: string | null) {
     }
   }, [userId]);
 
-  // every contact with where it stands in the follow-up cycle (from its pitch log and timeline)
+  // every contact with where it stands in the follow-up cycle (from its pitch log and timeline,
+  // with the follow-up days from Setup — a change there counts for every contact at once)
+  const lv = useListsVersion();
   const enriched = useMemo(() => {
     const ps = new Map<string, Pitch[]>(), es = new Map<string, OutreachEvent[]>();
     pitches.forEach(p => { const l = ps.get(p.contactId); if (l) l.push(p); else ps.set(p.contactId, [p]); });
     events.forEach(e => { const l = es.get(e.contactId); if (l) l.push(e); else es.set(e.contactId, [e]); });
     return contacts.map(c => ({ ...c, ...followInfo(c, ps.get(c.id) || [], es.get(c.id) || []) }));
-  }, [contacts, pitches, events]);
+  }, [contacts, pitches, events, lv]);
 
   return { contacts: enriched, pitches, events, mail, checkReplies, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, markSeen, makeClient, logPitches, undoLog, deletePitch, restorePitch, deleteEvent, restoreEvent };
 }

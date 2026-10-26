@@ -470,11 +470,14 @@ export function Segmented<T extends string>({ options, value, onChange }: {
 }
 
 // ─── CONFIRM DIALOG (one dialog for confirms + date questions) ─
-export const ConfirmDialog = ({ title, text, dateLabel, okLabel, cancelLabel = "Cancel", danger, error, onOk, onCancel }: {
+// choice: one dropdown in the dialog (e.g. Setup › Delete: where its contacts move) — its value comes as onOk's 2nd argument
+export const ConfirmDialog = ({ title, text, dateLabel, choice, okLabel, cancelLabel = "Cancel", danger, error, onOk, onCancel }: {
   title: string; text?: string; dateLabel?: string; okLabel: string; cancelLabel?: string;
-  danger?: boolean; error?: string | null; onOk: (date: string) => void; onCancel: () => void;
+  choice?: { label: string; options: { value: string; label: string }[]; value?: string };
+  danger?: boolean; error?: string | null; onOk: (date: string, choice?: string) => void; onCancel: () => void;
 }) => {
   const [date, setDate] = useState(today());
+  const [pick, setPick] = useState(choice?.value ?? choice?.options[0]?.value ?? "");
   useEscape(true, onCancel);
   return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: Z.dialog, display: "flex", alignItems: "center", justifyContent: "center", background: SHEET.dim, padding: 16 }}>
@@ -487,9 +490,15 @@ export const ConfirmDialog = ({ title, text, dateLabel, okLabel, cancelLabel = "
           <Lbl>{dateLabel}</Lbl>
           <I type="date" value={date} onChange={(e: any) => setDate(e.target.value)} s={{ marginBottom: 14 }} />
         </>}
+        {choice && <>
+          <Lbl>{choice.label}</Lbl>
+          <S value={pick} aria-label={choice.label} onChange={(e: any) => setPick(e.target.value)} s={{ marginBottom: 14 }}>
+            {choice.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </S>
+        </>}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" as const }}>
           <B v="sec" onClick={onCancel}>{cancelLabel}</B>
-          <B v={danger ? "danger" : "pri"} onClick={() => onOk(date || today())}>{okLabel}</B>
+          <B v={danger ? "danger" : "pri"} onClick={() => onOk(date || today(), choice ? pick : undefined)}>{okLabel}</B>
         </div>
       </div>
     </div>,
@@ -977,6 +986,12 @@ export function useDraft<T>(stored: T, opts: { frozen?: boolean; same?: (a: T, b
 // ✕, tap outside or Escape with unsaved typing: ask first
 export const DiscardDialog = ({ onDiscard, onKeep }: { onDiscard: () => void; onKeep: () => void }) => (
   <ConfirmDialog title="Discard your changes?" text="What you typed isn't saved yet." okLabel="Discard" cancelLabel="Keep editing" onOk={onDiscard} onCancel={onKeep} />
+);
+// ↑ / ↓ while sorting (a light round button, faint at the ends) — Email kit and Setup
+export const MoveBtn = ({ dir, label, off, onClick }: { dir: "up" | "down"; label: string; off: boolean; onClick: () => void }) => (
+  <button onClick={off ? undefined : onClick} aria-label={label} title={label} aria-disabled={off}
+    style={{ width: 32, height: 32, borderRadius: "50%", border: `1px solid ${off ? C.line : C.edge}`, background: C.white, color: off ? C.faint : C.black,
+      cursor: off ? "default" : "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, fontSize: 14, fontFamily: SANS }}>{dir === "up" ? "↑" : "↓"}</button>
 );
 // a small round-free icon button at the end of a row (copy, open the link …)
 export const ROW_ICON: any = { width: 30, height: 30, background: "none", border: "none", cursor: "pointer", color: C.light, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 };

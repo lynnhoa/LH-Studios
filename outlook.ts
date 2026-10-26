@@ -14,7 +14,7 @@
 
 import { fillText, KIT_TOKEN } from "./useEmailKit";
 import type { EmailTemplate } from "./useEmailKit";
-import { pipelineOf } from "./outreach";
+import { pipelineOf, ownTemplatesOf } from "./outreach";
 import type { Pitch } from "./outreach";
 
 export const NAME_TOKEN = "{name}";
@@ -59,15 +59,15 @@ export const byTemplateOrder = (a: EmailTemplate, b: EmailTemplate) => {
   return x - y || (a.name || "").localeCompare(b.name || "", "de");
 };
 // the templates a contact can be written with:
-//   a Hotel contact → only the templates made for Hotel; a Restaurant contact → only those made for Restaurant
-//   (from either account — "Hotels & restaurants" is made for both)
-//   every other contact → its account's templates (UGC → @createbylynn, else @lynnhoa), without the hotel / restaurant ones
-export const HOSPITALITY = ["hotel", "restaurants"];
-const forHospitality = (t: EmailTemplate) => (t.categories || []).some(c => HOSPITALITY.includes(c));
+//   a contact of a category with "only its own templates" (Setup — Hotel and Restaurant) → only the
+//   templates made for that category (from either account — "Hotels & restaurants" is made for both)
+//   every other contact → its account's templates (UGC → @createbylynn, else @lynnhoa), without the ones
+//   made for an "own templates" category
+const forOwn = (t: EmailTemplate) => (t.categories || []).some(c => ownTemplatesOf(c));
 //   … and only the templates of the contact's channel (Email or Instagram DM)
 export const templatesFor = (templates: EmailTemplate[], category: string, channel: "email" | "dm" = "email") =>
   (templates || []).filter(t => (t.channel || "email") === channel)
-    .filter(t => HOSPITALITY.includes(category) ? (t.categories || []).includes(category) : (t.pipeline === pipelineOf(category) && !forHospitality(t)))
+    .filter(t => ownTemplatesOf(category) ? (t.categories || []).includes(category) : (t.pipeline === pipelineOf(category) && !forOwn(t)))
     .sort(byTemplateOrder);
 
 // ── Instagram DM: the text is copied, then the chat with the brand opens (ig.me = Instagram's own

@@ -15,7 +15,8 @@
 import { useMemo, useState } from "react";
 import { DashCard, DashCardHead, DashStrip, DashTile, WideRow, LinkRow, BarList, SwitchPill, SectionHead, DashIcon } from "./atoms";
 import { C, SANS, SERIF, PAL, TYPE, TRACK } from "./constants";
-import { dashboardStats, todayYmd } from "./outreach";
+import { dashboardStats, todayYmd, CADENCE } from "./outreach";
+import { useListsVersion } from "./useOutreachLists";
 import type { DashView, OutreachView } from "./outreach";
 import { Ico, IC } from "./PlannerWindows";
 
@@ -36,8 +37,9 @@ export default function OutreachDashboard({ outreach, isMobile, onOpenContacts }
     try { const v = sessionStorage.getItem(VIEW_KEY); return v === "lynnhoa" || v === "ugc" ? v : "all"; } catch { return "all"; }
   });
   const pick = (v: DashView) => { setView(v); try { sessionStorage.setItem(VIEW_KEY, v); } catch { /* ignore */ } };
+  const lv = useListsVersion();   // Setup: categories, accounts and follow-up days
   const s = useMemo(() => dashboardStats(outreach.contacts || [], outreach.pitches || [], outreach.events || [], view),
-    [outreach.contacts, outreach.pitches, outreach.events, view]);
+    [outreach.contacts, outreach.pitches, outreach.events, view, lv]);
   // a tile opens Contacts, filtered (and limited to this view's account)
   const open = (patch: Partial<OutreachView>) => (onOpenContacts ? () => onOpenContacts({ ...patch, acc: view }) : undefined);
 
@@ -93,7 +95,7 @@ export default function OutreachDashboard({ outreach, isMobile, onOpenContacts }
         <DashTile tone={PAL.done} icon={icon(IC.spark)} label="Won" value={int(s.won.total)} sub={wonSub} />
         <WideRow icon={icon(REFRESH)} label="Ready to re-pitch" onClick={open({ status: "repitch", chip: "all" })}
           right={<>
-            <span style={{ fontSize: TYPE.label.size, color: PAL.neutral.ink, whiteSpace: "nowrap" as const }}>No reply · Declined, 90+ days</span>
+            <span style={{ fontSize: TYPE.label.size, color: PAL.neutral.ink, whiteSpace: "nowrap" as const }}>No reply · Declined, {CADENCE.repitch}+ days</span>
             <span style={{ fontFamily: SERIF, fontSize: TYPE.tile.size, whiteSpace: "nowrap" as const }}>{int(s.repitch)}</span>
           </>} />
       </div>

@@ -1,8 +1,10 @@
 // ─────────────────────────────────────────────────────────────
-// OutreachApp — Outreach (tabs: Contacts · Email kit · Comments). Same frame as the
+// OutreachApp — Outreach (tabs: Dashboard · Contacts · Email kit · Comments). Same frame as the
 // other apps: logo header, nav tab, account menu with all apps.
 // The menu also holds the account you're working on (as in the
 // Planner); the email list itself stays one shared list.
+// Profile menu › This app › Setup: the categories, tiers and follow-up days
+// (opens under the tabs, no tab underlined — tap any tab to leave it, like Manager's menu pages).
 // Phone, iPad and desktop layouts.
 // ─────────────────────────────────────────────────────────────
 
@@ -16,6 +18,8 @@ import EmailList, { presetContactsView } from "./EmailList";
 import OutreachDashboard from "./OutreachDashboard";
 import EmailKit from "./EmailKit";
 import Comments from "./Comments";
+import SetupPage from "./SetupPage";
+import { useOutreachLists } from "./useOutreachLists";
 import { useOutreach } from "./useOutreach";
 import { useEmailKit } from "./useEmailKit";
 import { useComments } from "./useComments";
@@ -35,10 +39,12 @@ export default function OutreachApp({ userId, settings, signOut, switchTo, banne
   const outreach = useOutreach(userId);
   const emailKit = useEmailKit(userId);
   const comments = useComments(userId);
+  const lists    = useOutreachLists(userId);   // Setup: categories, tiers, follow-up days (the whole app reads them)
   // the open tab: Dashboard (first, like Manager) · Contacts (the email list) · Email kit · Comments — kept while the app is open
-  type Tab = "dashboard" | "contacts" | "kit" | "comments";
+  // ("setup" = the Setup page from the profile menu)
+  type Tab = "dashboard" | "contacts" | "kit" | "comments" | "setup";
   const TAB_KEY = "lh_outreach_tab";
-  const [tab, setTab] = useState<Tab>(() => { try { const t = sessionStorage.getItem(TAB_KEY); return t === "contacts" || t === "kit" || t === "comments" ? t : "dashboard"; } catch { return "dashboard"; } });
+  const [tab, setTab] = useState<Tab>(() => { try { const t = sessionStorage.getItem(TAB_KEY); return t === "contacts" || t === "kit" || t === "comments" || t === "setup" ? t : "dashboard"; } catch { return "dashboard"; } });
   const pickTab = (t: Tab) => { setTab(t); try { sessionStorage.setItem(TAB_KEY, t); } catch { /* ignore */ } window.scrollTo(0, 0); };
   // the account you're working on (same choice as in the Planner): the default when you log a pitch
   const [work, setWork] = useState<Account>(loadWorkAccount);
@@ -56,7 +62,8 @@ export default function OutreachApp({ userId, settings, signOut, switchTo, banne
   // the avatar sits on the right of the top bar; its menu opens to the left
   const avatar = (dropLeft: boolean) => (
     <AvatarMenu settings={settings} roleLabel="Outreach" dropLeft={dropLeft}
-      items={ACCOUNTS.map(a => ({ key: a.key, label: a.label, active: work === a.key, onClick: () => pickAccount(a.key) }))}
+      items={[...ACCOUNTS.map(a => ({ key: a.key, label: a.label, active: work === a.key, onClick: () => pickAccount(a.key) })),
+        { key: "setup", label: "Setup", onClick: () => pickTab("setup") }]}
       apps={appItems("outreach", switchTo)} onSignOut={() => { signOut(); }} />
   );
 
@@ -76,7 +83,9 @@ export default function OutreachApp({ userId, settings, signOut, switchTo, banne
           ? <EmailList outreach={outreach} kit={emailKit} settings={settings} isMobile={isMobile} isWide={isWide} stickyTop={headerH} />
           : tab === "kit"
             ? <EmailKit kit={emailKit} isMobile={isMobile} />
-            : <Comments hook={comments} isMobile={isMobile} />}
+            : tab === "setup"
+              ? <SetupPage lists={lists} outreach={outreach} kit={emailKit} isMobile={isMobile} />
+              : <Comments hook={comments} isMobile={isMobile} />}
       </div>
       <UndoBar />
     </div>

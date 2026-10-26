@@ -3,33 +3,49 @@
 // tiers, statuses and the Claude prompt. The "Excel columns" window,
 // the Prompt button, the Excel template and the Excel/PDF downloads
 // all read from here, so they always match.
-// Categories and tiers are 1:1 from Lynn's own Excel (sheet "Lists").
-// Tracking: one status per contact; the category decides the
+// Categories, tiers and the follow-up days are yours: Outreach › Setup
+// (tables outreach_lists, outreach_settings). The app starts with the
+// built-in lists below, then shows what's stored (kept on the device too).
+// Tracking: one status per contact; the category's account decides the
 // pipeline (UGC → @createbylynn, every other category → @lynnhoa).
 // ─────────────────────────────────────────────────────────────
 
-// ── Categories (Excel "Lists" › Categories, same order) ──────
-// the keys stay short and stable in the database; the labels are the Excel names
-export type OutreachCategory = "fashion" | "beauty" | "makeup" | "agency" | "ugc" | "hotel" | "restaurants" | "lifestyle";
+// ── Categories (Setup › Categories; built in: your Excel's "Lists" + Bag, Shoes, Jewelry, Appliances) ──
+// The keys stay short and fixed in the database (a new one is made from its first name and never
+// changes, so renaming changes nothing else); the names and the order are yours.
+//   account       the pipeline: "ugc" → @createbylynn (always paid: no Gifted / Invited), else @lynnhoa
+//   ownTemplates  its contacts only get the templates made for it (like Hotel and Restaurant)
+export type OutreachCategory = string;
+export type Pipeline = "lynnhoa" | "ugc";
 const CAT_LOOK = { color: "#6B655E", bg: "#F1EEEA", border: "#e2ddd6" };
-export const OUTREACH_CATEGORIES: { key: OutreachCategory; label: string; color: string; bg: string; border: string }[] = [
-  { key: "fashion",     label: "Fashion",    ...CAT_LOOK },
-  { key: "beauty",      label: "Beauty",     ...CAT_LOOK },
-  { key: "makeup",      label: "Makeup",     ...CAT_LOOK },
-  { key: "agency",      label: "Agency",     ...CAT_LOOK },
-  { key: "ugc",         label: "UGC",        ...CAT_LOOK },
-  { key: "hotel",       label: "Hotel",      ...CAT_LOOK },
-  { key: "restaurants", label: "Restaurant", ...CAT_LOOK },
-  { key: "lifestyle",   label: "Lifestyle",  ...CAT_LOOK },
+export interface CategoryDef { key: string; label: string; account: Pipeline; ownTemplates: boolean; color: string; bg: string; border: string; }
+export interface TierDef { key: string; label: string; }
+const defCat = (key: string, label: string, account: Pipeline = "lynnhoa", ownTemplates = false): CategoryDef => ({ key, label, account, ownTemplates, ...CAT_LOOK });
+export const DEFAULT_CATEGORIES: readonly CategoryDef[] = [
+  defCat("fashion",     "Fashion"),
+  defCat("beauty",      "Beauty"),
+  defCat("makeup",      "Makeup"),
+  defCat("agency",      "Agency"),
+  defCat("ugc",         "UGC", "ugc"),
+  defCat("hotel",       "Hotel", "lynnhoa", true),
+  defCat("restaurants", "Restaurant", "lynnhoa", true),
+  defCat("lifestyle",   "Lifestyle"),
+  defCat("bag",         "Bag"),
+  defCat("shoes",       "Shoes"),
+  defCat("jewelry",     "Jewelry"),
+  defCat("appliances",  "Appliances"),
 ];
+// the lists the app reads — filled from Setup (setOutreachLists below); always the same array
+export const OUTREACH_CATEGORIES: CategoryDef[] = DEFAULT_CATEGORIES.map(c => ({ ...c }));
 export const isCategory = (k: string | null | undefined) => OUTREACH_CATEGORIES.some(c => c.key === k);
 // an old value that isn't on the list any more (Events, Others): shown as "—" until a category is picked
-export const catOf = (k: string) => OUTREACH_CATEGORIES.find(c => c.key === k) || { key: (k || "") as OutreachCategory, label: "—", ...CAT_LOOK };
+export const catOf = (k: string): CategoryDef => OUTREACH_CATEGORIES.find(c => c.key === k) || { key: k || "", label: "—", account: k === "ugc" ? "ugc" : "lynnhoa", ownTemplates: false, ...CAT_LOOK };
+// a category whose contacts only get the templates made for it (Setup › Templates: Only templates for …)
+export const ownTemplatesOf = (k: string) => !!OUTREACH_CATEGORIES.find(c => c.key === k)?.ownTemplates;
 
-// ── Tiers (Excel "Lists" › Tiers, same order); empty = no tier ─
-// Stages: Premium → Stage 4, Luxury → Stage 5, every other tier and no tier → Stages 2–3
-export type OutreachTier = "" | "emerging" | "value" | "fast_fashion" | "contemporary" | "premium" | "luxury";
-export const OUTREACH_TIERS: { key: Exclude<OutreachTier, "">; label: string }[] = [
+// ── Tiers (Setup › Tiers; built in: your Excel's "Lists"); empty = no tier ─
+export type OutreachTier = string;
+export const DEFAULT_TIERS: readonly TierDef[] = [
   { key: "emerging",     label: "Emerging / Newcomer" },
   { key: "value",        label: "Value / Budget" },
   { key: "fast_fashion", label: "Fast Fashion" },
@@ -37,9 +53,10 @@ export const OUTREACH_TIERS: { key: Exclude<OutreachTier, "">; label: string }[]
   { key: "premium",      label: "Premium" },
   { key: "luxury",       label: "Luxury" },
 ];
+export const OUTREACH_TIERS: TierDef[] = DEFAULT_TIERS.map(t => ({ ...t }));
 export const isTier = (k: string | null | undefined) => OUTREACH_TIERS.some(t => t.key === k);
 // always an object: label "" for no tier (callers show "—" where a cell needs it)
-export const tierOf = (k: string | null | undefined) => OUTREACH_TIERS.find(t => t.key === k) || { key: "" as OutreachTier, label: "" };
+export const tierOf = (k: string | null | undefined): TierDef => OUTREACH_TIERS.find(t => t.key === k) || { key: "", label: "" };
 export const NO_TIER = "No tier";
 
 // ── Status (one per contact) ─────────────────────────────────
@@ -59,10 +76,11 @@ export const OUTREACH_STATUSES: { key: OutreachStatus; label: string }[] = [
 ];
 export const statusOf = (k: string) => OUTREACH_STATUSES.find(s => s.key === k) || OUTREACH_STATUSES[0];
 
-// ── Pipelines: the category decides ──────────────────────────
+// ── Pipelines: the category's account decides (Setup) ─────────
 // UGC → @createbylynn (always paid: no Gifted / Invited) · every other category → @lynnhoa
-export type Pipeline = "lynnhoa" | "ugc";
-export const pipelineOf = (category: string): Pipeline => (category === "ugc" ? "ugc" : "lynnhoa");
+// (a category that isn't on the list any more: UGC stays UGC, the rest @lynnhoa — as before)
+export const pipelineOf = (category: string): Pipeline =>
+  OUTREACH_CATEGORIES.find(c => c.key === category)?.account ?? (category === "ugc" ? "ugc" : "lynnhoa");
 export const PIPELINES: { key: Pipeline; label: string }[] = [
   { key: "lynnhoa", label: "@lynnhoa" },
   { key: "ugc",     label: "@createbylynn · UGC" },
@@ -82,12 +100,62 @@ export const statusAfterPitch = (s: OutreachStatus): OutreachStatus =>
 export const statusAfterReply = (s: OutreachStatus): OutreachStatus =>
   s === "new" || s === "pitched" ? "replied" : s;
 
-// ── Follow-up timing — ONE place (the daily No reply on the server uses the same numbers) ──
+// ── Follow-up timing — ONE place, set in Setup (table outreach_settings) ──
 // pitch → Follow-up 1 after 7 days (same weekday, one week later) → Follow-up 2 after 10 more →
-// No reply 14 days after that (set by the server once a day) → Re-pitch 90 days after No reply / Declined.
-// A reply stops it all. The server only uses the 14 (outreach_close_no_reply), so 7 / 10 / 90 can change here alone.
-export const CADENCE = { fu1: 7, fu2: 10, close: 14, repitch: 90 } as const;
-export const FOLLOW_UP_DAYS = CADENCE.fu1;   // older callers: days until the first follow-up
+// No reply 14 days after that (set by the server once a day, with your number) → Re-pitch 90 days
+// after No reply / Declined. A reply stops it all. Nothing is stored per contact: every due date is
+// worked out from these numbers, so a change counts for every contact at once.
+export interface Cadence { fu1: number; fu2: number; close: number; repitch: number; }
+export const DEFAULT_CADENCE: Readonly<Cadence> = { fu1: 7, fu2: 10, close: 14, repitch: 90 };
+export const CADENCE: Cadence = { ...DEFAULT_CADENCE };
+export const CADENCE_MAX = 365;   // whole days, 1–365 (the database checks the same)
+const dayCount = (v: any, d: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= 1 && n <= CADENCE_MAX ? n : d; };
+
+// ── The lists' store: Setup and the database fill it; every screen re-reads it on a change ──
+// The arrays above stay the same objects (their content is replaced), so every import sees the
+// new lists; screens that keep results (useMemo) also listen to the version (useListsVersion).
+let listsVersion = 0;
+const listSubs = new Set<() => void>();
+export const listsStore = {
+  version: () => listsVersion,
+  subscribe: (fn: () => void) => { listSubs.add(fn); return () => { listSubs.delete(fn); }; },
+};
+const LISTS_CACHE = "lh_outreach_lists";
+const asCats = (x: any): CategoryDef[] => (Array.isArray(x) ? x : [])
+  .filter(c => c && typeof c.key === "string" && c.key && typeof c.label === "string")
+  .map(c => defCat(c.key, c.label, c.account === "ugc" ? "ugc" : "lynnhoa", c.ownTemplates === true));
+const asTiers = (x: any): TierDef[] => (Array.isArray(x) ? x : [])
+  .filter(t => t && typeof t.key === "string" && t.key && typeof t.label === "string")
+  .map(t => ({ key: t.key, label: t.label }));
+export function setOutreachLists(next: { categories?: any[]; tiers?: any[]; cadence?: Partial<Cadence> | null }, keep = true) {
+  const cats = next.categories ? asCats(next.categories) : null;
+  if (cats && cats.length) OUTREACH_CATEGORIES.splice(0, OUTREACH_CATEGORIES.length, ...cats);   // never without a category
+  if (next.tiers) OUTREACH_TIERS.splice(0, OUTREACH_TIERS.length, ...asTiers(next.tiers));
+  if (next.cadence) {
+    const c = next.cadence;
+    Object.assign(CADENCE, { fu1: dayCount(c.fu1, CADENCE.fu1), fu2: dayCount(c.fu2, CADENCE.fu2), close: dayCount(c.close, CADENCE.close), repitch: dayCount(c.repitch, CADENCE.repitch) });
+  }
+  listsVersion++;
+  if (keep) {
+    try {
+      localStorage.setItem(LISTS_CACHE, JSON.stringify({
+        categories: OUTREACH_CATEGORIES.map(c => ({ key: c.key, label: c.label, account: c.account, ownTemplates: c.ownTemplates })),
+        tiers: OUTREACH_TIERS, cadence: CADENCE,
+      }));
+    } catch { /* private mode: the lists come from the database each time */ }
+  }
+  listSubs.forEach(fn => { try { fn(); } catch { /* a screen that's gone */ } });
+}
+// back to the built-in lists (sign-out, or a different login on this device)
+export function resetOutreachLists() {
+  try { localStorage.removeItem(LISTS_CACHE); } catch { /* ignore */ }
+  setOutreachLists({ categories: DEFAULT_CATEGORIES.map(c => ({ ...c })), tiers: DEFAULT_TIERS.map(t => ({ ...t })), cadence: DEFAULT_CADENCE }, false);
+}
+// the lists as last seen on this device: there before the database answers
+try {
+  const raw = typeof localStorage !== "undefined" ? localStorage.getItem(LISTS_CACHE) : null;
+  if (raw) { const v = JSON.parse(raw); setOutreachLists({ categories: v?.categories, tiers: v?.tiers, cadence: v?.cadence }, false); }
+} catch { /* the built-in lists */ }
 const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 export const todayYmd = (now = new Date()) => ymdLocal(now);
 export const addDaysYmd = (ymd: string, n: number) => { const [y, m, d] = ymd.split("-").map(Number); return ymdLocal(new Date(y, m - 1, d + n)); };
@@ -228,8 +296,9 @@ export const OUTREACH_COLUMNS: OutreachColumn[] = [
   { key: "company",     label: "Company",             required: true,  example: "Chanel",             note: "Brand, hotel, restaurant or agency" },
   { key: "email",       label: "Email",               required: true,  example: "pr@chanel.com",      note: "Rows without an email are skipped" },
   { key: "contactName", label: "Contact name",        required: false, example: "Poma" },
-  { key: "category",    label: "Category",            required: false, example: "Fashion",            note: `${OUTREACH_CATEGORIES.map(c => c.label).join(" · ")} — empty: Claude picks the closest` },
-  { key: "tier",        label: "Tier",                required: false, example: "Luxury",             note: `${OUTREACH_TIERS.map(t => t.label).join(" · ")} — empty: no tier` },
+  // the notes list your current categories and tiers (read when shown, so Setup changes count)
+  { key: "category",    label: "Category",            required: false, example: "Fashion",            get note() { return `${OUTREACH_CATEGORIES.map(c => c.label).join(" · ")} — empty: Claude picks the closest`; } },
+  { key: "tier",        label: "Tier",                required: false, example: "Luxury",             get note() { return `${OUTREACH_TIERS.map(t => t.label).join(" · ")} — empty: no tier`; } },
   { key: "web",         label: "Website / Instagram", required: false, example: "@chanel" },
   { key: "instagram",   label: "Instagram",           required: false, example: "@chanel",            note: "For DMs — empty: taken from Website / Instagram" },
   { key: "channel",     label: "Channel",             required: false, example: "Email",              note: "Email · Instagram DM — empty: Email" },
@@ -256,7 +325,7 @@ export function buildPrompt(loginEmail: string): string {
    - skip rows without a valid email address
    - if the same email appears more than once in the file, keep it once
 3. Category: write the key of exactly one of these (key = the name in my Excel): ${cats}.
-   Use the file's category column if it has one. If a row has no category, pick the closest of these 8.
+   Use the file's category column if it has one. If a row has no category, pick the closest of these ${OUTREACH_CATEGORIES.length}.
 4. Tier: write the key of one of these (key = the name in my Excel): ${tiers}.
    Use the file's tier column. If a row has no tier, write NULL (without quotes) — never guess a tier.
 5. Instagram: the handle without @ in lowercase (from an Instagram column, or from an instagram.com link or @handle in the website column), else ''.

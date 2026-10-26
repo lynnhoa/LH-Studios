@@ -17,6 +17,7 @@ import { C, SANS, SERIF, TYPE, BREAKPOINT, WIDE } from "./constants";
 import AppLogo from "./AppLogo";
 import { AvatarMenu, NavTab, appItems, AppHeader } from "./AppNav";
 import { usePlanner } from "./usePlanner";
+import { useOutreachLists } from "./useOutreachLists";
 import { thisMonday, ACCOUNTS, loadWorkAccount, saveWorkAccount } from "./planner";
 import type { Account } from "./planner";
 import PlannerTodo, { DEFAULT_VIEW } from "./PlannerTodo";
@@ -56,6 +57,7 @@ export default function PlannerApp({ userId, settings, signOut, switchTo, banner
   const setAccount = (a: Account) => { saveWorkAccount(a); setView(v => ({ ...v, acc: a })); };
   const [monday, setMonday] = useState<string>(thisMonday);
   const planner = usePlanner(userId, monday);
+  useOutreachLists(userId);   // Outreach › Setup: the categories and tiers for sprints, the follow-up days
 
   const [winW, setWinW] = useState(() => window.innerWidth);
   useEffect(() => {
