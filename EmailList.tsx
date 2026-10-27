@@ -23,7 +23,7 @@ import { useListsVersion } from "./useOutreachLists";
 import { kitInfo } from "./useEmailKit";
 import type { EmailTemplate } from "./useEmailKit";
 import { fillFor, composeUrl, openMail, templatesFor, pickTemplate, kitUrlOf, accountOfTemplate, logKind, igChatUrl, copyNow, openInstagram } from "./outlook";
-import type { Pitch, ChipKey, OutreachEvent } from "./outreach";
+import type { Pitch, ChipKey, OutreachEvent, OutreachStatus } from "./outreach";
 import type { OutreachContact, OutreachView, SortKey } from "./outreach";
 import { downloadExcel, downloadTemplate, downloadListPdf } from "./outreachExport";
 import { showUndo, showNote } from "./undo";
@@ -83,11 +83,16 @@ interface EmailListProps {
   stickyTop: number;       // height of the app header (table header sticks below it)
 }
 
-// Where a contact stands, as a pill: New · Pitched 12.10. · Follow up · Replied · Gifted · Invited · Lead · Client · Declined · No reply
+// A contact row has two pills (right of the name; iPad / computer: the Status column):
+//   ✉   what's due, one tap writes it (the DM: copied + Instagram) — only when something is due:
+//       New → the pitch (just the icon) · a follow-up due → "FU 1" / "FU 2" · ready to re-pitch → "Re-pitch"
+//       (an early follow-up, before it's due: the contact window's Write, as before)
+//   ▾   the status, always — tap → the status list (the same as in the contact window; UGC has no
+//       Gifted / Invited); a pick is saved at once with a timeline line, Undo puts both back
+// The rest of the row opens the contact.
+// The status pill: New · Pitched 12.10. · FU 1 · 20.10. · Replied · Gifted · Invited · Lead · Client · Declined · No reply
 const shortD = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.`;
 const statusLook = (c: OutreachContact) => {
-  if (followUpDue(c)) return { bg: PAL.waiting.wash, border: PAL.waiting.mid, color: PAL.waiting.ink, text: `Follow up ${c.followStep === "fu2" ? 2 : 1}` };
-  if (repitchReady(c)) return { bg: PAL.neutral.wash, border: C.pillOn, color: PAL.neutral.ink, text: "Re-pitch" };
   switch (c.status) {
     case "pitched":  return { bg: PAL.neutral.fill, border: C.edge, color: PAL.neutral.ink,
                        text: (c.followSent || 0) > 0 ? `FU ${Math.min(2, c.followSent || 0)} · ${c.lastContact ? shortD(c.lastContact) : ""}`.trim() : `Pitched${c.lastContact ? " " + shortD(c.lastContact) : ""}` };
@@ -104,21 +109,48 @@ const statusLook = (c: OutreachContact) => {
 const noTemplateText = (category: string) => ownTemplatesOf(category)
   ? `No ${catOf(category).label} template yet — add one in Email kit with the category ${catOf(category).label}`
   : `No ${pipelineOf(category) === "ugc" ? "UGC" : "@lynnhoa"} template yet — add one in Email kit`;
-// New · Pitched / Follow up (until the 2nd follow-up is out) · Re-pitch: the pill writes the email (✉) —
-// one tap, no window; the other pills open the contact
-const canWrite = (c: OutreachContact) => !c.status || c.status === "new" || (c.status === "pitched" && (c.followSent || 0) < 2) || repitchReady(c);
-const StatusPill = ({ c, onWrite }: { c: OutreachContact; onWrite?: (c: OutreachContact) => void }) => {
-  const l = statusLook(c);
-  const pill: any = { fontSize: TYPE.micro.size, letterSpacing: "0.03em", padding: "2px 8px", borderRadius: RADIUS.tag, border: `1px solid ${l.border}`, background: l.bg, color: l.color, whiteSpace: "nowrap" as const, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4, lineHeight: 1.4 };
-  if (!onWrite || !canWrite(c)) return <span style={pill}>{l.text}</span>;
-  // a larger tap area around the small pill (the row itself still opens the contact)
+// what the ✉ pill sends now, in its colour — null: nothing due (no ✉)
+const writeLook = (c: OutreachContact) => {
+  if (followUpDue(c)) return { bg: PAL.waiting.wash, border: PAL.waiting.mid, color: PAL.waiting.ink, text: `FU ${c.followStep === "fu2" ? 2 : 1}`, what: `Follow-up ${c.followStep === "fu2" ? 2 : 1}` };
+  if (repitchReady(c)) return { bg: PAL.neutral.wash, border: C.pillOn, color: PAL.neutral.ink, text: "Re-pitch", what: "Re-pitch" };
+  if (!c.status || c.status === "new") return { bg: C.white, border: C.rule, color: C.muted, text: "", what: "Pitch" };
+  return null;
+};
+const pillS = (l: { bg: string; border: string; color: string }): any => ({
+  fontSize: TYPE.micro.size, letterSpacing: "0.03em", padding: "2px 8px", borderRadius: RADIUS.tag, border: `1px solid ${l.border}`, background: l.bg, color: l.color,
+  whiteSpace: "nowrap" as const, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4, lineHeight: 1.4,
+});
+// ✉: one tap writes it — a larger tap area around the small pill, to its left (the status pill is on its right)
+const WritePill = ({ c, onWrite }: { c: OutreachContact; onWrite: (c: OutreachContact) => void }) => {
+  const w = writeLook(c);
+  if (!w) return null;
+  const dm = c.channel === "dm";
   return (
-    <button onClick={(e) => { e.stopPropagation(); onWrite(c); }} aria-label={`${c.channel === "dm" ? "DM" : "Write to"} ${c.company || c.email}`} title={c.channel === "dm" ? "Copy the DM and open Instagram" : "Write the email"}
+    <button onClick={(e) => { e.stopPropagation(); onWrite(c); }} aria-label={`${dm ? "DM" : "Write"} ${w.what.toLowerCase()} to ${c.company || c.email}`} title={`${w.what}: ${dm ? "copy the DM and open Instagram" : "write the email"}`}
       style={{ background: "none", border: "none", padding: "8px 0 8px 10px", margin: "-8px 0 -8px -10px", cursor: "pointer", flexShrink: 0, fontFamily: SANS, display: "inline-flex" }}>
-      <span style={pill}><Ico d={c.channel === "dm" ? IG : MAIL} size={11} />{l.text}</span>
+      <span style={{ ...pillS(w), padding: w.text ? "2px 8px" : "2px 7px" }}><Ico d={dm ? IG : MAIL} size={11} />{w.text}</span>
     </button>
   );
 };
+// ▾: the status — the app's own dropdown with the pill as its button (tap area to its right)
+const StatusPick = ({ c, onPick }: { c: OutreachContact; onPick: (c: OutreachContact, s: OutreachStatus) => void }) => {
+  const l = statusLook(c);
+  return (
+    <span onClick={(e) => e.stopPropagation()} style={{ display: "inline-flex", flexShrink: 0 }}>
+      <MenuSelect plain fit value={c.status || "new"} aria-label={`Status of ${c.company || c.email}`} onChange={(e: any) => onPick(c, e.target.value)}
+        btnS={{ padding: "8px 10px 8px 0", margin: "-8px -10px -8px 0" }}
+        trigger={<span style={pillS(l)}>{l.text}<svg width="8" height="5" viewBox="0 0 10 6" aria-hidden="true" style={{ flexShrink: 0, marginLeft: 1 }}><path d="M1 1l4 4 4-4" fill="none" stroke={l.color} strokeWidth="1.5" /></svg></span>}>
+        {statusesFor(c.category).map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
+      </MenuSelect>
+    </span>
+  );
+};
+const RowPills = ({ c, onWrite, onPick }: { c: OutreachContact; onWrite: (c: OutreachContact) => void; onPick: (c: OutreachContact, s: OutreachStatus) => void }) => (
+  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+    <WritePill c={c} onWrite={onWrite} />
+    <StatusPick c={c} onPick={onPick} />
+  </span>
+);
 // a reply you haven't opened yet
 const ReplyDot = () => <span aria-label="New reply" style={{ width: 7, height: 7, borderRadius: "50%", background: PAL.progress.mid, flexShrink: 0, display: "inline-block" }} />;
 
@@ -181,6 +213,19 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
     if (dm) openInstagram(igChatUrl(handle)); else openMail(composeUrl(c.email, mail.subject, mail.body));
     saving.then(added => written(dm ? "Copied · paste it in Instagram" : `${kind === "follow_up" ? "Follow-up" : "Pitch"} logged · ${tpl.name || "template"}`, () => outreach.undoLog(added, before)))
       .catch((e: any) => showNote(e?.message || "Couldn't log it — open the contact and use + Pitch"));
+  };
+  // a status picked on a row: saved at once with its timeline line; Undo puts the status back and takes the line away
+  const pickStatus = (c: OutreachContact, st: OutreachStatus) => {
+    const before = (c.status || "new") as OutreachStatus;
+    if (st === before) return;
+    outreach.setStatus(c.id, st).then((line: any) => {
+      let done = false;
+      showUndo(`${c.company || c.email} · ${statusOf(st).label}`, async () => {
+        if (done) return;
+        done = true;
+        try { await outreach.undoStatus(c.id, before, line || null); showNote("Undone ✓"); } catch (e: any) { showNote(e?.message || "Couldn't undo."); }
+      });
+    }).catch((e: any) => showNote(e?.message || "Couldn't save the status."));
   };
   const written = (msg: string, undo: () => Promise<void>) => {
     let done = false;
@@ -378,7 +423,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
               {c.replyNew && <ReplyDot />}
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, minWidth: 0 }}>{c.company || c.email}{placeOf(c) && <span style={{ fontSize: TYPE.label.size, color: C.muted, fontWeight: "normal" }}> · {placeOf(c)}</span>}</span>
             </span>
-            <StatusPill c={c} onWrite={quickWrite} />
+            <RowPills c={c} onWrite={quickWrite} onPick={pickStatus} />
           </div>
           <div style={{ fontSize: TYPE.label.size, color: C.muted, marginTop: 2, display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
             {c.replyNew ? (
@@ -399,8 +444,8 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
   );
 
   const cols: { key: string; label: string; fr: string; sort?: SortKey[]; min?: number }[] = [
-    { key: "company", label: "Company", fr: "1.3fr", sort: ["az", "za"] },
-    { key: "status", label: "Status", fr: "1.1fr", sort: ["urgent"], min: 106 },   // the whole pill, also on the iPad
+    { key: "company", label: "Company", fr: "1.3fr", sort: ["az", "za"], min: 110 },   // the brand stays readable on the iPad
+    { key: "status", label: "Status", fr: "1.1fr", sort: ["urgent"], min: 178 },   // both pills (✉ FU 2 + FU 1 · date ▾), also on the iPad
     { key: "contactName", label: "Contact", fr: "1fr" },
     { key: "email", label: "Email", fr: "1.8fr" },
     { key: "category", label: "Category", fr: "0.9fr", sort: ["cat"], min: 92 },
@@ -430,7 +475,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
       {shown.map((c: OutreachContact) => (
         <div key={c.id} className="lh-row" onClick={() => setOpenId(c.id)} style={{ display: "contents", cursor: "pointer" }}>
           <div style={{ ...td, gap: 6, fontWeight: c.replyNew ? 500 : "normal" }}>{c.replyNew && <ReplyDot />}{cut(c.company)}</div>
-          <div style={td}><StatusPill c={c} onWrite={quickWrite} /></div>
+          <div style={{ ...td, overflow: "visible" }}><RowPills c={c} onWrite={quickWrite} onPick={pickStatus} /></div>
           <div style={{ ...td, color: c.contactName ? C.black : C.light }}>{cut(c.contactName || "—")}</div>
           <div style={td}>{emailCell(c)}</div>
           <div style={td}><CatPill k={c.category} /></div>

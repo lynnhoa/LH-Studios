@@ -1,3 +1,17 @@
+# Contacts · status right on the row (26.10.2026)
+- Each contact row has two pills (phone: right of the name · iPad / computer: the Status column):
+  ✉  what's due, one tap writes it as before — only when something is due: New (just the icon), a follow-up
+     due ("FU 1" / "FU 2", amber), ready to re-pitch ("Re-pitch"). An early follow-up before it's due:
+     the contact window's Write, as before.
+  ▾  the status, always: tap → the same status list as in the contact window (UGC has no Gifted / Invited);
+     a pick is saved at once with its timeline line. Undo in the bottom bar puts the status back and takes
+     that line away. The list opens on the side where all statuses fit.
+- The rest of the row still opens the contact.
+- iPad / computer table: the Status column fits both pills (178 px); Company keeps at least 110 px.
+- Shared parts: MenuSelect takes your own button look (plain + trigger) and can open where the whole list fits
+  (fit) — only the row pill uses both. useOutreach: setStatus returns its timeline line; undoStatus.
+- Changed: `EmailList.tsx`, `useOutreach.ts`, `atoms.tsx`.
+
 # Outreach · profile menu: Setup only (26.10.2026)
 - The @lynnhoa / @createbylynn entries are gone from Outreach's profile menu: nothing in Outreach used them
   (a pitch counts for the account of the contact's category or of its template; Dashboard and Contacts have

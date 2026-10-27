@@ -127,12 +127,14 @@ export function useOutreach(userId: string | null) {
   }, [userId]);
 
   // a status change goes into the timeline; if that table isn't there yet, the change still counts
-  const logEvent = useCallback(async (contactId: string, status: OutreachStatus) => {
+  // a status line in the timeline → the line (null if it couldn't be added: the timeline is extra)
+  const logEvent = useCallback(async (contactId: string, status: OutreachStatus): Promise<OutreachEvent | null> => {
     try {
       const { data, error } = await supabase.from("outreach_events")
         .insert({ user_id: userId, contact_id: contactId, kind: "status", status: status === "new" ? null : status }).select().single();
-      if (!error && data) setEvents(prev => [...prev, rowToEvent(data)]);
+      if (!error && data) { const ev = rowToEvent(data); setEvents(prev => [...prev, ev]); return ev; }
     } catch { /* the timeline is extra */ }
+    return null;
   }, [userId]);
 
   const updateContact = useCallback(async (id: string, patch: Partial<OutreachContact>) => {
@@ -192,12 +194,24 @@ export function useOutreach(userId: string | null) {
   }, [userId]);
 
   // ── tracking ────────────────────────────────────────────────
-  const setStatus = useCallback(async (id: string, status: OutreachStatus) => {
+  // → the timeline line it added (for Undo)
+  const setStatus = useCallback(async (id: string, status: OutreachStatus): Promise<OutreachEvent | null> => {
     const { error } = await supabase.from("outreach_contacts").update({ status: status === "new" ? null : status }).eq("id", id).eq("user_id", userId);
     if (error) throw new Error(error.message);
     setContacts(prev => prev.map(c => (c.id === id ? { ...c, status } : c)));
-    await logEvent(id, status);
+    return logEvent(id, status);
   }, [userId, logEvent]);
+
+  // Undo of a status picked on a Contacts row: the status as it was, and the timeline line it added goes
+  const undoStatus = useCallback(async (id: string, before: OutreachStatus, line: OutreachEvent | null) => {
+    const { error } = await supabase.from("outreach_contacts").update({ status: before === "new" ? null : before }).eq("id", id).eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    setContacts(prev => prev.map(c => (c.id === id ? { ...c, status: before } : c)));
+    if (line) {
+      const { error: e2 } = await supabase.from("outreach_events").delete().eq("id", line.id).eq("user_id", userId);
+      if (!e2) setEvents(prev => prev.filter(x => x.id !== line.id));
+    }
+  }, [userId]);
 
   // Lead → Client: the client in Manager. A client with the same email or brand name already there → linked to it;
   // otherwise a new client with company, contact name, email, city and country (the rest is filled in Manager).
@@ -364,5 +378,5 @@ export function useOutreach(userId: string | null) {
     return contacts.map(c => ({ ...c, ...followInfo(c, ps.get(c.id) || [], es.get(c.id) || []) }));
   }, [contacts, pitches, events, lv]);
 
-  return { contacts: enriched, pitches, events, mail, checkReplies, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, markSeen, makeClient, logPitches, undoLog, deletePitch, restorePitch, deleteEvent, restoreEvent };
+  return { contacts: enriched, pitches, events, mail, checkReplies, pitchError, loading, loadError, loginEmail, reload: load, addContact, updateContact, deleteContact, setStatus, undoStatus, markSeen, makeClient, logPitches, undoLog, deletePitch, restorePitch, deleteEvent, restoreEvent };
 }

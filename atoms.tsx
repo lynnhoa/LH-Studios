@@ -1189,7 +1189,9 @@ const menuOptions = (children: any): MenuOpt[] => {
 };
 const CHEV = (c: string) => <svg width="10" height="6" viewBox="0 0 10 6" aria-hidden="true" style={{ flexShrink: 0 }}><path d="M1 1l4 4 4-4" fill="none" stroke={c} strokeWidth="1.3" /></svg>;
 // look = a coloured field (e.g. the contact's status in its status colour): { bg, border, color }
-export function MenuSelect({ value, onChange, children, disabled, muted, bare, plain, btnS, h, size = "mini", look, s, ...p }: any) {
+// plain + trigger: your own look for the button (e.g. the status pill on a Contacts row) — the same menu opens
+// fit: the menu opens on the side where the whole list fits (else the bigger side) — the row status pill
+export function MenuSelect({ value, onChange, children, disabled, muted, bare, plain, btnS, h, size = "mini", look, trigger, fit, s, ...p }: any) {
   const opts = menuOptions(children);
   // like a <select>: a value that isn't in the list shows the first option
   const cur = opts.find(o => o.value === String(value ?? "")) || opts[0];
@@ -1207,7 +1209,8 @@ export function MenuSelect({ value, onChange, children, disabled, muted, bare, p
     const width = Math.min(Math.max(r.width, 180), 300, vw - 16);
     const left = Math.max(8, Math.min(r.left, vw - width - 8));
     const below = vh - r.bottom - 12, above = r.top - 12;
-    if (below >= Math.min(want, 220) || below >= above) setBox({ left, top: r.bottom + 4, width, maxH: Math.max(120, Math.min(want, below)) });
+    const down = fit ? below >= want || (above < want && below >= above) : below >= Math.min(want, 220) || below >= above;
+    if (down) setBox({ left, top: r.bottom + 4, width, maxH: Math.max(120, Math.min(want, below)) });
     else setBox({ left, bottom: vh - r.top + 4, width, maxH: Math.max(120, Math.min(want, above)) });
   };
   const show = () => { if (disabled) return; place(); setAct(Math.max(0, opts.findIndex(o => o === cur))); setOpen(true); };
@@ -1240,7 +1243,7 @@ export function MenuSelect({ value, onChange, children, disabled, muted, bare, p
               color: muted || !cur ? C.light : (look?.color || C.black), background: bare ? "transparent" : (look?.bg || C.white),
               border: bare ? "none" : `1px solid ${look?.border || C.field}`, borderRadius: bare ? 0 : RADIUS.field,
               cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1, WebkitTapHighlightColor: "transparent", outline: "none", ...btnS }}>
-        <span style={plain ? {} : { flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{cur ? cur.label : "—"}</span>
+        <span style={plain ? { display: "inline-flex" } : { flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{plain && trigger ? trigger : cur ? cur.label : "—"}</span>
         {!plain && CHEV(look?.color || C.muted)}
       </button>
       {open && box && createPortal(
