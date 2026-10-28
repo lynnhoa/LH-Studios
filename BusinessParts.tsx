@@ -4,12 +4,15 @@
 //   YearStrip  under each tab's title, the same in all tabs (like
 //              Maintenance's strip): ‹ year › · the year's costs of all
 //              tabs (receipts + the trips' meal allowance and km) · what
-//              counts. (PDF · Invoices · Excel join it in the export build.)
+//              counts · PDF · Invoices · Excel (each: the whole year or a month).
 //   ComingCard a tab that comes with a later build.
 // ─────────────────────────────────────────────────────────────
 
-import { C, SANS, TYPE, SPACING } from "./constants";
-import { ListCard, SwitchPill } from "./atoms";
+import { useState, useRef } from "react";
+import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { C, SANS, TYPE, SPACING, RADIUS, SHADOW, Z } from "./constants";
+import { ListCard, SwitchPill, PillBtn } from "./atoms";
 import { fmt } from "./formatters";
 
 export const BizIco = ({ d, size = 15 }: { d: string; size?: number }) => (
@@ -36,8 +39,8 @@ export const BIZ_IC = {
 // § 19 on (the profile's switch; on unless switched off — like the Manager dashboard)
 export const kuOf = (settings: any) => settings?.kleinunternehmer !== false && settings?.kleinunternehmer !== "false";
 
-export function YearStrip({ years, year, setYear, total, counted }: {
-  years: number[]; year: number; setYear: (y: number) => void; total: number; counted: number;
+export function YearStrip({ years, year, setYear, total, counted, actions }: {
+  years: number[]; year: number; setYear: (y: number) => void; total: number; counted: number; actions?: ReactNode;
 }) {
   const i = years.indexOf(year);
   const prev = i > 0 ? years[i - 1] : undefined, next = i >= 0 && i < years.length - 1 ? years[i + 1] : undefined;
@@ -51,6 +54,7 @@ export function YearStrip({ years, year, setYear, total, counted }: {
       <span style={{ flex: 1, minWidth: 120, fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.35, fontFamily: SANS }}>
         All tabs <span style={{ color: C.black, fontSize: TYPE.row.size }}>{fmt(total)}</span><br />counts {fmt(counted)}
       </span>
+      {actions && <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" as const }}>{actions}</span>}
     </ListCard>
   );
 }
@@ -61,3 +65,36 @@ export const ComingCard = ({ title, text }: { title: string; text: string }) => 
     <div style={{ fontSize: SPACING.listMeta, color: C.muted, marginTop: 3, fontFamily: SANS, lineHeight: 1.5 }}>{text}</div>
   </ListCard>
 );
+
+// a pill with a small menu under it (the year or one of its months) — the menu is drawn on top of
+// everything, so no card cuts it off; a choice runs right in the tap (the iPhone opens a PDF only then)
+export function MenuPill({ label, busy, items }: { label: string; busy?: boolean; items: { key: string; label: string; strong?: boolean; onClick: () => void }[] }) {
+  const [box, setBox] = useState<{ top: number; left: number } | null>(null);
+  const btn = useRef<HTMLSpanElement | null>(null);
+  const W = 220, ROW = 34;
+  const open = () => {
+    const r = btn.current?.getBoundingClientRect(); if (!r) return;
+    const h = Math.min(320, items.length * ROW + 8);
+    const top = r.bottom + 6 + h > window.innerHeight - 8 ? Math.max(8, r.top - h - 6) : r.bottom + 6;
+    setBox({ top, left: Math.max(8, Math.min(window.innerWidth - W - 8, r.left)) });
+  };
+  return (
+    <>
+      <span ref={btn} style={{ display: "inline-flex" }}>
+        <PillBtn dim={busy} onClick={() => { if (busy) return; if (box) setBox(null); else open(); }}>{busy ? "Making…" : label}</PillBtn>
+      </span>
+      {box && createPortal(
+        <>
+          <div onClick={() => setBox(null)} style={{ position: "fixed", inset: 0, zIndex: Z.menu - 1 }} />
+          <div role="menu" style={{ position: "fixed", top: box.top, left: box.left, width: W, maxHeight: 320, overflowY: "auto" as const, background: C.white, border: `1px solid ${C.rule}`,
+            borderRadius: RADIUS.tile, boxShadow: SHADOW.pop, zIndex: Z.menu, padding: "4px 0", fontFamily: SANS }}>
+            {items.map(it => (
+              <button key={it.key} role="menuitem" onClick={() => { setBox(null); it.onClick(); }}
+                style={{ display: "block", width: "100%", textAlign: "left" as const, height: ROW, padding: "0 14px", border: "none", background: "none", cursor: "pointer",
+                  fontFamily: SANS, fontSize: SPACING.menuText, color: C.black, fontWeight: it.strong ? 500 : 400, whiteSpace: "nowrap" as const }}>{it.label}</button>
+            ))}
+          </div>
+        </>, document.body)}
+    </>
+  );
+}

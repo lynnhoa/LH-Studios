@@ -4,7 +4,8 @@
 // (E1 …) in number order. A card opens in place:
 //   its receipts (T3.1, T3.2 … — tap = the receipt window), for a trip the
 //   worked-out meal allowance and the own-car km, then the buttons
-//   Trip report / Event report · and the links + Add receipt · Trip details.
+//   Trip report / Event report · Cost overview · Invoices (German PDFs) and the links
+//   + Add receipt · Trip details.
 // + Add trip opens the trip window empty; after Add the new card is open.
 // ─────────────────────────────────────────────────────────────
 
@@ -31,9 +32,10 @@ const link: any = {
 };
 const accTone = (a: string) => (a === "lynnhoa" ? PAL.lynnhoa : a === "createbylynn" ? PAL.createbylynn : PAL.neutral);
 
-export default function BusinessCases({ kind, biz, settings, clients, isMobile, year, setYear, years, totals }: {
+export default function BusinessCases({ kind, biz, settings, clients, isMobile, year, setYear, years, totals, actions, busy, onCaseExport }: {
   kind: CaseKind; biz: BusinessHook; settings: any; clients: any[]; isMobile: boolean;
   year: number; setYear: (y: number) => void; years: number[]; totals: { total: number; counted: number };
+  actions?: any; busy?: string | null; onCaseExport?: (kind: "pdf" | "invoices", id: string) => void;
 }) {
   const ku = kuOf(settings);
   const trip = kind === "trip";
@@ -109,6 +111,8 @@ export default function BusinessCases({ kind, biz, settings, clients, isMobile, 
             )}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, padding: "10px 12px 4px 52px", borderTop: `1px solid ${C.hair}` }}>
               <PillBtn onClick={() => setWin({ t: "report", id: x.id })}><BizIco d={BIZ_IC.report} size={13} />{trip ? "Trip report" : "Event report"}</PillBtn>
+              <PillBtn dim={busy === `pdf:${x.id}`} onClick={() => onCaseExport?.("pdf", x.id)}>{busy === `pdf:${x.id}` ? "Making…" : "Cost overview"}</PillBtn>
+              <PillBtn dim={busy === `invoices:${x.id}`} onClick={() => onCaseExport?.("invoices", x.id)}>{busy === `invoices:${x.id}` ? "Making…" : "Invoices"}</PillBtn>
             </div>
             <div style={{ display: "flex", gap: 16, padding: "8px 12px 12px 52px" }}>
               <button style={link} onClick={() => setWin({ t: "receipt", id: null, caseId: x.id })}>+ Add receipt</button>
@@ -131,7 +135,7 @@ export default function BusinessCases({ kind, biz, settings, clients, isMobile, 
         <PillBtn dark onClick={() => setWin({ t: "case", id: null })}><BizIco d={BIZ_IC.plus} size={13} />Add {word}</PillBtn>
       </div>
 
-      <YearStrip years={years} year={year} setYear={setYear} total={totals.total} counted={totals.counted} />
+      <YearStrip years={years} year={year} setYear={setYear} total={totals.total} counted={totals.counted} actions={actions} />
 
       {biz.loadError && !biz.missing && <div style={{ marginTop: 12 }}><LoadErrorBanner what={trip ? "Trips" : "Events"} message={biz.loadError} onRetry={biz.reload} /></div>}
       {biz.missing && (

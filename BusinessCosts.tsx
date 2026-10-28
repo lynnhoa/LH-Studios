@@ -20,9 +20,10 @@ import { BizIco, BIZ_IC, YearStrip, kuOf } from "./BusinessParts";
 
 type F = "all" | "nofile";
 
-export default function BusinessCosts({ biz, settings, isMobile, year, setYear, years, totals }: {
+export default function BusinessCosts({ biz, settings, isMobile, year, setYear, years, totals, actions }: {
   biz: BusinessHook; settings: any; isMobile: boolean; year: number; setYear: (y: number) => void; years: number[];
   totals: { total: number; counted: number };      // the strip: every tab of the year
+  actions?: any;                                    // the strip's PDF · Invoices · Excel
 }) {
   const ku = kuOf(settings);
   const [f, setF] = useState<F>("all");
@@ -66,7 +67,7 @@ export default function BusinessCosts({ biz, settings, isMobile, year, setYear, 
         <PillBtn dark onClick={() => setWin({ id: null })}><BizIco d="M12 5v14M5 12h14" size={13} />Add cost</PillBtn>
       </div>
 
-      <YearStrip years={years} year={year} setYear={setYear} total={totals.total} counted={totals.counted} />
+      <YearStrip years={years} year={year} setYear={setYear} total={totals.total} counted={totals.counted} actions={actions} />
 
       {biz.loadError && !biz.missing && <div style={{ marginTop: 12 }}><LoadErrorBanner what="Costs" message={biz.loadError} onRetry={biz.reload} /></div>}
       {biz.missing && (

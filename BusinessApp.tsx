@@ -4,7 +4,9 @@
 // (numbers worked out by date, receipts with their file, returns as their own line).
 // Same frame as the other apps: logo header, nav tabs, account menu with all apps.
 // Build 2: Trips and Events (cards with their receipts, meal allowance, km and the report PDF)
-// next to Costs (one-off receipts by month). The Dashboard comes with a later build.
+// next to Costs (one-off receipts by month). Build 3: the bookkeeping files (German) —
+// Kostenübersicht PDF, the Invoices print, Excel — for the year or a month (the strip) and for
+// one trip / event (its card). The Dashboard comes with a later build.
 // The year (the strip under every tab's title) is kept while the app is open.
 // Phone, iPad and desktop layouts.
 // ───────────────────────────────────────────────────────────
@@ -18,7 +20,11 @@ import { useBusiness } from "./useBusiness";
 import { yearOf, caseYear, yearTotals } from "./business";
 import BusinessCosts from "./BusinessCosts";
 import BusinessCases from "./BusinessCases";
-import { ComingCard, kuOf } from "./BusinessParts";
+import { ComingCard, MenuPill, kuOf } from "./BusinessParts";
+import { downloadOverview, downloadInvoices, downloadExcel, monthsWith } from "./businessExport";
+import type { Scope } from "./businessExport";
+import { showNote } from "./undo";
+import { MONTHS } from "./formatters";
 import type { Role } from "./types";
 
 interface BusinessAppProps {
@@ -59,6 +65,34 @@ export default function BusinessApp({ userId, settings, clients = [], signOut, s
   const ku = kuOf(settings);
   const totals = useMemo(() => yearTotals(year, biz.costs, biz.cases, biz.cats, ku), [year, biz.costs, biz.cases, biz.cats, ku]);
 
+  // the bookkeeping files: started right in the tap (the iPhone opens a PDF only then), one at a time
+  const [busy, setBusy] = useState<string | null>(null);
+  type Kind = "pdf" | "invoices" | "excel";
+  const make = (kind: Kind, scope: Scope) => {
+    const data = { costs: biz.costs, cases: biz.cases, cats: biz.cats, ku, settings };
+    return kind === "pdf" ? downloadOverview(scope, data) : kind === "invoices" ? downloadInvoices(scope, data) : downloadExcel(scope, data);
+  };
+  const run = (key: string, kind: Kind, scope: Scope) => {
+    if (busy) return;
+    setBusy(key);
+    let job: any;
+    try { job = make(kind, scope); } catch (e: any) { setBusy(null); showNote(e?.message || "The file couldn't be made."); return; }
+    Promise.resolve(job).catch((e: any) => showNote(e?.message || "The file couldn't be made.")).finally(() => setBusy(null));
+  };
+  const months = useMemo(() => monthsWith(year, biz), [year, biz.costs, biz.cases]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const menu = (kind: Kind) => [
+    { key: "year", label: `${year} · whole year`, strong: true, onClick: () => run(kind, kind, { kind: "year", year }) },
+    ...months.map(ym => ({ key: ym, label: `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`, onClick: () => run(kind, kind, { kind: "month", ym }) })),
+  ];
+  const stripActions = (
+    <>
+      <MenuPill label="PDF" busy={busy === "pdf"} items={menu("pdf")} />
+      <MenuPill label="Invoices" busy={busy === "invoices"} items={menu("invoices")} />
+      <MenuPill label="Excel" busy={busy === "excel"} items={menu("excel")} />
+    </>
+  );
+  const caseExport = (kind: "pdf" | "invoices", id: string) => run(`${kind}:${id}`, kind, { kind: "case", id });
+
   const avatar = (dropLeft: boolean) => (
     <AvatarMenu settings={settings} roleLabel="Business" dropLeft={dropLeft} items={[]}
       apps={appItems("business", switchTo)} onSignOut={() => { signOut(); }} />
@@ -84,10 +118,10 @@ export default function BusinessApp({ userId, settings, clients = [], signOut, s
       <div style={{ maxWidth: isWide ? 1200 : 960, margin: "0 auto", padding: isMobile ? "14px 14px 28px" : "24px 20px 40px" }}>
         {banners}
         {tab === "costs"
-          ? <BusinessCosts biz={biz} settings={settings} isMobile={isMobile} year={year} setYear={setYear} years={years} totals={totals} />
+          ? <BusinessCosts biz={biz} settings={settings} isMobile={isMobile} year={year} setYear={setYear} years={years} totals={totals} actions={stripActions} />
           : tab === "trips" || tab === "events"
           ? <BusinessCases key={tab} kind={tab === "trips" ? "trip" : "event"} biz={biz} settings={settings} clients={clients} isMobile={isMobile}
-              year={year} setYear={setYear} years={years} totals={totals} />
+              year={year} setYear={setYear} years={years} totals={totals} actions={stripActions} busy={busy} onCaseExport={caseExport} />
           : coming("Dashboard", "The read-only overview: the year's costs by month and category, and the profit preview.")}
       </div>
       <UndoBar />

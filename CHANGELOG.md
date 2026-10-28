@@ -1,3 +1,28 @@
+# Business · build 3: the bookkeeping files (28.10.2026)
+- **The strip** under every tab's title has PDF · Invoices · Excel. Each opens a small menu: the
+  whole year or one of its months with costs (newest first). **A trip's / event's card** has
+  Cost overview · Invoices next to its report. The files are German (for the tax office).
+- **Kostenübersicht** (PDF, A4 landscape, the documents' look): every position in number order —
+  trips (T), events (E), then one-off costs (K) — the year by month with "Summe Oktober 2026 ·
+  n Positionen", then totals and the sums by EÜR group. With § 19: what was paid; without: net,
+  VAT (Vorsteuer) and gross. Business meals show their 70 %, a business share its %.
+- **Belege** (the Invoices print, ONE PDF) in number order: a trip's / event's report first, then
+  its receipts; then the one-off costs. Every receipt page is shrunk a little so its number fits
+  on top in bold, with date · what · vendor · amount (and "Seite 1/2" for longer files). A business
+  meal is followed by its **Bewirtungsbeleg** (Tag, Ort, bewirtete Personen, Anlass, Höhe, 70 %,
+  signature lines). A receipt without a file gets a page "Beleg K12 · kein Beleg hochgeladen", so
+  the numbers stay complete.
+- **Excel**: every position as a row (Nr., Datum, Bereich, Reise / Veranstaltung, Beschreibung,
+  Anbieter, Kategorie (EÜR) and (App), Betrag, MwSt, Netto, betrieblich %, Abzug %, abziehbar,
+  Rechnungsnr., Beleg, Anlass, Gäste, Empfänger) with a Summe row, and an Übersicht sheet by EÜR
+  group (and month, for a year).
+- What's in a year / month: every receipt dated in it (all tabs) and the meal allowance and km of
+  the trips that start in it — the same as the strip.
+- New: `businessExport.tsx`. Changed: `businessPdf.tsx` (one renderer for every PDF),
+  `BusinessParts.tsx`, `BusinessApp.tsx`, `BusinessCosts.tsx`, `BusinessCases.tsx`,
+  `package.json` + `package-lock.json` (pdf-lib, to join the receipt PDFs and write the numbers on
+  them — the same library as Maintenance). No SQL needed.
+
 # Business · build 2: Trips and Events (28.10.2026)
 - **Trips** and **Events** (one build for both, like Maintenance's tabs): the year's trips T1, T2 …
   and events E1 … in number order (by start date). A card: title · number · dates · place — the
