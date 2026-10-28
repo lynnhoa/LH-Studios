@@ -1,3 +1,32 @@
+# Planner · @createbylynn concept: 5 pillars · arcs · formats (28.10.2026)
+- One list, no switch: Hair | Makeup & skincare | Both is gone. The line under the title says
+  "Pillars · arcs · formats", with expand all / collapse all on its right — it opens or closes
+  everything: every pillar and every arc.
+- The 5 pillars are the numbered cards (blue numbers): 1 Make up looks · 2 Hair styles · 3 Products ·
+  4 Personality · 5 Editorial. Closed: number · name · "n arcs" · arrow. Open pillars are remembered on
+  this device, per account (the first time all are closed).
+- Open: the pillar's grey line (Products: "journey: pick 2–4 arcs · order stays · one product at a time,
+  2–3 weeks" · Personality: "a line on a look or product clip · one picture + one voice"), then its arcs.
+  An arc: name (black) · what it does (grey) · texts · links (top right — the same windows as before,
+  titled "Products · Try-on") · small arrow. Tap the arc to fold its formats; they're open the first
+  time, what you fold stays folded on this device.
+- Phone: one column · iPad / computer: two (pillars 1–3 left, 4–5 right).
+- Idea window (@createbylynn): Arc, grouped under its pillar, and Format — like @lynnhoa. The Creator
+  lists' small line shows the arc ("Try-on · Content"); a name in two pillars gets its pillar
+  ("Opinion (products)").
+- Before the pillars SQL has run, the page says so (the idea window keeps the old series until then).
+- Data: run LH-Studio-createbylynn-pillars.sql once (safe to rerun): planner_concept_arcs gets a pillar
+  column; the 22 series become 15 arcs. Season looks and Hairstyles keep their texts, links and ideas
+  exactly as they are. Journey is split by its step (1 Receiving · 2 Try-on · 3 + 5 Opinion · 4 In my
+  looks, without the "1 · "); Spotlight → Try-on, Lists → Product listing, Hot takes → Opinion,
+  "your sign to…" → Sign, Mantras → Mantra, Your call → Editorial worlds; "me…" + Overdoer +
+  Getting-ready POVs → Relatable; Callbacks → In my looks (texts and links come along, each line once).
+  New: pov: you hired me · What you see vs what I see. The look series that aren't series any more are
+  removed — their ideas go to Hairstyles (hair) or Season looks (makeup). A copy of the 22 series stays
+  in planner_concept_arcs_cbl_backup (locked, not readable from the app).
+- Changed: `planner.ts`, `usePlanner.ts`, `PlannerConcept.tsx`, `PlannerWindows.tsx`, `PlannerCreator.tsx`.
+  New: `LH-Studio-createbylynn-pillars.sql`.
+
 # Contacts · status right on the row (26.10.2026)
 - Each contact row has two pills (phone: right of the name · iPad / computer: the Status column):
   ✉  what's due, one tap writes it as before — only when something is due: New (just the icon), a follow-up

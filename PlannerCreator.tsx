@@ -15,7 +15,8 @@
 //     Saved ideas · the ideas not in Now, by phase (No phase last); Use now › moves one into
 //                 the Now era (without an era: Shoot ›) · + Add (a pasted link = an idea with
 //                 that link). Without phases (@createbylynn): Ideas, as before — an idea
-//                 with a series shows it first in its small line ("Hairstyles · Content").
+//                 with an arc shows it first in its small line ("Try-on · Content"; a name in
+//                 two pillars gets its pillar: "Opinion (products)").
 //     Posted   · folded at first; untick = back to To post
 //   Every move shows Undo. Tap an idea to open it (the same ticks are there).
 // ─────────────────────────────────────────────────────────────
@@ -28,6 +29,7 @@ import {
   FORMATS, CLASSIC, OWNER_LOOK, TONE, isVisible, monthName, entryKey, monthGoalOf, monthGoalPatch, thisMonday, storyLines, isoWeek,
   CREATOR_GOAL, creatorOrder, shortName, parseIntDe,
   isPostedStatus, linkInfo, isUrlLike, EMPTY_PLAN, itemStageOf, typeOf, TYPES, typePatch, CONTENT, PHASE_TONE, BASE_TONE, isSeries, seriesName, isBasePhase, conceptPhaseLabel, conceptPhaseShort, hasPhase,
+  isPillarArc, pillarArcName,
 } from "./planner";
 import { monthOfWeek } from "./planner";
 import type { Account, Item, ItemList, ItemStage, Task } from "./planner";
@@ -227,11 +229,11 @@ export default function PlannerCreator({ planner, view, isMobile, onAccount }: P
   const card = (children: any) => <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.card, boxShadow: SHADOW.card, overflow: "hidden" }}>{children}</div>;
   const rowS = (k: number): any => ({ minHeight: SPACING.row1, display: "flex", alignItems: "center", gap: 2, padding: `0 4px 0 ${SPACING.rowSide}px`, borderTop: k ? `1px solid ${C.hair}` : "none", boxSizing: "border-box" as const });
   const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
-  // the small line under the title: (@createbylynn: its series ·) type · the day · clips · links
+  // the small line under the title: (@createbylynn: its arc ·) type · the day · clips · links
   const metaOf = (it: Item, day?: string) => {
     const bits = [typeOf(it)];
-    const ser = hasPhases ? undefined : accArcs.find(a => a.id === it.plan?.arc && isSeries(a));
-    if (ser) bits.unshift(seriesName(accArcs, ser));
+    const ser = hasPhases ? undefined : accArcs.find(a => a.id === it.plan?.arc && (isPillarArc(a) || isSeries(a)));
+    if (ser) bits.unshift(isPillarArc(ser) ? pillarArcName(accArcs, ser) : seriesName(accArcs, ser));
     if (day) bits.push(day);
     const nc = it.plan?.clips?.length || 0, nl = it.plan?.refs?.length || 0;
     if (nc) bits.push(plural(nc, "clip"));

@@ -245,9 +245,32 @@ export interface ConceptArc {
   formats:  ConceptFormat[];   // in order; main = the arc's main format(s)
   texts:    string[];          // example lines (a series of the Look arc: its labels)
   links:    ConceptLink[];     // reference posts: link + what it shows
-  category: ConceptCategory | null;   // a series only (@createbylynn)
+  category: ConceptCategory | null;   // a series only (@createbylynn, before the pillars)
   arc:      ConceptArcKey | null;     // a series only: the arc it belongs to
+  pillar:   ConceptPillarKey | null;  // @createbylynn: the pillar this arc sits in (empty on @lynnhoa)
 }
+// @createbylynn (27.10.2026): 5 PILLARS (fixed here, numbered 1–5), each holding its ARCS (rows of
+// planner_concept_arcs with a pillar, in num order), each arc its FORMATS. An arc's texts and links
+// are written in the app, like @lynnhoa's.
+export type ConceptPillarKey = "makeup_looks" | "hair_styles" | "products" | "personality" | "editorial";
+export const CONCEPT_PILLARS: { key: ConceptPillarKey; label: string; note: string }[] = [
+  { key: "makeup_looks", label: "Make up looks", note: "" },
+  { key: "hair_styles",  label: "Hair styles",   note: "" },
+  { key: "products",     label: "Products",      note: "journey: pick 2–4 arcs · order stays · one product at a time, 2–3 weeks" },
+  { key: "personality",  label: "Personality",   note: "a line on a look or product clip · one picture + one voice" },
+  { key: "editorial",    label: "Editorial",     note: "" },
+];
+export const PILLAR_KEYS: string[] = CONCEPT_PILLARS.map(p => p.key);
+export const isPillarArc = (a: ConceptArc) => !!a.pillar;
+export const pillarLabel = (k: ConceptPillarKey | null) => CONCEPT_PILLARS.find(p => p.key === k)?.label || "";
+// the arcs of one pillar, in order
+export const arcsOfPillar = (list: ConceptArc[], k: ConceptPillarKey) =>
+  list.filter(a => a.pillar === k).sort((a, b) => a.num - b.num);
+// an arc's name where it's picked or shown outside the page: a name used in two pillars gets its
+// pillar ("Opinion (products)" · "Opinion (personality)")
+export const pillarArcName = (list: ConceptArc[], a: ConceptArc) =>
+  isPillarArc(a) && list.filter(x => x.account === a.account && isPillarArc(x) && x.name === a.name).length > 1
+    ? `${a.name} (${pillarLabel(a.pillar).toLowerCase()})` : a.name;
 // @createbylynn's concept: the three categories (the switch) and the four arcs (the sections)
 export const CONCEPT_CATEGORIES: { key: ConceptCategory; label: string }[] = [
   { key: "hair", label: "Hair" }, { key: "makeup", label: "Makeup & skincare" }, { key: "both", label: "Both" },

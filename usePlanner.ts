@@ -17,7 +17,7 @@ import { monthEnd, today, monthStart, ymd } from "./formatters";
 import {
   addDays, entryKey, snapKey, mondayOf, periodOf, rowState, taskAccounts, NO_DAYS, planOf,
 } from "./planner";
-import { daysBetween } from "./planner";
+import { daysBetween, PILLAR_KEYS } from "./planner";
 import type { Stage, Task, Entry, TaskStatus, Snapshot, Account, Item, ItemStatus, Note, NoteKind, Auto, Sprint, SprintStats, ConceptArc, ConceptPhase, ConceptEra, ConceptEraArc, ConceptNow } from "./planner";
 import { followInfo, followUpDue } from "./outreach";
 import { useListsVersion } from "./useOutreachLists";
@@ -69,6 +69,8 @@ const rowToArc = (r: any): ConceptArc => ({
   // @createbylynn: a series — its category and its arc (empty on @lynnhoa's arcs)
   category: ["hair", "makeup", "both"].includes(r.category) ? r.category : null,
   arc:      ["look", "product", "personality", "editorial"].includes(r.arc) ? r.arc : null,
+  // @createbylynn: the pillar the arc sits in (empty on @lynnhoa's arcs)
+  pillar:   PILLAR_KEYS.includes(r.pillar) ? r.pillar : null,
 });
 const CONCEPT_MISSING = "The concept table doesn't exist yet — run the concept SQL in Supabase once.";
 // one phase with its eras (fixed by the SQL); an era's arcs are numbers pointing at the arcs above

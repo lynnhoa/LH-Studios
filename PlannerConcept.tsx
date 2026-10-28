@@ -24,19 +24,22 @@
 //   change shows everywhere.
 //   Under the list, while a card is open: what its marks mean. Open cards are remembered on
 //   this device; the first time, all are closed.
-// @createbylynn (no phases): Hair | Makeup & skincare | Both under the title (remembered on
-//   this device). One section per arc (Look · Product · Personality · Editorial), one card
-//   per series, numbered 1, 2, 3 … in each arc. Open: what the series is. Its labels (Look) or
-//   texts and its links live in their windows, like an arc's: "labels · 9" / "texts · 6" · "links".
-// Arcs, series, purpose, formats, ticks, phases and eras come from the SQL (fixed).
+// @createbylynn (no phases, no switch — 27.10.2026): one list, "Pillars · arcs · formats".
+//   The 5 pillars are the numbered cards: number · name · "n arcs" · arrow (open pillars
+//   remembered on this device, per account; the first time all are closed). Open: the pillar's
+//   grey line (if it has one), then its arcs — each: name (black) · what it does (grey) ·
+//   "texts · links" (the same windows as an arc's) · small arrow; tap it to fold its formats
+//   (open the first time, what you fold stays folded). "expand all / collapse all" (right of the
+//   line under the title) opens or closes everything: every pillar and every arc.
+// Arcs, pillars, purpose, formats, ticks, phases and eras come from the SQL (fixed).
 // Phone: one column · iPad / computer: two columns (first half left).
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, createContext, useContext } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, PAL } from "./constants";
 import { SectionHead, Sheet, SheetButton, OpenArrow } from "./atoms";
-import { ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, CONCEPT_CATEGORIES, CONCEPT_ARCS, isSeries, seriesWord, seriesOf, seriesNum, phaseListWord, eraGroups, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE, conceptPhaseLabel } from "./planner";
-import type { Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEraArc, ConceptCategory } from "./planner";
+import { ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, phaseListWord, eraGroups, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE, conceptPhaseLabel, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel } from "./planner";
+import type { Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEraArc } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
 import { IC, Subtitle, TabTitle, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
@@ -48,7 +51,7 @@ const OPEN_KEY    = "lh_planner_concept_open";
 const OPEN_PH_KEY = "lh_planner_concept_open_phases";
 const OPEN_BS_KEY = "lh_planner_concept_open_blocks"; // Base: by the block's key (no longer by its place)
 const OLD_BS_KEY  = "lh_planner_concept_open_base";   // the old one, by place — cleared
-const CAT_KEY     = "lh_planner_concept_cat";         // @createbylynn: Hair | Makeup & skincare | Both
+const OPEN_PL_KEY = "lh_planner_concept_open_pillars"; // @createbylynn: the open pillars, by their key
 const FOLD_KEY    = "lh_planner_concept_folded";      // the lists you folded inside cards (open unless folded)
 type OpenMap  = Partial<Record<Account, number[]>>;
 type OpenKeys = Partial<Record<Account, string[]>>;
@@ -60,9 +63,6 @@ const loadMap = (key: string): any => {
 const saveMap = (key: string, m: object) => { try { localStorage.setItem(key, JSON.stringify(m)); } catch { /* ignore */ } };
 const loadView = (): ConceptView => {
   try { const v = localStorage.getItem(VIEW_KEY); return v === "base" || v === "phases" ? v : "arcs"; } catch { return "arcs"; }
-};
-const loadCat = (): ConceptCategory => {
-  try { const v = localStorage.getItem(CAT_KEY); return v === "makeup" || v === "both" ? v : "hair"; } catch { return "hair"; }
 };
 
 const quiet = (p: Promise<any>) => p.catch(() => { /* the save toast reports it */ });
@@ -225,25 +225,60 @@ function ArcCard({ arc, open, onToggle, onOpen }: { arc: ConceptArc; open: boole
   );
 }
 
-// one series (@createbylynn): number · name · (open: labels / texts · links) · arrow — open: what it is
-function SeriesCard({ s, n, open, onToggle, onOpen }: { s: ConceptArc; n: number; open: boolean; onToggle: () => void; onOpen: (kind: "texts" | "links") => void }) {
-  const word = seriesWord(s), Word = word === "labels" ? "Labels" : "Texts";
+// one pillar (@createbylynn): number · name · "n arcs" · arrow — open: its grey line, then its arcs
+function PillarCard({ n, label, note, arcs, open, onToggle, onOpen }: { n: number; label: string; note: string; arcs: ConceptArc[]; open: boolean; onToggle: () => void; onOpen: (a: ConceptArc, kind: "texts" | "links") => void }) {
   return (
     <div style={cardBox}>
       <div style={{ display: "flex", alignItems: "center" }}>
-        <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${s.name}`} style={headBtn}>
+        <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${label}, ${arcs.length} ${arcs.length === 1 ? "arc" : "arcs"}`} style={headBtn}>
           <NumCircle n={n} tone={ARC_TONE} />
-          <span style={nameText}>{s.name}</span>
+          <span style={nameText}>{label}</span>
+          <span style={{ fontSize: SPACING.listMeta, color: C.muted, flexShrink: 0, whiteSpace: "nowrap" as const }}>{arcs.length} {arcs.length === 1 ? "arc" : "arcs"}</span>
         </button>
-        {open && (
-          <span style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-            <button onClick={() => onOpen("texts")} aria-label={`${Word} of ${s.name}`} style={mini}>{count(word, s.texts.length)}</button>
-            <button onClick={() => onOpen("links")} aria-label={`Links of ${s.name}`} style={mini}>{count("links", s.links.length)}</button>
-          </span>
-        )}
         <Caret open={open} onClick={onToggle} />
       </div>
-      {open && s.purpose && <div style={cardBody}><div style={descText}>{tidy(s.purpose)}</div></div>}
+      {open && (
+        <div style={cardBody}>
+          {note && <div style={descText}>{note}</div>}
+          {/* the arcs' small arrows line up with the card's arrow (10 px from the edge) */}
+          <div style={{ margin: `${note ? 6 : -4}px 4px 0 ${INDENT}px` }}>
+            {arcs.map((a, k) => <PillarArc key={a.id} arc={a} first={k === 0} onOpen={kind => onOpen(a, kind)} />)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// one arc inside a pillar: name (black) · what it does (grey) · texts · links · small arrow —
+// tap the row to fold or unfold its formats (open the first time; what you fold stays folded)
+function PillarArc({ arc, first, onOpen }: { arc: ConceptArc; first: boolean; onOpen: (kind: "texts" | "links") => void }) {
+  const f = useContext(FoldCtx), id = `pa:${arc.id}`, open = f.isOpen(id);
+  return (
+    <div style={{ borderTop: first ? "none" : `1px solid ${C.hair}`, padding: first ? "2px 0 7px" : "7px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button type="button" onClick={() => f.toggle(id)} aria-expanded={open} aria-label={`${arc.name}, ${open ? "fold" : "open"}`}
+          style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6, minHeight: 26, padding: "4px 0", margin: "-4px 0", boxSizing: "content-box" as const,
+            background: "none", border: "none", cursor: "pointer", fontFamily: SANS, textAlign: "left" as const, color: C.black, WebkitTapHighlightColor: "transparent" }}>
+          <span style={{ fontSize: SPACING.listText, fontWeight: 600, lineHeight: 1.35, flexShrink: 0, maxWidth: "75%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{arc.name}</span>
+          {arc.purpose && <span style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.35, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{arc.purpose}</span>}
+        </button>
+        <span style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+          <button onClick={() => onOpen("texts")} aria-label={`Texts of ${arc.name}`} style={mini}>{count("texts", arc.texts.length)}</button>
+          <button onClick={() => onOpen("links")} aria-label={`Links of ${arc.name}`} style={mini}>{count("links", arc.links.length)}</button>
+          <span aria-hidden="true" onClick={() => f.toggle(id)} style={{ display: "flex", alignItems: "center", cursor: "pointer" }}><OpenArrow open={open} /></span>
+        </span>
+      </div>
+      {open && arc.formats.length > 0 && (
+        <div style={{ marginTop: 3 }}>
+          {arc.formats.map((x, k) => (
+            <div key={k} style={{ display: "flex", alignItems: "flex-start", gap: GAP - 1, padding: "2px 0" }}>
+              <span aria-hidden="true" style={{ width: 5, height: 5, borderRadius: "50%", background: C.faint, flexShrink: 0, marginTop: 7 }} />
+              <span style={{ fontSize: SPACING.listText, color: C.ink2, lineHeight: 1.4, overflowWrap: "anywhere" as const }}>{x.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -462,11 +497,11 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   // Base | Phases | Arcs — opens on the tab you had last (remembered on this device)
   const [show, setShow] = useState<ConceptView>(loadView);
   const pickView = (v: ConceptView) => { setShow(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* ignore */ } };
-  // @createbylynn: its series, by category (Hair | Makeup & skincare | Both)
+  // @createbylynn: its 5 pillars with their arcs (numbered 1–5 in the fixed order)
   const seriesMode = acc === "createbylynn";
-  const series = arcs.filter(isSeries);
-  const [cat, setCat] = useState<ConceptCategory>(loadCat);
-  const pickCat = (c: ConceptCategory) => { setCat(c); try { localStorage.setItem(CAT_KEY, c); } catch { /* ignore */ } };
+  const series = arcs.filter(isSeries);              // before the pillars SQL: the old series
+  const pillarArcs = arcs.filter(isPillarArc);
+  const pillars = CONCEPT_PILLARS.map((p, i) => ({ ...p, n: i + 1, list: arcsOfPillar(pillarArcs, p.key) })).filter(p => p.list.length);
 
   // open cards, per account (Base by the block's key, arcs and phases by their number)
   const [openArcs, setOpenArcs] = useState<OpenMap>(() => loadMap(OPEN_KEY));
@@ -484,9 +519,12 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   const togglePh    = (n: number) => setPhsOpen(phNums.includes(n) ? phNums.filter(x => x !== n) : [...phNums, n]);
   const anyArcOpen  = arcs.some(a => arcNums.includes(a.num));
   const anyPhOpen   = phases.some(p => phNums.includes(p.num));
-  // @createbylynn: the open series are kept with the arcs (a series' number is unique on the account)
-  const catSeries   = series.filter(x => x.category === cat);
-  const anySerOpen  = catSeries.some(x => arcNums.includes(x.num));
+  // @createbylynn: the open pillars, by their key (per account)
+  const [openPls, setOpenPls] = useState<OpenKeys>(() => loadMap(OPEN_PL_KEY));
+  const plKeys    = (openPls[acc] || []).filter(k => typeof k === "string");
+  const setPlsOpen = (keys: string[]) => { const m = { ...openPls, [acc]: keys }; setOpenPls(m); saveMap(OPEN_PL_KEY, m); };
+  const togglePl  = (k: string) => setPlsOpen(plKeys.includes(k) ? plKeys.filter(x => x !== k) : [...plKeys, k]);
+  const anyPlOpen = pillars.some(p => plKeys.includes(p.key));
   // the lists folded inside cards (open unless folded), per account
   const [folded, setFolded] = useState<OpenKeys>(() => loadMap(FOLD_KEY));
   const foldList = (folded[acc] || []).filter(k => typeof k === "string");
@@ -497,9 +535,13 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
       setFolded(m); saveMap(FOLD_KEY, m);
     },
   };
-  const toggleCatAll = () => setArcsOpen(anySerOpen
-    ? arcNums.filter(n => !catSeries.some(x => x.num === n))
-    : [...arcNums, ...catSeries.map(x => x.num).filter(n => !arcNums.includes(n))]);
+  // expand all / collapse all: every pillar and every arc (an arc's fold id is "pa:" + its id)
+  const togglePillarsAll = () => {
+    const arcIds = pillarArcs.map(a => `pa:${a.id}`);
+    const nextFold = anyPlOpen ? Array.from(new Set([...foldList, ...arcIds])) : foldList.filter(x => !arcIds.includes(x));
+    const m = { ...folded, [acc]: nextFold }; setFolded(m); saveMap(FOLD_KEY, m);
+    setPlsOpen(anyPlOpen ? [] : pillars.map(p => p.key));
+  };
 
   // the window: one arc's texts or links, one era's or block's arcs, or one block's lines
   const [win, setWin] = useState<Win | null>(null);
@@ -587,42 +629,49 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
     </>
   );
 
-  // @createbylynn: one section per arc of the chosen category, one card per series
-  const seriesView = planner.conceptError ? note(planner.conceptError, C.red) : !series.length ? (
+  // @createbylynn: the 5 pillars, numbered cards (phone one column · iPad / computer two)
+  const pillarView = planner.conceptError ? note(planner.conceptError, C.red) : !pillars.length ? (
     <div style={{ marginTop: SPACING.sectionTop }}>
-      {empty(`No series for ${accLabel} yet`, "Run the @createbylynn concept SQL in Supabase once: it adds the categories, arcs and series with their first labels and texts.")}
+      {empty(`No pillars for ${accLabel} yet`, series.length
+        ? "Run the @createbylynn pillars SQL in Supabase once: it turns your series into the 5 pillars with their arcs (your texts, links and ideas come along)."
+        : "Run the @createbylynn concept SQL and then the pillars SQL in Supabase once.")}
     </div>
   ) : (
-    <>
-      {CONCEPT_ARCS.map(g => ({ ...g, list: seriesOf(series, cat, g.key) })).filter(g => g.list.length).map((g, gi) => (
-        <div key={g.key}>
-          <SectionHead dot={ARC_TONE.mid} label={`${g.label} · ${g.list.length}`}
-            right={gi === 0 ? <button onClick={toggleCatAll} style={mini}>{anySerOpen ? "collapse all" : "expand all"}</button> : undefined} />
-          {columns(g.list, x => (
-            <SeriesCard key={x.id} s={x} n={g.list.indexOf(x) + 1} open={arcNums.includes(x.num)} onToggle={() => toggleArc(x.num)} onOpen={kind => setWin({ kind, id: x.id })} />
-          ))}
-        </div>
+    <div style={{ marginTop: SPACING.sectionTop }}>
+      {columns(pillars, p => (
+        <PillarCard key={p.key} n={p.n} label={p.label} note={p.note} arcs={p.list} open={plKeys.includes(p.key)}
+          onToggle={() => togglePl(p.key)} onOpen={(a, kind) => setWin({ kind, id: a.id })} />
       ))}
-      {!catSeries.length && note("Nothing in this category yet.")}
-    </>
+    </div>
   );
 
   return (
     <FoldCtx.Provider value={fold}>
     <div>
       <TabTitle title="Content concept" acc={acc} onAccount={onAccount} isMobile={isMobile} />
-      <Subtitle text={seriesMode ? "Categories · arcs · series" : SUBTITLE[show]} />
-      <div style={{ marginTop: 12 }}>
-        {seriesMode
-          ? <ViewSwitch options={CONCEPT_CATEGORIES} value={cat} onPick={pickCat} label="Category" />
-          : <ViewSwitch options={VIEWS} value={show} onPick={pickView} label="Show" />}
-      </div>
+      {seriesMode ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <Subtitle text="Pillars · arcs · formats" />
+          {pillars.length > 0 && !planner.loading && (
+            <span style={{ marginTop: 5, flexShrink: 0 }}>
+              <button onClick={togglePillarsAll} style={mini}>{anyPlOpen ? "collapse all" : "expand all"}</button>
+            </span>
+          )}
+        </div>
+      ) : (
+        <>
+          <Subtitle text={SUBTITLE[show]} />
+          <div style={{ marginTop: 12 }}>
+            <ViewSwitch options={VIEWS} value={show} onPick={pickView} label="Show" />
+          </div>
+        </>
+      )}
 
-      {planner.loading ? note("Loading…") : seriesMode ? seriesView : show === "base" ? baseView : show === "phases" ? phasesView : arcsView}
+      {planner.loading ? note("Loading…") : seriesMode ? pillarView : show === "base" ? baseView : show === "phases" ? phasesView : arcsView}
 
       {/* an arc's texts or links (from the Arcs tab) */}
       {win && (win.kind === "texts" || win.kind === "links") && winArc && (
-        <Sheet title={`${seriesNum(planner.arcs, winArc)}. ${winArc.name}`} onClose={close} footer={done}>
+        <Sheet title={isPillarArc(winArc) ? `${pillarLabel(winArc.pillar)} · ${winArc.name}` : `${seriesNum(planner.arcs, winArc)}. ${winArc.name}`} onClose={close} footer={done}>
           <WinHead first icon={win.kind === "texts" ? IC.list : IC.link} tone={ARC_TONE}
             label={win.kind === "texts" ? count(winLabels ? "Labels" : "Texts", winArc.texts.length) : count("Links", winArc.links.length)} />
           <div style={winCard}>
