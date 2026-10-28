@@ -29,7 +29,9 @@ const dayDe = (d: string) => `${WD[new Date(`${d}T12:00:00Z`).getUTCDay()]} ${fm
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 const safe = (t: string) => String(t || "").replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
 
-export type Block = { node: any; keep?: boolean };   // keep: stays on the page of the block after it (headings)
+// keep: stays on the page of the block after it (headings) · head: a table's column names ·
+// row: a part of that table — a page that starts inside the table gets the column names again on top
+export type Block = { node: any; keep?: boolean; head?: boolean; row?: boolean };
 
 export const lbl: any = { fontSize: 7, letterSpacing: 0, textTransform: "uppercase", color: PDF.label };
 const cell = (w: number, right?: boolean, s: any = {}): any => ({ width: w, boxSizing: "border-box", flexShrink: 0, textAlign: right ? "right" : "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", paddingRight: right ? 0 : 6, ...s });
@@ -54,7 +56,7 @@ const TRow = ({ v, bold, muted }: { v: string[]; bold?: boolean; muted?: boolean
 function blocksOf(x: BizCase, no: string, costs: BizCost[], nums: Map<string, string>, cats: BizCategory[], photos: { url: string; w: number; h: number }[]): Block[] {
   const trip = x.kind === "trip";
   const out: Block[] = [];
-  const add = (node: any, keep = false) => out.push({ node, keep });
+  const add = (node: any, keep = false, x: Partial<Block> = {}) => out.push({ node, keep, ...x });
   const when = (d: string, t: string) => (d ? `${dayDe(d)}${t ? `, ${t} Uhr` : ""}` : "");
   // title
   add(
@@ -90,23 +92,23 @@ function blocksOf(x: BizCase, no: string, costs: BizCost[], nums: Map<string, st
   const list = costsOf(x, costs);
   const isMeal = (id: string | null) => cats.find(c => c.id === id)?.kind === "bewirtung";
   add(<H2>{trip ? "Reisekosten" : "Kosten"}</H2>, true);
-  add(<TRow v={COLS.map(c => c.l)} muted />, true);
-  if (!list.length) add(<TRow v={["", "", "Keine Belege", "", ""]} muted />);
-  list.forEach(c => add(<TRow v={[nums.get(c.id) || "", fmtD(c.date), [c.what, c.returnOf ? `(Rückgabe ${nums.get(c.returnOf) || ""})` : "", isMeal(c.categoryId) ? "· Bewirtung" : ""].filter(Boolean).join(" "), c.vendor, fmt(c.amount)]} />));
+  add(<TRow v={COLS.map(c => c.l)} muted />, true, { head: true });
+  if (!list.length) add(<TRow v={["", "", "Keine Belege", "", ""]} muted />, false, { row: true });
+  list.forEach(c => add(<TRow v={[nums.get(c.id) || "", fmtD(c.date), [c.what, c.returnOf ? `(Rückgabe ${nums.get(c.returnOf) || ""})` : "", isMeal(c.categoryId) ? "· Bewirtung" : ""].filter(Boolean).join(" "), c.vendor, fmt(c.amount)]} />, false, { row: true }));
   const sumReceipts = list.reduce((s, c) => s + c.amount, 0);
   let meals = 0, km = 0;
   if (trip) {
     const days = mealDays(x);
     if (days.length) {
-      add(<div style={{ ...lbl, margin: "10px 0 3px" }}>Verpflegungsmehraufwand{isAbroad(x) ? ` · Ausland (${x.country})` : " · Inland"}</div>, true);
+      add(<div style={{ ...lbl, margin: "10px 0 3px" }}>Verpflegungsmehraufwand{isAbroad(x) ? ` · Ausland (${x.country})` : " · Inland"}</div>, true, { row: true });
       days.forEach(d => {
         const m = [d.meals.b ? "Frühstück" : "", d.meals.l ? "Mittagessen" : "", d.meals.d ? "Abendessen" : ""].filter(Boolean).join(", ");
-        add(<TRow v={["", dayDe(d.date).slice(3), KIND[d.kind], `Pauschale ${fmt(d.base)}${d.cut ? ` − ${fmt(d.cut)} (${m})` : ""}`, fmt(d.amount)]} />);
+        add(<TRow v={["", dayDe(d.date).slice(3), KIND[d.kind], `Pauschale ${fmt(d.base)}${d.cut ? ` − ${fmt(d.cut)} (${m})` : ""}`, fmt(d.amount)]} />, false, { row: true });
       });
       meals = days.reduce((s, d) => s + d.amount, 0);
     }
     km = kmAmount(x);
-    if (x.km > 0) add(<TRow v={["", "", "Fahrtkosten eigener Pkw", `${x.km.toLocaleString("de-DE")} km × ${fmt(KM_RATE)}`, fmt(km)]} />);
+    if (x.km > 0) add(<TRow v={["", "", "Fahrtkosten eigener Pkw", `${x.km.toLocaleString("de-DE")} km × ${fmt(KM_RATE)}`, fmt(km)]} />, false, { row: true });
   }
   const total = sumReceipts + meals + km;
   add(
@@ -141,13 +143,20 @@ function blocksOf(x: BizCase, no: string, costs: BizCost[], nums: Map<string, st
 // blocks → pages: greedy, a "keep" block moves with the one after it
 function paginate(blocks: Block[], hs: number[], body: number): number[][] {
   const pages: number[][] = [[]];
-  let used = 0;
+  let used = 0, head: number | null = null;
   for (let i = 0; i < blocks.length; i++) {
     let need = hs[i];
     let j = i;
     while (blocks[j]?.keep && j + 1 < blocks.length) { j++; need += hs[j]; }
-    if (used > 0 && used + need > body) { pages.push([]); used = 0; }
-    for (let k = i; k <= j; k++) { pages[pages.length - 1].push(k); used += hs[k]; }
+    const again = blocks[i].row && head !== null && !blocks[i].head;        // the table goes on: its column names again
+    if (used > 0 && used + need > body) {
+      pages.push([]); used = 0;
+      if (again) { pages[pages.length - 1].push(head!); used += hs[head!]; }
+    }
+    for (let k = i; k <= j; k++) {
+      pages[pages.length - 1].push(k); used += hs[k];
+      if (blocks[k].head) head = k; else if (!blocks[k].row && !blocks[k].keep) head = null;   // the table ended
+    }
     i = j;
   }
   return pages;

@@ -1,3 +1,19 @@
+# Business · bug fixes after build 4 (28.10.2026)
+- The year you're on always stays in the year list: deleting a year's only cost no longer leaves
+  both year arrows greyed out (strip and Dashboard).
+- Invoices print: letters the PDF's standard font can't write become their base letter
+  ("Łukasz Gőz · Şahin" → "Lukasz Goz · Sahin") instead of being dropped — stamps, missing-file pages
+  and the Bewirtungsbeleg.
+- Invoices print: a receipt PDF that opens but can't be copied gets its own "konnte nicht gelesen
+  werden" page; the rest of the print carries on.
+- Kostenübersicht and the trip / event report: a table that runs onto the next page gets its column
+  names again at the top.
+- Account menu (every app): Business has its own icon (a receipt) and colour (butter); with five
+  apps the last tile takes the whole row, like on the login screen.
+- The report window lets go of its photo previews when it closes.
+- Changed: `AppNav.tsx`, `BusinessApp.tsx`, `businessExport.tsx`, `businessPdf.tsx`, `BusinessReport.tsx`.
+  No SQL needed.
+
 # Business · build 4: Dashboard · Setup · Copy prompt · Close year (28.10.2026)
 - **Dashboard** (first tab, read only, the Manager dashboard's parts): Costs <year> — all tabs, month
   bars, "Counts · …" with its share (and the Vorsteuer without § 19) · This year — Trips, Events,

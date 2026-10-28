@@ -38,6 +38,7 @@ export default function ReportWindow({ biz, caseId, nums, cats, settings, onClos
   const [ask, setAsk]     = useState<string | null>(null);     // the photo to remove
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const made = useRef<string[]>([]);                        // every preview link, let go when the window closes
   const photos: any[] = (x?.report?.photos || []) as any[];
   useEffect(() => { if (!x) onClose(); }, [!!x]);   // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -45,19 +46,18 @@ export default function ReportWindow({ biz, caseId, nums, cats, settings, onClos
   const key = photos.map(p => p.path).join("|");
   useEffect(() => {
     let off = false;
-    const made: string[] = [];
     (async () => {
       for (const ph of photos) {
         if (thumbs[ph.path]) continue;
         const b = await photoBlob(ph.path);
         if (off || !b) continue;
-        const u = URL.createObjectURL(b); made.push(u);
+        const u = URL.createObjectURL(b); made.current.push(u);
         setThumbs(t => ({ ...t, [ph.path]: u }));
       }
     })();
     return () => { off = true; };
   }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => { Object.values(thumbs).forEach(u => URL.revokeObjectURL(u)); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { made.current.forEach(u => URL.revokeObjectURL(u)); made.current = []; }, []);
 
   if (!x) return null;
   const save = async () => {

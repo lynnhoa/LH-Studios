@@ -36,6 +36,7 @@ const APP_LOOK: Record<string, { tone: { wash: string; mid: string; ink: string 
   outreach: { tone: PAL.progress,     d: "M4 6h16v12H4zM4 7l8 6 8-6" },
   manager:  { tone: PAL.done,         d: "M4 8h16v11H4zM9 8V5h6v3M4 13h16" },
   creator:  { tone: PAL.lynnhoa,      d: "M4 8h3l2-2h6l2 2h3v11H4zM12 16.5a3 3 0 1 0 0-6a3 3 0 0 0 0 6z" },
+  business: { tone: PAL.waiting,      d: "M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h3" },
 };
 const AppIcon = ({ k }: { k: string }) => {
   const a = APP_LOOK[k] || { tone: PAL.neutral, d: "" };
@@ -107,11 +108,12 @@ export function AvatarMenu({ settings, roleLabel, items, apps, onSignOut, dropLe
               </div>
             </div>
 
-            {/* the four apps as tiles */}
+            {/* the apps as tiles (an odd last one takes the whole row, like on the login screen) */}
             {label("Apps")}
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 6, padding: "2px 10px 4px" }}>
-              {apps.map(a => (
-                <button key={a.key} role="menuitem" onClick={() => run(a.onClick)} aria-current={a.active ? "page" : undefined} style={tileStyle(!!a.active)}>
+              {apps.map((a, i) => (
+                <button key={a.key} role="menuitem" onClick={() => run(a.onClick)} aria-current={a.active ? "page" : undefined}
+                  style={{ ...tileStyle(!!a.active), ...(apps.length % 2 === 1 && i === apps.length - 1 ? { gridColumn: "1 / -1" } : {}) }}>
                   <AppIcon k={a.key} />
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{a.label}</span>
                 </button>

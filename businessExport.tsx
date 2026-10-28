@@ -102,7 +102,7 @@ const sumOf = (ls: Line[]) => ({ amount: r2(ls.reduce((s, l) => s + l.amount, 0)
 function overviewBlocks(title: string, lines: Line[], byMonth: boolean, d: ExportData): Block[] {
   const cols = colsOf(d.ku);
   const out: Block[] = [];
-  const add = (node: any, keep = false) => out.push({ node, keep });
+  const add = (node: any, keep = false, x: Partial<Block> = {}) => out.push({ node, keep, ...x });
   const row = (cells: string[], s: any = {}) => (
     <div style={{ display: "flex", alignItems: "center", minHeight: 17, borderBottom: `0.5px solid ${PDF.rule}`, fontSize: 7.5, ...s }}>
       {cols.map((c, i) => <div key={c.k} style={cellS(c)}>{cells[i] ?? ""}</div>)}
@@ -118,7 +118,7 @@ function overviewBlocks(title: string, lines: Line[], byMonth: boolean, d: Expor
       </p>
     </div>
   );
-  add(head, true);
+  add(head, true, { head: true });
   // the label spans the text columns, the sums sit under their amounts
   const firstNum = cols.findIndex(c => c.r);
   const subtotal = (label: string, ls: Line[]) => {
@@ -130,16 +130,16 @@ function overviewBlocks(title: string, lines: Line[], byMonth: boolean, d: Expor
       </div>
     );
   };
-  if (!lines.length) add(row(["", "", "Keine Positionen"]));
+  if (!lines.length) add(row(["", "", "Keine Positionen"]), false, { row: true });
   if (byMonth) {
     const months = [...new Set(lines.map(l => monthOf(l.date)))].sort();
     months.forEach(ym => {
       const ls = lines.filter(l => monthOf(l.date) === ym);
-      add(<div style={{ minHeight: 22, display: "flex", alignItems: "flex-end", paddingBottom: 3, fontSize: 7.5, fontWeight: 600, textTransform: "uppercase" as const }}>{monthDe(ym)}</div>, true);
-      ls.forEach(l => add(row(cols.map(c => val(l, c.k)))));
-      add(subtotal(monthDe(ym), ls));
+      add(<div style={{ minHeight: 22, display: "flex", alignItems: "flex-end", paddingBottom: 3, fontSize: 7.5, fontWeight: 600, textTransform: "uppercase" as const }}>{monthDe(ym)}</div>, true, { row: true });
+      ls.forEach(l => add(row(cols.map(c => val(l, c.k))), false, { row: true }));
+      add(subtotal(monthDe(ym), ls), false, { row: true });
     });
-  } else lines.forEach(l => add(row(cols.map(c => val(l, c.k)))));
+  } else lines.forEach(l => add(row(cols.map(c => val(l, c.k))), false, { row: true }));
   // totals and the EÜR groups
   const groups = [...new Set(lines.map(l => l.group))].sort((a, b) => a.localeCompare(b, "de"));
   add(
@@ -201,8 +201,12 @@ export function downloadExcel(scope: Scope, d: ExportData): void {
 }
 
 // ── Belege (the Invoices print) ─────────────────────────────
-const WIN = /[^\x20-\x7E\xA0-\xFF€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]/g;     // what the PDF's standard font can write
-const win = (t: any) => String(t ?? "").replace(/↩/g, "Rückgabe").replace(/\s+/g, " ").replace(WIN, "");
+const WIN_OK = /[\x20-\x7E\xA0-\xFF€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]/;     // what the PDF's standard font can write
+const BASE: Record<string, string> = { "ł": "l", "Ł": "L", "ı": "i", "đ": "d", "Đ": "D", "ħ": "h", "Ħ": "H", "ŧ": "t", "Ŧ": "T", "↩": "Rückgabe", "→": "->", "✓": "ja" };
+// any other letter: its base letter (ő → o, Ş → S), so names stay readable — nothing is dropped silently
+const win = (t: any) => Array.from(String(t ?? "").replace(/\s+/g, " "))
+  .map(ch => (WIN_OK.test(ch) ? ch : BASE[ch] ?? Array.from(ch.normalize("NFD").replace(/[\u0300-\u036f]/g, "")).filter(c => WIN_OK.test(c)).join("")))
+  .join("");
 const A4 = { w: 595.28, h: 841.89 };
 const INK = rgb(0.1, 0.1, 0.1), GREY = rgb(0.29, 0.27, 0.25), RULE = rgb(0.79, 0.76, 0.72);
 
@@ -248,19 +252,21 @@ export async function downloadInvoices(scope: Scope, d: ExportData): Promise<voi
           if (r?.data) src = await PDFDocument.load(await r.data.arrayBuffer(), { ignoreEncryption: true });
         } catch { src = null; }
       }
-      if (!src || !src.getPageCount()) {
+      let pages: any[] | null = null;
+      if (src && src.getPageCount()) { try { pages = await doc.embedPdf(src, src.getPageIndices()); } catch { pages = null; } }
+      if (!pages || !pages.length) {
         infoPage(`Beleg ${l.no}`, [["Datum", fmtD(l.date)], ["Beschreibung", l.what], ["Anbieter", l.vendor], ["Betrag", fmt(l.amount)], ["Rechnungsnr.", l.receiptNo]],
           c.filePath ? "Die Datei dieses Belegs konnte nicht gelesen werden." : "Zu dieser Position ist kein Beleg hochgeladen.");
       } else {
-        const pages = await doc.embedPdf(src, src.getPageIndices());
-        pages.forEach((ep, i) => {
+        const n = pages.length;
+        pages.forEach((ep: any, i: number) => {
           const p = doc.addPage([A4.w, A4.h]);
           const band = 34, box = { w: A4.w - 40, h: A4.h - band - 20 };
           const k = Math.min(box.w / ep.width, box.h / ep.height);
           const w = ep.width * k, h = ep.height * k;
           p.drawPage(ep, { x: (A4.w - w) / 2, y: 20 + (box.h - h) / 2, width: w, height: h });
           p.drawText(win(l.no), { x: 22, y: A4.h - 24, size: 14, font: bold, color: INK });
-          const rest = win(`${stampText(l)}${pages.length > 1 ? ` · Seite ${i + 1}/${pages.length}` : ""}`);
+          const rest = win(`${stampText(l)}${n > 1 ? ` · Seite ${i + 1}/${n}` : ""}`);
           const x0 = 22 + bold.widthOfTextAtSize(win(l.no), 14) + 10;
           let t = rest; while (t.length > 3 && font.widthOfTextAtSize(t, 9) > A4.w - x0 - 22) t = t.slice(0, -2);
           p.drawText(t === rest ? t : `${t}…`, { x: x0, y: A4.h - 23, size: 9, font, color: GREY });

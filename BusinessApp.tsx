@@ -64,11 +64,11 @@ export default function BusinessApp({ userId, settings, clients = [], signOut, s
 
   // every year that has costs, and this year
   const years = useMemo(() => {
-    const s = new Set<number>([thisYear]);
+    const s = new Set<number>([thisYear, year]);      // the year you're on stays in the list
     biz.costs.forEach(c => { const y = yearOf(c.date); if (y) s.add(y); });
     biz.cases.forEach(x => { const y = caseYear(x); if (y) s.add(y); });
     return [...s].sort((a, b) => a - b);
-  }, [biz.costs, biz.cases, thisYear]);
+  }, [biz.costs, biz.cases, thisYear, year]);
   const ku = kuOf(settings);
   const totals = useMemo(() => yearTotals(year, biz.costs, biz.cases, biz.cats, ku), [year, biz.costs, biz.cases, biz.cats, ku]);
 
