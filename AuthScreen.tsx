@@ -16,7 +16,7 @@ interface AuthScreenProps {
 export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
   // the app you used last is chosen already (remembered on this device)
   const [role,     setRole]     = useState<Role>(() => {
-    try { const r = localStorage.getItem("lh_role") as Role; return (["planner", "outreach", "manager", "creator"] as Role[]).includes(r) ? r : "manager"; }
+    try { const r = localStorage.getItem("lh_role") as Role; return (["planner", "outreach", "manager", "creator", "business"] as Role[]).includes(r) ? r : "manager"; }
     catch { return "manager"; }
   });
   const [email,    setEmail]    = useState("");
@@ -71,7 +71,7 @@ export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
 
         {/* ── ROLE TOGGLE ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
-          {(["planner", "outreach", "manager", "creator"] as Role[]).map(v => {
+          {(["planner", "outreach", "manager", "creator", "business"] as Role[]).map(v => {
             const sel = role === v;
             return (
               <button
@@ -90,6 +90,7 @@ export default function AuthScreen({ onSignIn, loading }: AuthScreenProps) {
                   textTransform: "uppercase" as const,
                   borderRadius:  2,
                   transition:    "all 0.15s ease",
+                  gridColumn:    v === "business" ? "1 / -1" : undefined,   // the fifth app: one full row under the four
                 }}
               >
                 {v}

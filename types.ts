@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 
 // ─── ROLES ───────────────────────────────────────────────────
-export type Role = "planner" | "outreach" | "manager" | "creator";
+export type Role = "planner" | "outreach" | "manager" | "creator" | "business";
 
 // ─── STATUS ──────────────────────────────────────────────────
 export type ProjectStatus =

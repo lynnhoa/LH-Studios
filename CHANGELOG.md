@@ -1,3 +1,28 @@
+# Business · build 1: the new app + Costs (28.10.2026)
+- A fifth app, **Business**, for the costs of the business lynnhoa (collected for the tax return) —
+  modelled on Casa Castel's Maintenance, in LH Studio's look. It is in every app's menu and on the
+  login screen (one full row under the four). Tabs: Dashboard · Trips · Events · Costs — Trips,
+  Events and the Dashboard come with the next builds (each shows a short note for now).
+- **Costs**: the one-off receipts of a year, by month (newest month first) with the month's total;
+  chips All · No file. A row: number · what — date · vendor — amount and its category ("No file"
+  while the PDF is missing). + Add cost opens the receipt window.
+- **Numbers are worked out, never typed** (like Maintenance): K1, K2 … per year in date order (same
+  date: the one added first). Adding an older receipt moves the later numbers on.
+- **Receipt window** (one level, no Edit step): No. · Date · What · Vendor · Amount · Category ·
+  VAT (only when § 19 is off: net and VAT worked out) · Receipt no. · Business share. The line under
+  it shows what counts. Business meals add Occasion · Guests (70 % counts); Gifts add the recipient
+  and warn over 50 € a year per person; Equipment over 800 € net notes the depreciation.
+  File: a PDF, or photos that become one PDF — View · Replace · Remove (private folder,
+  10-minute links). ⋯ : Add return (its own line on its own date, "↩ K2", stored minus) · Delete.
+- **The strip** under the title (the same in every tab): ‹ year › · the year's costs of all tabs ·
+  what counts.
+- **English on screen**, like the rest of LH Studio: the 15 categories (Travel · Transport, Business
+  meals, Gifts, Equipment …) — their tax group (EÜR) stays German for the bookkeeping files. The SQL
+  renames the German names if its first version already ran.
+- New: `BusinessApp.tsx`, `BusinessCosts.tsx`, `BusinessReceipt.tsx`, `BusinessParts.tsx`,
+  `business.ts`, `useBusiness.ts`. Changed: `App.tsx`, `AppNav.tsx`, `AuthScreen.tsx`, `types.ts`.
+  The Business SQL (tables, file folder, categories) is run once in Supabase — it isn't a repo file.
+
 # Planner · @createbylynn concept: the same top as @lynnhoa (28.10.2026)
 - The top of the page is built from the same parts as @lynnhoa's, so text size and spacing match:
   the line under the title ("What each post is about"), the switch with one tab (Pillars) where

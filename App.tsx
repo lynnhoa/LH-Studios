@@ -13,6 +13,7 @@ import CreatorApp       from "./CreatorApp";
 import { Loading, SaveToast, LoadErrorBanner } from "./atoms";
 import OutreachApp from "./OutreachApp";
 import PlannerApp from "./PlannerApp";
+import BusinessApp from "./BusinessApp";
 import { editLock, reloadAll } from "./saveStatus";
 import { newVersionAvailable } from "./appVersion";
 import { supabase, supabaseConfigured } from "./useSupabase";
@@ -27,7 +28,7 @@ function useAuth() {
   const [error, setError]     = useState<string | null>(null);
   const signingIn = useRef(false);
 
-  const ROLES: Role[] = ["planner", "outreach", "manager", "creator"];
+  const ROLES: Role[] = ["planner", "outreach", "manager", "creator", "business"];
   const getRole = (): Role => {
     // the app you used last, remembered on this device (fallback: this session)
     try { const r = (localStorage.getItem("lh_role") || sessionStorage.getItem("lh_role")) as Role; return ROLES.includes(r) ? r : "manager"; }
@@ -229,7 +230,7 @@ function AppInner() {
 
   return (
     <>
-      {role === "manager" || !["creator", "outreach", "planner"].includes(String(role)) ? (   // unknown → Manager
+      {role === "manager" || !["creator", "outreach", "planner", "business"].includes(String(role)) ? (   // unknown → Manager
         <ManagerApp
           settings={settings}
           updateSettings={updateSettings}
@@ -251,6 +252,8 @@ function AppInner() {
         <OutreachApp userId={userId} settings={settings} signOut={signOut} switchTo={switchTo} banners={banners} />
       ) : role === "planner" ? (
         <PlannerApp userId={userId} settings={settings} signOut={signOut} switchTo={switchTo} banners={banners} />
+      ) : role === "business" ? (
+        <BusinessApp userId={userId} settings={settings} signOut={signOut} switchTo={switchTo} banners={banners} />
       ) : null}
       <SaveToast />
     </>

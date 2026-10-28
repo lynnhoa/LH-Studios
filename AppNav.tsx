@@ -18,6 +18,7 @@ export const APPS: { key: Role; label: string }[] = [
   { key: "outreach", label: "Outreach" },
   { key: "manager",  label: "Manager"  },
   { key: "creator",  label: "Creator"  },
+  { key: "business", label: "Business" },
 ];
 export const appItems = (current: Role, switchTo: (r: Role) => void): MenuItem[] =>
   APPS.map(a => ({ key: a.key, label: a.label, active: a.key === current, onClick: () => { if (a.key !== current) switchTo(a.key); } }));
