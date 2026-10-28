@@ -1,3 +1,12 @@
+# Planner · @createbylynn concept: the same top as @lynnhoa (28.10.2026)
+- The top of the page is built from the same parts as @lynnhoa's, so text size and spacing match:
+  the line under the title ("What each post is about"), the switch with one tab (Pillars) where
+  Base | Phases | Arcs sit, then "● Pillars · 5" with expand all / collapse all on its right (it still
+  opens or closes every pillar and every arc).
+- A pillar card is number · name · arrow, like the @lynnhoa cards (the "n arcs" count is gone).
+  Inside a pillar nothing changed.
+- Changed: `PlannerConcept.tsx`.
+
 # Planner · @createbylynn concept: 5 pillars · arcs · formats (28.10.2026)
 - One list, no switch: Hair | Makeup & skincare | Both is gone. The line under the title says
   "Pillars · arcs · formats", with expand all / collapse all on its right — it opens or closes

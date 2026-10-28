@@ -24,13 +24,13 @@
 //   change shows everywhere.
 //   Under the list, while a card is open: what its marks mean. Open cards are remembered on
 //   this device; the first time, all are closed.
-// @createbylynn (no phases, no switch — 27.10.2026): one list, "Pillars · arcs · formats".
-//   The 5 pillars are the numbered cards: number · name · "n arcs" · arrow (open pillars
-//   remembered on this device, per account; the first time all are closed). Open: the pillar's
-//   grey line (if it has one), then its arcs — each: name (black) · what it does (grey) ·
-//   "texts · links" (the same windows as an arc's) · small arrow; tap it to fold its formats
-//   (open the first time, what you fold stays folded). "expand all / collapse all" (right of the
-//   line under the title) opens or closes everything: every pillar and every arc.
+// @createbylynn (no phases — 28.10.2026): the same top as @lynnhoa — "What each post is about",
+//   one tab (Pillars) in the same switch, then "Pillars · 5" with expand all / collapse all, which
+//   opens or closes everything: every pillar and every arc. The 5 pillars are the numbered cards:
+//   number · name · arrow (open pillars remembered on this device, per account; the first time
+//   all are closed). Open: the pillar's grey line (if it has one), then its arcs — each: name
+//   (black) · what it does (grey) · "texts · links" (the same windows as an arc's) · small arrow;
+//   tap it to fold its formats (open the first time, what you fold stays folded).
 // Arcs, pillars, purpose, formats, ticks, phases and eras come from the SQL (fixed).
 // Phone: one column · iPad / computer: two columns (first half left).
 // ─────────────────────────────────────────────────────────────
@@ -225,15 +225,14 @@ function ArcCard({ arc, open, onToggle, onOpen }: { arc: ConceptArc; open: boole
   );
 }
 
-// one pillar (@createbylynn): number · name · "n arcs" · arrow — open: its grey line, then its arcs
+// one pillar (@createbylynn): number · name · arrow — open: its grey line, then its arcs
 function PillarCard({ n, label, note, arcs, open, onToggle, onOpen }: { n: number; label: string; note: string; arcs: ConceptArc[]; open: boolean; onToggle: () => void; onOpen: (a: ConceptArc, kind: "texts" | "links") => void }) {
   return (
     <div style={cardBox}>
       <div style={{ display: "flex", alignItems: "center" }}>
-        <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${label}, ${arcs.length} ${arcs.length === 1 ? "arc" : "arcs"}`} style={headBtn}>
+        <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${label}`} style={headBtn}>
           <NumCircle n={n} tone={ARC_TONE} />
           <span style={nameText}>{label}</span>
-          <span style={{ fontSize: SPACING.listMeta, color: C.muted, flexShrink: 0, whiteSpace: "nowrap" as const }}>{arcs.length} {arcs.length === 1 ? "arc" : "arcs"}</span>
         </button>
         <Caret open={open} onClick={onToggle} />
       </div>
@@ -336,6 +335,8 @@ function PhaseCard({ phase, open, onToggle, onEra }: { phase: ConceptPhase; open
 // Base | Phases | Arcs (@createbylynn: Hair | Makeup & skincare | Both) — like the account switch,
 // the chosen one in warm grey
 const VIEWS: { key: ConceptView; label: string }[] = [{ key: "base", label: "Base" }, { key: "phases", label: "Phases" }, { key: "arcs", label: "Arcs" }];
+// @createbylynn: one tab, in the same switch (so both pages have the same top)
+const CBL_VIEWS: { key: "pillars"; label: string }[] = [{ key: "pillars", label: "Pillars" }];
 function ViewSwitch<K extends string>({ options, value, onPick, label }: { options: { key: K; label: string }[]; value: K; onPick: (v: K) => void; label: string }) {
   return (
   <span role="group" aria-label={label} style={{ display: "inline-flex", alignItems: "center", gap: 2, height: 28, padding: 2, boxSizing: "border-box" as const, border: `1px solid ${C.rule}`, borderRadius: 14, background: C.white }}>
@@ -630,42 +631,31 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   );
 
   // @createbylynn: the 5 pillars, numbered cards (phone one column · iPad / computer two)
-  const pillarView = planner.conceptError ? note(planner.conceptError, C.red) : !pillars.length ? (
-    <div style={{ marginTop: SPACING.sectionTop }}>
-      {empty(`No pillars for ${accLabel} yet`, series.length
-        ? "Run the @createbylynn pillars SQL in Supabase once: it turns your series into the 5 pillars with their arcs (your texts, links and ideas come along)."
-        : "Run the @createbylynn concept SQL and then the pillars SQL in Supabase once.")}
-    </div>
-  ) : (
-    <div style={{ marginTop: SPACING.sectionTop }}>
-      {columns(pillars, p => (
-        <PillarCard key={p.key} n={p.n} label={p.label} note={p.note} arcs={p.list} open={plKeys.includes(p.key)}
-          onToggle={() => togglePl(p.key)} onOpen={(a, kind) => setWin({ kind, id: a.id })} />
-      ))}
-    </div>
+  const pillarView = planner.conceptError ? note(planner.conceptError, C.red) : (
+    <>
+      <SectionHead dot={ARC_TONE.mid} label={`Pillars · ${pillars.length}`}
+        right={pillars.length ? <button onClick={togglePillarsAll} style={mini}>{anyPlOpen ? "collapse all" : "expand all"}</button> : undefined} />
+      {!pillars.length
+        ? empty(`No pillars for ${accLabel} yet`, series.length
+            ? "Run the @createbylynn pillars SQL in Supabase once: it turns your series into the 5 pillars with their arcs (your texts, links and ideas come along)."
+            : "Run the @createbylynn concept SQL and then the pillars SQL in Supabase once.")
+        : columns(pillars, p => (
+            <PillarCard key={p.key} n={p.n} label={p.label} note={p.note} arcs={p.list} open={plKeys.includes(p.key)}
+              onToggle={() => togglePl(p.key)} onOpen={(a, kind) => setWin({ kind, id: a.id })} />
+          ))}
+    </>
   );
 
   return (
     <FoldCtx.Provider value={fold}>
     <div>
       <TabTitle title="Content concept" acc={acc} onAccount={onAccount} isMobile={isMobile} />
-      {seriesMode ? (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <Subtitle text="Pillars · arcs · formats" />
-          {pillars.length > 0 && !planner.loading && (
-            <span style={{ marginTop: 5, flexShrink: 0 }}>
-              <button onClick={togglePillarsAll} style={mini}>{anyPlOpen ? "collapse all" : "expand all"}</button>
-            </span>
-          )}
-        </div>
-      ) : (
-        <>
-          <Subtitle text={SUBTITLE[show]} />
-          <div style={{ marginTop: 12 }}>
-            <ViewSwitch options={VIEWS} value={show} onPick={pickView} label="Show" />
-          </div>
-        </>
-      )}
+      <Subtitle text={seriesMode ? "What each post is about" : SUBTITLE[show]} />
+      <div style={{ marginTop: 12 }}>
+        {seriesMode
+          ? <ViewSwitch options={CBL_VIEWS} value="pillars" onPick={() => { /* one tab */ }} label="Show" />
+          : <ViewSwitch options={VIEWS} value={show} onPick={pickView} label="Show" />}
+      </div>
 
       {planner.loading ? note("Loading…") : seriesMode ? pillarView : show === "base" ? baseView : show === "phases" ? phasesView : arcsView}
 
