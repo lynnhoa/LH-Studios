@@ -15,6 +15,14 @@
 // Otherwise a receipt has a VAT rate: net and VAT (Vorsteuer) are worked out.
 // Counts = net (§ 19: what you paid) × business share × the category's "counts" %
 // (Bewirtung 70 %).
+//
+// A trip's meal allowance (Verpflegungspauschale) is worked out from its days:
+//   Germany 2026  arrival / departure day of a trip with nights 14 € · a full day 28 € ·
+//                 a one-day trip of more than 8 hours 14 € (the times decide)
+//   abroad        the country's two rates, typed in the trip (from the BMF table)
+//   a meal that was included takes off 20 % (breakfast) / 40 % (lunch, dinner) of the
+//   full-day rate — never below 0. Own car: 0,30 € per km.
+// A trip and its allowance count in the year it starts; a receipt in the year of its date.
 // ─────────────────────────────────────────────────────────────
 
 import { r2 } from "./formatters";
@@ -150,3 +158,91 @@ export function giftsTo(recipient: string, year: number, costs: BizCost[], cats:
 }
 
 export const accountName = (a: BizAccount) => (a === "lynnhoa" ? "@lynnhoa" : a === "createbylynn" ? "@createbylynn" : "General");
+
+// ── Trips · events ───────────────────────────────────────────
+export const KM_RATE = 0.30;                       // € per km, own car
+export const MEAL_DE = { full: 28, part: 14 };     // Germany 2026
+export const MEAL_CUT = { b: 0.2, l: 0.4, d: 0.4 };
+
+export function caseToRow(x: Partial<BizCase>): any {
+  const row: any = {};
+  if (x.kind       !== undefined) row.kind        = x.kind;
+  if (x.title      !== undefined) row.title       = x.title.trim();
+  if (x.place      !== undefined) row.place       = x.place.trim();
+  if (x.country    !== undefined) row.country     = x.country.trim() || "Germany";
+  if (x.startDate  !== undefined) row.start_date  = x.startDate || null;
+  if (x.startTime  !== undefined) row.start_time  = x.startTime || null;
+  if (x.endDate    !== undefined) row.end_date    = x.endDate || null;
+  if (x.endTime    !== undefined) row.end_time    = x.endTime || null;
+  if (x.purpose    !== undefined) row.purpose     = x.purpose.trim();
+  if (x.account    !== undefined) row.account     = x.account;
+  if (x.client     !== undefined) row.client      = x.client.trim();
+  if (x.guests     !== undefined) row.guests      = x.guests.trim();
+  if (x.meals      !== undefined) row.meals       = x.meals;
+  if (x.km         !== undefined) row.km          = r2(x.km || 0);
+  if (x.abroadFull !== undefined) row.abroad_full = x.abroadFull;
+  if (x.abroadPart !== undefined) row.abroad_part = x.abroadPart;
+  if (x.report     !== undefined) row.report      = x.report;
+  return row;
+}
+
+export const caseYear = (x: BizCase) => yearOf(x.startDate || x.createdAt);
+export const isAbroad = (x: Pick<BizCase, "country">) => !!x.country && !/^(germany|deutschland|de)$/i.test(x.country.trim());
+
+const dayMs = 864e5;
+const isoAt = (t: number) => new Date(t).toISOString().slice(0, 10);
+const utc = (d: string) => Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)));
+export function eachDay(from: string, to: string): string[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) return [];
+  const end = /^\d{4}-\d{2}-\d{2}$/.test(to) && to >= from ? to : from;
+  const out: string[] = [];
+  for (let t = utc(from); t <= utc(end) && out.length < 366; t += dayMs) out.push(isoAt(t));
+  return out;
+}
+const mins = (t: string) => { const m = String(t || "").match(/^(\d{1,2}):(\d{2})/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+// hours of a one-day trip (null while a time is missing)
+export function hoursOf(x: Pick<BizCase, "startTime" | "endTime">): number | null {
+  const a = mins(x.startTime), b = mins(x.endTime);
+  return a === null || b === null || b < a ? null : (b - a) / 60;
+}
+
+export type DayKind = "arrival" | "full" | "departure" | "day" | "short";
+export interface MealDay { date: string; kind: DayKind; base: number; cut: number; amount: number; meals: { b?: boolean; l?: boolean; d?: boolean }; }
+export function mealDays(x: BizCase): MealDay[] {
+  if (x.kind !== "trip") return [];
+  const days = eachDay(x.startDate, x.endDate);
+  const abroad = isAbroad(x);
+  const full = abroad ? (x.abroadFull ?? 0) : MEAL_DE.full;
+  const part = abroad ? (x.abroadPart ?? 0) : MEAL_DE.part;
+  return days.map((date, i) => {
+    let kind: DayKind, base: number;
+    if (days.length === 1) { const h = hoursOf(x); kind = h !== null && h > 8 ? "day" : "short"; base = kind === "day" ? part : 0; }
+    else if (i === 0) { kind = "arrival"; base = part; }
+    else if (i === days.length - 1) { kind = "departure"; base = part; }
+    else { kind = "full"; base = full; }
+    const m = (x.meals && x.meals[date]) || {};
+    const cut = Math.min(base, r2((m.b ? MEAL_CUT.b * full : 0) + (m.l ? MEAL_CUT.l * full : 0) + (m.d ? MEAL_CUT.d * full : 0)));
+    return { date, kind, base, cut, amount: r2(Math.max(0, base - cut)), meals: m };
+  });
+}
+export const mealTotal = (x: BizCase) => r2(mealDays(x).reduce((s, d) => s + d.amount, 0));
+export const kmAmount  = (x: BizCase) => (x.kind === "trip" ? r2((x.km || 0) * KM_RATE) : 0);
+export const costsOf   = (x: BizCase, costs: BizCost[]) => sortCosts(costs.filter(c => c.caseId === x.id));
+export const caseTotal = (x: BizCase, costs: BizCost[]) => r2(costsOf(x, costs).reduce((s, c) => s + c.amount, 0) + mealTotal(x) + kmAmount(x));
+
+// the year strip: every receipt of the year (any tab) + the allowances of the year's trips
+export function yearTotals(year: number, costs: BizCost[], cases: BizCase[], cats: BizCategory[], ku: boolean) {
+  const catOf = (id: string | null) => cats.find(c => c.id === id) || null;
+  let total = 0, counted = 0;
+  costs.filter(c => yearOf(c.date) === year).forEach(c => { total += c.amount; counted += countedOf(c, catOf(c.categoryId), ku); });
+  cases.filter(x => x.kind === "trip" && caseYear(x) === year).forEach(x => { const a = mealTotal(x) + kmAmount(x); total += a; counted += a; });
+  return { total: r2(total), counted: r2(counted) };
+}
+
+// "29.09.–02.10.2026" · "17.10.2026" · "29.12.2026–02.01.2027"
+export function dateRange(from: string, to: string): string {
+  const f = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.`;
+  if (!from) return "";
+  if (!to || to === from) return `${f(from)}${from.slice(0, 4)}`;
+  return from.slice(0, 4) === to.slice(0, 4) ? `${f(from)}–${f(to)}${to.slice(0, 4)}` : `${f(from)}${from.slice(0, 4)}–${f(to)}${to.slice(0, 4)}`;
+}

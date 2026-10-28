@@ -34,8 +34,8 @@ const link: any = {
 };
 const muted: any = { color: C.muted, fontSize: TYPE.subtext.size };
 
-export default function ReceiptWindow({ biz, costId, returnOf, caseId, ku, nums, onCreated, onReturn, onClose }: {
-  biz: BusinessHook; costId: string | null; returnOf?: string | null; caseId?: string | null; ku: boolean;
+export default function ReceiptWindow({ biz, costId, returnOf, caseId, defaultDate, ku, nums, onCreated, onReturn, onClose }: {
+  biz: BusinessHook; costId: string | null; returnOf?: string | null; caseId?: string | null; defaultDate?: string; ku: boolean;
   nums: Map<string, string>; onCreated: (id: string) => void; onReturn: (id: string) => void; onClose: () => void;
 }) {
   const isNew = costId === null;
@@ -56,7 +56,7 @@ export default function ReceiptWindow({ biz, costId, returnOf, caseId, ku, nums,
     vatRate: cur.vatRate === null ? "" : String(cur.vatRate), receiptNo: cur.receiptNo, sharePct: cur.sharePct,
     anlass: cur.anlass, guests: cur.guests, recipient: cur.recipient,
   } : {
-    date: today(), what: orig ? `Return: ${orig.what || orig.vendor}` : "", vendor: orig?.vendor || "", amount: orig ? Math.abs(orig.amount) : null,
+    date: orig ? today() : defaultDate || today(), what: orig ? `Return: ${orig.what || orig.vendor}` : "", vendor: orig?.vendor || "", amount: orig ? Math.abs(orig.amount) : null,
     categoryId: firstCat, vatRate: orig ? (orig.vatRate === null ? "" : String(orig.vatRate)) : ku ? "" : "19", receiptNo: "",
     sharePct: orig?.sharePct ?? null, anlass: "", guests: "", recipient: orig?.recipient || "",
   };
@@ -143,13 +143,13 @@ export default function ReceiptWindow({ biz, costId, returnOf, caseId, ku, nums,
   };
 
   const enter = (e: any) => { if (e.key === "Enter") { e.preventDefault(); (e.currentTarget as HTMLInputElement).blur(); } };
-  const kind = isRet ? "return" : "cost";
+  const kind = isRet ? "return" : (caseId || cur?.caseId) ? "receipt" : "cost";
   const menu = cur ? [
     ...(!isRet && cur.amount > 0 ? [{ label: "Add return", onClick: () => onReturn(cur.id) }] : []),
     { label: `Delete ${kind}`, danger: true, onClick: () => setAsk("delete") },
   ] : [];
   const footer = isNew
-    ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : isRet ? "Add return" : "Add cost"}</SheetButton>
+    ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : `Add ${kind}`}</SheetButton>
     : dr.changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton>
     : <SheetButton onClick={onClose}>Done</SheetButton>;
   const hasFile = !!cur?.filePath;
@@ -166,7 +166,7 @@ export default function ReceiptWindow({ biz, costId, returnOf, caseId, ku, nums,
       )}
       <input ref={fileRef} type="file" accept="application/pdf,image/*" multiple aria-hidden="true" tabIndex={-1} style={{ display: "none" }}
         onChange={(e: any) => pickFiles(e.target.files)} />
-      <Sheet title={isNew ? (isRet ? "New return" : "New cost") : `${isRet ? "Return" : "Receipt"} · ${no}`} onClose={onClose}
+      <Sheet title={isNew ? `New ${kind}` : `${isRet ? "Return" : "Receipt"} · ${no}`} onClose={onClose}
         dirty={dr.changed || !!pending} right={menu.length ? <MoreMenu items={menu} /> : null} footer={footer}>
         {err && <SheetErr>{err}</SheetErr>}
 

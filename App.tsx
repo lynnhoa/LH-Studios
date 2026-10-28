@@ -253,7 +253,7 @@ function AppInner() {
       ) : role === "planner" ? (
         <PlannerApp userId={userId} settings={settings} signOut={signOut} switchTo={switchTo} banners={banners} />
       ) : role === "business" ? (
-        <BusinessApp userId={userId} settings={settings} signOut={signOut} switchTo={switchTo} banners={banners} />
+        <BusinessApp userId={userId} settings={settings} clients={clientsHook.clients} signOut={signOut} switchTo={switchTo} banners={banners} />
       ) : null}
       <SaveToast />
     </>

@@ -1,3 +1,31 @@
+# Business · build 2: Trips and Events (28.10.2026)
+- **Trips** and **Events** (one build for both, like Maintenance's tabs): the year's trips T1, T2 …
+  and events E1 … in number order (by start date). A card: title · number · dates · place — the
+  total and the account tag. Tap = it opens in place: its receipts (T3.1, T3.2 … by date, tap = the
+  receipt window), for a trip the worked-out **meal allowance** and the **own car** km, then the
+  button Trip report / Event report and the links + Add receipt · Trip details. A new trip's card
+  is open after Add.
+- **Trip / event window** (one level, no Edit step): Title · Place · Country · From / To with
+  times · Purpose · (Guests for an event) · Account · Client (Manager's clients and projects).
+  Meal allowance: one line per day with B · L · D (a meal that was included) and what the day
+  counts — Germany 2026: 14 € arrival / departure day and a one-day trip over 8 hours, 28 € a
+  full day; breakfast takes off 5,60 €, lunch or dinner 11,20 € (never below 0). Abroad: the
+  country's two rates are typed in. Own car: km × 0,30 €. ⋯ : Delete trip (its receipts and files go).
+- A new start date takes the end date along while both were the same day.
+- **Report window** (like Maintenance's Bericht): Programme · Result (a line starting with "-" is
+  a bullet) · photos from the library or the camera (saved at once, ✕ removes one) · Create PDF.
+- **The report PDF is German** (for the tax files), in the documents' look: Reisebericht ·
+  Veranstaltungsbericht — Reisedaten · Programm / Ablauf · Ergebnis · Reisekosten (Belege,
+  Verpflegungsmehraufwand per day with its Kürzung, Fahrtkosten) · Gesamt · Fotos; header strip,
+  page numbers. It uses what is typed, saved or not.
+- A receipt in a trip starts on the trip's first day (today while the trip is on); its window
+  says "receipt" instead of "cost".
+- **The strip** now counts every tab: the year's receipts plus the meal allowance and km of the
+  year's trips.
+- No SQL needed (build 1 made the tables). New: `BusinessCases.tsx`, `BusinessCaseWindow.tsx`,
+  `BusinessReport.tsx`, `businessPdf.tsx`. Changed: `business.ts`, `useBusiness.ts`,
+  `BusinessApp.tsx`, `BusinessCosts.tsx`, `BusinessReceipt.tsx`, `BusinessParts.tsx`, `App.tsx`.
+
 # Business · build 1: the new app + Costs (28.10.2026)
 - A fifth app, **Business**, for the costs of the business lynnhoa (collected for the tax return) —
   modelled on Casa Castel's Maintenance, in LH Studio's look. It is in every app's menu and on the

@@ -3,8 +3,8 @@
 // from the app's own parts (ListCard, SwitchPill, the line icons):
 //   YearStrip  under each tab's title, the same in all tabs (like
 //              Maintenance's strip): ‹ year › · the year's costs of all
-//              tabs · what counts. (PDF · Invoices · Excel join it in
-//              the export build.)
+//              tabs (receipts + the trips' meal allowance and km) · what
+//              counts. (PDF · Invoices · Excel join it in the export build.)
 //   ComingCard a tab that comes with a later build.
 // ─────────────────────────────────────────────────────────────
 
@@ -22,6 +22,15 @@ export const BIZ_IC = {
   gift:    "M4 10h16v10H4zM3 7h18v3H3zM12 7v13M12 7c-2-3-6-3-6 0M12 7c2-3 6-3 6 0",
   file:    "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5",
   check:   "M20 6L9 17l-5-5",
+  trip:    "M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M4 7h16v12H4zM9 7v12M15 7v12",
+  event:   "M5 5h14v15H5zM5 10h14M9 3v4M15 3v4",
+  meal:    "M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5zM16 10h1.5a2.5 2.5 0 0 1 0 5H16M8 3v3M11 3v3",
+  car:     "M5 16l1.5-5h11L19 16M4 16h16v3H4zM7.5 13.5h.01M16.5 13.5h.01",
+  photo:   "M4 8h3l2-3h6l2 3h3v11H4zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z",
+  report:  "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4",
+  down:    "M6 9l6 6 6-6",
+  up:      "M6 15l6-6 6 6",
+  plus:    "M12 5v14M5 12h14",
 };
 
 // § 19 on (the profile's switch; on unless switched off — like the Manager dashboard)

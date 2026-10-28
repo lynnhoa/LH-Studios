@@ -12,7 +12,7 @@ import { useState, useMemo } from "react";
 import { C, SANS, SERIF, TYPE, PAL, TRACK } from "./constants";
 import { SummaryLine, Strong, PillBtn, Chip, ChipRow, ListCard, Row, IconCircle, TonedTag, LoadErrorBanner } from "./atoms";
 import { fmt, fmtD, MONTHS } from "./formatters";
-import { numbersOf, countedOf, yearOf, monthOf, sortCosts } from "./business";
+import { numbersOf, yearOf, monthOf, sortCosts } from "./business";
 import type { BizCost } from "./business";
 import type { BusinessHook } from "./useBusiness";
 import ReceiptWindow from "./BusinessReceipt";
@@ -20,8 +20,9 @@ import { BizIco, BIZ_IC, YearStrip, kuOf } from "./BusinessParts";
 
 type F = "all" | "nofile";
 
-export default function BusinessCosts({ biz, settings, isMobile, year, setYear, years }: {
+export default function BusinessCosts({ biz, settings, isMobile, year, setYear, years, totals }: {
   biz: BusinessHook; settings: any; isMobile: boolean; year: number; setYear: (y: number) => void; years: number[];
+  totals: { total: number; counted: number };      // the strip: every tab of the year
 }) {
   const ku = kuOf(settings);
   const [f, setF] = useState<F>("all");
@@ -29,10 +30,7 @@ export default function BusinessCosts({ biz, settings, isMobile, year, setYear, 
   const nums = useMemo(() => numbersOf(biz.costs, biz.cases), [biz.costs, biz.cases]);
   const catOf = (id: string | null) => biz.cats.find(c => c.id === id) || null;
 
-  const ofYear = biz.costs.filter(c => yearOf(c.date) === year);
-  const total = ofYear.reduce((s, c) => s + c.amount, 0);
-  const counted = ofYear.reduce((s, c) => s + countedOf(c, catOf(c.categoryId), ku), 0);
-  const oneOff = ofYear.filter(c => !c.caseId);
+  const oneOff = biz.costs.filter(c => yearOf(c.date) === year && !c.caseId);
   const noFile = oneOff.filter(c => !c.filePath);
   const shown = f === "nofile" ? noFile : oneOff;
   const shownSum = shown.reduce((s, c) => s + c.amount, 0);
@@ -68,7 +66,7 @@ export default function BusinessCosts({ biz, settings, isMobile, year, setYear, 
         <PillBtn dark onClick={() => setWin({ id: null })}><BizIco d="M12 5v14M5 12h14" size={13} />Add cost</PillBtn>
       </div>
 
-      <YearStrip years={years} year={year} setYear={setYear} total={total} counted={counted} />
+      <YearStrip years={years} year={year} setYear={setYear} total={totals.total} counted={totals.counted} />
 
       {biz.loadError && !biz.missing && <div style={{ marginTop: 12 }}><LoadErrorBanner what="Costs" message={biz.loadError} onRetry={biz.reload} /></div>}
       {biz.missing && (

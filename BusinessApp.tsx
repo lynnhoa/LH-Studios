@@ -3,7 +3,8 @@
 // business lynnhoa, collected for the tax return — modelled on Casa Castel's Maintenance
 // (numbers worked out by date, receipts with their file, returns as their own line).
 // Same frame as the other apps: logo header, nav tabs, account menu with all apps.
-// Build 1: Costs (one-off receipts by month). Trips, Events and the Dashboard come next.
+// Build 2: Trips and Events (cards with their receipts, meal allowance, km and the report PDF)
+// next to Costs (one-off receipts by month). The Dashboard comes with a later build.
 // The year (the strip under every tab's title) is kept while the app is open.
 // Phone, iPad and desktop layouts.
 // ───────────────────────────────────────────────────────────
@@ -14,14 +15,16 @@ import { C, SANS, SERIF, TYPE, BREAKPOINT, WIDE } from "./constants";
 import { AvatarMenu, NavTab, appItems, AppHeader } from "./AppNav";
 import { UndoBar } from "./undo";
 import { useBusiness } from "./useBusiness";
-import { yearOf, countedOf } from "./business";
+import { yearOf, caseYear, yearTotals } from "./business";
 import BusinessCosts from "./BusinessCosts";
-import { YearStrip, ComingCard, kuOf } from "./BusinessParts";
+import BusinessCases from "./BusinessCases";
+import { ComingCard, kuOf } from "./BusinessParts";
 import type { Role } from "./types";
 
 interface BusinessAppProps {
   userId:   string | null;
   settings: any;
+  clients?: any[];            // Manager's clients (a trip's or event's client / project)
   signOut:  () => Promise<void>;
   switchTo: (r: Role) => void;
   banners?: ReactNode;
@@ -30,7 +33,7 @@ interface BusinessAppProps {
 type Tab = "dashboard" | "trips" | "events" | "costs";
 const TAB_KEY = "lh_business_tab", YEAR_KEY = "lh_business_year";
 
-export default function BusinessApp({ userId, settings, signOut, switchTo, banners }: BusinessAppProps) {
+export default function BusinessApp({ userId, settings, clients = [], signOut, switchTo, banners }: BusinessAppProps) {
   const biz = useBusiness(userId);
   const thisYear = new Date().getFullYear();
   const [tab, setTab] = useState<Tab>(() => { try { const t = sessionStorage.getItem(TAB_KEY); return t === "dashboard" || t === "trips" || t === "events" ? t : "costs"; } catch { return "costs"; } });
@@ -50,13 +53,11 @@ export default function BusinessApp({ userId, settings, signOut, switchTo, banne
   const years = useMemo(() => {
     const s = new Set<number>([thisYear]);
     biz.costs.forEach(c => { const y = yearOf(c.date); if (y) s.add(y); });
+    biz.cases.forEach(x => { const y = caseYear(x); if (y) s.add(y); });
     return [...s].sort((a, b) => a - b);
-  }, [biz.costs, thisYear]);
+  }, [biz.costs, biz.cases, thisYear]);
   const ku = kuOf(settings);
-  const catOf = (id: string | null) => biz.cats.find(c => c.id === id) || null;
-  const ofYear = biz.costs.filter(c => yearOf(c.date) === year);
-  const total = ofYear.reduce((s, c) => s + c.amount, 0);
-  const counted = ofYear.reduce((s, c) => s + countedOf(c, catOf(c.categoryId), ku), 0);
+  const totals = useMemo(() => yearTotals(year, biz.costs, biz.cases, biz.cats, ku), [year, biz.costs, biz.cases, biz.cats, ku]);
 
   const avatar = (dropLeft: boolean) => (
     <AvatarMenu settings={settings} roleLabel="Business" dropLeft={dropLeft} items={[]}
@@ -68,7 +69,6 @@ export default function BusinessApp({ userId, settings, signOut, switchTo, banne
   const coming = (t: string, line: string) => (
     <div style={{ fontFamily: SANS, color: C.black }}>
       {title(t)}
-      {t !== "Dashboard" && <YearStrip years={years} year={year} setYear={setYear} total={total} counted={counted} />}
       <ComingCard title="Comes with the next build" text={line} />
     </div>
   );
@@ -84,11 +84,10 @@ export default function BusinessApp({ userId, settings, signOut, switchTo, banne
       <div style={{ maxWidth: isWide ? 1200 : 960, margin: "0 auto", padding: isMobile ? "14px 14px 28px" : "24px 20px 40px" }}>
         {banners}
         {tab === "costs"
-          ? <BusinessCosts biz={biz} settings={settings} isMobile={isMobile} year={year} setYear={setYear} years={years} />
-          : tab === "trips"
-          ? coming("Trips", "Each trip with its receipts (T1.1, T1.2 …), the worked-out meal allowance and the trip report.")
-          : tab === "events"
-          ? coming("Events", "Each event with its receipts (E1.1, E1.2 …) and the event report.")
+          ? <BusinessCosts biz={biz} settings={settings} isMobile={isMobile} year={year} setYear={setYear} years={years} totals={totals} />
+          : tab === "trips" || tab === "events"
+          ? <BusinessCases key={tab} kind={tab === "trips" ? "trip" : "event"} biz={biz} settings={settings} clients={clients} isMobile={isMobile}
+              year={year} setYear={setYear} years={years} totals={totals} />
           : coming("Dashboard", "The read-only overview: the year's costs by month and category, and the profit preview.")}
       </div>
       <UndoBar />
