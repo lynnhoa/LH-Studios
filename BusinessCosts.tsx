@@ -16,14 +16,16 @@ import { numbersOf, yearOf, monthOf, sortCosts } from "./business";
 import type { BizCost } from "./business";
 import type { BusinessHook } from "./useBusiness";
 import ReceiptWindow from "./BusinessReceipt";
-import { BizIco, BIZ_IC, YearStrip, kuOf } from "./BusinessParts";
+import { BizIco, BIZ_IC, YearStrip, kuOf, smallLink } from "./BusinessParts";
 
 type F = "all" | "nofile";
 
-export default function BusinessCosts({ biz, settings, isMobile, year, setYear, years, totals, actions }: {
+export default function BusinessCosts({ biz, settings, isMobile, year, setYear, years, totals, actions, strip, onCopyPrompt }: {
   biz: BusinessHook; settings: any; isMobile: boolean; year: number; setYear: (y: number) => void; years: number[];
   totals: { total: number; counted: number };      // the strip: every tab of the year
   actions?: any;                                    // the strip's PDF · Invoices · Excel
+  strip?: any;                                      // Close year / Reopen
+  onCopyPrompt?: () => void;                        // a receipt photo → Claude → SQL
 }) {
   const ku = kuOf(settings);
   const [f, setF] = useState<F>("all");
@@ -67,7 +69,7 @@ export default function BusinessCosts({ biz, settings, isMobile, year, setYear, 
         <PillBtn dark onClick={() => setWin({ id: null })}><BizIco d="M12 5v14M5 12h14" size={13} />Add cost</PillBtn>
       </div>
 
-      <YearStrip years={years} year={year} setYear={setYear} total={totals.total} counted={totals.counted} actions={actions} />
+      <YearStrip years={years} year={year} setYear={setYear} total={totals.total} counted={totals.counted} actions={actions} {...strip} />
 
       {biz.loadError && !biz.missing && <div style={{ marginTop: 12 }}><LoadErrorBanner what="Costs" message={biz.loadError} onRetry={biz.reload} /></div>}
       {biz.missing && (
@@ -77,10 +79,13 @@ export default function BusinessCosts({ biz, settings, isMobile, year, setYear, 
       )}
 
       {!biz.missing && (
-        <ChipRow s={{ marginTop: 12 }}>
-          <Chip on={f === "all"} tone={PAL.neutral} dot={false} label="All" count={oneOff.length} onClick={() => setF("all")} />
-          <Chip on={f === "nofile"} tone={PAL.waiting} label="No file" count={noFile.length} onClick={() => setF("nofile")} />
-        </ChipRow>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+          <ChipRow s={{ flex: 1, minWidth: 0 }}>
+            <Chip on={f === "all"} tone={PAL.neutral} dot={false} label="All" count={oneOff.length} onClick={() => setF("all")} />
+            <Chip on={f === "nofile"} tone={PAL.waiting} label="No file" count={noFile.length} onClick={() => setF("nofile")} />
+          </ChipRow>
+          {onCopyPrompt && <button onClick={onCopyPrompt} style={{ ...smallLink, flexShrink: 0 }}>Copy prompt</button>}
+        </div>
       )}
 
       {!biz.loading && !biz.missing && !biz.loadError && shown.length === 0 && (

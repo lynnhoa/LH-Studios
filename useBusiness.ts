@@ -13,7 +13,7 @@ import { registerReloader } from "./saveStatus";
 import { toSignedPdf } from "./signedPdf";
 import { isMobileDevice } from "./PDFExport";
 import { fmtD } from "./formatters";
-import { catFromRow, costFromRow, caseFromRow, costToRow, caseToRow, BIZ_BUCKET } from "./business";
+import { catFromRow, costFromRow, caseFromRow, costToRow, caseToRow, catToRow, BIZ_BUCKET } from "./business";
 import type { BizCategory, BizCost, BizCase } from "./business";
 
 const fail = (error: any) => { if (error) throw new Error(error.message || "Couldn't save."); };
@@ -60,6 +60,7 @@ export function useBusiness(userId: string | null) {
   const [loading,   setLoading]   = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [missing,   setMissing]   = useState(false);
+  const [closed,    setClosed]    = useState<number[]>([]);     // closed years (their numbers are kept)
 
   const load = useCallback(async () => {
     if (!userId) { setCats([]); setCases([]); setCosts([]); setLoading(false); return; }
@@ -79,6 +80,9 @@ export function useBusiness(userId: string | null) {
       setCases((b?.data || []).map(caseFromRow));
       setCosts((c?.data || []).map(costFromRow));
     }
+    // closed years — a missing table (build-4 SQL not run yet) just means none
+    const y: any = await supabase.from("biz_years").select("year").eq("user_id", userId);
+    setClosed(y?.error ? [] : (y?.data || []).map((r: any) => Number(r.year)).filter(Boolean));
     setLoading(false);
   }, [userId]);
 
@@ -213,8 +217,71 @@ export function useBusiness(userId: string | null) {
     return next;
   }, [updateCase]);
 
-  return { cats, cases, costs, loading, loadError, missing, reload: load, addCost, updateCost, removeCost, attachFile, removeFile, openFile,
-    addCase, updateCase, removeCase, addPhotos, removePhoto };
+  // ── Close year: its numbers are written onto its rows (one database call) ──
+  const NEED4 = "Run the Business SQL for Close year (build 4) in Supabase once.";
+  const setNumbers = useCallback(async (list: { costs: { id: string; no: string | null }[]; cases: { id: string; no: string | null }[] }) => {
+    const r: any = await supabase.rpc("biz_set_numbers", { p_costs: list.costs, p_cases: list.cases });
+    if (r?.error) throw new Error(/biz_set_numbers|function|schema cache/i.test(r.error.message || "") ? NEED4 : r.error.message);
+    const c = new Map(list.costs.map(x => [x.id, x.no])), k = new Map(list.cases.map(x => [x.id, x.no]));
+    setCosts(prev => prev.map(x => (c.has(x.id) ? { ...x, noFrozen: c.get(x.id) || null } : x)));
+    setCases(prev => prev.map(x => (k.has(x.id) ? { ...x, noFrozen: k.get(x.id) || null } : x)));
+  }, []);
+  const closeYear = useCallback(async (year: number, list: { costs: { id: string; no: string | null }[]; cases: { id: string; no: string | null }[] }) => {
+    await setNumbers(list);
+    const { error } = await supabase.from("biz_years").insert({ user_id: userId, year });
+    if (error && !/duplicate/i.test(error.message || "")) {
+      await setNumbers({ costs: list.costs.map(x => ({ id: x.id, no: null })), cases: list.cases.map(x => ({ id: x.id, no: null })) });
+      throw new Error(/biz_years/.test(error.message || "") ? NEED4 : error.message);
+    }
+    setClosed(prev => [...new Set([...prev, year])]);
+  }, [userId, setNumbers]);
+  const reopenYear = useCallback(async (year: number, ids: { costs: string[]; cases: string[] }) => {
+    const { error } = await supabase.from("biz_years").delete().eq("user_id", userId).eq("year", year);
+    fail(error);
+    await setNumbers({ costs: ids.costs.map(id => ({ id, no: null })), cases: ids.cases.map(id => ({ id, no: null })) });
+    setClosed(prev => prev.filter(y => y !== year));
+  }, [userId, setNumbers]);
+
+  // ── Categories (Setup) ─────────────────────────────────────
+  const addCat = useCallback(async (draft: Partial<BizCategory>): Promise<BizCategory> => {
+    const sort = Math.max(0, ...cats.map(c => c.sort)) + 1;
+    const { data, error } = await supabase.from("biz_categories").insert({ user_id: userId, sort, ...catToRow(draft) }).select().single();
+    fail(error);
+    const cat = catFromRow(data);
+    setCats(prev => [...prev, cat]);
+    return cat;
+  }, [userId, cats]);
+  const updateCat = useCallback(async (id: string, patch: Partial<BizCategory>) => {
+    const { data, error } = await supabase.from("biz_categories").update(catToRow(patch)).eq("id", id).eq("user_id", userId).select().single();
+    fail(error);
+    const cat = catFromRow(data);
+    setCats(prev => prev.map(c => (c.id === id ? cat : c)));
+  }, [userId]);
+  // its receipts move to the category you pick first
+  const removeCat = useCallback(async (id: string, moveTo: string | null) => {
+    if (moveTo) {
+      const { error } = await supabase.from("biz_costs").update({ category_id: moveTo, updated_at: new Date().toISOString() }).eq("user_id", userId).eq("category_id", id);
+      fail(error);
+    }
+    const { error } = await supabase.from("biz_categories").delete().eq("id", id).eq("user_id", userId);
+    fail(error);
+    setCosts(prev => prev.map(c => (c.categoryId === id ? { ...c, categoryId: moveTo } : c)));
+    setCats(prev => prev.filter(c => c.id !== id));
+  }, [userId]);
+  // ↑ ↓: the two swap places (saved at once)
+  const moveCat = useCallback(async (i: number, dir: -1 | 1) => {
+    const list = [...cats].sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));
+    const a = list[i], b = list[i + dir];
+    if (!a || !b) return;
+    const sa = a.sort === b.sort ? i + 1 : a.sort, sb = a.sort === b.sort ? i + 1 + dir : b.sort;
+    setCats(prev => prev.map(c => (c.id === a.id ? { ...c, sort: sb } : c.id === b.id ? { ...c, sort: sa } : c)));
+    const r1 = await supabase.from("biz_categories").update({ sort: sb }).eq("id", a.id).eq("user_id", userId);
+    const r2 = await supabase.from("biz_categories").update({ sort: sa }).eq("id", b.id).eq("user_id", userId);
+    if (r1.error || r2.error) { load(); fail(r1.error || r2.error); }
+  }, [cats, userId, load]);
+
+  return { cats, cases, costs, loading, loadError, missing, closed, reload: load, addCost, updateCost, removeCost, attachFile, removeFile, openFile,
+    addCase, updateCase, removeCase, addPhotos, removePhoto, closeYear, reopenYear, addCat, updateCat, removeCat, moveCat };
 }
 
 export type BusinessHook = ReturnType<typeof useBusiness>;

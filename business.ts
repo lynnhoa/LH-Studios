@@ -8,6 +8,8 @@
 //   trips           T1 · T1.1, T1.2 …   per year by start date, receipts by date
 //   events          E1 · E1.1 …         the same
 //   (same date: the one added first comes first)
+// A closed year keeps its numbers (stored on each row); what is added later gets the next free
+// number of its series — so the files already sent to the tax advisor stay right.
 // A return is its own line on its own date and points to its receipt (↩ K28);
 // its amount is stored negative.
 //
@@ -48,6 +50,7 @@ export interface BizCost {
   returnOf: string | null;
   anlass: string; guests: string; recipient: string;
   filePath: string | null; fileName: string | null; filePages: number | null;
+  noFrozen: string | null;    // the number kept by a closed year
   createdAt: string;
 }
 export interface BizCase {
@@ -56,7 +59,7 @@ export interface BizCase {
   purpose: string; account: BizAccount; client: string; guests: string;
   meals: Record<string, { b?: boolean; l?: boolean; d?: boolean }>;
   km: number; abroadFull: number | null; abroadPart: number | null;
-  report: any; createdAt: string;
+  report: any; noFrozen: string | null; createdAt: string;
 }
 
 export const BIZ_BUCKET = "business-receipts";
@@ -81,7 +84,7 @@ export const costFromRow = (r: any): BizCost => ({
   receiptNo: txt(r.receipt_no), sharePct: numOrNull(r.share_pct), returnOf: r.return_of ?? null,
   anlass: txt(r.anlass), guests: txt(r.guests), recipient: txt(r.recipient),
   filePath: r.file_path ?? null, fileName: r.file_name ?? null, filePages: numOrNull(r.file_pages),
-  createdAt: txt(r.created_at),
+  noFrozen: r.no_frozen || null, createdAt: txt(r.created_at),
 });
 
 export const caseFromRow = (r: any): BizCase => ({
@@ -90,8 +93,19 @@ export const caseFromRow = (r: any): BizCase => ({
   purpose: txt(r.purpose), account: (["lynnhoa", "createbylynn"].includes(r.account) ? r.account : "general") as BizAccount,
   client: txt(r.client), guests: txt(r.guests), meals: r.meals && typeof r.meals === "object" ? r.meals : {},
   km: Number(r.km) || 0, abroadFull: numOrNull(r.abroad_full), abroadPart: numOrNull(r.abroad_part),
-  report: r.report && typeof r.report === "object" ? r.report : {}, createdAt: txt(r.created_at),
+  report: r.report && typeof r.report === "object" ? r.report : {}, noFrozen: r.no_frozen || null, createdAt: txt(r.created_at),
 });
+
+export function catToRow(c: Partial<BizCategory>): any {
+  const row: any = {};
+  if (c.name      !== undefined) row.name       = c.name.trim();
+  if (c.group     !== undefined) row.euer_group = c.group.trim();
+  if (c.countsPct !== undefined) row.counts_pct = Math.min(100, Math.max(0, r2(c.countsPct)));
+  if (c.sharePct  !== undefined) row.share_pct  = Math.min(100, Math.max(0, r2(c.sharePct)));
+  if (c.kind      !== undefined) row.kind       = c.kind;
+  if (c.sort      !== undefined) row.sort       = c.sort;
+  return row;
+}
 
 // only the fields that are given (an update sends just what changed)
 export function costToRow(c: Partial<BizCost>): any {
@@ -121,23 +135,48 @@ const cmpCase = (a: BizCase, b: BizCase) => caseDay(a).localeCompare(caseDay(b))
 export const sortCosts = (list: BizCost[]) => [...list].sort(cmpCost);
 export const sortCases = (list: BizCase[]) => [...list].sort(cmpCase);
 
-// id → "K31" · "T3" · "T3.2" · "E2.1"
+// id → "K31" · "T3" · "T3.2" · "E2.1" (a closed year: its kept numbers, later ones after them)
+const kept = (no: string | null, re: RegExp) => { const m = String(no || "").match(re); return m ? Number(m[1]) : null; };
 export function numbersOf(costs: BizCost[], cases: BizCase[]): Map<string, string> {
   const m = new Map<string, string>();
   const byYear = new Map<number, BizCost[]>();
   costs.filter(c => !c.caseId).forEach(c => { const y = yearOf(c.date); if (!byYear.has(y)) byYear.set(y, []); byYear.get(y)!.push(c); });
-  byYear.forEach(list => sortCosts(list).forEach((c, i) => m.set(c.id, `K${i + 1}`)));
+  byYear.forEach(list => {
+    const reK = /^K(\d+)$/;
+    let next = Math.max(0, ...list.map(c => kept(c.noFrozen, reK) || 0));
+    list.forEach(c => { if (kept(c.noFrozen, reK) !== null) m.set(c.id, c.noFrozen!); });
+    sortCosts(list.filter(c => kept(c.noFrozen, reK) === null)).forEach(c => m.set(c.id, `K${++next}`));
+  });
   (["trip", "event"] as CaseKind[]).forEach(kind => {
     const letter = kind === "trip" ? "T" : "E";
+    const reC = new RegExp(`^${letter}(\\d+)$`);
     const groups = new Map<number, BizCase[]>();
     cases.filter(x => x.kind === kind).forEach(x => { const y = yearOf(caseDay(x)); if (!groups.has(y)) groups.set(y, []); groups.get(y)!.push(x); });
-    groups.forEach(list => sortCases(list).forEach((x, i) => {
-      const no = `${letter}${i + 1}`;
-      m.set(x.id, no);
-      sortCosts(costs.filter(c => c.caseId === x.id)).forEach((c, k) => m.set(c.id, `${no}.${k + 1}`));
-    }));
+    groups.forEach(list => {
+      let next = Math.max(0, ...list.map(x => kept(x.noFrozen, reC) || 0));
+      const order = [...list.filter(x => kept(x.noFrozen, reC) !== null), ...sortCases(list.filter(x => kept(x.noFrozen, reC) === null))];
+      order.forEach(x => {
+        const no = kept(x.noFrozen, reC) !== null ? x.noFrozen! : `${letter}${++next}`;
+        m.set(x.id, no);
+        const reR = new RegExp(`^${no.replace(".", "\\.")}\\.(\\d+)$`);
+        const mine = costs.filter(c => c.caseId === x.id);
+        let sub = Math.max(0, ...mine.map(c => kept(c.noFrozen, reR) || 0));
+        mine.forEach(c => { if (kept(c.noFrozen, reR) !== null) m.set(c.id, c.noFrozen!); });
+        sortCosts(mine.filter(c => kept(c.noFrozen, reR) === null)).forEach(c => m.set(c.id, `${no}.${++sub}`));
+      });
+    });
   });
   return m;
+}
+// what closing a year writes down: the numbers of its one-off costs, its trips / events and their receipts
+export function numbersOfYear(year: number, costs: BizCost[], cases: BizCase[]) {
+  const m = numbersOf(costs, cases);
+  const yc = cases.filter(x => yearOf(caseDay(x)) === year);
+  const ids = new Set(yc.map(x => x.id));
+  return {
+    costs: costs.filter(c => (c.caseId ? ids.has(c.caseId) : yearOf(c.date) === year)).map(c => ({ id: c.id, no: m.get(c.id) || null })),
+    cases: yc.map(x => ({ id: x.id, no: m.get(x.id) || null })),
+  };
 }
 
 // ── Amounts ──────────────────────────────────────────────────
@@ -245,4 +284,33 @@ export function dateRange(from: string, to: string): string {
   if (!from) return "";
   if (!to || to === from) return `${f(from)}${from.slice(0, 4)}`;
   return from.slice(0, 4) === to.slice(0, 4) ? `${f(from)}–${f(to)}${to.slice(0, 4)}` : `${f(from)}${from.slice(0, 4)}–${f(to)}${to.slice(0, 4)}`;
+}
+
+// ── Copy prompt: a photo of a receipt → Claude → SQL to paste in Supabase (like Maintenance) ──
+export function receiptPrompt(p: { userId: string; x?: BizCase | null; no?: string; cats: BizCategory[]; ku: boolean }): string {
+  const cats = [...p.cats].sort((a, b) => a.sort - b.sort)
+    .map(c => `  '${c.id}' = ${c.name}${c.group ? ` (${c.group})` : ""}${c.kind === "bewirtung" ? " — a business meal" : c.kind === "geschenk" ? " — a gift" : ""}`).join("\n");
+  const where = p.x
+    ? `'${p.x.id}' — ${p.x.kind === "trip" ? "the trip" : "the event"} ${p.no || ""} · ${p.x.title}${p.x.startDate ? ` · ${dateRange(p.x.startDate, p.x.endDate)}` : ""}`
+    : "null — a one-off cost (not part of a trip or event)";
+  return [
+    "Read the receipt photo(s) I attach and write SQL for Supabase (SQL Editor) that adds each receipt to the Business app of LH Studio.",
+    "",
+    "Table public.biz_costs, one row per receipt. Fill these columns:",
+    `- user_id: '${p.userId}'`,
+    `- case_id: ${where}`,
+    "- date: the receipt date as 'YYYY-MM-DD'",
+    "- what: a short description in English (e.g. 'Canva Pro, yearly')",
+    "- vendor: the shop or company",
+    "- amount: the total paid in € (gross), a dot as decimal separator; a refund is negative",
+    p.ku ? "- vat_rate: null (Kleinunternehmer, § 19 UStG)" : "- vat_rate: 19, 7 or 0 as printed on the receipt",
+    "- receipt_no: the invoice or order number, '' if there is none",
+    "- category_id: the best fit of",
+    cats,
+    "- anlass and guests: only for a business meal — the occasion and who was there, if you can tell; else ''",
+    "- recipient: only for a gift — who got it; else ''",
+    "",
+    "Write one insert for all receipts, then a select that shows the new rows. No other text.",
+    "(The receipt files are added in the app afterwards — those rows show \"No file\" until then.)",
+  ].join("\n");
 }

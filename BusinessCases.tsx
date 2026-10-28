@@ -5,7 +5,7 @@
 //   its receipts (T3.1, T3.2 … — tap = the receipt window), for a trip the
 //   worked-out meal allowance and the own-car km, then the buttons
 //   Trip report / Event report · Cost overview · Invoices (German PDFs) and the links
-//   + Add receipt · Trip details.
+//   + Add receipt · Trip details · Copy prompt (a receipt photo → Claude → SQL).
 // + Add trip opens the trip window empty; after Add the new card is open.
 // ─────────────────────────────────────────────────────────────
 
@@ -32,10 +32,11 @@ const link: any = {
 };
 const accTone = (a: string) => (a === "lynnhoa" ? PAL.lynnhoa : a === "createbylynn" ? PAL.createbylynn : PAL.neutral);
 
-export default function BusinessCases({ kind, biz, settings, clients, isMobile, year, setYear, years, totals, actions, busy, onCaseExport }: {
+export default function BusinessCases({ kind, biz, settings, clients, isMobile, year, setYear, years, totals, actions, busy, onCaseExport, strip, onCopyPrompt }: {
   kind: CaseKind; biz: BusinessHook; settings: any; clients: any[]; isMobile: boolean;
   year: number; setYear: (y: number) => void; years: number[]; totals: { total: number; counted: number };
   actions?: any; busy?: string | null; onCaseExport?: (kind: "pdf" | "invoices", id: string) => void;
+  strip?: any; onCopyPrompt?: (caseId: string) => void;
 }) {
   const ku = kuOf(settings);
   const trip = kind === "trip";
@@ -117,6 +118,7 @@ export default function BusinessCases({ kind, biz, settings, clients, isMobile, 
             <div style={{ display: "flex", gap: 16, padding: "8px 12px 12px 52px" }}>
               <button style={link} onClick={() => setWin({ t: "receipt", id: null, caseId: x.id })}>+ Add receipt</button>
               <button style={link} onClick={() => setWin({ t: "case", id: x.id })}>{trip ? "Trip details" : "Event details"}</button>
+              {onCopyPrompt && <button style={link} onClick={() => onCopyPrompt(x.id)}>Copy prompt</button>}
             </div>
           </>
         )}
@@ -135,7 +137,7 @@ export default function BusinessCases({ kind, biz, settings, clients, isMobile, 
         <PillBtn dark onClick={() => setWin({ t: "case", id: null })}><BizIco d={BIZ_IC.plus} size={13} />Add {word}</PillBtn>
       </div>
 
-      <YearStrip years={years} year={year} setYear={setYear} total={totals.total} counted={totals.counted} actions={actions} />
+      <YearStrip years={years} year={year} setYear={setYear} total={totals.total} counted={totals.counted} actions={actions} {...strip} />
 
       {biz.loadError && !biz.missing && <div style={{ marginTop: 12 }}><LoadErrorBanner what={trip ? "Trips" : "Events"} message={biz.loadError} onRetry={biz.reload} /></div>}
       {biz.missing && (

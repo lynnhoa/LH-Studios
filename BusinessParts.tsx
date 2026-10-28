@@ -4,14 +4,15 @@
 //   YearStrip  under each tab's title, the same in all tabs (like
 //              Maintenance's strip): ‹ year › · the year's costs of all
 //              tabs (receipts + the trips' meal allowance and km) · what
-//              counts · PDF · Invoices · Excel (each: the whole year or a month).
+//              counts · PDF · Invoices · Excel (each: the whole year or a month) ·
+//              Close year (its numbers are kept) / closed ✓ Reopen.
 //   ComingCard a tab that comes with a later build.
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useRef } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { C, SANS, TYPE, SPACING, RADIUS, SHADOW, Z } from "./constants";
+import { C, SANS, TYPE, SPACING, RADIUS, SHADOW, Z, PAL } from "./constants";
 import { ListCard, SwitchPill, PillBtn } from "./atoms";
 import { fmt } from "./formatters";
 
@@ -36,11 +37,18 @@ export const BIZ_IC = {
   plus:    "M12 5v14M5 12h14",
 };
 
+// the small underlined links (like Setup's Sort · + Add)
+export const smallLink: any = {
+  background: "none", border: "none", padding: "6px 0", margin: "-6px 0", cursor: "pointer", fontFamily: SANS, fontSize: SPACING.listMeta,
+  color: PAL.neutral.ink, textDecoration: "underline", textUnderlineOffset: 2, WebkitTapHighlightColor: "transparent",
+};
+
 // § 19 on (the profile's switch; on unless switched off — like the Manager dashboard)
 export const kuOf = (settings: any) => settings?.kleinunternehmer !== false && settings?.kleinunternehmer !== "false";
 
-export function YearStrip({ years, year, setYear, total, counted, actions }: {
+export function YearStrip({ years, year, setYear, total, counted, actions, closed, onCloseYear, onReopenYear }: {
   years: number[]; year: number; setYear: (y: number) => void; total: number; counted: number; actions?: ReactNode;
+  closed?: boolean; onCloseYear?: () => void; onReopenYear?: () => void;
 }) {
   const i = years.indexOf(year);
   const prev = i > 0 ? years[i - 1] : undefined, next = i >= 0 && i < years.length - 1 ? years[i + 1] : undefined;
@@ -53,6 +61,9 @@ export function YearStrip({ years, year, setYear, total, counted, actions }: {
       <SwitchPill>{btn("Previous year", prev, "‹")}<span style={{ minWidth: 40, textAlign: "center" as const }}>{year}</span>{btn("Next year", next, "›")}</SwitchPill>
       <span style={{ flex: 1, minWidth: 120, fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.35, fontFamily: SANS }}>
         All tabs <span style={{ color: C.black, fontSize: TYPE.row.size }}>{fmt(total)}</span><br />counts {fmt(counted)}
+        {(onCloseYear || onReopenYear) && (closed
+          ? <> · <span style={{ color: PAL.done.ink }}>closed ✓</span> <button onClick={onReopenYear} style={smallLink}>Reopen</button></>
+          : <> · <button onClick={onCloseYear} style={smallLink}>Close year</button></>)}
       </span>
       {actions && <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" as const }}>{actions}</span>}
     </ListCard>

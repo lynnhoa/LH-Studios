@@ -1,3 +1,24 @@
+# Business · build 4: Dashboard · Setup · Copy prompt · Close year (28.10.2026)
+- **Dashboard** (first tab, read only, the Manager dashboard's parts): Costs <year> — all tabs, month
+  bars, "Counts · …" with its share (and the Vorsteuer without § 19) · This year — Trips, Events,
+  Costs and Profit preview (Manager's paid revenue, net, minus what counts) · By category, the
+  biggest first (meal allowance and own car included, the rest as Others). Every card opens its
+  tab. The app now opens on the Dashboard.
+- **Setup** (profile menu › This app › Setup, like Outreach): the categories — name · tax group
+  (EÜR, German) · what counts · business share · kind (normal · business meal · gift · equipment)
+  · receipts using it. + Add · Sort ↑ ↓ (saved at once; the receipt window's order) · ⋯ Delete:
+  its receipts move to the category you pick.
+- **Copy prompt** (Costs, and each trip's / event's card): copies a prompt with your id, the trip /
+  event and the category list — send it to Claude with the receipt photo and paste the SQL that
+  comes back in Supabase. The rows show "No file" until the PDF is added in the app.
+- **Close year** (in the strip): its numbers are written onto every receipt, trip and event of
+  the year, so the files already sent stay right; what's added later gets the next free number
+  (an older receipt after K3 → K4). "closed ✓ · Reopen" works the numbers out by date again.
+- Needs the build-4 SQL once (it's posted in the chat): `no_frozen` on biz_costs and biz_cases,
+  the table biz_years and the function biz_set_numbers.
+- New: `BusinessDashboard.tsx`, `BusinessSetup.tsx`. Changed: `business.ts`, `useBusiness.ts`,
+  `BusinessApp.tsx`, `BusinessParts.tsx`, `BusinessCosts.tsx`, `BusinessCases.tsx`.
+
 # Business · build 3: the bookkeeping files (28.10.2026)
 - **The strip** under every tab's title has PDF · Invoices · Excel. Each opens a small menu: the
   whole year or one of its months with costs (newest first). **A trip's / event's card** has
