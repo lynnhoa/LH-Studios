@@ -661,8 +661,34 @@ export const MAIN_AREAS: MainArea[] = [
     ] },
   ] },
   { key: "travel", label: "Travel", title: "Travel", chapters: [
-    { name: "City Break", desc: "Short trips, city experiences, outfits, restaurants and activities" },
-    { name: "Long Trip",  desc: "Longer holidays, travel experiences, packing, destinations and daily life away" },
+    { name: "City Break", desc: "Short trips, city experiences, outfits, restaurants and activities", arcs: [
+      { arc: "The Before",  note: "Getting ready and the excitement of going", formats: ["GRWM Talking", "Voiceover", "Presence + Text", "Transition"] },
+      { arc: "The Look",    note: "The trip outfits revealed", formats: ["Outfit Check", "Walk + Text"] },
+      { arc: "The Moment",  note: "Being there and capturing the city", formats: ["Walk + Text", "TikTok Trends", "Lip Sync Song", "Selfie Reaction"] },
+      { arc: "The Opinion", note: "Your honest take on restaurants, places and activities", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+      { arc: "The Story",   note: "The whole trip with a payoff", formats: ["Vlog", "GRWM Talking", "Voiceover"] },
+    ] },
+    { name: "Long Trip", desc: "Longer holidays, destinations and daily life away", arcs: [
+      { arc: "The Before",    note: "Getting ready for the day out", formats: ["GRWM Talking", "Voiceover", "Presence + Text", "Lip Sync Song"] },
+      { arc: "The Look",      note: "The outfit of the day", formats: ["Outfit Check", "Walk + Text"] },
+      { arc: "The Moment",    note: "Being out and capturing the scene", formats: ["Walk + Text", "TikTok Trends", "Lip Sync Song", "Selfie Reaction", "Presence + Text"] },
+      { arc: "The Obsession", note: "What you fall for there (the place, the food, the feeling)", formats: ["Presence + Text", "Lip Sync Song", "Voiceover"] },
+      { arc: "The Story",     note: "The day or the stop, with a payoff", formats: ["Vlog", "GRWM Talking", "Voiceover"] },
+    ] },
+    { name: "Occasion", desc: "Birthdays, dinners and events on a city break or long trip", arcs: [
+      { arc: "The Obsession", note: "The occasion piece or plan you can't stop thinking about", formats: ["Presence + Text", "Lip Sync Song"] },
+      { arc: "The Before",    note: "Getting ready and the build-up before you go", formats: ["GRWM Talking", "Voiceover", "Presence + Text", "Lip Sync Song", "Transition"] },
+      { arc: "The Look",      note: "The occasion outfit revealed", formats: ["Outfit Check", "Walk + Text"] },
+      { arc: "The Moment",    note: "Being there and capturing the scene", formats: ["Walk + Text", "TikTok Trends", "Lip Sync Song", "Selfie Reaction"] },
+      { arc: "The Story",     note: "The whole evening, with a payoff", formats: ["Vlog", "GRWM Talking", "Voiceover"] },
+    ] },
+    { name: "Maintenance", desc: "Nails, hair, lashes and spa appointments while away", arcs: [
+      { arc: "The Obsession", note: "The teaser, wanting it done there", formats: ["Presence + Text", "Lip Sync Song"] },
+      { arc: "The Moment",    note: "Being at the appointment", formats: ["Presence + Text", "Selfie Reaction", "TikTok Trends"] },
+      { arc: "The Look",      note: "The reveal of the fresh look", formats: ["Transition", "Outfit Check"] },
+      { arc: "The Opinion",   note: "Your honest take on getting it done abroad", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+      { arc: "The Story",     note: "How it turned out and the result", formats: ["Vlog", "Selfie Reaction + Result"] },
+    ] },
   ] },
   { key: "work", label: "Work", title: "Brand Work", chapters: [
     { name: "Invited",       desc: "Brand invitations, events, hosted experiences" },

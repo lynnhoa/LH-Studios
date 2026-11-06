@@ -42,7 +42,18 @@ These define where the content takes place and what kind of activity or experien
 | Phase | What belongs here |
 |---|---|
 | City Break | Short trips, city experiences, outfits, restaurants and activities |
-| Long Trip | Longer holidays, travel experiences, packing, destinations and daily life away |
+| Long Trip | Longer holidays, destinations and daily life away |
+| Occasion | Birthdays, dinners and events on a city break or long trip |
+| Maintenance | Nails, hair, lashes and spa appointments while away |
+
+Each Travel chapter with its arcs as options (3–5 each) and their formats (in the app: Travel tab, tap a chapter):
+
+| Chapter | Arcs → formats |
+|---|---|
+| 1. City Break | The Before (GRWM Talking, Voiceover, Presence + Text, Transition) · The Look (Outfit Check, Walk + Text) · The Moment (Walk + Text, TikTok Trends, Lip Sync Song, Selfie Reaction) · The Opinion (Presence + Text, Question + Reply/Reaction) · The Story (Vlog, GRWM Talking, Voiceover) |
+| 2. Long Trip | The Before (GRWM Talking, Voiceover, Presence + Text, Lip Sync Song) · The Look (Outfit Check, Walk + Text) · The Moment (Walk + Text, TikTok Trends, Lip Sync Song, Selfie Reaction, Presence + Text) · The Obsession (Presence + Text, Lip Sync Song, Voiceover) · The Story (Vlog, GRWM Talking, Voiceover) |
+| 3. Occasion | The Obsession (Presence + Text, Lip Sync Song) · The Before (GRWM Talking, Voiceover, Presence + Text, Lip Sync Song, Transition) · The Look (Outfit Check, Walk + Text) · The Moment (Walk + Text, TikTok Trends, Lip Sync Song, Selfie Reaction) · The Story (Vlog, GRWM Talking, Voiceover) |
+| 4. Maintenance | The Obsession (Presence + Text, Lip Sync Song) · The Moment (Presence + Text, Selfie Reaction, TikTok Trends) · The Look (Transition, Outfit Check) · The Opinion (Presence + Text, Question + Reply/Reaction) · The Story (Vlog, Selfie Reaction + Result) |
 
 ### Brand Work
 
