@@ -1,8 +1,9 @@
 // ─────────────────────────────────────────────────────────────
 // PlannerConcept — Planner › Content concept, opened from the
 // profile menu ("@lynnhoa concept" / "@createbylynn concept").
-//   Base | Phases | Arcs: a switch under the title — it opens on the tab you had last
-//   (remembered on this device). The line under the title says what the tab is.
+//   Base | Phases: a switch under the title, and on the same line, right, "arcs" (small and
+//   underlined, like "collapse all") — it opens the arcs. The page opens on what you had last
+//   (remembered on this device). The line under the title says what it is.
 //   Every card works the same: number · name · (open: its small links) · arrow. Open: what it
 //   is in grey, then its lists — each under one heading (small grey caps with its count and a
 //   small arrow: tap it to fold or unfold the list; what you fold stays folded on this device),
@@ -332,9 +333,9 @@ function PhaseCard({ phase, open, onToggle, onEra }: { phase: ConceptPhase; open
   );
 }
 
-// Base | Phases | Arcs (@createbylynn: Hair | Makeup & skincare | Both) — like the account switch,
-// the chosen one in warm grey
-const VIEWS: { key: ConceptView; label: string }[] = [{ key: "base", label: "Base" }, { key: "phases", label: "Phases" }, { key: "arcs", label: "Arcs" }];
+// Base | Phases — like the account switch, the chosen one in warm grey (the arcs: a small
+// button on the same line, right; while they show, neither tab is on)
+const VIEWS: { key: ConceptView; label: string }[] = [{ key: "base", label: "Base" }, { key: "phases", label: "Phases" }];
 // @createbylynn: one tab, in the same switch (so both pages have the same top)
 const CBL_VIEWS: { key: "pillars"; label: string }[] = [{ key: "pillars", label: "Pillars" }];
 function ViewSwitch<K extends string>({ options, value, onPick, label }: { options: { key: K; label: string }[]; value: K; onPick: (v: K) => void; label: string }) {
@@ -651,10 +652,14 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
     <div>
       <TabTitle title="Content concept" acc={acc} onAccount={onAccount} isMobile={isMobile} />
       <Subtitle text={seriesMode ? "What each post is about" : SUBTITLE[show]} />
-      <div style={{ marginTop: 12 }}>
+      <div style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         {seriesMode
           ? <ViewSwitch options={CBL_VIEWS} value="pillars" onPick={() => { /* one tab */ }} label="Show" />
           : <ViewSwitch options={VIEWS} value={show} onPick={pickView} label="Show" />}
+        {!seriesMode && (
+          <button type="button" aria-pressed={show === "arcs"} onClick={() => { if (show !== "arcs") pickView("arcs"); }}
+            style={{ ...mini, color: show === "arcs" ? C.black : C.muted, cursor: show === "arcs" ? "default" : "pointer" }}>arcs</button>
+        )}
       </div>
 
       {planner.loading ? note("Loading…") : seriesMode ? pillarView : show === "base" ? baseView : show === "phases" ? phasesView : arcsView}
