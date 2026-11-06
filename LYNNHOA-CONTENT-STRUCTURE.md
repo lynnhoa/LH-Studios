@@ -8,6 +8,11 @@ The structure has separate layers: your identity, the environments you create co
 
 The overall personality and world people follow: fashion, beauty, personal image, experiences, opinions and everyday life.
 
+**What I stand for: the art of being put together.** I've thought of everything, so I don't have to think when the moment comes.
+
+- Personality: particular, slightly chaotic, overthinks details, intentional
+- Rule: show the curation, not the chores
+
 ## 2. Personal Eras
 
 Longer-term developments in your personal appearance and recognisable image.
@@ -98,29 +103,27 @@ Kits & Preparation has 3 arcs, Home Projects 4, the others 5. Personality only w
 
 The full wording (each chapter's description and what each arc does there) lives in `planner.ts` (`MAIN_AREAS`).
 
-## 4. Signature Series
+## 4. Signature Series: How I …
 
-An ongoing storyline that can run through multiple Home phases.
+The title is **"How I …"**, its ending changes with the topic. Right below it, the hook: the real reason you started to curate. The video shows your curation and the result, not the chores.
 
-**Getting My Life Together** — your unfinished projects, accumulated chaos, decisions and the process of getting things sorted, with satisfying results.
+Pattern: **Hook (why I started) → Curation → Result**. Filmed as **The Edit** (Seated or Half-Body Talking). It runs only in these Home chapters:
 
-Possible chapters:
+| Chapter | Title | Hook |
+|---|---|---|
+| Maintenance | How I stay ready for anything | "I'm high maintenance so I can be low maintenance" |
+| Home Projects | How I set up my bathroom | "My bathroom made my mornings complicated" |
+| Wardrobe & Style | How I edit my wardrobe | "I had no space for new clothes" |
+| Beauty Projects | How I build my matching makeup sets | "My drawer was messy and random, I had no favourites, and I stopped enjoying makeup" |
+| Kits & Preparation | How I build my travel kit | "I used to pack at 4 AM" |
 
-- Fixing up my bedroom
-- Getting my beauty collection together
-- Sorting out my wardrobe
-- Building my permanent travel kits
+## 5. Content Package: The Outing
 
-The series is not the whole account. It is one recurring content pillar within your fashion-personality identity.
+Your package for every day out: **Before → Look → Moment**, optionally closed by **Story**. One outfit, one day out, every post stands alone.
 
-## 5. Content Packages
+Runs in: Occasion (Home and Travel) · City Break · Long Trip · Invited · Fashion Week · Shoot Day.
 
-A planned collection of posts documenting one finite project, experience or story. Two types:
-
-- **Series packages:** content packages belonging to a chapter of Getting My Life Together.
-- **Standalone packages:** independent stories such as Going Blonde, a beauty appointment, a shoot, a city trip or Paris Fashion Week.
-
-A package is essentially a curation of Arcs.
+Standalone packages (Going Blonde, a beauty appointment, a shoot, Paris Fashion Week) stay a curation of arcs too.
 
 ## 6. Arcs
 
@@ -215,7 +218,7 @@ Supporting production layers, not additional content categories.
 | Format | How the content is presented | Talking, outfit video, vlog, voiceover, editorial |
 | Setup | Where/how you film | Talking Spot, Mirror Spot, project location |
 
-Your Talking Spot can be the recognisable home base for Getting My Life Together.
+Your Talking Spot can be the recognisable home base for How I ….
 
 ## The complete hierarchy
 
@@ -225,7 +228,8 @@ Your Talking Spot can be the recognisable home base for Getting My Life Together
     - **Phases:** what kind of activity or experience is happening?
   - **Content Types**
     - Base Posts
-    - Signature Series → Chapters → Content Packages
+    - Signature Series: How I … (in The Edit)
+    - Content Package: The Outing (Before → Look → Moment)
     - Standalone Content Packages
       - Arcs → Posts (narrative approach → individual content pieces)
       - Context · Format · Setup (how the content is situated and produced)
@@ -234,4 +238,4 @@ Your Talking Spot can be the recognisable home base for Getting My Life Together
 
 ---
 
-In the app: Planner › @lynnhoa concept shows **Personal Eras | Base | Home | Travel | Work** and the **Arcs** pill. The eras and each area's phases come from `planner.ts` (`PERSONAL_ERAS`, `MAIN_AREAS`) and are empty placeholders until they're filled.
+In the app: Planner › @lynnhoa concept shows **Personal Eras | Base | Home | Travel | Work** and two pills: **Guide** (what you stand for and how it all works, 4 cards: Who I am · How I … · The Outing · How it all works) and **Arcs**. The eras and each area's phases come from `planner.ts` (`PERSONAL_ERAS`, `MAIN_AREAS`) and are empty placeholders until they're filled.

@@ -1,3 +1,15 @@
+# Planner · @lynnhoa concept: Guide (07.11.2026)
+- New pink **Guide** pill next to Arcs: your look-up page, read only. Four cards like the chapters
+  (closed: one grey line; open cards remembered on this device; "expand all" on the heading):
+  1. Who I am — the art of being put together, personality, rule.
+  2. How I … — signature series: Hook (why I started) → Curation → Result, filmed as The Edit;
+     one example per series chapter, the title on top and the hook right below.
+  3. The Outing — content package: Before → Look → Moment (Story optional) and where it runs.
+  4. How it all works — the levels as a small tree (tabs → chapter → arcs → formats · series ·
+     package), each in its own pastel, then your 4-step workflow.
+- The tabs stay what you film; Guide and Arcs are the two look-up pills.
+- No SQL needed. Changed: `planner.ts`, `PlannerConcept.tsx`, `LYNNHOA-CONTENT-STRUCTURE.md`.
+
 # Planner · @lynnhoa concept: Base holds its arcs (06.11.2026)
 - Base: "Quick personality posts that fill the gaps between chapters" — 6 blocks (Signatures ·
   Today's Outfit · New In · Thoughts · Trends · Shoot Day), each with its description, arcs and

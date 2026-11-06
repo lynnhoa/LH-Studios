@@ -773,3 +773,44 @@ export const MAIN_AREAS: MainArea[] = [
     ] },
   ] },
 ];
+
+// ─── @lynnhoa GUIDE (07.11.2026) ─────────────────────────────
+// The look-up page of the content concept (the "Guide" pill next to "Arcs"): what you stand
+// for and how it all works, read only. Four cards: Who I am · How I … (signature series, filmed
+// as The Edit) · The Outing (content package across arcs) · How it all works (the levels as a
+// tree, then the workflow). Each level keeps its own pastel, the same as on the tabs.
+export const GUIDE_TONE   = PAL.late;          // the Guide pill and "Who I am" (pink)
+export const SERIES_TONE  = PAL.createbylynn;  // How I … (peach)
+export const PACKAGE_TONE = PAL.done;          // The Outing (sage)
+export const FORMAT_TONE  = { fill: "#C6E6DA", wash: "#E1F2EC", mid: "#8FCBB4", ink: "#2F5E4E" };   // Formats (mint)
+
+export const GUIDE_WHO = {
+  title:       "The art of being put together",
+  line:        "I've thought of everything, so I don't have to think when the moment comes.",
+  personality: "particular, slightly chaotic, overthinks details, intentional",
+  rule:        "show the curation, not the chores",
+};
+// How I …: the title on top, the hook right below it (the real reason you started to curate)
+export const GUIDE_SERIES = {
+  label: "Signature series",
+  name:  "How I …",
+  where: "in The Edit",
+  steps: ["Hook: why I started", "Curation", "Result"],
+  film:  "Filmed as The Edit · Seated or Half-Body Talking",
+  examples: [
+    { chapter: "Maintenance",        title: "How I stay ready for anything",       hook: "I'm high maintenance so I can be low maintenance" },
+    { chapter: "Home Projects",      title: "How I set up my bathroom",            hook: "My bathroom made my mornings complicated" },
+    { chapter: "Wardrobe & Style",   title: "How I edit my wardrobe",              hook: "I had no space for new clothes" },
+    { chapter: "Beauty Projects",    title: "How I build my matching makeup sets", hook: "My drawer was messy and random, I had no favourites, and I stopped enjoying makeup" },
+    { chapter: "Kits & Preparation", title: "How I build my travel kit",           hook: "I used to pack at 4 AM" },
+  ],
+};
+export const GUIDE_PACKAGE = {
+  label:    "Content package",
+  name:     "The Outing",
+  steps:    ["Before", "Look", "Moment"],
+  optional: "Story, optional",
+  line:     "One outfit, one day out, every post stands alone.",
+  runsIn:   ["Occasion", "City Break", "Long Trip", "Invited", "Fashion Week", "Shoot Day"],
+};
+export const GUIDE_WORKFLOW = ["Pick where you are", "Check the badges", "Open the chapter", "Guide for the why"];

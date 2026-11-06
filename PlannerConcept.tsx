@@ -24,6 +24,12 @@
 //   Phases (butter): Home, Occasion … one card each. Open: its purpose and its eras under
 //   their group headings ("Moments · 3"; a phase without groups: "Eras · 3"). Each era shows
 //   its arcs as small numbers (blue; optional ones grey) — tap the era: its arcs window.
+//   Guide (pink pill next to "Arcs", 07.11.2026): the look-up page — what you stand for and how
+//   it all works, read only (planner.ts, GUIDE_*). Four cards like the chapters: Who I am ·
+//   How I … (signature series, filmed as The Edit: title on top, the hook right below) · The
+//   Outing (content package: Before → Look → Moment, Story optional, and where it runs) · How it
+//   all works (the levels as a small tree — tabs → chapter → arcs → formats · series · package —
+//   then the 4-step workflow). Closed: one grey line; open cards remembered on this device.
 //   Arcs (pastel blue): one card per arc. Open: its purpose and its formats with the TikTok /
 //   Instagram ticks. "texts · links" open one window each — the texts and links live there
 //   (add, change, delete with Undo, saved right away).
@@ -44,10 +50,11 @@
 // Phone: one column · iPad / computer: two columns (first half left).
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext, Fragment } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, PAL } from "./constants";
 import { SectionHead, Sheet, SheetButton, OpenArrow } from "./atoms";
-import { PERSONAL_ERAS, MAIN_AREAS, BASE_BLOCKS, BASE_NOTE, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE, conceptPhaseLabel, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel } from "./planner";
+import { PERSONAL_ERAS, MAIN_AREAS, BASE_BLOCKS, BASE_NOTE, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE, conceptPhaseLabel, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel,
+  GUIDE_TONE, SERIES_TONE, PACKAGE_TONE, FORMAT_TONE, GUIDE_WHO, GUIDE_SERIES, GUIDE_PACKAGE, GUIDE_WORKFLOW } from "./planner";
 import type { StructItem, ChapterArc, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEraArc } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
@@ -55,16 +62,17 @@ import { IC, Subtitle, TabTitle, WinHead, winCard, LineList, LinkList } from "./
 
 // remembered on this device: the tab, and the open arcs, phases and Base blocks per account
 // (none the first time)
-const VIEW_KEY    = "lh_planner_concept_view";        // Personal Eras | Base | Home | Travel | Work | Arcs
+const VIEW_KEY    = "lh_planner_concept_view";        // Personal Eras | Base | Home | Travel | Work | Guide | Arcs
 const OPEN_KEY    = "lh_planner_concept_open";
 const OPEN_BS_KEY = "lh_planner_concept_open_blocks"; // Base: by the block's key (no longer by its place)
 const OLD_BS_KEY  = "lh_planner_concept_open_base";   // the old one, by place — cleared
 const OPEN_PL_KEY = "lh_planner_concept_open_pillars"; // @createbylynn: the open pillars, by their key
 const OPEN_CH_KEY = "lh_planner_concept_open_chapters"; // a Main Area's open chapters ("home:After Trip")
+const OPEN_GD_KEY = "lh_planner_concept_open_guide";  // the Guide's open cards ("who", "series" …)
 const FOLD_KEY    = "lh_planner_concept_folded";      // the lists you folded inside cards (open unless folded)
 type OpenMap  = Partial<Record<Account, number[]>>;
 type OpenKeys = Partial<Record<Account, string[]>>;
-type ConceptView = "eras" | "base" | "home" | "travel" | "work" | "arcs";
+type ConceptView = "eras" | "base" | "home" | "travel" | "work" | "guide" | "arcs";
 const loadMap = (key: string): any => {
   try { const v = JSON.parse(localStorage.getItem(key) || "null"); if (v && typeof v === "object") return v; } catch { /* ignore */ }
   return {};
@@ -74,7 +82,7 @@ const loadView = (): ConceptView => {
   try {
     const v = localStorage.getItem(VIEW_KEY);
     if (v === "phases") return "home";                 // the old Phases tab
-    return v === "eras" || v === "base" || v === "home" || v === "travel" || v === "work" ? v : "arcs";
+    return v === "eras" || v === "base" || v === "home" || v === "travel" || v === "work" || v === "guide" ? v : "arcs";
   } catch { return "arcs"; }
 };
 
@@ -453,6 +461,7 @@ const SUBTITLE: Record<ConceptView, string> = {
   home:   "What's happening at home",
   travel: "What's happening on the road",
   work:   "What's happening with brands",
+  guide:  "What I stand for and how it works",
   arcs:   "How each post is told",
 };
 
@@ -511,6 +520,171 @@ const ChapterArcRow = ({ x, arc }: { x: ChapterArc; arc?: ConceptArc }) => (
   </div>
 );
 
+// ─── Guide (@lynnhoa, 07.11.2026): what you stand for and how it all works, read only ───
+// Four cards like the chapters: number · name · (what it is, small grey) · arrow — closed: one
+// grey line; open: labelled blocks, lined up with the card's name. Every level keeps its own
+// pastel, the same as on the tabs: tabs warm grey · chapter butter · arcs blue · formats mint ·
+// How I … peach · The Outing sage · the Guide itself pink.
+const GUIDE_CARDS: { key: string; name: string; label?: string; sum: string; tone: Tone }[] = [
+  { key: "who",     name: "Who I am",         sum: GUIDE_WHO.title,                               tone: GUIDE_TONE },
+  { key: "series",  name: GUIDE_SERIES.name,  label: GUIDE_SERIES.label,  sum: "Why you started, what you chose, the result", tone: SERIES_TONE },
+  { key: "package", name: GUIDE_PACKAGE.name, label: GUIDE_PACKAGE.label, sum: "Before, Look and Moment for every day out",   tone: PACKAGE_TONE },
+  { key: "how",     name: "How it all works", sum: "Where to find what, and what to do",           tone: PAL.neutral },
+];
+const gLabel: any = { ...caps, color: C.light, margin: "12px 0 6px" };
+const gMeta: any  = { fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4 };
+// a pastel tag: the step of a pattern
+const GTag = ({ text, tone }: { text: string; tone: Tone }) => (
+  <span style={{ fontSize: TYPE.subtext.size, lineHeight: 1.3, padding: "3px 8px", borderRadius: RADIUS.tag, background: tone.wash, color: tone.ink, whiteSpace: "nowrap" as const }}>{text}</span>
+);
+// Hook → Curation → Result · Before → Look → Moment (→ Story, optional in grey)
+const GFlow = ({ steps, tone, extra }: { steps: string[]; tone: Tone; extra?: string }) => {
+  const arrow = <span aria-hidden="true" style={{ color: C.faint, fontSize: TYPE.subtext.size }}>→</span>;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap" as const, alignItems: "center", gap: 4 }}>
+      {steps.map((x, k) => <Fragment key={x}>{k > 0 && arrow}<GTag text={x} tone={tone} /></Fragment>)}
+      {extra && <>{arrow}<GTag text={extra} tone={PAL.neutral} /></>}
+    </div>
+  );
+};
+// "Personality · particular …": the label in the card's colour, the rest grey
+const GMetaLine = ({ label, text, tone }: { label: string; text: string; tone: Tone }) => (
+  <div style={{ ...gMeta, marginTop: 3 }}><span style={{ color: tone.ink }}>{label}</span> · {text}</div>
+);
+// one level of the tree: name left, what it is right, in its pastel
+const GNode = ({ name, note, tone, kicker }: { name: string; note: string; tone: Tone; kicker?: string }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: kicker ? "6px 10px" : "7px 10px", borderRadius: RADIUS.field, background: tone.wash }}>
+    <div style={{ minWidth: 0 }}>
+      {kicker && <div style={{ fontSize: TYPE.micro.size, letterSpacing: "0.06em", textTransform: "uppercase" as const, color: tone.ink, lineHeight: 1.2 }}>{kicker}</div>}
+      <div style={{ fontSize: SPACING.listText, fontWeight: 500, color: tone === PAL.neutral ? C.ink2 : tone.ink, lineHeight: 1.3, whiteSpace: "nowrap" as const }}>{name}</div>
+    </div>
+    <span style={{ marginLeft: "auto", fontSize: SPACING.listMeta, color: tone === PAL.neutral ? C.muted : tone.ink, textAlign: "right" as const, lineHeight: 1.3 }}>{note}</span>
+  </div>
+);
+// the levels under a node: a light line on the left, a short tick to each child
+const GBranch = ({ children }: { children: any[] }) => (
+  <div style={{ marginLeft: 12, paddingLeft: 14, paddingTop: 5, borderLeft: `1.5px solid ${C.edge}`, display: "flex", flexDirection: "column" as const, gap: 5 }}>
+    {children.map((c, k) => (
+      <div key={k} style={{ position: "relative" as const }}>
+        <span aria-hidden="true" style={{ position: "absolute" as const, left: -14, top: 16, width: 11, height: 1.5, background: C.edge }} />
+        {c}
+      </div>
+    ))}
+  </div>
+);
+
+// one Guide card: number · name · (what it is) · arrow — closed: its grey line; open: its blocks
+const GuideCard = ({ n, card, open, onToggle, children }: { n: number; card: typeof GUIDE_CARDS[number]; open: boolean; onToggle: () => void; children: any }) => (
+  <div style={cardBox}>
+    <div style={{ display: "flex", alignItems: "center" }}>
+      <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${card.name}`} style={headBtn}>
+        <NumCircle n={n} tone={card.tone} />
+        <span style={nameText}>{card.name}</span>
+        {card.label && <span style={{ fontSize: SPACING.listMeta, color: C.muted, flexShrink: 0 }}>{card.label}</span>}
+      </button>
+      <Caret open={open} onClick={onToggle} />
+    </div>
+    {open
+      ? <div style={{ margin: `-6px ${SPACING.rowSide}px 0 ${SPACING.rowSide + INDENT}px`, paddingBottom: 12 }}>{children}</div>
+      : <div style={{ ...descText, paddingBottom: 10, marginLeft: SPACING.rowSide + INDENT }}>{tidy(card.sum)}</div>}
+  </div>
+);
+
+// what each Guide card holds, open
+function GuideBody({ k, arcsCount }: { k: string; arcsCount: number }) {
+  if (k === "who") return (
+    <>
+      <div style={{ fontFamily: SERIF, fontSize: 15, color: C.black, lineHeight: 1.35 }}>{GUIDE_WHO.title}</div>
+      <div style={{ fontSize: SPACING.listText, color: C.ink2, lineHeight: 1.4, margin: "3px 0 5px" }}>{GUIDE_WHO.line}</div>
+      <GMetaLine label="Personality" text={GUIDE_WHO.personality} tone={GUIDE_TONE} />
+      <GMetaLine label="Rule" text={GUIDE_WHO.rule} tone={GUIDE_TONE} />
+    </>
+  );
+  if (k === "series") return (
+    <>
+      <GFlow steps={GUIDE_SERIES.steps} tone={SERIES_TONE} />
+      <div style={{ ...gMeta, margin: "6px 0 4px" }}>{GUIDE_SERIES.film}</div>
+      {GUIDE_SERIES.examples.map(x => (
+        <div key={x.chapter} style={{ display: "grid", gridTemplateColumns: "86px minmax(0,1fr)", gap: 8, padding: "6px 0", borderTop: `1px solid ${C.hair}` }}>
+          <span style={{ ...caps, letterSpacing: "0.06em", color: SERIES_TONE.ink, lineHeight: 1.35, paddingTop: 1 }}>{x.chapter}</span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: SPACING.listText, color: C.black, lineHeight: 1.3 }}>{x.title}</div>
+            <div style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.35, marginTop: 1 }}>“{x.hook}”</div>
+          </div>
+        </div>
+      ))}
+    </>
+  );
+  if (k === "package") return (
+    <>
+      <GFlow steps={GUIDE_PACKAGE.steps} tone={PACKAGE_TONE} extra={GUIDE_PACKAGE.optional} />
+      <div style={{ ...gMeta, marginTop: 6 }}>{GUIDE_PACKAGE.line}</div>
+      <GMetaLine label="Runs in" text={GUIDE_PACKAGE.runsIn.join(" · ")} tone={PACKAGE_TONE} />
+    </>
+  );
+  // how it all works: look up · what you film (the tree) · your workflow
+  return (
+    <>
+      <div style={{ ...gLabel, marginTop: 2 }}>Look up</div>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 6 }}>
+        <GNode name="Guide" note="why" tone={GUIDE_TONE} />
+        <GNode name="Arcs" note={arcsCount ? `all ${arcsCount}` : "all"} tone={ARC_TONE} />
+      </div>
+      <div style={gLabel}>What you film</div>
+      <div style={{ display: "flex", flexDirection: "column" as const, gap: 5 }}>
+        <GNode name="Personal Eras" note="what you develop" tone={PAL.neutral} />
+        <GNode name="Base" note="quick posts in between" tone={PAL.neutral} />
+        <div>
+          <GNode name="Home · Travel · Work" note="where it happens" tone={PAL.neutral} />
+          <GBranch>{[
+            <div key="ch">
+              <GNode name="Chapter" note="your situation" tone={PHASE_TONE} />
+              <GBranch>{[
+                <div key="arcs">
+                  <GNode name="Arcs" note="how each post is told" tone={ARC_TONE} />
+                  <GBranch>{[
+                    <GNode key="f" name="Formats" note="how you film it" tone={FORMAT_TONE} />,
+                    <GNode key="s" kicker={GUIDE_SERIES.label} name={GUIDE_SERIES.name} note={GUIDE_SERIES.where} tone={SERIES_TONE} />,
+                    <GNode key="p" kicker={GUIDE_PACKAGE.label} name={GUIDE_PACKAGE.name} note={GUIDE_PACKAGE.steps.join(" → ")} tone={PACKAGE_TONE} />,
+                  ]}</GBranch>
+                </div>,
+              ]}</GBranch>
+            </div>,
+          ]}</GBranch>
+        </div>
+      </div>
+      <div style={gLabel}>Your workflow</div>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 6 }}>
+        {GUIDE_WORKFLOW.map((x, i) => (
+          <div key={x} style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 9px", borderRadius: RADIUS.field, background: PAL.neutral.wash }}>
+            <span aria-hidden="true" style={{ width: 18, height: 18, borderRadius: "50%", background: C.white, border: `1px solid ${C.edge}`, fontSize: TYPE.micro.size, color: PAL.neutral.ink,
+              display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</span>
+            <span style={{ fontSize: TYPE.subtext.size, color: C.ink2, lineHeight: 1.3 }}>{x}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// a reference pill next to the tabs (Guide · Arcs): its colour, filled while it shows
+const ViewPill = ({ on, label, tone, n, onClick }: { on: boolean; label: string; tone: Tone; n?: number; onClick: () => void }) => (
+  <button type="button" aria-pressed={on} aria-label={n ? `${label} · ${n}` : label} onClick={() => { if (!on) onClick(); }}
+    style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 28, padding: "0 12px 0 10px", boxSizing: "border-box" as const,
+      borderRadius: 14, border: `1px solid ${on ? tone.ink : tone.mid}`,
+      background: on ? tone.fill : tone.wash, color: tone.ink,
+      boxShadow: on ? "none" : "0 1px 2px rgba(0,0,0,0.06)",
+      fontFamily: SANS, fontSize: 12, fontWeight: 600, letterSpacing: "0.01em", lineHeight: 1, whiteSpace: "nowrap" as const,
+      cursor: on ? "default" : "pointer", WebkitTapHighlightColor: "transparent" }}>
+    <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: tone.mid, border: `1.5px solid ${tone.ink}`, boxSizing: "border-box" as const }} />
+    {label}
+    {!!n && (
+      <span style={{ minWidth: 16, height: 16, padding: "0 4px", borderRadius: 8, boxSizing: "border-box" as const, background: C.white,
+        color: tone.ink, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{n}</span>
+    )}
+  </button>
+);
+
 export default function PlannerConcept({ planner, view, isMobile, onAccount }: PlannerConceptProps) {
   const acc    = (view.acc === "all" ? "lynnhoa" : view.acc) as Account;
   const arcs   = planner.arcs.filter(a => a.account === acc).sort((a, b) => a.num - b.num);
@@ -549,6 +723,12 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   const chKeys    = (openChs[acc] || []).filter(k => typeof k === "string");
   const setChsOpen = (keys: string[]) => { const m = { ...openChs, [acc]: keys }; setOpenChs(m); saveMap(OPEN_CH_KEY, m); };
   const toggleCh  = (k: string) => setChsOpen(chKeys.includes(k) ? chKeys.filter(x => x !== k) : [...chKeys, k]);
+  // the Guide's open cards, per account (by their key)
+  const [openGd, setOpenGd] = useState<OpenKeys>(() => loadMap(OPEN_GD_KEY));
+  const gdKeys    = (openGd[acc] || []).filter(k => typeof k === "string");
+  const setGdOpen = (keys: string[]) => { const m = { ...openGd, [acc]: keys }; setOpenGd(m); saveMap(OPEN_GD_KEY, m); };
+  const toggleGd  = (k: string) => setGdOpen(gdKeys.includes(k) ? gdKeys.filter(x => x !== k) : [...gdKeys, k]);
+  const anyGdOpen = GUIDE_CARDS.some(c => gdKeys.includes(c.key));
   // the lists folded inside cards (open unless folded), per account
   const [folded, setFolded] = useState<OpenKeys>(() => loadMap(FOLD_KEY));
   const foldList = (folded[acc] || []).filter(k => typeof k === "string");
@@ -681,6 +861,19 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   const areaView = area ? chapterList(area.key, PHASE_TONE.mid, `${area.title} · Chapters`, area.chapters, PHASE_TONE) : null;
 
   // @createbylynn: the 5 pillars, numbered cards (phone one column · iPad / computer two)
+  // the Guide: 4 cards, read only (planner.ts)
+  const guideView = (
+    <>
+      <SectionHead dot={GUIDE_TONE.mid} label={`Guide · ${GUIDE_CARDS.length}`}
+        right={<button onClick={() => setGdOpen(anyGdOpen ? [] : GUIDE_CARDS.map(c => c.key))} style={mini}>{anyGdOpen ? "collapse all" : "expand all"}</button>} />
+      {columns(GUIDE_CARDS, c => (
+        <GuideCard key={c.key} n={GUIDE_CARDS.indexOf(c) + 1} card={c} open={gdKeys.includes(c.key)} onToggle={() => toggleGd(c.key)}>
+          <GuideBody k={c.key} arcsCount={arcs.length} />
+        </GuideCard>
+      ))}
+    </>
+  );
+
   const pillarView = planner.conceptError ? note(planner.conceptError, C.red) : (
     <>
       <SectionHead dot={ARC_TONE.mid} label={`Pillars · ${pillars.length}`}
@@ -706,24 +899,14 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
           ? <ViewSwitch options={CBL_VIEWS} value="pillars" onPick={() => { /* one tab */ }} label="Show" />
           : <ViewSwitch options={VIEWS} value={show} onPick={pickView} label="Show" />}
         {!seriesMode && (
-          <button type="button" aria-pressed={show === "arcs"} aria-label={`Arcs · ${arcs.length}`} onClick={() => { if (show !== "arcs") pickView("arcs"); }}
-            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, height: 28, padding: "0 12px 0 10px", boxSizing: "border-box" as const,
-              borderRadius: 14, border: `1px solid ${show === "arcs" ? ARC_TONE.ink : ARC_TONE.mid}`,
-              background: show === "arcs" ? ARC_TONE.fill : ARC_TONE.wash, color: ARC_TONE.ink,
-              boxShadow: show === "arcs" ? "none" : "0 1px 2px rgba(0,0,0,0.06)",
-              fontFamily: SANS, fontSize: 12, fontWeight: 600, letterSpacing: "0.01em", lineHeight: 1, whiteSpace: "nowrap" as const,
-              cursor: show === "arcs" ? "default" : "pointer", WebkitTapHighlightColor: "transparent" }}>
-            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: ARC_TONE.mid, border: `1.5px solid ${ARC_TONE.ink}`, boxSizing: "border-box" as const }} />
-            Arcs
-            {arcs.length > 0 && (
-              <span style={{ minWidth: 16, height: 16, padding: "0 4px", borderRadius: 8, boxSizing: "border-box" as const, background: C.white,
-                color: ARC_TONE.ink, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{arcs.length}</span>
-            )}
-          </button>
+          <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <ViewPill on={show === "guide"} label="Guide" tone={GUIDE_TONE} onClick={() => pickView("guide")} />
+            <ViewPill on={show === "arcs"} label="Arcs" tone={ARC_TONE} n={arcs.length} onClick={() => pickView("arcs")} />
+          </span>
         )}
       </div>
 
-      {planner.loading ? note("Loading…") : seriesMode ? pillarView : show === "base" ? baseView : show === "eras" ? erasView : areaView || arcsView}
+      {planner.loading ? note("Loading…") : seriesMode ? pillarView : show === "guide" ? guideView : show === "base" ? baseView : show === "eras" ? erasView : areaView || arcsView}
 
       {/* an arc's texts or links (from the Arcs tab) */}
       {win && (win.kind === "texts" || win.kind === "links") && winArc && (
