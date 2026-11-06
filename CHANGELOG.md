@@ -1,3 +1,10 @@
+# Planner · @lynnhoa concept: Home's chapters revised (06.11.2026)
+- After Trip, Maintenance, Beauty Projects and Before Next Trip have 4 arcs now; Home Projects,
+  Wardrobe & Style and Kits & Preparation stay at 3.
+- After Trip: + The Look. Maintenance: The Obsession · The Moment · The Look · The Story (new set).
+  Beauty Projects: + The Look (Transition). Before Next Trip: + The Personality.
+- No SQL needed. Changed: `planner.ts`, `LYNNHOA-CONTENT-STRUCTURE.md`.
+
 # Planner · @lynnhoa concept: Home's chapters hold their arcs (06.11.2026)
 - Home tab: each of the 7 chapters (After Trip … Before Next Trip) has its description and its 3
   selected arcs. Tap a chapter: each arc with its number (blue, as on the Arcs tab), what it does in
