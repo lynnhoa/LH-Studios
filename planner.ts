@@ -691,8 +691,26 @@ export const MAIN_AREAS: MainArea[] = [
     ] },
   ] },
   { key: "work", label: "Work", title: "Brand Work", chapters: [
-    { name: "Invited",       desc: "Brand invitations, events, hosted experiences" },
-    { name: "Brand Collab",  desc: "Paid partnerships, gifting, campaigns and collaborations" },
-    { name: "Fashion Week",  desc: "Fashion Week trips, shows, events, street style and industry experiences" },
+    { name: "Invited", desc: "Brand invitations, events and hosted experiences", arcs: [
+      { arc: "The Before",  note: "Getting ready for the event and the build-up", formats: ["GRWM Talking", "Voiceover", "Presence + Text", "Lip Sync Song", "Transition"] },
+      { arc: "The Look",    note: "The event outfit revealed", formats: ["Outfit Check", "Walk + Text"] },
+      { arc: "The Moment",  note: "Being there and capturing the experience", formats: ["Walk + Text", "TikTok Trends", "Lip Sync Song", "Selfie Reaction"] },
+      { arc: "The Opinion", note: "Your honest take on the experience", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+      { arc: "The Story",   note: "The whole event, with a payoff", formats: ["Vlog", "GRWM Talking", "Voiceover"] },
+    ] },
+    { name: "Brand Collab", desc: "Paid partnerships, gifting, campaigns and collaborations", arcs: [
+      { arc: "The Edit",      note: "Why you chose the product and how it fits into your life", formats: ["Seated Talking", "Half-Body Talking"] },
+      { arc: "The Look",      note: "The product worn or styled", formats: ["Outfit Check", "Walk + Text", "Transition"] },
+      { arc: "The Opinion",   note: "Your honest verdict on the product", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+      { arc: "The Obsession", note: "The piece you keep reaching for", formats: ["Presence + Text", "Lip Sync Song", "Voiceover", "Selfie Reaction + Result"] },
+      { arc: "The Editorial", note: "Campaign content, kept separate", formats: ["Own Shoots"] },
+    ] },
+    { name: "Fashion Week", desc: "Fashion Week trips, shows, events, street style and industry experiences", arcs: [
+      { arc: "The Before",  note: "Getting ready for the shows", formats: ["GRWM Talking", "Voiceover", "Presence + Text", "Transition"] },
+      { arc: "The Look",    note: "Your street style outfits revealed", formats: ["Outfit Check", "Walk + Text"] },
+      { arc: "The Moment",  note: "Being at the shows and capturing the scene", formats: ["Walk + Text", "TikTok Trends", "Lip Sync Song", "Selfie Reaction"] },
+      { arc: "The Opinion", note: "Your take on the shows, looks and trends", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+      { arc: "The Story",   note: "The Fashion Week days, with a payoff", formats: ["Vlog", "GRWM Talking", "Voiceover"] },
+    ] },
   ] },
 ];

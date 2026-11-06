@@ -59,9 +59,17 @@ Each Travel chapter with its arcs as options (3–5 each) and their formats (in 
 
 | Phase | What belongs here |
 |---|---|
-| Invited | Brand invitations, events, hosted experiences |
+| Invited | Brand invitations, events and hosted experiences |
 | Brand Collab | Paid partnerships, gifting, campaigns and collaborations |
 | Fashion Week | Fashion Week trips, shows, events, street style and industry experiences |
+
+Each Brand Work chapter with its arcs and their formats (in the app: Work tab, tap a chapter):
+
+| Chapter | Arcs → formats |
+|---|---|
+| 1. Invited | The Before (GRWM Talking, Voiceover, Presence + Text, Lip Sync Song, Transition) · The Look (Outfit Check, Walk + Text) · The Moment (Walk + Text, TikTok Trends, Lip Sync Song, Selfie Reaction) · The Opinion (Presence + Text, Question + Reply/Reaction) · The Story (Vlog, GRWM Talking, Voiceover) |
+| 2. Brand Collab | The Edit (Seated Talking, Half-Body Talking) · The Look (Outfit Check, Walk + Text, Transition) · The Opinion (Presence + Text, Question + Reply/Reaction) · The Obsession (Presence + Text, Lip Sync Song, Voiceover, Selfie Reaction + Result) · The Editorial (Own Shoots) |
+| 3. Fashion Week | The Before (GRWM Talking, Voiceover, Presence + Text, Transition) · The Look (Outfit Check, Walk + Text) · The Moment (Walk + Text, TikTok Trends, Lip Sync Song, Selfie Reaction) · The Opinion (Presence + Text, Question + Reply/Reaction) · The Story (Vlog, GRWM Talking, Voiceover) |
 
 ### In the app (06.11.2026)
 
