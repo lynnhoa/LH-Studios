@@ -1,3 +1,10 @@
+# Planner · @lynnhoa concept: Home's chapters hold their arcs (06.11.2026)
+- Home tab: each of the 7 chapters (After Trip … Before Next Trip) has its description and its 3
+  selected arcs. Tap a chapter: each arc with its number (blue, as on the Arcs tab), what it does in
+  this chapter (grey) and the formats used for it there. "expand all / collapse all" on the heading;
+  open chapters are remembered on this device. Travel and Work stay placeholders ("empty").
+- No SQL needed. Changed: `planner.ts`, `PlannerConcept.tsx`, `LYNNHOA-CONTENT-STRUCTURE.md`.
+
 # Planner · @lynnhoa concept: Home starts with After Trip, ends with Before Next Trip (06.11.2026)
 - Home's chapters (7): After Trip · Home Projects · Maintenance · Beauty Projects · Wardrobe & Style ·
   Kits & Preparation · Before Next Trip.
