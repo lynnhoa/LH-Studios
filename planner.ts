@@ -642,6 +642,12 @@ export const MAIN_AREAS: MainArea[] = [
       { arc: "The Look",      note: "The new pieces worn and styled", formats: ["Outfit Check", "Walk + Text"] },
       { arc: "The Obsession", note: "The pieces you reach for again and again", formats: ["Presence + Text", "Voiceover"] },
     ] },
+    { name: "Occasion", desc: "Birthdays, dinners, holidays, events and special days from home", arcs: [
+      { arc: "The Before", note: "Getting ready and the build-up before you go", formats: ["GRWM Talking", "Voiceover", "Presence + Text", "Lip Sync Song", "Transition"] },
+      { arc: "The Look",   note: "The occasion outfit revealed", formats: ["Outfit Check", "Walk + Text"] },
+      { arc: "The Moment", note: "Being there and capturing the scene", formats: ["Walk + Text", "TikTok Trends", "Lip Sync Song", "Selfie Reaction"] },
+      { arc: "The Story",  note: "The whole day or evening, with a payoff", formats: ["Vlog", "Voiceover"] },
+    ] },
     { name: "Kits & Preparation", desc: "Travel kits, work bag, beauty kits and restocking", arcs: [
       { arc: "The Edit",      note: "What's in your kit and why each thing earns its place", formats: ["Seated Talking", "Half-Body Talking"] },
       { arc: "The Opinion",   note: "Your rules and judgments on what belongs in a kit", formats: ["Presence + Text", "Question + Reply/Reaction"] },
