@@ -586,3 +586,39 @@ export const parseIntDe = (v: string): number | null => {
   return t ? parseInt(t, 10) : null;
 };
 export const byOrder = (a: Task, b: Task) => a.sort - b.sort;
+
+// ─── @lynnhoa MASTER CONTENT STRUCTURE (06.11.2026) ──────────
+// LYNNHOA = Fashion Personality. The layers (full text: LYNNHOA-CONTENT-STRUCTURE.md):
+//   Personal Eras (the image you're developing) · Main Areas → Phases (what's happening) ·
+//   Signature Series → Chapters → Content Packages, Standalone Packages (the stories) ·
+//   Arcs → Posts · Base Posts (in between) · Context, Format, Setup (production layers).
+// The concept page shows Personal Eras and one tab per Main Area — placeholders until
+// they're filled (no SQL yet).
+export interface StructItem { name: string; desc: string; }
+export interface MainArea { key: "home" | "travel" | "work"; label: string; title: string; phases: StructItem[]; }
+
+export const PERSONAL_ERAS: StructItem[] = [
+  { name: "Beauty Era",    desc: "Hair, nails, makeup and beauty identity" },
+  { name: "Style Era",     desc: "Wardrobe, personal style, silhouettes and aesthetic" },
+  { name: "Signature Era", desc: "Signature accessories, everyday look and personal uniform" },
+];
+
+export const MAIN_AREAS: MainArea[] = [
+  { key: "home", label: "Home", title: "Home", phases: [
+    { name: "Home Projects",      desc: "Bedroom, bathroom, furniture, decorating, home improvements" },
+    { name: "Maintenance",        desc: "Hair, lashes, nails, skincare and other beauty upkeep" },
+    { name: "Beauty Projects",    desc: "New hair, new makeup, beauty changes and experiments" },
+    { name: "Wardrobe & Style",   desc: "Wardrobe edits, new pieces, seasonal wardrobe changes, style development" },
+    { name: "Kits & Preparation", desc: "Travel kits, work bag, beauty kits, packing and restocking" },
+    { name: "Everyday Life",      desc: "Getting ready, routines, matcha, quiet days, thoughts and personality" },
+  ] },
+  { key: "travel", label: "Travel", title: "Travel", phases: [
+    { name: "City Break", desc: "Short trips, city experiences, outfits, restaurants and activities" },
+    { name: "Long Trip",  desc: "Longer holidays, travel experiences, packing, destinations and daily life away" },
+  ] },
+  { key: "work", label: "Work", title: "Brand Work", phases: [
+    { name: "Invited",       desc: "Brand invitations, events, hosted experiences" },
+    { name: "Brand Collab",  desc: "Paid partnerships, gifting, campaigns and collaborations" },
+    { name: "Fashion Week",  desc: "Fashion Week trips, shows, events, street style and industry experiences" },
+  ] },
+];

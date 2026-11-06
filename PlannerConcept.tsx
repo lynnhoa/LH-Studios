@@ -1,9 +1,13 @@
 // ─────────────────────────────────────────────────────────────
 // PlannerConcept — Planner › Content concept, opened from the
 // profile menu ("@lynnhoa concept" / "@createbylynn concept").
-//   Base | Phases: a switch under the title, and on the same line, right, "arcs" (small and
-//   underlined, like "collapse all") — it opens the arcs. The page opens on what you had last
+//   Personal Eras | Base | Home | Travel | Work: a switch under the title, and on the same line,
+//   right, the "Arcs" pill — it opens the arcs. The page opens on what you had last
 //   (remembered on this device). The line under the title says what it is.
+//   Personal Eras and the Main Areas (Home · Travel · Work, each showing only its own phases)
+//   follow the master structure (planner.ts, LYNNHOA-CONTENT-STRUCTURE.md): placeholder cards
+//   — number · name · what belongs there — marked "empty" until they're filled.
+//   (The old Phases tab is gone; its phases stay in the data, for Creator › Now.)
 //   Every card works the same: number · name · (open: its small links) · arrow. Open: what it
 //   is in grey, then its lists — each under one heading (small grey caps with its count and a
 //   small arrow: tap it to fold or unfold the list; what you fold stays folded on this device),
@@ -39,31 +43,34 @@
 import { useState, useEffect, createContext, useContext } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, PAL } from "./constants";
 import { SectionHead, Sheet, SheetButton, OpenArrow } from "./atoms";
-import { ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, phaseListWord, eraGroups, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE, conceptPhaseLabel, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel } from "./planner";
-import type { Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEraArc } from "./planner";
+import { PERSONAL_ERAS, MAIN_AREAS, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE, conceptPhaseLabel, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel } from "./planner";
+import type { StructItem, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEraArc } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
 import { IC, Subtitle, TabTitle, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
 
 // remembered on this device: the tab, and the open arcs, phases and Base blocks per account
 // (none the first time)
-const VIEW_KEY    = "lh_planner_concept_view";        // Base | Phases | Arcs
+const VIEW_KEY    = "lh_planner_concept_view";        // Personal Eras | Base | Home | Travel | Work | Arcs
 const OPEN_KEY    = "lh_planner_concept_open";
-const OPEN_PH_KEY = "lh_planner_concept_open_phases";
 const OPEN_BS_KEY = "lh_planner_concept_open_blocks"; // Base: by the block's key (no longer by its place)
 const OLD_BS_KEY  = "lh_planner_concept_open_base";   // the old one, by place — cleared
 const OPEN_PL_KEY = "lh_planner_concept_open_pillars"; // @createbylynn: the open pillars, by their key
 const FOLD_KEY    = "lh_planner_concept_folded";      // the lists you folded inside cards (open unless folded)
 type OpenMap  = Partial<Record<Account, number[]>>;
 type OpenKeys = Partial<Record<Account, string[]>>;
-type ConceptView = "base" | "phases" | "arcs";
+type ConceptView = "eras" | "base" | "home" | "travel" | "work" | "arcs";
 const loadMap = (key: string): any => {
   try { const v = JSON.parse(localStorage.getItem(key) || "null"); if (v && typeof v === "object") return v; } catch { /* ignore */ }
   return {};
 };
 const saveMap = (key: string, m: object) => { try { localStorage.setItem(key, JSON.stringify(m)); } catch { /* ignore */ } };
 const loadView = (): ConceptView => {
-  try { const v = localStorage.getItem(VIEW_KEY); return v === "base" || v === "phases" ? v : "arcs"; } catch { return "arcs"; }
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    if (v === "phases") return "home";                 // the old Phases tab
+    return v === "eras" || v === "base" || v === "home" || v === "travel" || v === "work" ? v : "arcs";
+  } catch { return "arcs"; }
 };
 
 const quiet = (p: Promise<any>) => p.catch(() => { /* the save toast reports it */ });
@@ -283,59 +290,12 @@ function PillarArc({ arc, first, onOpen }: { arc: ConceptArc; first: boolean; on
   );
 }
 
-// an era's core arcs and its optional ones (read out by the screen reader: "4 arcs and 1 optional")
-const eraCount = (e: ConceptEra) => {
-  const core = e.arcs.filter(a => !a.optional).length, opt = e.arcs.length - core;
-  return { core, opt, label: opt ? `${core} + ${opt}` : String(core) };
-};
-
-// an era's arcs as small numbers in posting order (optional ones grey), then › (the row opens its window)
-const EraArcs = ({ e }: { e: ConceptEra }) => (
-  <span style={{ display: "flex", alignItems: "center", gap: 3, alignSelf: "center", flexShrink: 0, paddingLeft: 6 }}>
-    {e.arcs.map((a, k) => <NumCircle key={`${a.num}-${k}`} n={a.num} tone={a.optional ? PAL.neutral : ARC_TONE} size={16} />)}
-    <span aria-hidden="true" style={{ width: 22, textAlign: "center" as const, color: C.faint, fontSize: 15 }}>›</span>
-  </span>
-);
-
-// one phase: number · name · arrow — open: purpose and its eras under their group headings (tap one: its arcs)
-function PhaseCard({ phase, open, onToggle, onEra }: { phase: ConceptPhase; open: boolean; onToggle: () => void; onEra: (e: ConceptEra) => void }) {
-  const groups = eraGroups(phase);
-  return (
-    <div style={cardBox}>
-      <div style={{ display: "flex", alignItems: "center" }}>
-        <button onClick={onToggle} aria-expanded={open} aria-label={`${phase.num}. ${phase.name}`} style={headBtn}>
-          <NumCircle n={phase.num} tone={PHASE_TONE} />
-          <span style={nameText}>{phase.name}</span>
-        </button>
-        <Caret open={open} onClick={onToggle} />
-      </div>
-      {open && (
-        <div style={cardBody}>
-          {phase.purpose && <div style={descText}>{tidy(phase.purpose)}</div>}
-          <div style={listBox}>
-            {groups.map((g, gi) => (
-              <div key={`${gi}-${g.grp ?? ""}`} style={{ marginTop: gi ? 6 : 0 }}>
-                <FoldSection id={`ph:${phase.id}:${g.grp || "-"}`} label={g.grp || phaseListWord(phase)} n={g.eras.length}>
-                  {g.eras.map(e => {
-                    const n = eraCount(e);
-                    return (
-                      <ItemRow key={e.key} name={e.name} text={tidy(e.desc)} onClick={() => onEra(e)} right={<EraArcs e={e} />}
-                        label={`${e.name}: ${n.core} arcs${n.opt ? ` and ${n.opt} optional` : ""}`} />
-                    );
-                  })}
-                </FoldSection>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Base | Phases — like the account switch, the chosen one in warm grey (the arcs: a small
-// button on the same line, right; while they show, neither tab is on)
-const VIEWS: { key: ConceptView; label: string }[] = [{ key: "base", label: "Base" }, { key: "phases", label: "Phases" }];
+// Personal Eras | Base | Home | Travel | Work — like the account switch, the chosen one in warm
+// grey (the arcs: a pill on the same line, right; while they show, no tab is on)
+const VIEWS: { key: ConceptView; label: string }[] = [
+  { key: "eras", label: "Personal Eras" }, { key: "base", label: "Base" },
+  ...MAIN_AREAS.map(a => ({ key: a.key as ConceptView, label: a.label })),
+];
 // @createbylynn: one tab, in the same switch (so both pages have the same top)
 const CBL_VIEWS: { key: "pillars"; label: string }[] = [{ key: "pillars", label: "Pillars" }];
 function ViewSwitch<K extends string>({ options, value, onPick, label }: { options: { key: K; label: string }[]; value: K; onPick: (v: K) => void; label: string }) {
@@ -483,15 +443,29 @@ type Win = { kind: "texts" | "links"; id: string } | { kind: "era"; id: string; 
 
 // what each tab is (the line under the title)
 const SUBTITLE: Record<ConceptView, string> = {
+  eras:   "The image you're developing",
   base:   "Always there, under every phase",
-  phases: "Where you are, one era at a time",
+  home:   "What's happening at home",
+  travel: "What's happening on the road",
+  work:   "What's happening with brands",
   arcs:   "How each post is told",
 };
+
+// a placeholder (Personal Eras, a Main Area's phases): number · name · "empty" — what belongs there in grey
+const PlaceholderCard = ({ n, item, tone }: { n: number; item: StructItem; tone: Tone }) => (
+  <div style={cardBox}>
+    <div style={{ ...headBtn, cursor: "default", paddingRight: SPACING.rowSide }}>
+      <NumCircle n={n} tone={tone} />
+      <span style={nameText}>{item.name}</span>
+      <span style={{ fontSize: TYPE.micro.size, color: C.muted, border: `1px dashed ${C.rule}`, borderRadius: 9, padding: "2px 7px", lineHeight: 1.2, flexShrink: 0 }}>empty</span>
+    </div>
+    <div style={{ ...descText, margin: `-8px ${SPACING.rowSide}px 0 ${SPACING.rowSide + NUM + GAP}px`, paddingBottom: 10 }}>{tidy(item.desc)}</div>
+  </div>
+);
 
 export default function PlannerConcept({ planner, view, isMobile, onAccount }: PlannerConceptProps) {
   const acc    = (view.acc === "all" ? "lynnhoa" : view.acc) as Account;
   const arcs   = planner.arcs.filter(a => a.account === acc).sort((a, b) => a.num - b.num);
-  const phases = planner.phases.filter(p => p.account === acc && !isBasePhase(p)).sort((a, b) => a.num - b.num);
   const basePh = planner.phases.find(p => p.account === acc && isBasePhase(p));
   const blocks = basePh?.eras || [];
   const accLabel = ACCOUNTS.find(a => a.key === acc)?.label || `@${acc}`;
@@ -507,20 +481,15 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
 
   // open cards, per account (Base by the block's key, arcs and phases by their number)
   const [openArcs, setOpenArcs] = useState<OpenMap>(() => loadMap(OPEN_KEY));
-  const [openPhs,  setOpenPhs]  = useState<OpenMap>(() => loadMap(OPEN_PH_KEY));
   const [openBs,   setOpenBs]   = useState<OpenKeys>(() => { try { localStorage.removeItem(OLD_BS_KEY); } catch { /* ignore */ } return loadMap(OPEN_BS_KEY); });
   const bsKeys  = (openBs[acc] || []).filter(k => typeof k === "string");
   const setBsOpen = (keys: string[]) => { const m = { ...openBs, [acc]: keys }; setOpenBs(m); saveMap(OPEN_BS_KEY, m); };
   const toggleBs  = (k: string) => setBsOpen(bsKeys.includes(k) ? bsKeys.filter(x => x !== k) : [...bsKeys, k]);
   const anyBsOpen = blocks.some(b => bsKeys.includes(b.key));
   const arcNums = openArcs[acc] || [];
-  const phNums  = openPhs[acc] || [];
   const setArcsOpen = (nums: number[]) => { const m = { ...openArcs, [acc]: nums }; setOpenArcs(m); saveMap(OPEN_KEY, m); };
-  const setPhsOpen  = (nums: number[]) => { const m = { ...openPhs, [acc]: nums }; setOpenPhs(m); saveMap(OPEN_PH_KEY, m); };
   const toggleArc   = (n: number) => setArcsOpen(arcNums.includes(n) ? arcNums.filter(x => x !== n) : [...arcNums, n]);
-  const togglePh    = (n: number) => setPhsOpen(phNums.includes(n) ? phNums.filter(x => x !== n) : [...phNums, n]);
   const anyArcOpen  = arcs.some(a => arcNums.includes(a.num));
-  const anyPhOpen   = phases.some(p => phNums.includes(p.num));
   // @createbylynn: the open pillars, by their key (per account)
   const [openPls, setOpenPls] = useState<OpenKeys>(() => loadMap(OPEN_PL_KEY));
   const plKeys    = (openPls[acc] || []).filter(k => typeof k === "string");
@@ -620,16 +589,16 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
     </>
   );
 
-  const phasesView = planner.phasesError ? note(planner.phasesError, C.red) : (
+  // Personal Eras and the Main Areas: placeholders from the master structure (planner.ts)
+  const placeholders = (dot: string, label: string, list: StructItem[], tone: Tone) => (
     <>
-      <SectionHead dot={PHASE_TONE.mid} label={`Phases · ${phases.length}`}
-        right={phases.length ? <button onClick={() => setPhsOpen(anyPhOpen ? [] : phases.map(p => p.num))} style={mini}>{anyPhOpen ? "collapse all" : "expand all"}</button> : undefined} />
-      {!phases.length
-        ? empty(`No phases for ${accLabel} yet`, "They're added here once its concept is mapped: phases, their eras and each era's arcs.")
-        : columns(phases, p => <PhaseCard key={p.id} phase={p} open={phNums.includes(p.num)} onToggle={() => togglePh(p.num)} onEra={e => setWin({ kind: "era", id: p.id, era: e.key })} />)}
-      {anyPhOpen && arcMarks}
+      <SectionHead dot={dot} label={`${label} · ${list.length}`} />
+      {columns(list, x => <PlaceholderCard key={x.name} n={list.indexOf(x) + 1} item={x} tone={tone} />)}
     </>
   );
+  const erasView = placeholders(PAL.lynnhoa.mid, "Personal Eras", PERSONAL_ERAS, PAL.lynnhoa);
+  const area     = MAIN_AREAS.find(a => a.key === show);
+  const areaView = area ? placeholders(PHASE_TONE.mid, `${area.title} · Phases`, area.phases, PHASE_TONE) : null;
 
   // @createbylynn: the 5 pillars, numbered cards (phone one column · iPad / computer two)
   const pillarView = planner.conceptError ? note(planner.conceptError, C.red) : (
@@ -652,13 +621,13 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
     <div>
       <TabTitle title="Content concept" acc={acc} onAccount={onAccount} isMobile={isMobile} />
       <Subtitle text={seriesMode ? "What each post is about" : SUBTITLE[show]} />
-      <div style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap" as const, alignItems: "center", gap: "8px 12px" }}>
         {seriesMode
           ? <ViewSwitch options={CBL_VIEWS} value="pillars" onPick={() => { /* one tab */ }} label="Show" />
           : <ViewSwitch options={VIEWS} value={show} onPick={pickView} label="Show" />}
         {!seriesMode && (
-          <button type="button" aria-pressed={show === "arcs"} onClick={() => { if (show !== "arcs") pickView("arcs"); }}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 28, padding: "0 12px 0 10px", boxSizing: "border-box" as const,
+          <button type="button" aria-pressed={show === "arcs"} aria-label={`Arcs · ${arcs.length}`} onClick={() => { if (show !== "arcs") pickView("arcs"); }}
+            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, height: 28, padding: "0 12px 0 10px", boxSizing: "border-box" as const,
               borderRadius: 14, border: `1px solid ${show === "arcs" ? ARC_TONE.ink : ARC_TONE.mid}`,
               background: show === "arcs" ? ARC_TONE.fill : ARC_TONE.wash, color: ARC_TONE.ink,
               boxShadow: show === "arcs" ? "none" : "0 1px 2px rgba(0,0,0,0.06)",
@@ -674,7 +643,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
         )}
       </div>
 
-      {planner.loading ? note("Loading…") : seriesMode ? pillarView : show === "base" ? baseView : show === "phases" ? phasesView : arcsView}
+      {planner.loading ? note("Loading…") : seriesMode ? pillarView : show === "base" ? baseView : show === "eras" ? erasView : areaView || arcsView}
 
       {/* an arc's texts or links (from the Arcs tab) */}
       {win && (win.kind === "texts" || win.kind === "links") && winArc && (
