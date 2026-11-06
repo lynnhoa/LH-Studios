@@ -658,7 +658,19 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
           : <ViewSwitch options={VIEWS} value={show} onPick={pickView} label="Show" />}
         {!seriesMode && (
           <button type="button" aria-pressed={show === "arcs"} onClick={() => { if (show !== "arcs") pickView("arcs"); }}
-            style={{ ...mini, color: show === "arcs" ? C.black : C.muted, cursor: show === "arcs" ? "default" : "pointer" }}>arcs</button>
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 28, padding: "0 12px 0 10px", boxSizing: "border-box" as const,
+              borderRadius: 14, border: `1px solid ${show === "arcs" ? ARC_TONE.ink : ARC_TONE.mid}`,
+              background: show === "arcs" ? ARC_TONE.fill : ARC_TONE.wash, color: ARC_TONE.ink,
+              boxShadow: show === "arcs" ? "none" : "0 1px 2px rgba(0,0,0,0.06)",
+              fontFamily: SANS, fontSize: 12, fontWeight: 600, letterSpacing: "0.01em", lineHeight: 1, whiteSpace: "nowrap" as const,
+              cursor: show === "arcs" ? "default" : "pointer", WebkitTapHighlightColor: "transparent" }}>
+            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: ARC_TONE.mid, border: `1.5px solid ${ARC_TONE.ink}`, boxSizing: "border-box" as const }} />
+            Arcs
+            {arcs.length > 0 && (
+              <span style={{ minWidth: 16, height: 16, padding: "0 4px", borderRadius: 8, boxSizing: "border-box" as const, background: C.white,
+                color: ARC_TONE.ink, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{arcs.length}</span>
+            )}
+          </button>
         )}
       </div>
 
