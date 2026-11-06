@@ -1,3 +1,8 @@
+# Planner · @lynnhoa concept: Work's chapters hold their arcs (06.11.2026)
+- Work (Brand Work) has 3 chapters, each with 5 arcs and their formats: Invited · Brand Collab ·
+  Fashion Week. Tap a chapter to see them, like Home and Travel.
+- No SQL needed. Changed: `planner.ts`, `LYNNHOA-CONTENT-STRUCTURE.md`.
+
 # Planner · @lynnhoa concept: Travel's chapters hold their arcs (06.11.2026)
 - Travel has 4 chapters, each with its arcs as options (3–5) and their formats: City Break · Long Trip
   · Occasion (new: birthdays, dinners and events away) · Maintenance (new: appointments while away).
