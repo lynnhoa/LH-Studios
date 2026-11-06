@@ -4,9 +4,11 @@
 //   Personal Eras | Base | Home | Travel | Work: a switch under the title, and on the same line,
 //   right, the "Arcs" pill — it opens the arcs. The page opens on what you had last
 //   (remembered on this device). The line under the title says what it is.
-//   Personal Eras and the Main Areas (Home · Travel · Work, each showing only its own phases)
+//   Personal Eras and the Main Areas (Home · Travel · Work, each showing only its own chapters;
+//   a chapter will hold its selected arcs, each arc its matching formats)
 //   follow the master structure (planner.ts, LYNNHOA-CONTENT-STRUCTURE.md): placeholder cards
 //   — number · name · what belongs there — marked "empty" until they're filled.
+//   Everyday Life: under Base for now, after the blocks (a placeholder too).
 //   (The old Phases tab is gone; its phases stay in the data, for Creator › Now.)
 //   Every card works the same: number · name · (open: its small links) · arrow. Open: what it
 //   is in grey, then its lists — each under one heading (small grey caps with its count and a
@@ -43,7 +45,7 @@
 import { useState, useEffect, createContext, useContext } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, PAL } from "./constants";
 import { SectionHead, Sheet, SheetButton, OpenArrow } from "./atoms";
-import { PERSONAL_ERAS, MAIN_AREAS, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE, conceptPhaseLabel, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel } from "./planner";
+import { PERSONAL_ERAS, MAIN_AREAS, BASE_EXTRA, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE, conceptPhaseLabel, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel } from "./planner";
 import type { StructItem, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEraArc } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
@@ -451,7 +453,7 @@ const SUBTITLE: Record<ConceptView, string> = {
   arcs:   "How each post is told",
 };
 
-// a placeholder (Personal Eras, a Main Area's phases): number · name · "empty" — what belongs there in grey
+// a placeholder (Personal Eras, a Main Area's chapters, Everyday Life under Base): number · name · "empty" — what belongs there in grey
 const PlaceholderCard = ({ n, item, tone }: { n: number; item: StructItem; tone: Tone }) => (
   <div style={cardBox}>
     <div style={{ ...headBtn, cursor: "default", paddingRight: SPACING.rowSide }}>
@@ -575,7 +577,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
 
   const baseView = planner.phasesError ? note(planner.phasesError, C.red) : (
     <>
-      <SectionHead dot={BASE_TONE.mid} label={`Base · ${blocks.length}`}
+      <SectionHead dot={BASE_TONE.mid} label={`Base · ${blocks.length + BASE_EXTRA.length}`}
         right={blocks.length ? <button onClick={() => setBsOpen(anyBsOpen ? [] : blocks.map(b => b.key))} style={mini}>{anyBsOpen ? "collapse all" : "expand all"}</button> : undefined} />
       {!basePh || !blocks.length
         ? empty(`No base for ${accLabel} yet`, "Run the @lynnhoa concept base SQL in Supabase once: it adds the base blocks with their lines.")
@@ -585,11 +587,15 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
               onLines={() => setWin({ kind: "block", id: basePh.id, era: b.key })}
               onArc={num => setWin({ kind: "era", id: basePh.id, era: b.key, focus: num })} />;
           })}
+      {/* Everyday Life: here for now, numbered after the blocks */}
+      <div style={{ marginTop: SPACING.cardGap }}>
+        {columns(BASE_EXTRA, x => <PlaceholderCard key={x.name} n={blocks.length + BASE_EXTRA.indexOf(x) + 1} item={x} tone={BASE_TONE} />)}
+      </div>
       {blocks.some(b => bsKeys.includes(b.key) && b.arcs.length > 0) && arcMarks}
     </>
   );
 
-  // Personal Eras and the Main Areas: placeholders from the master structure (planner.ts)
+  // Personal Eras and the Main Areas' chapters: placeholders from the master structure (planner.ts)
   const placeholders = (dot: string, label: string, list: StructItem[], tone: Tone) => (
     <>
       <SectionHead dot={dot} label={`${label} · ${list.length}`} />
@@ -598,7 +604,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   );
   const erasView = placeholders(PAL.lynnhoa.mid, "Personal Eras", PERSONAL_ERAS, PAL.lynnhoa);
   const area     = MAIN_AREAS.find(a => a.key === show);
-  const areaView = area ? placeholders(PHASE_TONE.mid, `${area.title} · Phases`, area.phases, PHASE_TONE) : null;
+  const areaView = area ? placeholders(PHASE_TONE.mid, `${area.title} · Chapters`, area.chapters, PHASE_TONE) : null;
 
   // @createbylynn: the 5 pillars, numbered cards (phone one column · iPad / computer two)
   const pillarView = planner.conceptError ? note(planner.conceptError, C.red) : (

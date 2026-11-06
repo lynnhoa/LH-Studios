@@ -592,10 +592,11 @@ export const byOrder = (a: Task, b: Task) => a.sort - b.sort;
 //   Personal Eras (the image you're developing) · Main Areas → Phases (what's happening) ·
 //   Signature Series → Chapters → Content Packages, Standalone Packages (the stories) ·
 //   Arcs → Posts · Base Posts (in between) · Context, Format, Setup (production layers).
-// The concept page shows Personal Eras and one tab per Main Area — placeholders until
-// they're filled (no SQL yet).
+// The concept page shows Personal Eras and one tab per Main Area — each area holds its
+// CHAPTERS, each chapter its selected ARCS, each arc its matching FORMATS. Placeholders until
+// they're filled (no SQL yet). Everyday Life sits under Base for now (its structure comes later).
 export interface StructItem { name: string; desc: string; }
-export interface MainArea { key: "home" | "travel" | "work"; label: string; title: string; phases: StructItem[]; }
+export interface MainArea { key: "home" | "travel" | "work"; label: string; title: string; chapters: StructItem[]; }
 
 export const PERSONAL_ERAS: StructItem[] = [
   { name: "Beauty Era",    desc: "Hair, nails, makeup and beauty identity" },
@@ -603,20 +604,24 @@ export const PERSONAL_ERAS: StructItem[] = [
   { name: "Signature Era", desc: "Signature accessories, everyday look and personal uniform" },
 ];
 
+// under Base for now, after its blocks (its own structure comes later)
+export const BASE_EXTRA: StructItem[] = [
+  { name: "Everyday Life", desc: "Getting ready, routines, matcha, quiet days, thoughts and personality" },
+];
+
 export const MAIN_AREAS: MainArea[] = [
-  { key: "home", label: "Home", title: "Home", phases: [
+  { key: "home", label: "Home", title: "Home", chapters: [
     { name: "Home Projects",      desc: "Bedroom, bathroom, furniture, decorating, home improvements" },
     { name: "Maintenance",        desc: "Hair, lashes, nails, skincare and other beauty upkeep" },
     { name: "Beauty Projects",    desc: "New hair, new makeup, beauty changes and experiments" },
     { name: "Wardrobe & Style",   desc: "Wardrobe edits, new pieces, seasonal wardrobe changes, style development" },
     { name: "Kits & Preparation", desc: "Travel kits, work bag, beauty kits, packing and restocking" },
-    { name: "Everyday Life",      desc: "Getting ready, routines, matcha, quiet days, thoughts and personality" },
   ] },
-  { key: "travel", label: "Travel", title: "Travel", phases: [
+  { key: "travel", label: "Travel", title: "Travel", chapters: [
     { name: "City Break", desc: "Short trips, city experiences, outfits, restaurants and activities" },
     { name: "Long Trip",  desc: "Longer holidays, travel experiences, packing, destinations and daily life away" },
   ] },
-  { key: "work", label: "Work", title: "Brand Work", phases: [
+  { key: "work", label: "Work", title: "Brand Work", chapters: [
     { name: "Invited",       desc: "Brand invitations, events, hosted experiences" },
     { name: "Brand Collab",  desc: "Paid partnerships, gifting, campaigns and collaborations" },
     { name: "Fashion Week",  desc: "Fashion Week trips, shows, events, street style and industry experiences" },

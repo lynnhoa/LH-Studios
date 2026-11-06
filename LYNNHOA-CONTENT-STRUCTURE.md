@@ -33,7 +33,6 @@ These define where the content takes place and what kind of activity or experien
 | Beauty Projects | New hair, new makeup, beauty changes and experiments |
 | Wardrobe & Style | Wardrobe edits, new pieces, seasonal wardrobe changes, style development |
 | Kits & Preparation | Travel kits, work bag, beauty kits, packing and restocking |
-| Everyday Life | Getting ready, routines, matcha, quiet days, thoughts and personality |
 
 ### Travel
 
@@ -49,6 +48,17 @@ These define where the content takes place and what kind of activity or experien
 | Invited | Brand invitations, events, hosted experiences |
 | Brand Collab | Paid partnerships, gifting, campaigns and collaborations |
 | Fashion Week | Fashion Week trips, shows, events, street style and industry experiences |
+
+### In the app (06.11.2026)
+
+Each main area holds its **chapters** (the phases above). Each chapter holds its **selected arcs**, each arc its **matching formats**:
+
+```
+Main area → Chapter → Selected arcs → Matching formats
+```
+
+Home has 5 chapters: Home Projects · Maintenance · Beauty Projects · Wardrobe & Style · Kits & Preparation.
+**Everyday Life** (getting ready, routines, matcha, quiet days, thoughts and personality) sits under **Base** for now; its own structure comes later.
 
 ## 4. Signature Series
 
