@@ -29,7 +29,7 @@ declare
     {"num":1,"name":"The Before","purpose":"The build-up and anticipation before you go out.",
      "formats":[["GRWM Talking",true],["Voiceover",false],["Presence + Text",false],["Lip Sync Song",false],["TikTok Trends",false],["Transition",false]]},
     {"num":2,"name":"The Look","purpose":"Your fashion identity and what draws people in.",
-     "formats":[["Outfit Check",true],["Walk + Text",false]]},
+     "formats":[["Outfit Check",true],["Walk + Text",false],["Transition",false]]},
     {"num":3,"name":"The Moment","purpose":"Being there and capturing the scene as it happens.",
      "formats":[["Walk + Text",true],["TikTok Trends",true],["Lip Sync Song",false],["Selfie Reaction",false],["Presence + Text",false]]},
     {"num":4,"name":"The Opinion","purpose":"Your point of view and honest judgments on things.",

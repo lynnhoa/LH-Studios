@@ -11,16 +11,15 @@
 //   Home's chapters are filled (06.11.2026): number · name · arrow, what it is in grey; open: its
 //   arcs in posting order — the arc's number (blue) · name · what it does here · its formats here.
 //   Open chapters are remembered on this device; "expand all / collapse all" on the heading.
-//   Everyday Life: under Base for now, after the blocks (a placeholder too).
 //   (The old Phases tab is gone; its phases stay in the data, for Creator › Now.)
 //   Every card works the same: number · name · (open: its small links) · arrow. Open: what it
 //   is in grey, then its lists — each under one heading (small grey caps with its count and a
 //   small arrow: tap it to fold or unfold the list; what you fold stays folded on this device),
 //   one row per item: a light dot, the name in black, what it is in grey, in full. Nothing is
 //   shown twice: what a small link opens ("texts · links") isn't listed in the card too.
-//   Base (warm grey): what's always there, under every phase — one card per block. Open: what
-//   it is, its lines in sections ("label · how it shows") and its arcs as pills — tap one:
-//   the block's arcs window, with that arc open. "edit" opens one window to add, change,
+//   Base (warm grey): quick personality posts between chapters — the 6 blocks of planner.ts
+//   (BASE_BLOCKS), shown like the chapters: open, its arcs with their notes and formats, then the
+//   block's lines from the data (found by name). "edit" opens one window to add, change,
 //   delete the lines (Undo, saved right away).
 //   Phases (butter): Home, Occasion … one card each. Open: its purpose and its eras under
 //   their group headings ("Moments · 3"; a phase without groups: "Eras · 3"). Each era shows
@@ -48,7 +47,7 @@
 import { useState, useEffect, createContext, useContext } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, PAL } from "./constants";
 import { SectionHead, Sheet, SheetButton, OpenArrow } from "./atoms";
-import { PERSONAL_ERAS, MAIN_AREAS, BASE_EXTRA, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE, conceptPhaseLabel, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel } from "./planner";
+import { PERSONAL_ERAS, MAIN_AREAS, BASE_BLOCKS, BASE_NOTE, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE, conceptPhaseLabel, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel } from "./planner";
 import type { StructItem, ChapterArc, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEraArc } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
@@ -450,14 +449,14 @@ type Win = { kind: "texts" | "links"; id: string } | { kind: "era"; id: string; 
 // what each tab is (the line under the title)
 const SUBTITLE: Record<ConceptView, string> = {
   eras:   "The image you're developing",
-  base:   "Always there, under every phase",
+  base:   BASE_NOTE,
   home:   "What's happening at home",
   travel: "What's happening on the road",
   work:   "What's happening with brands",
   arcs:   "How each post is told",
 };
 
-// a placeholder (Personal Eras, a Main Area's chapters, Everyday Life under Base): number · name · "empty" — what belongs there in grey
+// a placeholder (a chapter or era without arcs): number · name · "empty" — what belongs there in grey
 const PlaceholderCard = ({ n, item, tone }: { n: number; item: StructItem; tone: Tone }) => (
   <div style={cardBox}>
     <div style={{ ...headBtn, cursor: "default", paddingRight: SPACING.rowSide }}>
@@ -472,13 +471,14 @@ const PlaceholderCard = ({ n, item, tone }: { n: number; item: StructItem; tone:
 // a chapter with its selected arcs (Home): number · name · arrow, what it is in grey — open: its
 // arcs in posting order, each: the arc's number (blue) · its name · what it does here (grey) ·
 // the formats used for it here
-const ChapterCard = ({ n, item, arcs, open, onToggle, tone = PHASE_TONE }: { n: number; item: StructItem; arcs: ConceptArc[]; open: boolean; onToggle: () => void; tone?: Tone }) => (
+const ChapterCard = ({ n, item, arcs, open, onToggle, tone = PHASE_TONE, onEdit, extra }: { n: number; item: StructItem; arcs: ConceptArc[]; open: boolean; onToggle: () => void; tone?: Tone; onEdit?: () => void; extra?: any }) => (
   <div style={cardBox}>
     <div style={{ display: "flex", alignItems: "center" }}>
       <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${item.name}`} style={headBtn}>
         <NumCircle n={n} tone={tone} />
         <span style={nameText}>{item.name}</span>
       </button>
+      {open && onEdit && <button onClick={onEdit} aria-label={`Edit the lines of ${item.name}`} style={{ ...mini, flexShrink: 0 }}>edit</button>}
       <Caret open={open} onClick={onToggle} />
     </div>
     <div style={{ ...descText, paddingBottom: open ? 0 : 10, marginLeft: SPACING.rowSide + INDENT }}>{tidy(item.desc)}</div>
@@ -486,6 +486,7 @@ const ChapterCard = ({ n, item, arcs, open, onToggle, tone = PHASE_TONE }: { n: 
       <div style={{ margin: `6px ${SPACING.rowSide}px 0 ${SPACING.rowSide + INDENT}px`, paddingBottom: 8 }}>
         <div style={{ ...caps, color: C.light, padding: "2px 0 6px" }}>{count("Arcs", item.arcs?.length || 0)}</div>
         {(item.arcs || []).map((x, k) => <ChapterArcRow key={k} x={x} arc={arcs.find(a => a.name.trim().toLowerCase() === x.arc.trim().toLowerCase())} />)}
+        {extra}
       </div>
     )}
   </div>
@@ -625,23 +626,34 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
     </>
   );
 
-  const baseView = planner.phasesError ? note(planner.phasesError, C.red) : (
-    <>
-      <SectionHead dot={BASE_TONE.mid} label={`Base · ${blocks.length + BASE_EXTRA.length}`}
-        right={blocks.length ? <button onClick={() => setBsOpen(anyBsOpen ? [] : blocks.map(b => b.key))} style={mini}>{anyBsOpen ? "collapse all" : "expand all"}</button> : undefined} />
-      {!basePh || !blocks.length
-        ? empty(`No base for ${accLabel} yet`, "Run the @lynnhoa concept base SQL in Supabase once: it adds the base blocks with their lines.")
-        : columns(blocks, b => {
-            const n = blocks.indexOf(b) + 1;
-            return <BlockCard key={b.key} block={b} n={n} arcs={arcs} open={bsKeys.includes(b.key)} onToggle={() => toggleBs(b.key)}
-              onLines={() => setWin({ kind: "block", id: basePh.id, era: b.key })}
-              onArc={num => setWin({ kind: "era", id: basePh.id, era: b.key, focus: num })} />;
-          })}
-      {/* Everyday Life: here for now, numbered after the blocks */}
-      <div style={{ marginTop: SPACING.cardGap }}>
-        {columns(BASE_EXTRA, x => <PlaceholderCard key={x.name} n={blocks.length + BASE_EXTRA.indexOf(x) + 1} item={x} tone={BASE_TONE} />)}
+  // Base: the 6 blocks (planner.ts) with their arcs; each block's lines come from the data (the
+  // Base phase, found by the block's name) — shown under the arcs, "edit" opens them
+  const norm = (t: string) => t.trim().toLowerCase().replace(/[’']/g, "'");
+  const blockOf = (c: StructItem) => blocks.find(b => norm(b.name) === norm(c.name));
+  const baseLines = (c: StructItem) => {
+    const b = blockOf(c);
+    if (!b) return null;
+    const secs = b.sections.filter(x => x.lines.length);
+    return secs.map((x, k) => (
+      <div key={`${k}-${x.name}`} style={{ marginTop: 8 }}>
+        <FoldSection id={`bs:${b.key}:${x.name || "-"}`} label={x.name || "Lines"} n={x.lines.length}>
+          {x.lines.map((t, i) => { const [label, rest] = splitBlockLine(t); return <ItemRow key={i} name={label} text={tidy(rest)} />; })}
+        </FoldSection>
       </div>
-      {blocks.some(b => bsKeys.includes(b.key) && b.arcs.length > 0) && arcMarks}
+    ));
+  };
+  const baseKey = (c: StructItem) => `base:${c.name}`;
+  const anyBaseOpen = BASE_BLOCKS.some(c => chKeys.includes(baseKey(c)));
+  const baseView = (
+    <>
+      <SectionHead dot={BASE_TONE.mid} label={`Base · ${BASE_BLOCKS.length}`}
+        right={<button onClick={() => setChsOpen(anyBaseOpen ? chKeys.filter(k => !k.startsWith("base:")) : Array.from(new Set([...chKeys, ...BASE_BLOCKS.map(baseKey)])))} style={mini}>{anyBaseOpen ? "collapse all" : "expand all"}</button>} />
+      {columns(BASE_BLOCKS, c => {
+        const b = blockOf(c);
+        return <ChapterCard key={c.name} n={BASE_BLOCKS.indexOf(c) + 1} item={c} arcs={arcs} tone={BASE_TONE}
+          open={chKeys.includes(baseKey(c))} onToggle={() => toggleCh(baseKey(c))}
+          onEdit={b && basePh ? () => setWin({ kind: "block", id: basePh.id, era: b.key }) : undefined} extra={baseLines(c)} />;
+      })}
     </>
   );
 

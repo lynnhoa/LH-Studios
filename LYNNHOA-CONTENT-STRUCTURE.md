@@ -97,7 +97,6 @@ Each Home chapter with its selected arcs and their formats (in the app: Home tab
 Kits & Preparation has 3 arcs, Home Projects 4, the others 5. Personality only where it's a real trait: "nothing to wear" (Wardrobe & Style) and overplanning (Before Next Trip).
 
 The full wording (each chapter's description and what each arc does there) lives in `planner.ts` (`MAIN_AREAS`).
-**Everyday Life** (getting ready, routines, matcha, quiet days, thoughts and personality) sits under **Base** for now; its own structure comes later.
 
 ## 4. Signature Series
 
@@ -140,6 +139,7 @@ The build-up and anticipation before you go out.
 Your fashion identity and what draws people in.
 - Outfit Check (main)
 - Walk + Text
+- Transition
 
 **3. The Moment**
 Being there and capturing the scene as it happens.
@@ -194,16 +194,16 @@ In the app: run `LH-Studio-lynnhoa-arcs.sql` once in Supabase to set these arcs 
 
 ## 7. Base Posts
 
-Recurring individual posts that keep your personality and fashion presence alive between bigger packages.
+Quick personality posts that fill the gaps between chapters. They don't need to belong to a Series or Content Package.
 
-- Signatures
-- Today's Outfit
-- New In
-- Thoughts
-- Opinions
-- Trends
-
-They don't need to belong to a Series or Content Package.
+| Block | What it is | Arcs → formats |
+|---|---|---|
+| 1. Signatures | Your matcha, your scent, sunglasses on your head and your little rules: what makes you you every day | The Moment (Walk + Text, Presence + Text, Lip Sync Song) · The Personality (Lip Sync Talk, Skits, Selfie Reaction, Presence + Text) · The Opinion (Presence + Text, Question + Reply/Reaction, Walk + Text) · The Obsession (Presence + Text, Lip Sync Song, Voiceover) |
+| 2. Today's Outfit | Dressed nicely for an ordinary day, no occasion needed | The Look (Outfit Check, Walk + Text, Transition) · The Moment (Walk + Text, Lip Sync Song, Selfie Reaction, Presence + Text) · The Personality (Lip Sync Talk, Skits, Presence + Text) |
+| 3. New In | The one new piece or product that made it in, because you choose carefully | The Obsession (Presence + Text, Lip Sync Song, Voiceover, Selfie Reaction + Result) · The Look (Outfit Check, Walk + Text) · The Opinion (Presence + Text, Question + Reply/Reaction, Walk + Text) · The Personality (Lip Sync Talk, Selfie Reaction, Presence + Text) |
+| 4. Thoughts | What's on your mind: your takes on style, beauty and making an ordinary life feel lovely | The Opinion (Presence + Text, Question + Reply/Reaction, Walk + Text, Lip Sync Talk) · The Personality (Lip Sync Talk, Presence + Text) · The Obsession (Presence + Text, Lip Sync Song, Voiceover, Question + Reply/Reaction) |
+| 5. Trends | Trending sounds and formats, done your calm, dry way | The Moment (TikTok Trends, Lip Sync Song, Selfie Reaction, Presence + Text) · The Personality (Lip Sync Talk, Skits, Selfie Reaction) |
+| 6. Shoot Day | Behind the scenes of your own editorial shoots | The Before (GRWM Talking, Voiceover, Presence + Text, Transition) · The Look (Outfit Check, Walk + Text) · The Moment (Walk + Text, Lip Sync Song, Selfie Reaction) · The Editorial (Own Shoots) |
 
 ## 8. Context, Format & Setup
 
