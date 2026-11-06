@@ -85,16 +85,16 @@ Each Home chapter with its selected arcs and their formats (in the app: Home tab
 
 | Chapter | Arcs → formats |
 |---|---|
-| 1. After Trip | The Moment (Presence + Text, Lip Sync Song) · The Edit (Seated Talking, Half-Body Talking) · The Look (Outfit Check, Walk + Text) · The Obsession (Presence + Text, Lip Sync Song, Voiceover, Selfie Reaction + Result) |
-| 2. Home Projects | The Edit (Seated Talking, Half-Body Talking) · The Story (Vlog, Voiceover) · The Obsession (Presence + Text, Voiceover, Selfie Reaction + Result) |
-| 3. Maintenance | The Obsession (Presence + Text, Lip Sync Song) · The Moment (Presence + Text, Selfie Reaction, TikTok Trends) · The Look (Transition, Outfit Check) · The Story (Vlog, Selfie Reaction + Result) |
-| 4. Beauty Projects | The Edit (Seated Talking, Half-Body Talking) · The Look (Transition) · The Opinion (Presence + Text, Question + Reply/Reaction) · The Obsession (Presence + Text, Lip Sync Song, Selfie Reaction + Result) |
-| 5. Wardrobe & Style | The Edit (Seated Talking, Half-Body Talking) · The Look (Outfit Check, Walk + Text) · The Obsession (Presence + Text, Voiceover) |
-| 6. Occasion | The Before (GRWM Talking, Voiceover, Presence + Text, Lip Sync Song, Transition) · The Look (Outfit Check, Walk + Text) · The Moment (Walk + Text, TikTok Trends, Lip Sync Song, Selfie Reaction) · The Story (Vlog, Voiceover) |
+| 1. After Trip | The Moment (Presence + Text, Lip Sync Song) · The Edit (Seated Talking, Half-Body Talking) · The Look (Outfit Check, Walk + Text) · The Opinion (Presence + Text, Question + Reply/Reaction) · The Obsession (Presence + Text, Lip Sync Song, Voiceover, Selfie Reaction + Result) |
+| 2. Home Projects | The Edit (Seated Talking, Half-Body Talking) · The Story (Vlog, Voiceover) · The Opinion (Presence + Text, Question + Reply/Reaction) · The Obsession (Presence + Text, Voiceover, Selfie Reaction + Result) |
+| 3. Maintenance | The Obsession (Presence + Text, Lip Sync Song) · The Moment (Presence + Text, Selfie Reaction, TikTok Trends) · The Look (Transition, Outfit Check) · The Opinion (Presence + Text, Question + Reply/Reaction) · The Story (Vlog, Selfie Reaction + Result) |
+| 4. Beauty Projects | The Edit (Seated Talking, Half-Body Talking) · The Story (Vlog, Selfie Reaction + Result) · The Look (Transition) · The Opinion (Presence + Text, Question + Reply/Reaction) · The Obsession (Presence + Text, Lip Sync Song, Selfie Reaction + Result) |
+| 5. Wardrobe & Style | The Edit (Seated Talking, Half-Body Talking) · The Look (Outfit Check, Walk + Text) · The Opinion (Presence + Text, Question + Reply/Reaction) · The Personality (Lip Sync Talk, Skits) · The Obsession (Presence + Text, Voiceover) |
+| 6. Occasion | The Obsession (Presence + Text, Lip Sync Song) · The Before (GRWM Talking, Voiceover, Presence + Text, Lip Sync Song, Transition) · The Look (Outfit Check, Walk + Text) · The Moment (Walk + Text, TikTok Trends, Lip Sync Song, Selfie Reaction) · The Story (Vlog, Voiceover) |
 | 7. Kits & Preparation | The Edit (Seated Talking, Half-Body Talking) · The Opinion (Presence + Text, Question + Reply/Reaction) · The Obsession (Presence + Text, Voiceover) |
-| 8. Before Next Trip | The Obsession (Presence + Text, Lip Sync Song) · The Edit (Seated Talking, Half-Body Talking) · The Before (Voiceover, Presence + Text, Lip Sync Song, TikTok Trends) · The Personality (Lip Sync Talk, Skits) |
+| 8. Before Next Trip | The Obsession (Presence + Text, Lip Sync Song) · The Edit (Seated Talking, Half-Body Talking) · The Look (Outfit Check, Walk + Text) · The Before (Voiceover, Presence + Text, Lip Sync Song, TikTok Trends) · The Personality (Lip Sync Talk, Skits) |
 
-After Trip, Maintenance, Beauty Projects, Occasion and Before Next Trip have 4 arcs; Home Projects, Wardrobe & Style and Kits & Preparation stay at 3 (they work best short).
+Kits & Preparation has 3 arcs, Home Projects 4, the others 5. Personality only where it's a real trait: "nothing to wear" (Wardrobe & Style) and overplanning (Before Next Trip).
 
 The full wording (each chapter's description and what each arc does there) lives in `planner.ts` (`MAIN_AREAS`).
 **Everyday Life** (getting ready, routines, matcha, quiet days, thoughts and personality) sits under **Base** for now; its own structure comes later.

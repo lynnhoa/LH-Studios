@@ -1,3 +1,10 @@
+# Planner · @lynnhoa concept: Home's chapters updated (06.11.2026)
+- Home's 8 chapters revised word for word: The Opinion added to After Trip, Home Projects,
+  Maintenance and Wardrobe & Style; Beauty Projects gets The Story; Wardrobe & Style gets The
+  Personality ("nothing to wear"); Before Next Trip gets The Look; Occasion gets The Obsession (first).
+  Kits & Preparation stays at 3.
+- No SQL needed. Changed: `planner.ts`, `LYNNHOA-CONTENT-STRUCTURE.md`.
+
 # Planner · @lynnhoa concept: Work's chapters hold their arcs (06.11.2026)
 - Work (Brand Work) has 3 chapters, each with 5 arcs and their formats: Invited · Brand Collab ·
   Fashion Week. Tap a chapter to see them, like Home and Travel.
