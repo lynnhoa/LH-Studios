@@ -1,3 +1,9 @@
+# Planner · @lynnhoa concept: Home gets Occasion (06.11.2026)
+- Home has 8 chapters: Occasion is 6th (Kits & Preparation 7, Before Next Trip 8) — birthdays,
+  dinners, holidays, events and special days from home. Arcs: The Before (keeps GRWM Talking and
+  Transition — you go out on the day) · The Look · The Moment · The Story.
+- No SQL needed. Changed: `planner.ts`, `LYNNHOA-CONTENT-STRUCTURE.md`.
+
 # Planner · @lynnhoa concept: Home's chapters revised (06.11.2026)
 - After Trip, Maintenance, Beauty Projects and Before Next Trip have 4 arcs now; Home Projects,
   Wardrobe & Style and Kits & Preparation stay at 3.
