@@ -602,9 +602,26 @@ export interface StructItem { name: string; desc: string; arcs?: ChapterArc[]; }
 export interface MainArea { key: "home" | "travel" | "work"; label: string; title: string; chapters: StructItem[]; }
 
 export const PERSONAL_ERAS: StructItem[] = [
-  { name: "Beauty Era",    desc: "Hair, nails, makeup and beauty identity" },
-  { name: "Style Era",     desc: "Wardrobe, personal style, silhouettes and aesthetic" },
-  { name: "Signature Era", desc: "Signature accessories, everyday look and personal uniform" },
+  { name: "Beauty Era", desc: "Refining your beauty identity: hair, nails, lashes, makeup and skincare", arcs: [
+    { arc: "The Obsession", note: "The change you can't stop thinking about, then loving it", formats: ["Presence + Text", "Lip Sync Song", "Selfie Reaction + Result"] },
+    { arc: "The Edit",      note: "What you're changing and the real reason why", formats: ["Seated Talking", "Half-Body Talking"] },
+    { arc: "The Story",     note: "The change as it happens", formats: ["Vlog", "Selfie Reaction + Result"] },
+    { arc: "The Look",      note: "The reveal of the new beauty look", formats: ["Transition"] },
+    { arc: "The Opinion",   note: "Your verdict on the change and the products", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+  ] },
+  { name: "Style Era", desc: "Refining your personal style: wardrobe, silhouettes, styling and aesthetic", arcs: [
+    { arc: "The Obsession",   note: "The new silhouette or aesthetic you keep wanting", formats: ["Presence + Text", "Lip Sync Song", "Voiceover"] },
+    { arc: "The Edit",        note: "What stays, what goes, what comes in, and why", formats: ["Seated Talking", "Half-Body Talking"] },
+    { arc: "The Look",        note: "The new style worn and styled", formats: ["Outfit Check", "Walk + Text"] },
+    { arc: "The Opinion",     note: "Your style rules and honest takes", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+    { arc: "The Personality", note: "“Nothing to wear” in a full closet", formats: ["Lip Sync Talk", "Skits"] },
+  ] },
+  { name: "Signature Era", desc: "Your recognisable everyday look: signature pieces, uniform and combinations", arcs: [
+    { arc: "The Look",      note: "Your everyday look and recurring combinations", formats: ["Outfit Check", "Walk + Text"] },
+    { arc: "The Edit",      note: "Why this is your uniform and what makes it yours", formats: ["Seated Talking", "Half-Body Talking"] },
+    { arc: "The Moment",    note: "Your signature pieces in daily life", formats: ["Walk + Text", "Presence + Text"] },
+    { arc: "The Obsession", note: "The piece you never take off", formats: ["Presence + Text", "Voiceover"] },
+  ] },
 ];
 
 // under Base for now, after its blocks (its own structure comes later)
@@ -615,49 +632,57 @@ export const BASE_EXTRA: StructItem[] = [
 export const MAIN_AREAS: MainArea[] = [
   { key: "home", label: "Home", title: "Home", chapters: [
     { name: "After Trip", desc: "Coming home with new things: what you bought and how they settle into your life", arcs: [
-      { arc: "The Moment",    note: "Just being home again, in your space and your outfit", formats: ["Presence + Text", "Lip Sync Song"] },
-      { arc: "The Edit",      note: "The unboxing and what you bought, with the real reason why", formats: ["Seated Talking", "Half-Body Talking"] },
-      { arc: "The Look",      note: "The new piece worn and styled for the first time", formats: ["Outfit Check", "Walk + Text"] },
+      { arc: "The Moment", note: "Just being home again, in your space and your outfit", formats: ["Presence + Text", "Lip Sync Song"] },
+      { arc: "The Edit", note: "The unboxing and what you bought, with the real reason why", formats: ["Seated Talking", "Half-Body Talking"] },
+      { arc: "The Look", note: "The new piece worn and styled for the first time", formats: ["Outfit Check", "Walk + Text"] },
+      { arc: "The Opinion", note: "Your verdict on what you bought: worth it or not", formats: ["Presence + Text", "Question + Reply/Reaction"] },
       { arc: "The Obsession", note: "How the new piece becomes part of you every day", formats: ["Presence + Text", "Lip Sync Song", "Voiceover", "Selfie Reaction + Result"] },
     ] },
     { name: "Home Projects", desc: "Bedroom, bathroom, furniture, decorating and home improvements", arcs: [
-      { arc: "The Edit",      note: "What you change at home and why you choose it", formats: ["Seated Talking", "Half-Body Talking"] },
-      { arc: "The Story",     note: "A small vlog showing the little change in real life", formats: ["Vlog", "Voiceover"] },
+      { arc: "The Edit", note: "What you change at home and why you choose it", formats: ["Seated Talking", "Half-Body Talking"] },
+      { arc: "The Story", note: "A small vlog showing the little change in real life", formats: ["Vlog", "Voiceover"] },
+      { arc: "The Opinion", note: "What worked, what didn't, and what you'd choose again", formats: ["Presence + Text", "Question + Reply/Reaction"] },
       { arc: "The Obsession", note: "Loving and living in the result", formats: ["Presence + Text", "Voiceover", "Selfie Reaction + Result"] },
     ] },
     { name: "Maintenance", desc: "Hair, lashes, nails, skincare and other beauty upkeep", arcs: [
       { arc: "The Obsession", note: "The teaser, the thought of needing it done", formats: ["Presence + Text", "Lip Sync Song"] },
-      { arc: "The Moment",    note: "Being there, at the appointment or in the routine", formats: ["Presence + Text", "Selfie Reaction", "TikTok Trends"] },
-      { arc: "The Look",      note: "The reveal of the fresh look", formats: ["Transition", "Outfit Check"] },
-      { arc: "The Story",     note: "How it turned out and the result", formats: ["Vlog", "Selfie Reaction + Result"] },
+      { arc: "The Moment", note: "Being there, at the appointment or in the routine", formats: ["Presence + Text", "Selfie Reaction", "TikTok Trends"] },
+      { arc: "The Look", note: "The reveal of the fresh look", formats: ["Transition", "Outfit Check"] },
+      { arc: "The Opinion", note: "Your honest take on what's worth it and what isn't", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+      { arc: "The Story", note: "How it turned out and the result", formats: ["Vlog", "Selfie Reaction + Result"] },
     ] },
     { name: "Beauty Projects", desc: "New hair, new makeup, beauty changes and experiments", arcs: [
-      { arc: "The Edit",      note: "What you're changing in your beauty and why", formats: ["Seated Talking", "Half-Body Talking"] },
-      { arc: "The Look",      note: "The reveal of the new look", formats: ["Transition"] },
-      { arc: "The Opinion",   note: "Your verdict on the change or the products", formats: ["Presence + Text", "Question + Reply/Reaction"] },
-      { arc: "The Obsession", note: "The new look you can't stop loving", formats: ["Presence + Text", "Lip Sync Song", "Selfie Reaction + Result"] },
+      { arc: "The Edit", note: "What you're changing in your beauty and why", formats: ["Seated Talking", "Half-Body Talking"] },
+      { arc: "The Story", note: "The change as it happens, with the result", formats: ["Vlog", "Selfie Reaction + Result"] },
+      { arc: "The Look", note: "The reveal of the new look", formats: ["Transition"] },
+      { arc: "The Opinion", note: "Your verdict on the change or the products", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+      { arc: "The Obsession", note: "Wanting the change, then loving the new look", formats: ["Presence + Text", "Lip Sync Song", "Selfie Reaction + Result"] },
     ] },
     { name: "Wardrobe & Style", desc: "Wardrobe edits, new pieces, seasonal changes and style development", arcs: [
-      { arc: "The Edit",      note: "What stays, what goes, what comes in, and why", formats: ["Seated Talking", "Half-Body Talking"] },
-      { arc: "The Look",      note: "The new pieces worn and styled", formats: ["Outfit Check", "Walk + Text"] },
+      { arc: "The Edit", note: "What stays, what goes, what comes in, and why", formats: ["Seated Talking", "Half-Body Talking"] },
+      { arc: "The Look", note: "The new pieces worn and styled", formats: ["Outfit Check", "Walk + Text"] },
+      { arc: "The Opinion", note: "Your style rules and honest takes", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+      { arc: "The Personality", note: "The relatable side, like “nothing to wear” in a full closet", formats: ["Lip Sync Talk", "Skits"] },
       { arc: "The Obsession", note: "The pieces you reach for again and again", formats: ["Presence + Text", "Voiceover"] },
     ] },
     { name: "Occasion", desc: "Birthdays, dinners, holidays, events and special days from home", arcs: [
+      { arc: "The Obsession", note: "The occasion piece or plan you can't stop thinking about", formats: ["Presence + Text", "Lip Sync Song"] },
       { arc: "The Before", note: "Getting ready and the build-up before you go", formats: ["GRWM Talking", "Voiceover", "Presence + Text", "Lip Sync Song", "Transition"] },
-      { arc: "The Look",   note: "The occasion outfit revealed", formats: ["Outfit Check", "Walk + Text"] },
+      { arc: "The Look", note: "The occasion outfit revealed", formats: ["Outfit Check", "Walk + Text"] },
       { arc: "The Moment", note: "Being there and capturing the scene", formats: ["Walk + Text", "TikTok Trends", "Lip Sync Song", "Selfie Reaction"] },
-      { arc: "The Story",  note: "The whole day or evening, with a payoff", formats: ["Vlog", "Voiceover"] },
+      { arc: "The Story", note: "The whole day or evening, with a payoff", formats: ["Vlog", "Voiceover"] },
     ] },
     { name: "Kits & Preparation", desc: "Travel kits, work bag, beauty kits and restocking", arcs: [
-      { arc: "The Edit",      note: "What's in your kit and why each thing earns its place", formats: ["Seated Talking", "Half-Body Talking"] },
-      { arc: "The Opinion",   note: "Your rules and judgments on what belongs in a kit", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+      { arc: "The Edit", note: "What's in your kit and why each thing earns its place", formats: ["Seated Talking", "Half-Body Talking"] },
+      { arc: "The Opinion", note: "Your rules and judgments on what belongs in a kit", formats: ["Presence + Text", "Question + Reply/Reaction"] },
       { arc: "The Obsession", note: "The one item you never go without", formats: ["Presence + Text", "Voiceover"] },
     ] },
     { name: "Before Next Trip", desc: "The prep process at home: planning, choosing and counting down", arcs: [
-      { arc: "The Obsession",   note: "Dreaming about the destination before you go", formats: ["Presence + Text", "Lip Sync Song"] },
-      { arc: "The Edit",        note: "What you're bringing for this trip and why", formats: ["Seated Talking", "Half-Body Talking"] },
-      { arc: "The Before",      note: "The prep mood at home: packing, planning, countdown", formats: ["Voiceover", "Presence + Text", "Lip Sync Song", "TikTok Trends"] },
-      { arc: "The Personality", note: "The relatable side of prepping, like packing chaos or overplanning", formats: ["Lip Sync Talk", "Skits"] },
+      { arc: "The Obsession", note: "Dreaming about the destination before you go", formats: ["Presence + Text", "Lip Sync Song"] },
+      { arc: "The Edit", note: "What you're bringing for this trip and why", formats: ["Seated Talking", "Half-Body Talking"] },
+      { arc: "The Look", note: "Trip outfits tried on and tested", formats: ["Outfit Check", "Walk + Text"] },
+      { arc: "The Before", note: "The prep mood at home: packing, planning, countdown", formats: ["Voiceover", "Presence + Text", "Lip Sync Song", "TikTok Trends"] },
+      { arc: "The Personality", note: "The relatable side of prepping, like overplanning", formats: ["Lip Sync Talk", "Skits"] },
     ] },
   ] },
   { key: "travel", label: "Travel", title: "Travel", chapters: [
