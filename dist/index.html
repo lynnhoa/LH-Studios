@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover for iPhone notch / home bar -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+    <!-- PWA / home screen -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="LH Studio" />
+    <meta name="theme-color" content="#faf9f7" />
+
+    <!-- No index — private app -->
+    <meta name="robots" content="noindex, nofollow" />
+
+    <title>Lynn Hoa Studio</title>
+
+    <!-- Icons + PWA manifest (repo root; copied into the build by vite.config.ts) -->
+    <link rel="icon" type="image/x-icon" href="/assets/favicon-CWo207Se.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32-BiS58W6M.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16-Bn3sly_S.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon-DmFz3zmJ.png" />
+    <link rel="manifest" href="/assets/site-G9Ppg6ce.webmanifest" />
+
+    <!-- Playfair Display — must match SERIF constant in constants.ts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      /* Reset */
+      *, *::before, *::after { box-sizing: border-box; }
+      html {
+        /* Stop iOS Safari from inflating small text (PDF preview pages) */
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+      }
+      html, body, #root {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        /* Use dvh on modern browsers so iOS toolbar doesn't cut content */
+        min-height: 100dvh;
+      }
+      body {
+        background: #faf9f7;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      /* Prevent double-tap zoom on iOS buttons */
+      button { touch-action: manipulation; }
+      /* Native input styling baseline */
+      input, select, textarea {
+        font-family: inherit;
+        -webkit-appearance: none;
+        appearance: none;
+        /* iOS auto-zooms on focus when font-size < 16px — force minimum */
+        font-size: 16px !important;
+      }
+      /* Borderless filter/sort toolbar selects are display-only (native
+         picker, no text entry) so they don't trigger iOS focus-zoom.
+         Higher specificity than the rule above so 10px wins. */
+      select.tsel { font-size: 10px !important; }
+      select.psel { font-size: 12px !important; }
+
+      /* Computer (mouse / trackpad) only: a light tint on anything you can click.
+         Touch screens (iPhone, iPad without trackpad) never see it. */
+      @media (hover: hover) and (pointer: fine) {
+        button:not(:disabled), [role="button"] { transition: filter 0.12s ease; }
+        /* only the innermost thing under the pointer, not the card around it */
+        button:not(:disabled):hover:not(:has(button:hover, [role="button"]:hover)),
+        [role="button"]:hover:not(:has(button:hover, [role="button"]:hover)) { filter: brightness(0.975); }
+      }
+      /* iPad / computer: two side-by-side parts; an empty one is left out so the other gets the full width */
+      .lh-split > :empty, .lh-cols > :empty { display: none; }
+      .lh-cols:has(> :empty) { grid-template-columns: minmax(0, 1fr) !important; }
+    </style>
+    <script type="module" crossorigin src="/assets/index-Dzaw0XGa.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

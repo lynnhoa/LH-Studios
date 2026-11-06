@@ -1,3 +1,8 @@
+# Planner · @lynnhoa concept: Home starts with After Trip, ends with Before Next Trip (06.11.2026)
+- Home's chapters (7): After Trip · Home Projects · Maintenance · Beauty Projects · Wardrobe & Style ·
+  Kits & Preparation · Before Next Trip.
+- No SQL needed. Changed: `planner.ts`, `LYNNHOA-CONTENT-STRUCTURE.md`.
+
 # Planner · @lynnhoa concept: 9 arcs (06.11.2026)
 - Arcs revised 1:1 to the new list: The Before · The Look · The Moment · The Opinion · The Personality ·
   The Obsession · **The Edit (new, 7)** · The Story (8) · The Editorial (9) — each with its new purpose

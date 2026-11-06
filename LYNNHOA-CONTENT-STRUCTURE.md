@@ -28,11 +28,13 @@ These define where the content takes place and what kind of activity or experien
 
 | Phase | What belongs here |
 |---|---|
+| After Trip | Coming home: unpacking, laundry, resetting and settling back in |
 | Home Projects | Bedroom, bathroom, furniture, decorating, home improvements |
 | Maintenance | Hair, lashes, nails, skincare and other beauty upkeep |
 | Beauty Projects | New hair, new makeup, beauty changes and experiments |
 | Wardrobe & Style | Wardrobe edits, new pieces, seasonal wardrobe changes, style development |
 | Kits & Preparation | Travel kits, work bag, beauty kits, packing and restocking |
+| Before Next Trip | Planning, outfits, packing and counting down to the next trip |
 
 ### Travel
 
@@ -57,7 +59,7 @@ Each main area holds its **chapters** (the phases above). Each chapter holds its
 Main area → Chapter → Selected arcs → Matching formats
 ```
 
-Home has 5 chapters: Home Projects · Maintenance · Beauty Projects · Wardrobe & Style · Kits & Preparation.
+Home has 7 chapters: After Trip · Home Projects · Maintenance · Beauty Projects · Wardrobe & Style · Kits & Preparation · Before Next Trip.
 **Everyday Life** (getting ready, routines, matcha, quiet days, thoughts and personality) sits under **Base** for now; its own structure comes later.
 
 ## 4. Signature Series
