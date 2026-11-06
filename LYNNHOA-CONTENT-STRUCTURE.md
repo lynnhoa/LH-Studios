@@ -235,3 +235,21 @@ Your Talking Spot can be the recognisable home base for Getting My Life Together
 ---
 
 In the app: Planner › @lynnhoa concept shows **Personal Eras | Base | Home | Travel | Work** and the **Arcs** pill. The eras and each area's phases come from `planner.ts` (`PERSONAL_ERAS`, `MAIN_AREAS`) and are empty placeholders until they're filled.
+
+## Guide (in the app: the pink Guide pill)
+
+**Who I am.** The art of being put together: "I've thought of everything, so I don't have to think when the moment comes." Personality: particular, slightly chaotic, overthinks details, intentional. Rule: show the curation, not the chores.
+
+**How I … (signature series, in The Edit).** Hook: why I started → Curation → Result.
+
+| Chapter | Episode | Hook |
+|---|---|---|
+| Maintenance | How I stay ready for anything | "I'm high maintenance so I can be low maintenance" |
+| Home Projects | How I set up my bathroom | "My bathroom made my mornings complicated" |
+| Wardrobe & Style | How I edit my wardrobe | "I had no space for new clothes" |
+| Beauty Projects | How I build my matching makeup sets | "My drawer was messy and random, I had no favourites, and I stopped enjoying makeup" |
+| Kits & Preparation | How I build my travel kit | "I used to pack at 4 AM" |
+
+**The Outing (content package, across arcs).** Before → Look → Moment → Story (optional). One outfit, one day out, every post stands alone. Runs in: Occasion · City Break · Long Trip · Invited · Fashion Week · Shoot Day.
+
+**Colours per level.** Tabs warm grey · Chapter butter · Arcs pastel blue · Formats soft mint · How I … peach · The Outing green · Guide pink.

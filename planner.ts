@@ -599,6 +599,32 @@ export const byOrder = (a: Task, b: Task) => a.sort - b.sort;
 // and the formats used for it here, in order
 export interface ChapterArc { arc: string; note: string; formats: string[]; }
 export interface StructItem { name: string; desc: string; arcs?: ChapterArc[]; }
+
+// ── Guide (06.11.2026): what you stand for and how it works ──────────────────
+// The signature series "How I …" lives in The Edit: hook (why I started) → curation → result.
+// Its episode per chapter, by "<tab>:<chapter>":
+export interface SeriesEpisode { area: string; title: string; hook: string; }
+export const HOW_I: Record<string, SeriesEpisode> = {
+  "home:Maintenance":        { area: "Maintenance",   title: "How I stay ready for anything",      hook: "I'm high maintenance so I can be low maintenance" },
+  "home:Home Projects":      { area: "Home Projects", title: "How I set up my bathroom",           hook: "My bathroom made my mornings complicated" },
+  "home:Wardrobe & Style":   { area: "Wardrobe",      title: "How I edit my wardrobe",             hook: "I had no space for new clothes" },
+  "home:Beauty Projects":    { area: "Beauty",        title: "How I build my matching makeup sets", hook: "My drawer was messy and random, I had no favourites, and I stopped enjoying makeup" },
+  "home:Kits & Preparation": { area: "Kits",          title: "How I build my travel kit",          hook: "I used to pack at 4 AM" },
+};
+export const HOW_I_STEPS = ["Hook: why I started", "Curation", "Result"];
+// The content package "The Outing" runs across arcs: Before → Look → Moment → Story (optional).
+// One outfit, one day out, every post stands alone. The chapters it runs in, by "<tab>:<chapter>":
+export const OUTING_IN = ["home:Occasion", "travel:City Break", "travel:Long Trip", "travel:Occasion", "work:Invited", "work:Fashion Week", "base:Shoot Day"];
+export const OUTING_RUNS = ["Occasion", "City Break", "Long Trip", "Invited", "Fashion Week", "Shoot Day"];
+export const OUTING_ARCS = ["The Before", "The Look", "The Moment"];
+export const OUTING_OPTIONAL = ["The Story"];
+// Who I am
+export const WHO_I_AM = {
+  title: "The art of being put together",
+  line: "I've thought of everything, so I don't have to think when the moment comes",
+  personality: "particular, slightly chaotic, overthinks details, intentional",
+  rule: "show the curation, not the chores",
+};
 export interface MainArea { key: "home" | "travel" | "work"; label: string; title: string; chapters: StructItem[]; }
 
 export const PERSONAL_ERAS: StructItem[] = [

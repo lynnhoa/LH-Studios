@@ -47,8 +47,8 @@
 import { useState, useEffect, createContext, useContext } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, PAL } from "./constants";
 import { SectionHead, Sheet, SheetButton, OpenArrow } from "./atoms";
-import { PERSONAL_ERAS, MAIN_AREAS, BASE_BLOCKS, BASE_NOTE, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE, conceptPhaseLabel, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel } from "./planner";
-import type { StructItem, ChapterArc, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEraArc } from "./planner";
+import { PERSONAL_ERAS, MAIN_AREAS, BASE_BLOCKS, BASE_NOTE, HOW_I, HOW_I_STEPS, OUTING_IN, OUTING_RUNS, OUTING_ARCS, OUTING_OPTIONAL, WHO_I_AM, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE, conceptPhaseLabel, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel } from "./planner";
+import type { StructItem, ChapterArc, SeriesEpisode, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEraArc } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
 import { IC, Subtitle, TabTitle, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
@@ -64,7 +64,7 @@ const OPEN_CH_KEY = "lh_planner_concept_open_chapters"; // a Main Area's open ch
 const FOLD_KEY    = "lh_planner_concept_folded";      // the lists you folded inside cards (open unless folded)
 type OpenMap  = Partial<Record<Account, number[]>>;
 type OpenKeys = Partial<Record<Account, string[]>>;
-type ConceptView = "eras" | "base" | "home" | "travel" | "work" | "arcs";
+type ConceptView = "eras" | "base" | "home" | "travel" | "work" | "arcs" | "guide";
 const loadMap = (key: string): any => {
   try { const v = JSON.parse(localStorage.getItem(key) || "null"); if (v && typeof v === "object") return v; } catch { /* ignore */ }
   return {};
@@ -74,7 +74,7 @@ const loadView = (): ConceptView => {
   try {
     const v = localStorage.getItem(VIEW_KEY);
     if (v === "phases") return "home";                 // the old Phases tab
-    return v === "eras" || v === "base" || v === "home" || v === "travel" || v === "work" ? v : "arcs";
+    return v === "eras" || v === "base" || v === "home" || v === "travel" || v === "work" || v === "guide" ? v : "arcs";
   } catch { return "arcs"; }
 };
 
@@ -92,6 +92,8 @@ const mini: any = {
   fontSize: TYPE.micro.size, lineHeight: 1, color: C.muted, textDecoration: "underline", textUnderlineOffset: 2,
   whiteSpace: "nowrap" as const, WebkitTapHighlightColor: "transparent",
 };
+const guideTile: any = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minHeight: 40, padding: "8px 12px", border: "none",
+  borderRadius: RADIUS.tile, fontFamily: SANS, fontSize: SPACING.listText, cursor: "pointer", textAlign: "left" as const, WebkitTapHighlightColor: "transparent" };
 const count = (word: string, n: number) => (n ? `${word} · ${n}` : word);
 type Tone = { fill: string; wash: string; mid: string; ink: string };
 
@@ -454,6 +456,7 @@ const SUBTITLE: Record<ConceptView, string> = {
   travel: "What's happening on the road",
   work:   "What's happening with brands",
   arcs:   "How each post is told",
+  guide:  "What I stand for and how it works",
 };
 
 // a placeholder (a chapter or era without arcs): number · name · "empty" — what belongs there in grey
@@ -471,12 +474,36 @@ const PlaceholderCard = ({ n, item, tone }: { n: number; item: StructItem; tone:
 // a chapter with its selected arcs (Home): number · name · arrow, what it is in grey — open: its
 // arcs in posting order, each: the arc's number (blue) · its name · what it does here (grey) ·
 // the formats used for it here
-const ChapterCard = ({ n, item, arcs, open, onToggle, tone = PHASE_TONE, onEdit, extra }: { n: number; item: StructItem; arcs: ConceptArc[]; open: boolean; onToggle: () => void; tone?: Tone; onEdit?: () => void; extra?: any }) => (
+// the Guide's colours: Guide pink · the series "How I …" peach · the package "The Outing" green ·
+// formats a soft mint (the one new pastel) — chapters stay butter, arcs blue, tabs warm grey
+const GUIDE_TONE:  Tone = PAL.late;
+const SERIES_TONE: Tone = PAL.createbylynn;
+const OUTING_TONE: Tone = PAL.done;
+const FORMAT_TONE: Tone = { fill: "#CDEDE0", wash: "#E7F6EF", mid: "#8ED1B6", ink: "#23664D" };
+const SERIES_LABEL = "How I …";
+const OUTING_LABEL = "The Outing";
+const Badge = ({ label, tone }: { label: string; tone: Tone }) => (
+  <span style={{ fontSize: TYPE.micro.size, lineHeight: 1.2, padding: "3px 8px", borderRadius: RADIUS.tag, background: tone.wash, color: tone.ink,
+    whiteSpace: "nowrap" as const, flexShrink: 0, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
+);
+// the episode of "How I …" in a chapter: its title and its hook, in peach
+const SeriesBox = ({ ep }: { ep: SeriesEpisode }) => (
+  <div style={{ background: SERIES_TONE.wash, borderRadius: RADIUS.tile, padding: "8px 10px", margin: "6px 0 2px", color: SERIES_TONE.ink }}>
+    <div style={{ fontSize: SPACING.listText, fontWeight: 600, lineHeight: 1.35 }}>{ep.title}</div>
+    <div style={{ fontSize: SPACING.listMeta, lineHeight: 1.4, marginTop: 1 }}>“{ep.hook}”</div>
+  </div>
+);
+// series = the chapter's episode of "How I …" · outing = "The Outing" runs here
+const ChapterCard = ({ n, item, arcs, open, onToggle, tone = PHASE_TONE, onEdit, extra, series, outing }: { n: number; item: StructItem; arcs: ConceptArc[]; open: boolean; onToggle: () => void; tone?: Tone; onEdit?: () => void; extra?: any; series?: SeriesEpisode; outing?: boolean }) => {
+  const hasEdit = (item.arcs || []).some(x => x.arc === "The Edit");
+  return (
   <div style={cardBox}>
     <div style={{ display: "flex", alignItems: "center" }}>
       <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${item.name}`} style={headBtn}>
         <NumCircle n={n} tone={tone} />
         <span style={nameText}>{item.name}</span>
+        {series && <Badge label={SERIES_LABEL} tone={SERIES_TONE} />}
+        {outing && <Badge label={OUTING_LABEL} tone={OUTING_TONE} />}
       </button>
       {open && onEdit && <button onClick={onEdit} aria-label={`Edit the lines of ${item.name}`} style={{ ...mini, flexShrink: 0 }}>edit</button>}
       <Caret open={open} onClick={onToggle} />
@@ -484,20 +511,28 @@ const ChapterCard = ({ n, item, arcs, open, onToggle, tone = PHASE_TONE, onEdit,
     <div style={{ ...descText, paddingBottom: open ? 0 : 10, marginLeft: SPACING.rowSide + INDENT }}>{tidy(item.desc)}</div>
     {open && (
       <div style={{ margin: `6px ${SPACING.rowSide}px 0 ${SPACING.rowSide + INDENT}px`, paddingBottom: 8 }}>
+        {series && !hasEdit && <SeriesBox ep={series} />}
         <div style={{ ...caps, color: C.light, padding: "2px 0 6px" }}>{count("Arcs", item.arcs?.length || 0)}</div>
-        {(item.arcs || []).map((x, k) => <ChapterArcRow key={k} x={x} arc={arcs.find(a => a.name.trim().toLowerCase() === x.arc.trim().toLowerCase())} />)}
+        {(item.arcs || []).map((x, k) => <ChapterArcRow key={k} x={x} arc={arcs.find(a => a.name.trim().toLowerCase() === x.arc.trim().toLowerCase())}
+          series={x.arc === "The Edit" ? series : undefined}
+          badge={outing && OUTING_ARCS.includes(x.arc) ? "outing" : outing && OUTING_OPTIONAL.includes(x.arc) ? "optional" : undefined} />)}
         {extra}
       </div>
     )}
   </div>
-);
-const ChapterArcRow = ({ x, arc }: { x: ChapterArc; arc?: ConceptArc }) => (
+  );
+};
+const ChapterArcRow = ({ x, arc, series, badge }: { x: ChapterArc; arc?: ConceptArc; series?: SeriesEpisode; badge?: "outing" | "optional" }) => (
   <div style={{ borderTop: `1px solid ${C.hair}`, padding: "8px 0" }}>
     <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
       {arc && <NumCircle n={arc.num} tone={ARC_TONE} size={18} />}
-      <span style={{ fontSize: SPACING.listText, fontWeight: 600, color: C.black, lineHeight: 1.35 }}>{x.arc}</span>
+      <span style={{ flex: 1, minWidth: 0, fontSize: SPACING.listText, fontWeight: 600, color: C.black, lineHeight: 1.35 }}>{x.arc}</span>
+      {series && <Badge label={SERIES_LABEL} tone={SERIES_TONE} />}
+      {badge === "outing" && <Badge label={OUTING_LABEL} tone={OUTING_TONE} />}
+      {badge === "optional" && <Badge label="optional" tone={PAL.neutral} />}
     </div>
     {x.note && <div style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4, marginTop: 2 }}>{tidy(x.note)}</div>}
+    {series && <SeriesBox ep={series} />}
     {x.formats.length > 0 && (
       <div style={{ marginTop: 4 }}>
         {x.formats.map((f, k) => (
@@ -508,6 +543,46 @@ const ChapterArcRow = ({ x, arc }: { x: ChapterArc; arc?: ConceptArc }) => (
         ))}
       </div>
     )}
+  </div>
+);
+
+// ── the Guide: 4 cards — Who I am · How I … · The Outing · How it all works ──
+const Flow = ({ steps, tone, last }: { steps: string[]; tone: Tone; last?: Tone }) => (
+  <div style={{ display: "flex", flexWrap: "wrap" as const, alignItems: "center", gap: 6 }}>
+    {steps.map((t, k) => (
+      <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        {k > 0 && <span aria-hidden="true" style={{ color: C.faint }}>→</span>}
+        <span style={{ fontSize: SPACING.listMeta, padding: "4px 10px", borderRadius: RADIUS.tag,
+          background: (k === steps.length - 1 && last ? last : tone).wash, color: (k === steps.length - 1 && last ? last : tone).ink }}>{t}</span>
+      </span>
+    ))}
+  </div>
+);
+const GuideCard = ({ n, tone, title, right, open, onToggle, children }: { n: number; tone: Tone; title: string; right?: string; open: boolean; onToggle: () => void; children: any }) => (
+  <div style={cardBox}>
+    <div style={{ display: "flex", alignItems: "center" }}>
+      <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${title}`} style={headBtn}>
+        <NumCircle n={n} tone={tone} />
+        <span style={nameText}>{title}</span>
+        {right && <span style={{ fontSize: SPACING.listMeta, color: C.muted, flexShrink: 0 }}>{right}</span>}
+      </button>
+      <Caret open={open} onClick={onToggle} />
+    </div>
+    {open && <div style={{ margin: `-4px ${SPACING.rowSide}px 0 ${SPACING.rowSide + INDENT}px`, paddingBottom: 12 }}>{children}</div>}
+  </div>
+);
+const subCaps: any = { ...caps, color: C.light, margin: "12px 0 6px" };
+// one level in "How it all works": name left, what it is right, in its pastel
+const Level = ({ tone, name, what, kicker, indent = 0 }: { tone: Tone; name: string; what: string; kicker?: string; indent?: number }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: indent * 18 }}>
+    {indent > 0 && <span aria-hidden="true" style={{ width: 10, borderTop: `1.5px solid ${C.rule}`, flexShrink: 0 }} />}
+    <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, background: tone.wash, color: tone.ink, borderRadius: RADIUS.tile, padding: "8px 10px" }}>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        {kicker && <span style={{ ...caps, display: "block", color: tone.ink, opacity: 0.85 }}>{kicker}</span>}
+        <span style={{ fontSize: SPACING.listText, fontWeight: 500 }}>{name}</span>
+      </span>
+      <span style={{ fontSize: SPACING.listMeta, textAlign: "right" as const, flexShrink: 1 }}>{what}</span>
+    </div>
   </div>
 );
 
@@ -652,7 +727,8 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
         const b = blockOf(c);
         return <ChapterCard key={c.name} n={BASE_BLOCKS.indexOf(c) + 1} item={c} arcs={arcs} tone={BASE_TONE}
           open={chKeys.includes(baseKey(c))} onToggle={() => toggleCh(baseKey(c))}
-          onEdit={b && basePh ? () => setWin({ kind: "block", id: basePh.id, era: b.key }) : undefined} extra={baseLines(c)} />;
+          onEdit={b && basePh ? () => setWin({ kind: "block", id: basePh.id, era: b.key }) : undefined} extra={baseLines(c)}
+          series={HOW_I[baseKey(c)]} outing={OUTING_IN.includes(baseKey(c))} />;
       })}
     </>
   );
@@ -670,7 +746,8 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
         {columns(list, c => {
           const n = list.indexOf(c) + 1;
           return c.arcs?.length
-            ? <ChapterCard key={c.name} n={n} item={c} arcs={arcs} tone={tone} open={chKeys.includes(key(c))} onToggle={() => toggleCh(key(c))} />
+            ? <ChapterCard key={c.name} n={n} item={c} arcs={arcs} tone={tone} open={chKeys.includes(key(c))} onToggle={() => toggleCh(key(c))}
+                series={HOW_I[key(c)]} outing={OUTING_IN.includes(key(c))} />
             : <PlaceholderCard key={c.name} n={n} item={c} tone={tone} />;
         })}
       </>
@@ -679,6 +756,72 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   const erasView = chapterList("eras", PAL.lynnhoa.mid, "Personal Eras", PERSONAL_ERAS, PAL.lynnhoa);
   const area     = MAIN_AREAS.find(a => a.key === show);
   const areaView = area ? chapterList(area.key, PHASE_TONE.mid, `${area.title} · Chapters`, area.chapters, PHASE_TONE) : null;
+
+  // the Guide (pink): what you stand for and how it works — 4 cards, open ones remembered ("guide:1" …)
+  const gKeys = ["guide:1", "guide:2", "guide:3", "guide:4"];
+  const anyGOpen = gKeys.some(k => chKeys.includes(k));
+  const gOpen = (k: string) => chKeys.includes(k);
+  const episodes = Object.values(HOW_I);
+  const guideView = (
+    <>
+      <SectionHead dot={GUIDE_TONE.mid} label={`Guide · ${gKeys.length}`}
+        right={<button onClick={() => setChsOpen(anyGOpen ? chKeys.filter(k => !k.startsWith("guide:")) : Array.from(new Set([...chKeys, ...gKeys])))} style={mini}>{anyGOpen ? "collapse all" : "expand all"}</button>} />
+      <div style={{ display: "flex", flexDirection: "column" as const, gap: SPACING.cardGap }}>
+        <GuideCard n={1} tone={GUIDE_TONE} title="Who I am" open={gOpen("guide:1")} onToggle={() => toggleCh("guide:1")}>
+          <div style={{ fontFamily: SERIF, fontSize: 19, color: C.black, lineHeight: 1.3, marginTop: 4 }}>{WHO_I_AM.title}</div>
+          <div style={{ fontSize: SPACING.plannerText, color: C.ink2, lineHeight: 1.45, marginTop: 4 }}>{tidy(WHO_I_AM.line)}</div>
+          <div style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.45, marginTop: 8 }}><span style={{ color: GUIDE_TONE.ink }}>Personality</span> · {WHO_I_AM.personality}</div>
+          <div style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.45, marginTop: 2 }}><span style={{ color: GUIDE_TONE.ink }}>Rule</span> · {WHO_I_AM.rule}</div>
+        </GuideCard>
+        <GuideCard n={2} tone={SERIES_TONE} title={SERIES_LABEL} right="series · in The Edit" open={gOpen("guide:2")} onToggle={() => toggleCh("guide:2")}>
+          <div style={{ marginTop: 4 }}><Flow steps={HOW_I_STEPS} tone={SERIES_TONE} /></div>
+          <div style={{ marginTop: 8 }}>
+            {episodes.map(ep => (
+              <div key={ep.title} style={{ display: "flex", gap: 10, borderTop: `1px solid ${C.hair}`, padding: "8px 0" }}>
+                <span style={{ ...caps, color: SERIES_TONE.ink, width: 86, flexShrink: 0, paddingTop: 2, lineHeight: 1.3 }}>{ep.area}</span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: SPACING.listText, color: C.black, lineHeight: 1.35 }}>{ep.title}</span>
+                  <span style={{ display: "block", fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4, marginTop: 1 }}>“{ep.hook}”</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </GuideCard>
+        <GuideCard n={3} tone={OUTING_TONE} title={OUTING_LABEL} right="package · across arcs" open={gOpen("guide:3")} onToggle={() => toggleCh("guide:3")}>
+          <div style={{ marginTop: 4 }}><Flow steps={["Before", "Look", "Moment", "Story, optional"]} tone={OUTING_TONE} last={PAL.neutral} /></div>
+          <div style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.45, marginTop: 8 }}>One outfit, one day out, every post stands alone.</div>
+          <div style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.45, marginTop: 4 }}><span style={{ color: OUTING_TONE.ink }}>Runs in</span> · {OUTING_RUNS.join(" · ")}</div>
+        </GuideCard>
+        <GuideCard n={4} tone={PAL.neutral} title="How it all works" open={gOpen("guide:4")} onToggle={() => toggleCh("guide:4")}>
+          <div style={subCaps}>Look up</div>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
+            <button type="button" onClick={() => pickView("guide")} style={{ ...guideTile, background: GUIDE_TONE.wash, color: GUIDE_TONE.ink }}><span style={{ fontWeight: 500 }}>Guide</span><span style={{ fontSize: SPACING.listMeta }}>why</span></button>
+            <button type="button" onClick={() => pickView("arcs")} style={{ ...guideTile, background: ARC_TONE.wash, color: ARC_TONE.ink }}><span style={{ fontWeight: 500 }}>Arcs</span><span style={{ fontSize: SPACING.listMeta }}>all {arcs.length || 9}</span></button>
+          </div>
+          <div style={subCaps}>What you film</div>
+          <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
+            <Level tone={PAL.neutral} name="Personal Eras" what="what you develop" />
+            <Level tone={PAL.neutral} name="Base" what="quick posts in between" />
+            <Level tone={PAL.neutral} name="Home · Travel · Work" what="where it happens" />
+            <Level tone={PHASE_TONE} name="Chapter" what="your situation" indent={1} />
+            <Level tone={ARC_TONE} name="Arcs" what="how each post is told" indent={2} />
+            <Level tone={FORMAT_TONE} name="Formats" what="how you film it" indent={3} />
+            <Level tone={SERIES_TONE} kicker="Signature series" name={SERIES_LABEL} what="in The Edit" indent={3} />
+            <Level tone={OUTING_TONE} kicker="Content package" name={OUTING_LABEL} what="Before → Look → Moment" indent={3} />
+          </div>
+          <div style={subCaps}>Your workflow</div>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
+            {["Pick where you are", "Check the badges", "Open the chapter", "Guide for the why"].map((t, k) => (
+              <div key={t} style={{ display: "flex", alignItems: "center", gap: 8, background: PAL.neutral.wash, borderRadius: RADIUS.tile, padding: "8px 10px", fontSize: SPACING.listMeta, color: C.ink2 }}>
+                <span style={{ width: 20, height: 20, borderRadius: "50%", border: `1px solid ${C.edge}`, background: C.white, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, flexShrink: 0 }}>{k + 1}</span>
+                {t}
+              </div>
+            ))}
+          </div>
+        </GuideCard>
+      </div>
+    </>
+  );
 
   // @createbylynn: the 5 pillars, numbered cards (phone one column · iPad / computer two)
   const pillarView = planner.conceptError ? note(planner.conceptError, C.red) : (
@@ -706,8 +849,19 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
           ? <ViewSwitch options={CBL_VIEWS} value="pillars" onPick={() => { /* one tab */ }} label="Show" />
           : <ViewSwitch options={VIEWS} value={show} onPick={pickView} label="Show" />}
         {!seriesMode && (
+          <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
+          <button type="button" aria-pressed={show === "guide"} aria-label="Guide" onClick={() => { if (show !== "guide") pickView("guide"); }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 28, padding: "0 12px 0 10px", boxSizing: "border-box" as const,
+              borderRadius: 14, border: `1px solid ${show === "guide" ? GUIDE_TONE.ink : GUIDE_TONE.mid}`,
+              background: show === "guide" ? GUIDE_TONE.fill : GUIDE_TONE.wash, color: GUIDE_TONE.ink,
+              boxShadow: show === "guide" ? "none" : "0 1px 2px rgba(0,0,0,0.06)",
+              fontFamily: SANS, fontSize: 12, fontWeight: 600, letterSpacing: "0.01em", lineHeight: 1, whiteSpace: "nowrap" as const,
+              cursor: show === "guide" ? "default" : "pointer", WebkitTapHighlightColor: "transparent" }}>
+            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: GUIDE_TONE.mid, border: `1.5px solid ${GUIDE_TONE.ink}`, boxSizing: "border-box" as const }} />
+            Guide
+          </button>
           <button type="button" aria-pressed={show === "arcs"} aria-label={`Arcs · ${arcs.length}`} onClick={() => { if (show !== "arcs") pickView("arcs"); }}
-            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, height: 28, padding: "0 12px 0 10px", boxSizing: "border-box" as const,
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 28, padding: "0 12px 0 10px", boxSizing: "border-box" as const,
               borderRadius: 14, border: `1px solid ${show === "arcs" ? ARC_TONE.ink : ARC_TONE.mid}`,
               background: show === "arcs" ? ARC_TONE.fill : ARC_TONE.wash, color: ARC_TONE.ink,
               boxShadow: show === "arcs" ? "none" : "0 1px 2px rgba(0,0,0,0.06)",
@@ -720,10 +874,11 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
                 color: ARC_TONE.ink, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{arcs.length}</span>
             )}
           </button>
+          </span>
         )}
       </div>
 
-      {planner.loading ? note("Loading…") : seriesMode ? pillarView : show === "base" ? baseView : show === "eras" ? erasView : areaView || arcsView}
+      {planner.loading ? note("Loading…") : seriesMode ? pillarView : show === "base" ? baseView : show === "eras" ? erasView : show === "guide" ? guideView : areaView || arcsView}
 
       {/* an arc's texts or links (from the Arcs tab) */}
       {win && (win.kind === "texts" || win.kind === "links") && winArc && (

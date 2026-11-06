@@ -1,3 +1,14 @@
+# Planner · @lynnhoa concept: Guide + badges (07.11.2026)
+- Guide (pink pill, left of Arcs): "What I stand for and how it works" — 4 cards: Who I am (the art of
+  being put together, personality, rule) · How I … (series in The Edit: hook → curation → result, its 5
+  episodes) · The Outing (package across arcs: Before → Look → Moment → Story optional, where it runs)
+  · How it all works (look up Guide / Arcs, the levels in their pastels — tabs warm grey, chapter
+  butter, arcs blue, formats mint (new), series peach, package green — and your workflow).
+- Badges: chapters with an episode of "How I …" show it (peach); in The Edit its title and hook. The
+  Outing's chapters (Occasion, City Break, Long Trip, Invited, Fashion Week, Shoot Day) show it (green),
+  on The Before, The Look and The Moment too; The Story says "optional".
+- No SQL needed. Changed: `planner.ts`, `PlannerConcept.tsx`, `LYNNHOA-CONTENT-STRUCTURE.md`.
+
 # Planner · @lynnhoa concept: Base holds its arcs (06.11.2026)
 - Base: "Quick personality posts that fill the gaps between chapters" — 6 blocks (Signatures ·
   Today's Outfit · New In · Thoughts · Trends · Shoot Day), each with its description, arcs and
