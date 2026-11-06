@@ -1,3 +1,9 @@
+# Planner · @lynnhoa concept: Travel's chapters hold their arcs (06.11.2026)
+- Travel has 4 chapters, each with its arcs as options (3–5) and their formats: City Break · Long Trip
+  · Occasion (new: birthdays, dinners and events away) · Maintenance (new: appointments while away).
+  Tap a chapter to see them, like Home. Work stays a placeholder.
+- No SQL needed. Changed: `planner.ts`, `LYNNHOA-CONTENT-STRUCTURE.md`.
+
 # Planner · @lynnhoa concept: Home gets Occasion (06.11.2026)
 - Home has 8 chapters: Occasion is 6th (Kits & Preparation 7, Before Next Trip 8) — birthdays,
   dinners, holidays, events and special days from home. Arcs: The Before (keeps GRWM Talking and
