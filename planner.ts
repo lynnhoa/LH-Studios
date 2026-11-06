@@ -611,11 +611,13 @@ export const BASE_EXTRA: StructItem[] = [
 
 export const MAIN_AREAS: MainArea[] = [
   { key: "home", label: "Home", title: "Home", chapters: [
+    { name: "After Trip",         desc: "Coming home: unpacking, laundry, resetting and settling back in" },
     { name: "Home Projects",      desc: "Bedroom, bathroom, furniture, decorating, home improvements" },
     { name: "Maintenance",        desc: "Hair, lashes, nails, skincare and other beauty upkeep" },
     { name: "Beauty Projects",    desc: "New hair, new makeup, beauty changes and experiments" },
     { name: "Wardrobe & Style",   desc: "Wardrobe edits, new pieces, seasonal wardrobe changes, style development" },
     { name: "Kits & Preparation", desc: "Travel kits, work bag, beauty kits, packing and restocking" },
+    { name: "Before Next Trip",   desc: "Planning, outfits, packing and counting down to the next trip" },
   ] },
   { key: "travel", label: "Travel", title: "Travel", chapters: [
     { name: "City Break", desc: "Short trips, city experiences, outfits, restaurants and activities" },

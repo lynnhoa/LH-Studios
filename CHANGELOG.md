@@ -1,3 +1,18 @@
+# Planner · @lynnhoa concept: Home starts with After Trip, ends with Before Next Trip (06.11.2026)
+- Home's chapters (7): After Trip · Home Projects · Maintenance · Beauty Projects · Wardrobe & Style ·
+  Kits & Preparation · Before Next Trip.
+- No SQL needed. Changed: `planner.ts`, `LYNNHOA-CONTENT-STRUCTURE.md`.
+
+# Planner · @lynnhoa concept: 9 arcs (06.11.2026)
+- Arcs revised 1:1 to the new list: The Before · The Look · The Moment · The Opinion · The Personality ·
+  The Obsession · **The Edit (new, 7)** · The Story (8) · The Editorial (9) — each with its new purpose
+  and formats, main formats marked.
+- Each arc keeps its texts and links; ideas keep their arc. The eras' arc numbers follow (old 7 → 8,
+  old 8 → 9). A format that existed before keeps its TikTok / Instagram ticks; a new one gets both.
+- Data: run `LH-Studio-lynnhoa-arcs.sql` once (safe to rerun; keeps a copy of the old arcs in
+  `planner_concept_arcs_lh_backup`; ends with a check). No app code changed.
+- Changed: `LYNNHOA-CONTENT-STRUCTURE.md`. New: `LH-Studio-lynnhoa-arcs.sql`.
+
 # Business · bug fixes after build 4 (28.10.2026)
 - The year you're on always stays in the year list: deleting a year's only cost no longer leaves
   both year arrows greyed out (strip and Dashboard).
