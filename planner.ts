@@ -594,8 +594,11 @@ export const byOrder = (a: Task, b: Task) => a.sort - b.sort;
 //   Arcs → Posts · Base Posts (in between) · Context, Format, Setup (production layers).
 // The concept page shows Personal Eras and one tab per Main Area — each area holds its
 // CHAPTERS, each chapter its selected ARCS, each arc its matching FORMATS. Placeholders until
-// they're filled (no SQL yet). Everyday Life sits under Base for now (its structure comes later).
-export interface StructItem { name: string; desc: string; }
+// they're filled (no SQL yet; Home's chapters are filled here, 06.11.2026). Everyday Life sits under Base for now (its structure comes later).
+// a chapter's selected arc: the arc (by its name, as on the Arcs tab), what it does in this chapter
+// and the formats used for it here, in order
+export interface ChapterArc { arc: string; note: string; formats: string[]; }
+export interface StructItem { name: string; desc: string; arcs?: ChapterArc[]; }
 export interface MainArea { key: "home" | "travel" | "work"; label: string; title: string; chapters: StructItem[]; }
 
 export const PERSONAL_ERAS: StructItem[] = [
@@ -611,13 +614,41 @@ export const BASE_EXTRA: StructItem[] = [
 
 export const MAIN_AREAS: MainArea[] = [
   { key: "home", label: "Home", title: "Home", chapters: [
-    { name: "After Trip",         desc: "Coming home: unpacking, laundry, resetting and settling back in" },
-    { name: "Home Projects",      desc: "Bedroom, bathroom, furniture, decorating, home improvements" },
-    { name: "Maintenance",        desc: "Hair, lashes, nails, skincare and other beauty upkeep" },
-    { name: "Beauty Projects",    desc: "New hair, new makeup, beauty changes and experiments" },
-    { name: "Wardrobe & Style",   desc: "Wardrobe edits, new pieces, seasonal wardrobe changes, style development" },
-    { name: "Kits & Preparation", desc: "Travel kits, work bag, beauty kits, packing and restocking" },
-    { name: "Before Next Trip",   desc: "Planning, outfits, packing and counting down to the next trip" },
+    { name: "After Trip", desc: "Coming home with new things: what you bought and how they settle into your life", arcs: [
+      { arc: "The Moment",    note: "Just being home again, in your space and your outfit", formats: ["Presence + Text", "Lip Sync Song"] },
+      { arc: "The Edit",      note: "The unboxing and what you bought, with the real reason why", formats: ["Seated Talking", "Half-Body Talking"] },
+      { arc: "The Obsession", note: "How the new piece becomes part of you every day", formats: ["Presence + Text", "Lip Sync Song", "Voiceover", "Selfie Reaction + Result"] },
+    ] },
+    { name: "Home Projects", desc: "Bedroom, bathroom, furniture, decorating and home improvements", arcs: [
+      { arc: "The Edit",      note: "What you change at home and why you choose it", formats: ["Seated Talking", "Half-Body Talking"] },
+      { arc: "The Story",     note: "A small vlog showing the little change in real life", formats: ["Vlog", "Voiceover"] },
+      { arc: "The Obsession", note: "Loving and living in the result", formats: ["Presence + Text", "Voiceover", "Selfie Reaction + Result"] },
+    ] },
+    { name: "Maintenance", desc: "Hair, lashes, nails, skincare and other beauty upkeep", arcs: [
+      { arc: "The Story",       note: "The appointment or routine and the fresh result", formats: ["Vlog", "Selfie Reaction + Result"] },
+      { arc: "The Opinion",     note: "Your honest take on what's worth it and what isn't", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+      { arc: "The Personality", note: "The relatable, funny side of upkeep", formats: ["Lip Sync Talk", "Skits"] },
+    ] },
+    { name: "Beauty Projects", desc: "New hair, new makeup, beauty changes and experiments", arcs: [
+      { arc: "The Edit",      note: "What you're changing in your beauty and why", formats: ["Seated Talking", "Half-Body Talking"] },
+      { arc: "The Opinion",   note: "Your verdict on the change or the products", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+      { arc: "The Obsession", note: "The new look you can't stop loving", formats: ["Presence + Text", "Lip Sync Song", "Selfie Reaction + Result"] },
+    ] },
+    { name: "Wardrobe & Style", desc: "Wardrobe edits, new pieces, seasonal changes and style development", arcs: [
+      { arc: "The Edit",      note: "What stays, what goes, what comes in, and why", formats: ["Seated Talking", "Half-Body Talking"] },
+      { arc: "The Look",      note: "The new pieces worn and styled", formats: ["Outfit Check", "Walk + Text"] },
+      { arc: "The Obsession", note: "The pieces you reach for again and again", formats: ["Presence + Text", "Voiceover"] },
+    ] },
+    { name: "Kits & Preparation", desc: "Travel kits, work bag, beauty kits and restocking", arcs: [
+      { arc: "The Edit",      note: "What's in your kit and why each thing earns its place", formats: ["Seated Talking", "Half-Body Talking"] },
+      { arc: "The Opinion",   note: "Your rules and judgments on what belongs in a kit", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+      { arc: "The Obsession", note: "The one item you never go without", formats: ["Presence + Text", "Voiceover"] },
+    ] },
+    { name: "Before Next Trip", desc: "The prep process at home: planning, choosing and counting down", arcs: [
+      { arc: "The Obsession", note: "Dreaming about the destination before you go", formats: ["Presence + Text", "Lip Sync Song"] },
+      { arc: "The Edit",      note: "What you're bringing for this trip and why", formats: ["Seated Talking", "Half-Body Talking"] },
+      { arc: "The Before",    note: "The prep mood at home: packing, planning, countdown", formats: ["Voiceover", "Presence + Text", "Lip Sync Song", "TikTok Trends"] },
+    ] },
   ] },
   { key: "travel", label: "Travel", title: "Travel", chapters: [
     { name: "City Break", desc: "Short trips, city experiences, outfits, restaurants and activities" },

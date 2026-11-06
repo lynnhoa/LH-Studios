@@ -8,6 +8,9 @@
 //   a chapter will hold its selected arcs, each arc its matching formats)
 //   follow the master structure (planner.ts, LYNNHOA-CONTENT-STRUCTURE.md): placeholder cards
 //   — number · name · what belongs there — marked "empty" until they're filled.
+//   Home's chapters are filled (06.11.2026): number · name · arrow, what it is in grey; open: its
+//   arcs in posting order — the arc's number (blue) · name · what it does here · its formats here.
+//   Open chapters are remembered on this device; "expand all / collapse all" on the heading.
 //   Everyday Life: under Base for now, after the blocks (a placeholder too).
 //   (The old Phases tab is gone; its phases stay in the data, for Creator › Now.)
 //   Every card works the same: number · name · (open: its small links) · arrow. Open: what it
@@ -46,7 +49,7 @@ import { useState, useEffect, createContext, useContext } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, PAL } from "./constants";
 import { SectionHead, Sheet, SheetButton, OpenArrow } from "./atoms";
 import { PERSONAL_ERAS, MAIN_AREAS, BASE_EXTRA, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE, conceptPhaseLabel, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel } from "./planner";
-import type { StructItem, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEraArc } from "./planner";
+import type { StructItem, ChapterArc, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEraArc } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
 import { IC, Subtitle, TabTitle, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
@@ -58,6 +61,7 @@ const OPEN_KEY    = "lh_planner_concept_open";
 const OPEN_BS_KEY = "lh_planner_concept_open_blocks"; // Base: by the block's key (no longer by its place)
 const OLD_BS_KEY  = "lh_planner_concept_open_base";   // the old one, by place — cleared
 const OPEN_PL_KEY = "lh_planner_concept_open_pillars"; // @createbylynn: the open pillars, by their key
+const OPEN_CH_KEY = "lh_planner_concept_open_chapters"; // a Main Area's open chapters ("home:After Trip")
 const FOLD_KEY    = "lh_planner_concept_folded";      // the lists you folded inside cards (open unless folded)
 type OpenMap  = Partial<Record<Account, number[]>>;
 type OpenKeys = Partial<Record<Account, string[]>>;
@@ -465,6 +469,47 @@ const PlaceholderCard = ({ n, item, tone }: { n: number; item: StructItem; tone:
   </div>
 );
 
+// a chapter with its selected arcs (Home): number · name · arrow, what it is in grey — open: its
+// arcs in posting order, each: the arc's number (blue) · its name · what it does here (grey) ·
+// the formats used for it here
+const ChapterCard = ({ n, item, arcs, open, onToggle }: { n: number; item: StructItem; arcs: ConceptArc[]; open: boolean; onToggle: () => void }) => (
+  <div style={cardBox}>
+    <div style={{ display: "flex", alignItems: "center" }}>
+      <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${item.name}`} style={headBtn}>
+        <NumCircle n={n} tone={PHASE_TONE} />
+        <span style={nameText}>{item.name}</span>
+      </button>
+      <Caret open={open} onClick={onToggle} />
+    </div>
+    <div style={{ ...descText, paddingBottom: open ? 0 : 10, marginLeft: SPACING.rowSide + INDENT }}>{tidy(item.desc)}</div>
+    {open && (
+      <div style={{ margin: `6px ${SPACING.rowSide}px 0 ${SPACING.rowSide + INDENT}px`, paddingBottom: 8 }}>
+        <div style={{ ...caps, color: C.light, padding: "2px 0 6px" }}>{count("Arcs", item.arcs?.length || 0)}</div>
+        {(item.arcs || []).map((x, k) => <ChapterArcRow key={k} x={x} arc={arcs.find(a => a.name.trim().toLowerCase() === x.arc.trim().toLowerCase())} />)}
+      </div>
+    )}
+  </div>
+);
+const ChapterArcRow = ({ x, arc }: { x: ChapterArc; arc?: ConceptArc }) => (
+  <div style={{ borderTop: `1px solid ${C.hair}`, padding: "8px 0" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+      {arc && <NumCircle n={arc.num} tone={ARC_TONE} size={18} />}
+      <span style={{ fontSize: SPACING.listText, fontWeight: 600, color: C.black, lineHeight: 1.35 }}>{x.arc}</span>
+    </div>
+    {x.note && <div style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4, marginTop: 2 }}>{tidy(x.note)}</div>}
+    {x.formats.length > 0 && (
+      <div style={{ marginTop: 4 }}>
+        {x.formats.map((f, k) => (
+          <div key={k} style={{ display: "flex", alignItems: "flex-start", gap: GAP - 1, padding: "2px 0" }}>
+            <span aria-hidden="true" style={{ width: 5, height: 5, borderRadius: "50%", background: C.faint, flexShrink: 0, marginTop: 7 }} />
+            <span style={{ fontSize: SPACING.listText, color: C.ink2, lineHeight: 1.4, overflowWrap: "anywhere" as const }}>{f}</span>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+);
+
 export default function PlannerConcept({ planner, view, isMobile, onAccount }: PlannerConceptProps) {
   const acc    = (view.acc === "all" ? "lynnhoa" : view.acc) as Account;
   const arcs   = planner.arcs.filter(a => a.account === acc).sort((a, b) => a.num - b.num);
@@ -498,6 +543,11 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   const setPlsOpen = (keys: string[]) => { const m = { ...openPls, [acc]: keys }; setOpenPls(m); saveMap(OPEN_PL_KEY, m); };
   const togglePl  = (k: string) => setPlsOpen(plKeys.includes(k) ? plKeys.filter(x => x !== k) : [...plKeys, k]);
   const anyPlOpen = pillars.some(p => plKeys.includes(p.key));
+  // a Main Area's open chapters, per account ("home:After Trip")
+  const [openChs, setOpenChs] = useState<OpenKeys>(() => loadMap(OPEN_CH_KEY));
+  const chKeys    = (openChs[acc] || []).filter(k => typeof k === "string");
+  const setChsOpen = (keys: string[]) => { const m = { ...openChs, [acc]: keys }; setOpenChs(m); saveMap(OPEN_CH_KEY, m); };
+  const toggleCh  = (k: string) => setChsOpen(chKeys.includes(k) ? chKeys.filter(x => x !== k) : [...chKeys, k]);
   // the lists folded inside cards (open unless folded), per account
   const [folded, setFolded] = useState<OpenKeys>(() => loadMap(FOLD_KEY));
   const foldList = (folded[acc] || []).filter(k => typeof k === "string");
@@ -604,7 +654,22 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   );
   const erasView = placeholders(PAL.lynnhoa.mid, "Personal Eras", PERSONAL_ERAS, PAL.lynnhoa);
   const area     = MAIN_AREAS.find(a => a.key === show);
-  const areaView = area ? placeholders(PHASE_TONE.mid, `${area.title} · Chapters`, area.chapters, PHASE_TONE) : null;
+  // a Main Area: its chapters — one with arcs opens to show them, the others stay placeholders
+  const chKey = (c: StructItem) => `${area?.key}:${c.name}`;
+  const filled = area ? area.chapters.filter(c => c.arcs?.length) : [];
+  const anyChOpen = filled.some(c => chKeys.includes(chKey(c)));
+  const areaView = area ? (
+    <>
+      <SectionHead dot={PHASE_TONE.mid} label={`${area.title} · Chapters · ${area.chapters.length}`}
+        right={filled.length ? <button onClick={() => setChsOpen(anyChOpen ? [] : filled.map(chKey))} style={mini}>{anyChOpen ? "collapse all" : "expand all"}</button> : undefined} />
+      {columns(area.chapters, c => {
+        const n = area.chapters.indexOf(c) + 1;
+        return c.arcs?.length
+          ? <ChapterCard key={c.name} n={n} item={c} arcs={arcs} open={chKeys.includes(chKey(c))} onToggle={() => toggleCh(chKey(c))} />
+          : <PlaceholderCard key={c.name} n={n} item={c} tone={PHASE_TONE} />;
+      })}
+    </>
+  ) : null;
 
   // @createbylynn: the 5 pillars, numbered cards (phone one column · iPad / computer two)
   const pillarView = planner.conceptError ? note(planner.conceptError, C.red) : (
