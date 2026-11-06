@@ -594,7 +594,7 @@ export const byOrder = (a: Task, b: Task) => a.sort - b.sort;
 //   Arcs → Posts · Base Posts (in between) · Context, Format, Setup (production layers).
 // The concept page shows Personal Eras and one tab per Main Area — each area holds its
 // CHAPTERS, each chapter its selected ARCS, each arc its matching FORMATS. Placeholders until
-// they're filled (no SQL yet; Home's chapters are filled here, 06.11.2026). Everyday Life sits under Base for now (its structure comes later).
+// they're filled (no SQL yet; Home's chapters are filled here, 06.11.2026).
 // a chapter's selected arc: the arc (by its name, as on the Arcs tab), what it does in this chapter
 // and the formats used for it here, in order
 export interface ChapterArc { arc: string; note: string; formats: string[]; }
@@ -624,9 +624,43 @@ export const PERSONAL_ERAS: StructItem[] = [
   ] },
 ];
 
-// under Base for now, after its blocks (its own structure comes later)
-export const BASE_EXTRA: StructItem[] = [
-  { name: "Everyday Life", desc: "Getting ready, routines, matcha, quiet days, thoughts and personality" },
+// Base (06.11.2026): quick personality posts that fill the gaps between chapters — its 6 blocks,
+// each with its arcs and formats. The lines you write per block stay in the data (planner_concept_phases,
+// the Base phase), found by the block's name.
+export const BASE_NOTE = "Quick personality posts that fill the gaps between chapters";
+export const BASE_BLOCKS: StructItem[] = [
+  { name: "Signatures", desc: "Your matcha, your scent, sunglasses on your head and your little rules: what makes you you every day", arcs: [
+    { arc: "The Moment", note: "Your matcha ritual, your walks, perfume before leaving", formats: ["Walk + Text", "Presence + Text", "Lip Sync Song"] },
+    { arc: "The Personality", note: "The habits people recognise you by", formats: ["Lip Sync Talk", "Skits", "Selfie Reaction", "Presence + Text"] },
+    { arc: "The Opinion", note: "Your rules, like how you wear things and what you'd never do", formats: ["Presence + Text", "Question + Reply/Reaction", "Walk + Text"] },
+    { arc: "The Obsession", note: "Your signature scent and the pieces you're never without", formats: ["Presence + Text", "Lip Sync Song", "Voiceover"] },
+  ] },
+  { name: "Today's Outfit", desc: "Dressed nicely for an ordinary day, no occasion needed", arcs: [
+    { arc: "The Look", note: "Today's outfit in your usual spot", formats: ["Outfit Check", "Walk + Text", "Transition"] },
+    { arc: "The Moment", note: "The outfit out in your day, coffee in hand", formats: ["Walk + Text", "Lip Sync Song", "Selfie Reaction", "Presence + Text"] },
+    { arc: "The Personality", note: "Your dry humor about getting dressed with nowhere to go", formats: ["Lip Sync Talk", "Skits", "Presence + Text"] },
+  ] },
+  { name: "New In", desc: "The one new piece or product that made it in, because you choose carefully", arcs: [
+    { arc: "The Obsession", note: "The new thing you can't stop wearing or using", formats: ["Presence + Text", "Lip Sync Song", "Voiceover", "Selfie Reaction + Result"] },
+    { arc: "The Look", note: "The new piece worn for the first time", formats: ["Outfit Check", "Walk + Text"] },
+    { arc: "The Opinion", note: "Your first impression: worth it or not", formats: ["Presence + Text", "Question + Reply/Reaction", "Walk + Text"] },
+    { arc: "The Personality", note: "Your honest reaction to it", formats: ["Lip Sync Talk", "Selfie Reaction", "Presence + Text"] },
+  ] },
+  { name: "Thoughts", desc: "What's on your mind: your takes on style, beauty and making an ordinary life feel lovely", arcs: [
+    { arc: "The Opinion", note: "Your point of view, said plainly", formats: ["Presence + Text", "Question + Reply/Reaction", "Walk + Text", "Lip Sync Talk"] },
+    { arc: "The Personality", note: "Thoughts that show your dry humor", formats: ["Lip Sync Talk", "Presence + Text"] },
+    { arc: "The Obsession", note: "What you're dreaming about right now", formats: ["Presence + Text", "Lip Sync Song", "Voiceover", "Question + Reply/Reaction"] },
+  ] },
+  { name: "Trends", desc: "Trending sounds and formats, done your calm, dry way", arcs: [
+    { arc: "The Moment", note: "The trend in your own setting and outfit", formats: ["TikTok Trends", "Lip Sync Song", "Selfie Reaction", "Presence + Text"] },
+    { arc: "The Personality", note: "The trend played straight, with your humor", formats: ["Lip Sync Talk", "Skits", "Selfie Reaction"] },
+  ] },
+  { name: "Shoot Day", desc: "Behind the scenes of your own editorial shoots", arcs: [
+    { arc: "The Before", note: "Getting ready for the shoot", formats: ["GRWM Talking", "Voiceover", "Presence + Text", "Transition"] },
+    { arc: "The Look", note: "The shoot looks revealed", formats: ["Outfit Check", "Walk + Text"] },
+    { arc: "The Moment", note: "Being on set", formats: ["Walk + Text", "Lip Sync Song", "Selfie Reaction"] },
+    { arc: "The Editorial", note: "The final shots", formats: ["Own Shoots"] },
+  ] },
 ];
 
 export const MAIN_AREAS: MainArea[] = [

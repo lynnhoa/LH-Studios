@@ -1,3 +1,14 @@
+# Planner · @lynnhoa concept: Base holds its arcs (06.11.2026)
+- Base: "Quick personality posts that fill the gaps between chapters" — 6 blocks (Signatures ·
+  Today's Outfit · New In · Thoughts · Trends · Shoot Day), each with its description, arcs and
+  formats, shown like the chapters. The lines you wrote stay: under the arcs, "edit" still opens them.
+  Everyday Life and Appointments & results are no longer shown on Base (their data stays).
+- The Look gets Transition (3rd format).
+- Data: run `LH-Studio-lynnhoa-look-transition.sql` once (safe to rerun). `LH-Studio-lynnhoa-arcs.sql`
+  includes it too, so a rerun of that keeps it.
+- Changed: `planner.ts`, `PlannerConcept.tsx`, `LH-Studio-lynnhoa-arcs.sql`, `LYNNHOA-CONTENT-STRUCTURE.md`.
+  New: `LH-Studio-lynnhoa-look-transition.sql`.
+
 # Planner · @lynnhoa concept: Personal Eras hold their arcs (06.11.2026)
 - Personal Eras: Beauty Era (5 arcs) · Style Era (5) · Signature Era (4), each with its description,
   arcs and formats. Tap an era to see them, like the chapters (lavender numbers); "expand all" on
