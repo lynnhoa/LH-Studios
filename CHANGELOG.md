@@ -1,3 +1,9 @@
+# Planner · @lynnhoa concept: Personal Eras hold their arcs (06.11.2026)
+- Personal Eras: Beauty Era (5 arcs) · Style Era (5) · Signature Era (4), each with its description,
+  arcs and formats. Tap an era to see them, like the chapters (lavender numbers); "expand all" on
+  the heading. Every tab is filled now, no "empty" cards left.
+- No SQL needed. Changed: `planner.ts`, `PlannerConcept.tsx`, `LYNNHOA-CONTENT-STRUCTURE.md`.
+
 # Planner · @lynnhoa concept: Home's chapters updated (06.11.2026)
 - Home's 8 chapters revised word for word: The Opinion added to After Trip, Home Projects,
   Maintenance and Wardrobe & Style; Beauty Projects gets The Story; Wardrobe & Style gets The

@@ -602,9 +602,26 @@ export interface StructItem { name: string; desc: string; arcs?: ChapterArc[]; }
 export interface MainArea { key: "home" | "travel" | "work"; label: string; title: string; chapters: StructItem[]; }
 
 export const PERSONAL_ERAS: StructItem[] = [
-  { name: "Beauty Era",    desc: "Hair, nails, makeup and beauty identity" },
-  { name: "Style Era",     desc: "Wardrobe, personal style, silhouettes and aesthetic" },
-  { name: "Signature Era", desc: "Signature accessories, everyday look and personal uniform" },
+  { name: "Beauty Era", desc: "Refining your beauty identity: hair, nails, lashes, makeup and skincare", arcs: [
+    { arc: "The Obsession", note: "The change you can't stop thinking about, then loving it", formats: ["Presence + Text", "Lip Sync Song", "Selfie Reaction + Result"] },
+    { arc: "The Edit",      note: "What you're changing and the real reason why", formats: ["Seated Talking", "Half-Body Talking"] },
+    { arc: "The Story",     note: "The change as it happens", formats: ["Vlog", "Selfie Reaction + Result"] },
+    { arc: "The Look",      note: "The reveal of the new beauty look", formats: ["Transition"] },
+    { arc: "The Opinion",   note: "Your verdict on the change and the products", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+  ] },
+  { name: "Style Era", desc: "Refining your personal style: wardrobe, silhouettes, styling and aesthetic", arcs: [
+    { arc: "The Obsession",   note: "The new silhouette or aesthetic you keep wanting", formats: ["Presence + Text", "Lip Sync Song", "Voiceover"] },
+    { arc: "The Edit",        note: "What stays, what goes, what comes in, and why", formats: ["Seated Talking", "Half-Body Talking"] },
+    { arc: "The Look",        note: "The new style worn and styled", formats: ["Outfit Check", "Walk + Text"] },
+    { arc: "The Opinion",     note: "Your style rules and honest takes", formats: ["Presence + Text", "Question + Reply/Reaction"] },
+    { arc: "The Personality", note: "“Nothing to wear” in a full closet", formats: ["Lip Sync Talk", "Skits"] },
+  ] },
+  { name: "Signature Era", desc: "Your recognisable everyday look: signature pieces, uniform and combinations", arcs: [
+    { arc: "The Look",      note: "Your everyday look and recurring combinations", formats: ["Outfit Check", "Walk + Text"] },
+    { arc: "The Edit",      note: "Why this is your uniform and what makes it yours", formats: ["Seated Talking", "Half-Body Talking"] },
+    { arc: "The Moment",    note: "Your signature pieces in daily life", formats: ["Walk + Text", "Presence + Text"] },
+    { arc: "The Obsession", note: "The piece you never take off", formats: ["Presence + Text", "Voiceover"] },
+  ] },
 ];
 
 // under Base for now, after its blocks (its own structure comes later)

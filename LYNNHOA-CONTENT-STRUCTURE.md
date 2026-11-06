@@ -12,11 +12,11 @@ The overall personality and world people follow: fashion, beauty, personal image
 
 Longer-term developments in your personal appearance and recognisable image.
 
-| Era | What it covers |
-|---|---|
-| Beauty Era | Hair, nails, makeup and beauty identity |
-| Style Era | Wardrobe, personal style, silhouettes and aesthetic |
-| Signature Era | Signature accessories, everyday look and personal uniform |
+| Era | What it covers | Arcs → formats |
+|---|---|---|
+| 1. Beauty Era | Refining your beauty identity: hair, nails, lashes, makeup and skincare | The Obsession (Presence + Text, Lip Sync Song, Selfie Reaction + Result) · The Edit (Seated Talking, Half-Body Talking) · The Story (Vlog, Selfie Reaction + Result) · The Look (Transition) · The Opinion (Presence + Text, Question + Reply/Reaction) |
+| 2. Style Era | Refining your personal style: wardrobe, silhouettes, styling and aesthetic | The Obsession (Presence + Text, Lip Sync Song, Voiceover) · The Edit (Seated Talking, Half-Body Talking) · The Look (Outfit Check, Walk + Text) · The Opinion (Presence + Text, Question + Reply/Reaction) · The Personality (Lip Sync Talk, Skits) |
+| 3. Signature Era | Your recognisable everyday look: signature pieces, uniform and combinations | The Look (Outfit Check, Walk + Text) · The Edit (Seated Talking, Half-Body Talking) · The Moment (Walk + Text, Presence + Text) · The Obsession (Presence + Text, Voiceover) |
 
 Example: Going Blonde is a project within your Beauty Era, not an Era of its own.
 

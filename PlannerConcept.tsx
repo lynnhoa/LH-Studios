@@ -472,11 +472,11 @@ const PlaceholderCard = ({ n, item, tone }: { n: number; item: StructItem; tone:
 // a chapter with its selected arcs (Home): number · name · arrow, what it is in grey — open: its
 // arcs in posting order, each: the arc's number (blue) · its name · what it does here (grey) ·
 // the formats used for it here
-const ChapterCard = ({ n, item, arcs, open, onToggle }: { n: number; item: StructItem; arcs: ConceptArc[]; open: boolean; onToggle: () => void }) => (
+const ChapterCard = ({ n, item, arcs, open, onToggle, tone = PHASE_TONE }: { n: number; item: StructItem; arcs: ConceptArc[]; open: boolean; onToggle: () => void; tone?: Tone }) => (
   <div style={cardBox}>
     <div style={{ display: "flex", alignItems: "center" }}>
       <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${item.name}`} style={headBtn}>
-        <NumCircle n={n} tone={PHASE_TONE} />
+        <NumCircle n={n} tone={tone} />
         <span style={nameText}>{item.name}</span>
       </button>
       <Caret open={open} onClick={onToggle} />
@@ -645,31 +645,28 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
     </>
   );
 
-  // Personal Eras and the Main Areas' chapters: placeholders from the master structure (planner.ts)
-  const placeholders = (dot: string, label: string, list: StructItem[], tone: Tone) => (
-    <>
-      <SectionHead dot={dot} label={`${label} · ${list.length}`} />
-      {columns(list, x => <PlaceholderCard key={x.name} n={list.indexOf(x) + 1} item={x} tone={tone} />)}
-    </>
-  );
-  const erasView = placeholders(PAL.lynnhoa.mid, "Personal Eras", PERSONAL_ERAS, PAL.lynnhoa);
+  // Personal Eras and the Main Areas' chapters (planner.ts): a card with arcs opens to show them,
+  // one without stays a placeholder ("empty"). Open ones are remembered by "<tab>:<name>".
+  const chapterList = (tab: string, dot: string, label: string, list: StructItem[], tone: Tone) => {
+    const key = (c: StructItem) => `${tab}:${c.name}`;
+    const filled = list.filter(c => c.arcs?.length);
+    const anyOpen = filled.some(c => chKeys.includes(key(c)));
+    return (
+      <>
+        <SectionHead dot={dot} label={`${label} · ${list.length}`}
+          right={filled.length ? <button onClick={() => setChsOpen(anyOpen ? chKeys.filter(k => !filled.map(key).includes(k)) : Array.from(new Set([...chKeys, ...filled.map(key)])))} style={mini}>{anyOpen ? "collapse all" : "expand all"}</button> : undefined} />
+        {columns(list, c => {
+          const n = list.indexOf(c) + 1;
+          return c.arcs?.length
+            ? <ChapterCard key={c.name} n={n} item={c} arcs={arcs} tone={tone} open={chKeys.includes(key(c))} onToggle={() => toggleCh(key(c))} />
+            : <PlaceholderCard key={c.name} n={n} item={c} tone={tone} />;
+        })}
+      </>
+    );
+  };
+  const erasView = chapterList("eras", PAL.lynnhoa.mid, "Personal Eras", PERSONAL_ERAS, PAL.lynnhoa);
   const area     = MAIN_AREAS.find(a => a.key === show);
-  // a Main Area: its chapters — one with arcs opens to show them, the others stay placeholders
-  const chKey = (c: StructItem) => `${area?.key}:${c.name}`;
-  const filled = area ? area.chapters.filter(c => c.arcs?.length) : [];
-  const anyChOpen = filled.some(c => chKeys.includes(chKey(c)));
-  const areaView = area ? (
-    <>
-      <SectionHead dot={PHASE_TONE.mid} label={`${area.title} · Chapters · ${area.chapters.length}`}
-        right={filled.length ? <button onClick={() => setChsOpen(anyChOpen ? [] : filled.map(chKey))} style={mini}>{anyChOpen ? "collapse all" : "expand all"}</button> : undefined} />
-      {columns(area.chapters, c => {
-        const n = area.chapters.indexOf(c) + 1;
-        return c.arcs?.length
-          ? <ChapterCard key={c.name} n={n} item={c} arcs={arcs} open={chKeys.includes(chKey(c))} onToggle={() => toggleCh(chKey(c))} />
-          : <PlaceholderCard key={c.name} n={n} item={c} tone={PHASE_TONE} />;
-      })}
-    </>
-  ) : null;
+  const areaView = area ? chapterList(area.key, PHASE_TONE.mid, `${area.title} · Chapters`, area.chapters, PHASE_TONE) : null;
 
   // @createbylynn: the 5 pillars, numbered cards (phone one column · iPad / computer two)
   const pillarView = planner.conceptError ? note(planner.conceptError, C.red) : (
