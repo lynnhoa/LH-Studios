@@ -86,18 +86,72 @@ A package is essentially a curation of Arcs.
 
 ## 6. Arcs
 
-Your eight narrative approaches for individual posts:
+Your nine narrative approaches for individual posts, each with its formats (main formats marked):
 
-- The Before
-- The Look
-- The Moment
-- The Opinion
-- The Personality
-- The Obsession
-- The Story
-- The Editorial
+**1. The Before**
+The build-up and anticipation before you go out.
+- GRWM Talking (main)
+- Voiceover
+- Presence + Text
+- Lip Sync Song
+- TikTok Trends
+- Transition
 
-You select and repeat the Arcs that suit each package. You don't need to use all eight.
+**2. The Look**
+Your fashion identity and what draws people in.
+- Outfit Check (main)
+- Walk + Text
+
+**3. The Moment**
+Being there and capturing the scene as it happens.
+- Walk + Text (main)
+- TikTok Trends (main)
+- Lip Sync Song
+- Selfie Reaction
+- Presence + Text
+
+**4. The Opinion**
+Your point of view and honest judgments on things.
+- Presence + Text (main)
+- Question + Reply/Reaction
+- Walk + Text
+- Lip Sync Talk
+
+**5. The Personality**
+Your quirks and humor that make you recognizable.
+- Lip Sync Talk (main)
+- Skits (main)
+- Selfie Reaction
+- Presence + Text
+
+**6. The Obsession**
+Your desires, fantasies and the things you can't stop wanting.
+- Presence + Text (main)
+- Lip Sync Song (main)
+- Voiceover (main)
+- Question + Reply/Reaction
+- Selfie Reaction + Result
+
+**7. The Edit**
+What you choose, why you choose it, and the result.
+- Seated Talking (main)
+- Half-Body Talking (main)
+
+**8. The Story**
+Real experiences with context, progression and a payoff.
+- Vlog (main)
+- GRWM Talking
+- Voiceover
+- Selfie Reaction + Result
+- Presence + Text
+
+**9. The Editorial**
+Creative campaigns and brand collaborations, kept separate.
+- Own Shoots (main)
+
+You select and repeat the Arcs that suit each package. You don't need to use all nine.
+
+In the app: run `LH-Studio-lynnhoa-arcs.sql` once in Supabase to set these arcs and formats.
 
 ## 7. Base Posts
 
