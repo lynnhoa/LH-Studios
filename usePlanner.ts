@@ -1,7 +1,8 @@
 // ─────────────────────────────────────────────────────────────
 // usePlanner — the Planner's data (tables planner_stages,
 // planner_tasks, planner_entries, planner_snapshots, planner_items,
-// planner_notes, planner_sprints, planner_concept_arcs, planner_concept_phases, planner_concept_now)
+// planner_notes, planner_sprints, planner_concept_arcs, planner_concept_phases, planner_concept_now,
+// planner_concept_series)
 // plus Outreach: contacts (new per
 // week, status) and the pitch log. Rows that count themselves
 // (contacts, pitches, ideas, posts, pieces, first set, kit
@@ -17,8 +18,8 @@ import { monthEnd, today, monthStart, ymd } from "./formatters";
 import {
   addDays, entryKey, snapKey, mondayOf, periodOf, rowState, taskAccounts, NO_DAYS, planOf,
 } from "./planner";
-import { daysBetween, PILLAR_KEYS } from "./planner";
-import type { Stage, Task, Entry, TaskStatus, Snapshot, Account, Item, ItemStatus, Note, NoteKind, Auto, Sprint, SprintStats, ConceptArc, ConceptPhase, ConceptEra, ConceptEraArc, ConceptNow } from "./planner";
+import { daysBetween, PILLAR_KEYS, episodesOf } from "./planner";
+import type { Stage, Task, Entry, TaskStatus, Snapshot, Account, Item, ItemStatus, Note, NoteKind, Auto, Sprint, SprintStats, ConceptArc, ConceptPhase, ConceptEra, ConceptEraArc, ConceptNow, ConceptEpisode } from "./planner";
 import { followInfo, followUpDue } from "./outreach";
 import { useListsVersion } from "./useOutreachLists";
 import type { Pitch } from "./outreach";
@@ -97,6 +98,7 @@ const rowToPhase = (r: any): ConceptPhase => ({
 });
 const PHASES_MISSING = "The phases table doesn't exist yet — run the phases SQL in Supabase once.";
 const NOW_MISSING = "Now isn't saved yet — run the Now SQL in Supabase once.";
+const EPISODES_MISSING = "The episodes can't be changed yet — run LH-Studio-lynnhoa-series.sql in Supabase once.";
 const NO_NOW: ConceptNow = { phase: null, era: null };
 
 const rowToStage = (r: any): Stage => ({
@@ -247,6 +249,9 @@ export function usePlanner(userId: string | null, monday: string) {
   const [phasesError, setPhasesError] = useState<string | null>(null);
   const [nows,      setNows]      = useState<Partial<Record<Account, ConceptNow>>>({});
   const [nowError,  setNowError]  = useState<string | null>(null);
+  // How I … episodes, per account (the saved ones; episodesFor fills in the starting ones)
+  const [episodes,  setEpisodes]  = useState<(ConceptEpisode & { account: Account })[]>([]);
+  const [episodesError, setEpisodesError] = useState<string | null>(null);
   // every target ever set (they carry over to the following weeks / months)
   const [targetLog, setTargetLog] = useState<Record<string, { p: string; v: number }[]>>({});
   const [loginEmail, setLoginEmail] = useState("");
@@ -327,8 +332,8 @@ export function usePlanner(userId: string | null, monday: string) {
 
   // Creator lists and notes, Outreach contacts and (Stage 2) the pitch log and sprints
   const loadOutside = useCallback(async () => {
-    if (!userId) { setContacts([]); setItems([]); setNotes([]); setPitches([]); setSprints([]); setArcs([]); setPhases([]); setNows({}); return; }
-    const [oc, it, nt, pl, sp, ca, ph, nw]: any[] = await Promise.all([
+    if (!userId) { setContacts([]); setItems([]); setNotes([]); setPitches([]); setSprints([]); setArcs([]); setPhases([]); setNows({}); setEpisodes([]); return; }
+    const [oc, it, nt, pl, sp, ca, ph, nw, se]: any[] = await Promise.all([
       // lists that grow: every row, page by page (more than 1,000 is fine)
       selectAll("outreach_contacts", "id, company, category, tier, status, last_contact, created_at", q => q.eq("user_id", userId).order("id")),
       selectAll("planner_items", "*", q => q.eq("user_id", userId).order("created_at").order("id")),
@@ -341,6 +346,8 @@ export function usePlanner(userId: string | null, monday: string) {
       supabase.from("planner_concept_phases").select("*").eq("user_id", userId).order("account").order("num"),
       // Creator › Now: the phase and era you're in, per account (one more SQL)
       supabase.from("planner_concept_now").select("*").eq("user_id", userId),
+      // the How I … episodes (one more SQL); without them the starting ones show
+      supabase.from("planner_concept_series").select("*").eq("user_id", userId),
     ]);
     if (oc?.error) setOutreachError(oc.error.message);
     else {
@@ -368,6 +375,12 @@ export function usePlanner(userId: string | null, monday: string) {
         m[acc] = { phase: r.phase != null && Number(r.phase) >= 0 ? Number(r.phase) : null, era: typeof r.era === "string" && r.era ? r.era : null };   // 0 = Base
       });
       setNows(m);
+    }
+    if (se?.error) setEpisodesError(/planner_concept_series/.test(se.error.message || "") ? EPISODES_MISSING : se.error.message);
+    else {
+      setEpisodesError(null);
+      setEpisodes((se?.data || []).map((r: any) => ({ account: r.account === "createbylynn" ? "createbylynn" : "lynnhoa",
+        chapter: String(r.chapter ?? ""), title: String(r.title ?? ""), hook: String(r.hook ?? "") })));
     }
     const err = it?.error || nt?.error;
     if (err) setLoadError(isMissing(err.message) ? MISSING : err.message);
@@ -581,6 +594,24 @@ export function usePlanner(userId: string | null, monday: string) {
     fail(error);
   }, [userId]);
 
+  // ── How I …: an episode's title and hook (one row per chapter, replaced in place) ─
+  // Only a real change is saved; the whole row is written, so a chapter without a saved row
+  // keeps the starting text it showed for the field you didn't change.
+  const episodesRef = useRef(episodes); episodesRef.current = episodes;
+  const episodesFor = useCallback((acc: Account): ConceptEpisode[] => episodesOf(episodes.filter(e => e.account === acc)), [episodes]);
+  const updateEpisode = useCallback(async (acc: Account, chapter: string, patch: Partial<Pick<ConceptEpisode, "title" | "hook">>) => {
+    const cur = episodesOf(episodesRef.current.filter(e => e.account === acc)).find(e => e.chapter === chapter);
+    if (!cur) return;
+    const next = { ...cur, ...patch };
+    if (next.title === cur.title && next.hook === cur.hook) return;
+    const others = episodesRef.current.filter(e => !(e.account === acc && e.chapter === chapter));
+    episodesRef.current = [...others, { account: acc, ...next }];
+    setEpisodes(episodesRef.current);
+    const { error } = await supabase.from("planner_concept_series")
+      .upsert({ user_id: userId, account: acc, chapter, title: next.title, hook: next.hook, updated_at: new Date().toISOString() }, { onConflict: "user_id,account,chapter" });
+    fail(error);
+  }, [userId]);
+
   // ── Base: a block's lines (the phase's eras are written back whole) ─
   // Only a real change is saved; compared with what is on screen, so Undo is saved too.
   const phasesRef = useRef(phases); phasesRef.current = phases;
@@ -782,6 +813,7 @@ export function usePlanner(userId: string | null, monday: string) {
     pitches, sprints, stage2Error, createSprint, updateSprint, deleteSprint, activeSprint, sprintStats, followUpsDue, pitchesInWeek, contactName,
     restoreItem, deletePitch, restorePitch,
     arcs, conceptError, updateArc, phases, phasesError, updateBlockLines, nowOf, setNow, nowError,
+    episodesFor, updateEpisode, episodesError,
   };
 }
 

@@ -281,9 +281,6 @@ export const CONCEPT_ARCS: { key: ConceptArcKey; label: string }[] = [
 export const isSeries = (a: ConceptArc) => !!a.category && !!a.arc;
 // a series of the Look arc has labels (the title on the video), every other one texts
 export const seriesWord = (a: ConceptArc): "labels" | "texts" => (a.arc === "look" ? "labels" : "texts");
-// "Hair · Look" — where a series sits
-export const seriesPlace = (a: ConceptArc) =>
-  `${CONCEPT_CATEGORIES.find(c => c.key === a.category)?.label || ""} · ${CONCEPT_ARCS.find(x => x.key === a.arc)?.label || ""}`;
 // the series of one category and arc, in order (the page numbers them 1, 2, 3 …)
 export const seriesOf = (list: ConceptArc[], cat: ConceptCategory, arc: ConceptArcKey) =>
   list.filter(a => a.category === cat && a.arc === arc).sort((a, b) => a.num - b.num);
@@ -305,7 +302,6 @@ export interface ConceptBlockSection { name: string; lines: string[]; }
 // card (a phase without groups: "Eras")
 // sections: a Base block's lines (empty for eras)
 export interface ConceptEra    { key: string; name: string; desc: string; arcs: ConceptEraArc[]; grp: string | null; sections: ConceptBlockSection[]; }
-export const blockLineCount = (e: ConceptEra) => e.sections.reduce((n, s) => n + s.lines.length, 0);
 // "Perfume before leaving · how it shows" → ["Perfume before leaving", "how it shows"]
 export const splitBlockLine = (t: string): [string, string] => {
   const i = t.indexOf(" · ");
@@ -328,9 +324,6 @@ export const conceptPhaseLabel = (p: ConceptPhase) => (isBasePhase(p) ? "Base" :
 export const conceptPhaseShort = (p: ConceptPhase) => (isBasePhase(p) ? "Base" : `${p.num} · ${p.name}`);
 // a phase number is set (0 = Base counts)
 export const hasPhase = (n: number | null | undefined): n is number => typeof n === "number" && n >= 0;
-// the words for a phase's list: "Eras · 3" (a phase without groups) / "Base · 7", "Pick an era" / "Pick a block"
-export const phaseListWord = (p: ConceptPhase | undefined | null) => (isBasePhase(p) ? "Base" : "Eras");
-export const phaseItemWord = (p: ConceptPhase | undefined | null) => (isBasePhase(p) ? "block" : "era");
 // the eras of a phase with their group headings, in order: [{ grp, eras }]
 export const eraGroups = (p: ConceptPhase): { grp: string | null; eras: ConceptEra[] }[] => {
   const out: { grp: string | null; eras: ConceptEra[] }[] = [];
@@ -779,7 +772,7 @@ export const MAIN_AREAS: MainArea[] = [
 // for and how it all works, read only. Four cards: Who I am · How I … (signature series, filmed
 // as The Edit) · The Outing (content package across arcs) · How it all works (the levels as a
 // tree, then the workflow). Each level keeps its own pastel, the same as on the tabs.
-export const GUIDE_TONE   = PAL.late;          // the Guide pill and "Who I am" (pink)
+export const GUIDE_TONE   = { fill: "#F5E7AE", wash: "#FCF5DD", mid: "#E6CF7E", ink: "#75601F" };   // the Guide button and "Who I am" (butter)
 export const SERIES_TONE  = PAL.createbylynn;  // How I … (peach)
 export const PACKAGE_TONE = PAL.done;          // The Outing (sage)
 export const FORMAT_TONE  = { fill: "#C6E6DA", wash: "#E1F2EC", mid: "#8FCBB4", ink: "#2F5E4E" };   // Formats (mint)
@@ -814,3 +807,30 @@ export const GUIDE_PACKAGE = {
   runsIn:   ["Occasion", "City Break", "Long Trip", "Invited", "Fashion Week", "Shoot Day"],
 };
 export const GUIDE_WORKFLOW = ["Pick where you are", "Check the badges", "Open the chapter", "Guide for the why"];
+
+// The concept's five tabs (the bottom bar, 07.11.2026): each its own pastel, the same family as
+// Lynn's Office — Eras rose · Base sand · Home apricot · Travel aqua · Work plum. A tab's chapters
+// take its colour (their number circles); arcs stay blue, the Guide butter, the account lavender.
+export type ConceptTabKey = "eras" | "base" | "home" | "travel" | "work";
+export const TAB_TONE: Record<ConceptTabKey, PlatformTone> = {
+  eras:   { fill: "#F6D3DD", wash: "#FBEBEF", mid: "#E7A9BB", ink: "#8C3F57" },
+  base:   { fill: "#EADFCC", wash: "#F5EFE6", mid: "#D5C3A6", ink: "#6B5537" },
+  home:   { fill: "#FAD8C3", wash: "#FDEEE4", mid: "#F2B48C", ink: "#8A4A26" },
+  travel: { fill: "#C6E6E8", wash: "#E2F2F3", mid: "#8CCBCF", ink: "#22646A" },
+  work:   { fill: "#ECD3E7", wash: "#F6ECF4", mid: "#D2A2CB", ink: "#763A6E" },
+};
+
+// How I … episodes (07.11.2026): one title and hook per series chapter, changed in the app
+// (table planner_concept_series, no history). GUIDE_SERIES.examples are the starting ones —
+// shown until the SQL has run, and for a chapter without a saved row.
+export interface ConceptEpisode { chapter: string; title: string; hook: string; }
+export const episodesOf = (stored: ConceptEpisode[]): ConceptEpisode[] =>
+  GUIDE_SERIES.examples.map(x => {
+    const r = stored.find(e => e.chapter === x.chapter);
+    return { chapter: x.chapter, title: r ? r.title : x.title, hook: r ? r.hook : x.hook };
+  });
+// the pill top right on a chapter card: "Series" on Home's series chapters, "The Outing" where it runs
+export type ChapterTag = "series" | "outing" | null;
+export const chapterTag = (tab: string, name: string): ChapterTag =>
+  tab === "home" && GUIDE_SERIES.examples.some(x => x.chapter === name) ? "series"
+    : tab !== "eras" && GUIDE_PACKAGE.runsIn.includes(name) ? "outing" : null;
