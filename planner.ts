@@ -820,6 +820,18 @@ export const TAB_TONE: Record<ConceptTabKey, PlatformTone> = {
   work:   { fill: "#ECD3E7", wash: "#F6ECF4", mid: "#D2A2CB", ink: "#763A6E" },
 };
 
+// @createbylynn's five pillars in the same bottom bar (07.11.2026): each its own pastel, the same family
+export const PILLAR_TONE: Record<ConceptPillarKey, PlatformTone> = {
+  makeup_looks: TAB_TONE.eras,                                                   // rose
+  hair_styles:  TAB_TONE.home,                                                   // apricot
+  products:     TAB_TONE.travel,                                                 // aqua
+  personality:  { fill: "#F5E7AE", wash: "#FCF5DD", mid: "#E6CF7E", ink: "#75601F" },   // butter
+  editorial:    TAB_TONE.work,                                                   // plum
+};
+export const PILLAR_SHORT: Record<ConceptPillarKey, string> = {
+  makeup_looks: "Makeup", hair_styles: "Hair", products: "Products", personality: "Personality", editorial: "Editorial",
+};
+
 // How I … episodes (07.11.2026): one title and hook per series chapter, changed in the app
 // (table planner_concept_series, no history). GUIDE_SERIES.examples are the starting ones —
 // shown until the SQL has run, for a chapter without a saved row, and for a field left empty.
