@@ -1,3 +1,22 @@
+# Planner · @lynnhoa concept: bottom bar, colours, How I … episodes (07.11.2026)
+- Bottom bar (like Lynn's Office): Eras · Base · Home · Travel · Work moved from the switch under the
+  title to a floating white pill at the bottom. Each tab its own pastel — Eras rose · Base sand · Home
+  apricot · Travel aqua · Work plum (the Lynn's Office family); the open one filled. A tab's chapters
+  take its colour. Hidden for @createbylynn.
+- Top: "Content concept" with two round buttons — Guide (now butter) and Arcs (blue, its count) — and
+  under it the account as one chip (LH · @lynnhoa · ⇄, tap: @createbylynn) with the tab's grey line.
+- Chapter pills top right: "Series" on Home's How I … chapters, "The Outing" where it runs (Occasion,
+  City Break, Long Trip, Invited, Fashion Week, Shoot Day). A series chapter shows its episode (title +
+  hook) in a peach box inside The Edit (Maintenance: under its description, it has no The Edit).
+- How I … episodes are changed in the app: Guide › How I … › edit — a Title and a Hook per chapter,
+  saved when you leave the field. One row per chapter, no history.
+- Tidy: the old Base block card, the old arcs window (eras), its open state and legend are gone
+  (nothing showed them any more); unused helpers in planner.ts removed.
+- Data: run `LH-Studio-lynnhoa-series.sql` once (safe to rerun; never overwrites a changed episode).
+  Without it the starting episodes show, read only.
+- Changed: `PlannerConcept.tsx`, `planner.ts`, `usePlanner.ts`, `LYNNHOA-CONTENT-STRUCTURE.md`.
+  New: `LH-Studio-lynnhoa-series.sql`.
+
 # Planner · @lynnhoa concept: Guide (07.11.2026)
 - New pink **Guide** pill next to Arcs: your look-up page, read only. Four cards like the chapters
   (closed: one grey line; open cards remembered on this device; "expand all" on the heading):

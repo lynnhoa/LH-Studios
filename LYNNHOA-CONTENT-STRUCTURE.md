@@ -117,6 +117,8 @@ Pattern: **Hook (why I started) → Curation → Result**. Filmed as **The Edit*
 | Beauty Projects | How I build my matching makeup sets | "My drawer was messy and random, I had no favourites, and I stopped enjoying makeup" |
 | Kits & Preparation | How I build my travel kit | "I used to pack at 4 AM" |
 
+These are the starting episodes; the titles and hooks are changed in the app (Guide › How I … › edit, saved per chapter, no history).
+
 ## 5. Content Package: The Outing
 
 Your package for every day out: **Before → Look → Moment**, optionally closed by **Story**. One outfit, one day out, every post stands alone.
@@ -238,4 +240,4 @@ Your Talking Spot can be the recognisable home base for How I ….
 
 ---
 
-In the app: Planner › @lynnhoa concept shows **Personal Eras | Base | Home | Travel | Work** and two pills: **Guide** (what you stand for and how it all works, 4 cards: Who I am · How I … · The Outing · How it all works) and **Arcs**. The eras and each area's phases come from `planner.ts` (`PERSONAL_ERAS`, `MAIN_AREAS`) and are empty placeholders until they're filled.
+In the app: Planner › @lynnhoa concept shows **Personal Eras | Base | Home | Travel | Work** and two round buttons: **Guide** (what you stand for and how it all works, 4 cards: Who I am · How I … · The Outing · How it all works) and **Arcs**. The eras and each area's phases come from `planner.ts` (`PERSONAL_ERAS`, `MAIN_AREAS`) and are empty placeholders until they're filled.

@@ -1,46 +1,32 @@
 // ─────────────────────────────────────────────────────────────
 // PlannerConcept — Planner › Content concept, opened from the
 // profile menu ("@lynnhoa concept" / "@createbylynn concept").
-//   Personal Eras | Base | Home | Travel | Work: a switch under the title, and on the same line,
-//   right, the "Arcs" pill — it opens the arcs. The page opens on what you had last
-//   (remembered on this device). The line under the title says what it is.
-//   Personal Eras and the Main Areas (Home · Travel · Work, each showing only its own chapters;
-//   a chapter will hold its selected arcs, each arc its matching formats)
-//   follow the master structure (planner.ts, LYNNHOA-CONTENT-STRUCTURE.md): placeholder cards
-//   — number · name · what belongs there — marked "empty" until they're filled.
-//   Home's chapters are filled (06.11.2026): number · name · arrow, what it is in grey; open: its
-//   arcs in posting order — the arc's number (blue) · name · what it does here · its formats here.
-//   Open chapters are remembered on this device; "expand all / collapse all" on the heading.
-//   (The old Phases tab is gone; its phases stay in the data, for Creator › Now.)
-//   Every card works the same: number · name · (open: its small links) · arrow. Open: what it
-//   is in grey, then its lists — each under one heading (small grey caps with its count and a
-//   small arrow: tap it to fold or unfold the list; what you fold stays folded on this device),
-//   one row per item: a light dot, the name in black, what it is in grey, in full. Nothing is
-//   shown twice: what a small link opens ("texts · links") isn't listed in the card too.
-//   Base (warm grey): quick personality posts between chapters — the 6 blocks of planner.ts
-//   (BASE_BLOCKS), shown like the chapters: open, its arcs with their notes and formats, then the
-//   block's lines from the data (found by name). "edit" opens one window to add, change,
-//   delete the lines (Undo, saved right away).
-//   Phases (butter): Home, Occasion … one card each. Open: its purpose and its eras under
-//   their group headings ("Moments · 3"; a phase without groups: "Eras · 3"). Each era shows
-//   its arcs as small numbers (blue; optional ones grey) — tap the era: its arcs window.
-//   Guide (pink pill next to "Arcs", 07.11.2026): the look-up page — what you stand for and how
-//   it all works, read only (planner.ts, GUIDE_*). Four cards like the chapters: Who I am ·
-//   How I … (signature series, filmed as The Edit: title on top, the hook right below) · The
-//   Outing (content package: Before → Look → Moment, Story optional, and where it runs) · How it
-//   all works (the levels as a small tree — tabs → chapter → arcs → formats · series · package —
-//   then the 4-step workflow). Closed: one grey line; open cards remembered on this device.
+//   Top (07.11.2026): "Content concept" with two round buttons right — Guide (butter book) and
+//   Arcs (blue arc, its count) — then the account chip (avatar · @name · ⇄, tap: the other
+//   account) and the grey line that says what the open tab is.
+//   Bottom bar (like Lynn's Office): Eras · Base · Home · Travel · Work, a floating white pill —
+//   each tab its own pastel (rose · sand · apricot · aqua · plum, planner.ts TAB_TONE), the open
+//   one filled; a tab's chapters take its colour. The page opens on what you had last
+//   (remembered on this device). The toast sits above the bar.
+//   Every card works the same: number · name · (pill) · (open: its small links) · arrow. Open:
+//   what it is in grey, then its lists — each under one heading (small grey caps with its count
+//   and a small arrow: tap it to fold or unfold the list; what you fold stays folded on this
+//   device), one row per item. Open cards are remembered on this device; "expand all" on the heading.
+//   Chapters (Personal Eras · Home · Travel · Work, planner.ts): open, the arcs in posting order —
+//   the arc's number (blue) · name · what it does here · its formats here. A pill top right:
+//   "Series" on Home's How I … chapters (the episode's title and hook in a peach box, inside The
+//   Edit — or under the description when the chapter has no The Edit), "The Outing" where it runs.
+//   Base: the 6 blocks of planner.ts, shown like the chapters, then the block's lines from the
+//   data (found by name). "edit" opens one window to add, change, delete the lines (Undo).
+//   Guide: the look-up page — Who I am · How I … · The Outing · How it all works (planner.ts,
+//   GUIDE_*). How I … open: "edit" opens the episodes window — a Title and a Hook per chapter,
+//   saved when you leave the field (table planner_concept_series; before its SQL the starting
+//   ones show, read only).
 //   Arcs (pastel blue): one card per arc. Open: its purpose and its formats with the TikTok /
 //   Instagram ticks. "texts · links" open one window each — the texts and links live there
 //   (add, change, delete with Undo, saved right away).
-//   The arcs window (an era, or a Base block): what it is, then "Arcs · 4" with expand all,
-//   the arcs as cards in posting order (optional ones last, in grey). Each IS the arc of the
-//   Arcs tab — its formats, texts and links (each list folds) are edited right there, so a
-//   change shows everywhere.
-//   Under the list, while a card is open: what its marks mean. Open cards are remembered on
-//   this device; the first time, all are closed.
-// @createbylynn (no phases — 28.10.2026): the same top as @lynnhoa — "What each post is about",
-//   one tab (Pillars) in the same switch, then "Pillars · 5" with expand all / collapse all, which
+// @createbylynn (no phases — 28.10.2026): the same top (no Guide or Arcs buttons, no bottom bar) —
+//   "What each post is about", then "Pillars · 5" with expand all / collapse all, which
 //   opens or closes everything: every pillar and every arc. The 5 pillars are the numbered cards:
 //   number · name · arrow (open pillars remembered on this device, per account; the first time
 //   all are closed). Open: the pillar's grey line (if it has one), then its arcs — each: name
@@ -52,20 +38,18 @@
 
 import { useState, useEffect, createContext, useContext, Fragment } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, PAL } from "./constants";
-import { SectionHead, Sheet, SheetButton, OpenArrow } from "./atoms";
-import { PERSONAL_ERAS, MAIN_AREAS, BASE_BLOCKS, BASE_NOTE, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, blockLineCount, splitBlockLine, BASE_TONE, conceptPhaseLabel, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel,
-  GUIDE_TONE, SERIES_TONE, PACKAGE_TONE, FORMAT_TONE, GUIDE_WHO, GUIDE_SERIES, GUIDE_PACKAGE, GUIDE_WORKFLOW } from "./planner";
-import type { StructItem, ChapterArc, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEraArc } from "./planner";
+import { SectionHead, Sheet, SheetButton, OpenArrow, SheetRow, SheetErr, TextInline, TonedTag } from "./atoms";
+import { PERSONAL_ERAS, MAIN_AREAS, BASE_BLOCKS, BASE_NOTE, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, splitBlockLine, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel,
+  GUIDE_TONE, SERIES_TONE, PACKAGE_TONE, FORMAT_TONE, GUIDE_WHO, GUIDE_SERIES, GUIDE_PACKAGE, GUIDE_WORKFLOW, TAB_TONE, chapterTag } from "./planner";
+import type { StructItem, ChapterArc, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEpisode, ChapterTag, ConceptTabKey } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
-import { IC, Subtitle, TabTitle, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
+import { IC, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
 
 // remembered on this device: the tab, and the open arcs, phases and Base blocks per account
 // (none the first time)
 const VIEW_KEY    = "lh_planner_concept_view";        // Personal Eras | Base | Home | Travel | Work | Guide | Arcs
 const OPEN_KEY    = "lh_planner_concept_open";
-const OPEN_BS_KEY = "lh_planner_concept_open_blocks"; // Base: by the block's key (no longer by its place)
-const OLD_BS_KEY  = "lh_planner_concept_open_base";   // the old one, by place — cleared
 const OPEN_PL_KEY = "lh_planner_concept_open_pillars"; // @createbylynn: the open pillars, by their key
 const OPEN_CH_KEY = "lh_planner_concept_open_chapters"; // a Main Area's open chapters ("home:After Trip")
 const OPEN_GD_KEY = "lh_planner_concept_open_guide";  // the Guide's open cards ("who", "series" …)
@@ -303,147 +287,102 @@ function PillarArc({ arc, first, onOpen }: { arc: ConceptArc; first: boolean; on
   );
 }
 
-// Personal Eras | Base | Home | Travel | Work — like the account switch, the chosen one in warm
-// grey (the arcs: a pill on the same line, right; while they show, no tab is on)
-const VIEWS: { key: ConceptView; label: string }[] = [
-  { key: "eras", label: "Personal Eras" }, { key: "base", label: "Base" },
-  ...MAIN_AREAS.map(a => ({ key: a.key as ConceptView, label: a.label })),
+// the five tabs of the bottom bar: name · icon (a line icon, in the tab's colour)
+const TABS: { key: ConceptTabKey; label: string; title: string; icon: string }[] = [
+  { key: "eras",   label: "Eras",   title: "Personal Eras", icon: "M12 3c.6 4.2 2.8 6.4 7 7-4.2.6-6.4 2.8-7 7-.6-4.2-2.8-6.4-7-7 4.2-.6 6.4-2.8 7-7z" },
+  { key: "base",   label: "Base",   title: "Base",          icon: "M12 4l8 4-8 4-8-4zM4 12l8 4 8-4M4 16l8 4 8-4" },
+  { key: "home",   label: "Home",   title: "Home",          icon: "M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z" },
+  { key: "travel", label: "Travel", title: "Travel",        icon: "M3 11l18-7-7 18-2.5-7.5z" },
+  { key: "work",   label: "Work",   title: "Brand Work",    icon: "M4 8h16v11H4zM9 8V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M4 13h16" },
 ];
-// @createbylynn: one tab, in the same switch (so both pages have the same top)
-const CBL_VIEWS: { key: "pillars"; label: string }[] = [{ key: "pillars", label: "Pillars" }];
-function ViewSwitch<K extends string>({ options, value, onPick, label }: { options: { key: K; label: string }[]; value: K; onPick: (v: K) => void; label: string }) {
+const ICON_GUIDE = "M5 4h9a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h9";
+const ICON_ARCS  = "M4 18a8 8 0 0 1 16 0M12 18h.01";
+const LineIcon = ({ d, size = 18, color, fill = "none" }: { d: string; size?: number; color: string; fill?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ flexShrink: 0, color }}
+    fill={fill} stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+);
+
+// the bottom bar (like Lynn's Office): a floating white pill, one item per tab — its icon on its own
+// pastel circle; the open one filled with its colour, its label in its ink. Hidden for @createbylynn.
+const NAV_SPACE = 96;   // room under the page so the last card isn't behind the bar
+function ConceptNav({ value, onPick }: { value: string; onPick: (k: ConceptTabKey) => void }) {
+  useEffect(() => {   // the "saved" toast sits above the bar
+    const root = document.documentElement.style;
+    root.setProperty("--toast-lift", "calc(72px + env(safe-area-inset-bottom, 0px))");
+    return () => { root.removeProperty("--toast-lift"); };
+  }, []);
   return (
-  <span role="group" aria-label={label} style={{ display: "inline-flex", alignItems: "center", gap: 2, height: 28, padding: 2, boxSizing: "border-box" as const, border: `1px solid ${C.rule}`, borderRadius: 14, background: C.white }}>
-    {options.map(v => {
-      const on = v.key === value;
-      return (
-        <button key={v.key} type="button" aria-pressed={on} onClick={() => { if (!on) onPick(v.key); }}
-          style={{ height: 22, padding: "0 9px", borderRadius: 11, boxSizing: "border-box" as const, border: `1px solid ${on ? C.pillOn : "transparent"}`,
-            background: on ? PAL.neutral.fill : "transparent", color: on ? C.black : C.muted, fontFamily: SANS, fontSize: 12, letterSpacing: "0.01em",
-            lineHeight: 1, whiteSpace: "nowrap" as const, cursor: on ? "default" : "pointer", WebkitTapHighlightColor: "transparent" }}>
-          {v.label}
-        </button>
-      );
-    })}
-  </span>
+    <nav aria-label="Content concept" style={{ position: "fixed", left: 14, right: 14, bottom: "calc(14px + env(safe-area-inset-bottom, 0px))", zIndex: 40,
+      maxWidth: 440, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", padding: 5, borderRadius: 999,
+      background: C.white, boxShadow: "0 4px 18px rgba(0,0,0,0.10)" }}>
+      {TABS.map(t => {
+        const on = t.key === value, tone = TAB_TONE[t.key];
+        return (
+          <button key={t.key} type="button" aria-label={t.title} aria-current={on ? "page" : undefined} onClick={() => { if (!on) onPick(t.key); }}
+            style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 2, height: 56, margin: "0 2px", border: 0,
+              borderRadius: 999, background: on ? tone.wash : "transparent", color: on ? tone.ink : C.muted, fontFamily: SANS, fontSize: 11,
+              fontWeight: on ? 600 : 400, cursor: on ? "default" : "pointer", WebkitTapHighlightColor: "transparent" }}>
+            <span style={{ width: 30, height: 30, borderRadius: "50%", background: on ? C.white : tone.wash, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              <LineIcon d={t.icon} size={17} color={tone.ink} />
+            </span>
+            {t.label}
+          </button>
+        );
+      })}
+    </nav>
   );
 }
-
-// one of a Base block's arcs: its number and name (optional: grey) — tap: the block's arcs window, this one open
-const ArcPill = ({ ea, arc, onClick }: { ea: ConceptEraArc; arc?: ConceptArc; onClick: () => void }) => {
-  const t = ea.optional ? PAL.neutral : ARC_TONE, name = arc ? arc.name : `Arc ${ea.num}`;
+// Guide · Arcs: two round buttons next to the title, in their colours (filled while they show)
+const RoundBtn = ({ on, label, icon, tone, n, onClick }: { on: boolean; label: string; icon: string; tone: Tone; n?: number; onClick: () => void }) => (
+  <button type="button" aria-label={n ? `${label} · ${n}` : label} aria-pressed={on} onClick={() => { if (!on) onClick(); }}
+    style={{ position: "relative" as const, width: 38, height: 38, flexShrink: 0, borderRadius: "50%", border: `1px solid ${on ? tone.ink : tone.mid}`,
+      background: on ? tone.fill : tone.wash, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0,
+      cursor: on ? "default" : "pointer", WebkitTapHighlightColor: "transparent" }}>
+    <LineIcon d={icon} size={17} color={tone.ink} />
+    {!!n && (
+      <span style={{ position: "absolute" as const, top: -3, right: -3, minWidth: 16, height: 16, padding: "0 4px", borderRadius: 8, boxSizing: "border-box" as const,
+        background: C.white, border: `1px solid ${tone.mid}`, color: tone.ink, fontFamily: SANS, fontSize: 10, fontWeight: 600,
+        display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{n}</span>
+    )}
+  </button>
+);
+// the account: one chip (avatar · @name · ⇄) — tap: the other account
+const AccChip = ({ acc, onAccount }: { acc: Account; onAccount?: (a: Account) => void }) => {
+  const a = ACCOUNTS.find(x => x.key === acc) || ACCOUNTS[0], other = ACCOUNTS.find(x => x.key !== acc);
   return (
-    <button onClick={onClick} aria-label={`${ea.num}. ${name}${ea.optional ? ", optional" : ""}`}
-      style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: 24, background: t.wash, color: t.ink, border: "none", borderRadius: RADIUS.tag,
-        padding: "3px 8px 3px 3px", fontFamily: SANS, fontSize: SPACING.listMeta, lineHeight: 1.2, cursor: "pointer", WebkitTapHighlightColor: "transparent" }}>
-      <NumCircle n={ea.num} tone={{ ...t, wash: C.white }} size={16} />
-      {name}
+    <button type="button" aria-label={`Account ${a.label}${other ? `, switch to ${other.label}` : ""}`}
+      onClick={() => {
+        if (!other || !onAccount) return;
+        const el = document.activeElement as HTMLElement | null;   // a field being typed in is saved first
+        if (el && el !== document.body && typeof el.blur === "function") el.blur();
+        onAccount(other.key);
+      }}
+      style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 26, padding: "0 8px 0 3px", borderRadius: 13, border: `1px solid ${a.border}`,
+        background: a.bg, color: a.color, fontFamily: SANS, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" as const, flexShrink: 0,
+        cursor: onAccount ? "pointer" : "default", WebkitTapHighlightColor: "transparent" }}>
+      <span aria-hidden="true" style={{ width: 20, height: 20, borderRadius: "50%", background: a.color, color: C.white, fontSize: 8, fontWeight: 600,
+        display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{acc === "createbylynn" ? "CB" : "LH"}</span>
+      {a.label}
+      <LineIcon d="M7 8h11l-3-3M17 16H6l3 3" size={12} color={a.color} />
     </button>
   );
 };
-
-// one Base block: number · name · (open: edit) · arrow — open: what it is, its lines in sections, its arcs
-function BlockCard({ block, n, arcs, open, onToggle, onLines, onArc }: { block: ConceptEra; n: number; arcs: ConceptArc[]; open: boolean; onToggle: () => void; onLines: () => void; onArc: (num: number) => void }) {
-  const total = blockLineCount(block);
-  const secs  = block.sections.filter(x => x.lines.length);
-  return (
-    <div style={cardBox}>
-      <div style={{ display: "flex", alignItems: "center" }}>
-        <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${block.name}`} style={headBtn}>
-          <NumCircle n={n} tone={BASE_TONE} />
-          <span style={nameText}>{block.name}</span>
-        </button>
-        {open && <button onClick={onLines} aria-label={`Edit the lines of ${block.name}`} style={{ ...mini, flexShrink: 0 }}>edit</button>}
-        <Caret open={open} onClick={onToggle} />
-      </div>
-      {open && (
-        <div style={cardBody}>
-          {block.desc && <div style={descText}>{tidy(block.desc)}</div>}
-          <div style={listBox}>
-            {secs.map((x, k) => (
-              <div key={`${k}-${x.name}`} style={{ marginTop: k ? 6 : 0 }}>
-                <FoldSection id={`bs:${block.key}:${x.name || "-"}`} label={x.name || "Lines"} n={x.lines.length}>
-                  {x.lines.map((t, i) => { const [label, rest] = splitBlockLine(t); return <ItemRow key={i} name={label} text={tidy(rest)} />; })}
-                </FoldSection>
-              </div>
-            ))}
-            {!total && (
-              <button onClick={onLines} style={{ display: "block", width: "100%", textAlign: "left" as const, background: "none", border: "none", borderTop: `1px solid ${C.hair}`,
-                padding: "10px 0", fontFamily: SANS, fontSize: SPACING.listText, color: C.light, cursor: "pointer" }}>+ Add a line</button>
-            )}
-            {block.arcs.length > 0 && (
-              <div style={{ marginTop: secs.length || !total ? 6 : 0 }}>
-                <FoldSection id={`bs:${block.key}:arcs`} label="Arcs" n={block.arcs.length}>
-                  <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6, borderTop: `1px solid ${C.hair}`, paddingTop: 8 }}>
-                    {block.arcs.map((ea, k) => <ArcPill key={`${ea.num}-${k}`} ea={ea} arc={arcs.find(x => x.num === ea.num)} onClick={() => onArc(ea.num)} />)}
-                  </div>
-                </FoldSection>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// a list heading inside an arc card of the arcs window (above the texts and the links): a line above it
-const winListHead: any = { padding: "4px 10px 0", margin: 0, minHeight: 26, boxSizing: "border-box" as const, borderTop: `1px solid ${C.hair}` };
-
-// The arcs window — one era, or one Base block: what it is, then "Arcs · 4" with expand all and
-// the arcs as cards in posting order — all closed when it opens (or the arc you tapped open).
-// An open arc shows the arc itself — purpose, formats, texts and links — and its texts and links
-// are edited right here (saved on the arc, so they change everywhere).
-function EraSheet({ planner, phase, era, focus }: { planner: PlannerHook; phase: ConceptPhase; era: ConceptEra; focus?: number }) {
-  const [open, setOpen] = useState<number[]>(focus ? [focus] : []);
-  const anyOpen = open.length > 0;
-  const toggle  = (n: number) => setOpen(o => (o.includes(n) ? o.filter(x => x !== n) : [...o, n]));
-  return (
-    <>
-      {era.desc && <div style={{ fontSize: TYPE.subtext.size, color: C.muted, lineHeight: 1.4, margin: "2px 2px 0" }}>{tidy(era.desc)}</div>}
-      <WinHead first={!era.desc} icon={IC.bulb} tone={ARC_TONE} label={count("Arcs", era.arcs.length)}
-        right={era.arcs.length ? <button onClick={() => setOpen(anyOpen ? [] : era.arcs.map(a => a.num))} style={mini}>{anyOpen ? "collapse all" : "expand all"}</button> : undefined} />
-      {!era.arcs.length && <div style={{ ...winCard, padding: "12px 12px", fontSize: TYPE.subtext.size, color: C.muted }}>No arcs here yet.</div>}
-      <div style={{ display: "flex", flexDirection: "column" as const, gap: SPACING.cardGap }}>
-        {era.arcs.map(ea => {
-          const arc  = planner.arcs.find(a => a.account === phase.account && a.num === ea.num);
-          const name = arc ? arc.name : `Arc ${ea.num}`;
-          const isOpen = open.includes(ea.num);
-          return (
-            <div key={`${ea.num}`} style={winCard}>
-              <div style={{ display: "flex", alignItems: "center" }}>
-                <button onClick={() => toggle(ea.num)} aria-expanded={isOpen} aria-label={`${ea.num}. ${name}${ea.optional ? ", optional" : ""}`} style={headBtn}>
-                  <NumCircle n={ea.num} tone={ea.optional ? PAL.neutral : ARC_TONE} />
-                  <span style={{ ...nameText, color: ea.optional ? C.muted : C.black }}>{name}</span>
-                  {ea.optional && <span style={{ fontSize: TYPE.micro.size, color: C.light, whiteSpace: "nowrap" as const, flexShrink: 0 }}>{ea.note ? `optional · ${ea.note}` : "optional"}</span>}
-                </button>
-                <Caret open={isOpen} onClick={() => toggle(ea.num)} />
-              </div>
-              {isOpen && (arc ? (
-                <>
-                  <div style={cardBody}>
-                    {arc.purpose && <div style={descText}>{tidy(arc.purpose)}</div>}
-                    <div style={listBox}><Formats formats={arc.formats} fold={`arc:${arc.id}:formats`} /></div>
-                  </div>
-                  <FoldSection id={`arc:${arc.id}:texts`} label="Texts" n={arc.texts.length} head={winListHead}>
-                    <LineList key={`et-${era.key}-${arc.id}`} initial={arc.texts} marker="bullets" placeholder="Write a text" addLabel="Add a text"
-                      onSave={lines => { quiet(planner.updateArc(arc.id, { texts: lines })); }} />
-                  </FoldSection>
-                  <FoldSection id={`arc:${arc.id}:links`} label="Links" n={arc.links.length} head={winListHead}>
-                    <LinkList key={`el-${era.key}-${arc.id}`} initial={arc.links} pillTone={platformTone}
-                      onSave={links => { quiet(planner.updateArc(arc.id, { links })); }} />
-                  </FoldSection>
-                </>
-              ) : (
-                <div style={{ padding: `0 ${SPACING.rowSide}px 12px ${SPACING.rowSide + INDENT}px`, fontSize: TYPE.subtext.size, color: C.muted }}>This arc isn't in the concept.</div>
-              ))}
-            </div>
-          );
-        })}
-      </div>
-    </>
-  );
-}
+// "edit": a small underlined link on a card's head row, while it's open (Base lines · How I … episodes)
+const EditLink = ({ label, onClick }: { label: string; onClick: () => void }) => (
+  <button onClick={onClick} aria-label={label} style={{ ...mini, flexShrink: 0 }}>edit</button>
+);
+// one How I … episode: the title, the hook right below it in quotes — the Guide card and the
+// chapter's box show the same one
+const Episode = ({ ep }: { ep: ConceptEpisode }) => (
+  <div style={{ minWidth: 0 }}>
+    <div style={{ fontSize: SPACING.listText, color: C.black, lineHeight: 1.3 }}>{ep.title}</div>
+    {ep.hook && <div style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.35, marginTop: 1 }}>“{ep.hook}”</div>}
+  </div>
+);
+const EpisodeBox = ({ ep }: { ep: ConceptEpisode }) => (
+  <div style={{ background: SERIES_TONE.wash, borderRadius: RADIUS.field, padding: "7px 10px", margin: "6px 0 2px" }}><Episode ep={ep} /></div>
+);
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 interface PlannerConceptProps {
   planner:   PlannerHook;
@@ -452,7 +391,7 @@ interface PlannerConceptProps {
   onAccount?: (a: Account) => void;
 }
 
-type Win = { kind: "texts" | "links"; id: string } | { kind: "era"; id: string; era: string; focus?: number } | { kind: "block"; id: string; era: string };
+type Win = { kind: "texts" | "links"; id: string } | { kind: "block"; id: string; era: string } | { kind: "episodes" };
 
 // what each tab is (the line under the title)
 const SUBTITLE: Record<ConceptView, string> = {
@@ -480,33 +419,41 @@ const PlaceholderCard = ({ n, item, tone }: { n: number; item: StructItem; tone:
 // a chapter with its selected arcs (Home): number · name · arrow, what it is in grey — open: its
 // arcs in posting order, each: the arc's number (blue) · its name · what it does here (grey) ·
 // the formats used for it here
-const ChapterCard = ({ n, item, arcs, open, onToggle, tone = PHASE_TONE, onEdit, extra }: { n: number; item: StructItem; arcs: ConceptArc[]; open: boolean; onToggle: () => void; tone?: Tone; onEdit?: () => void; extra?: any }) => (
+const ChapterCard = ({ n, item, arcs, open, onToggle, tone = PHASE_TONE, onEdit, extra, tag, episode }: { n: number; item: StructItem; arcs: ConceptArc[]; open: boolean; onToggle: () => void; tone?: Tone; onEdit?: () => void; extra?: any; tag?: ChapterTag; episode?: ConceptEpisode }) => {
+  const editRow = (item.arcs || []).some(x => sameName(x.arc, "The Edit"));
+  return (
   <div style={cardBox}>
     <div style={{ display: "flex", alignItems: "center" }}>
       <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${item.name}`} style={headBtn}>
         <NumCircle n={n} tone={tone} />
         <span style={nameText}>{item.name}</span>
+        {tag === "series" && <TonedTag tone={SERIES_TONE} s={{ flexShrink: 0 }}>Series</TonedTag>}
+        {tag === "outing" && <TonedTag tone={PACKAGE_TONE} s={{ flexShrink: 0 }}>{GUIDE_PACKAGE.name}</TonedTag>}
       </button>
-      {open && onEdit && <button onClick={onEdit} aria-label={`Edit the lines of ${item.name}`} style={{ ...mini, flexShrink: 0 }}>edit</button>}
+      {open && onEdit && <EditLink label={`Edit the lines of ${item.name}`} onClick={onEdit} />}
       <Caret open={open} onClick={onToggle} />
     </div>
     <div style={{ ...descText, paddingBottom: open ? 0 : 10, marginLeft: SPACING.rowSide + INDENT }}>{tidy(item.desc)}</div>
     {open && (
       <div style={{ margin: `6px ${SPACING.rowSide}px 0 ${SPACING.rowSide + INDENT}px`, paddingBottom: 8 }}>
+        {episode && !editRow && <EpisodeBox ep={episode} />}
         <div style={{ ...caps, color: C.light, padding: "2px 0 6px" }}>{count("Arcs", item.arcs?.length || 0)}</div>
-        {(item.arcs || []).map((x, k) => <ChapterArcRow key={k} x={x} arc={arcs.find(a => a.name.trim().toLowerCase() === x.arc.trim().toLowerCase())} />)}
+        {(item.arcs || []).map((x, k) => <ChapterArcRow key={k} x={x} arc={arcs.find(a => sameName(a.name, x.arc))}
+          episode={episode && sameName(x.arc, "The Edit") ? episode : undefined} />)}
         {extra}
       </div>
     )}
   </div>
-);
-const ChapterArcRow = ({ x, arc }: { x: ChapterArc; arc?: ConceptArc }) => (
+  );
+};
+const ChapterArcRow = ({ x, arc, episode }: { x: ChapterArc; arc?: ConceptArc; episode?: ConceptEpisode }) => (
   <div style={{ borderTop: `1px solid ${C.hair}`, padding: "8px 0" }}>
     <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
       {arc && <NumCircle n={arc.num} tone={ARC_TONE} size={18} />}
       <span style={{ fontSize: SPACING.listText, fontWeight: 600, color: C.black, lineHeight: 1.35 }}>{x.arc}</span>
     </div>
     {x.note && <div style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4, marginTop: 2 }}>{tidy(x.note)}</div>}
+    {episode && <EpisodeBox ep={episode} />}
     {x.formats.length > 0 && (
       <div style={{ marginTop: 4 }}>
         {x.formats.map((f, k) => (
@@ -523,8 +470,8 @@ const ChapterArcRow = ({ x, arc }: { x: ChapterArc; arc?: ConceptArc }) => (
 // ─── Guide (@lynnhoa, 07.11.2026): what you stand for and how it all works, read only ───
 // Four cards like the chapters: number · name · (what it is, small grey) · arrow — closed: one
 // grey line; open: labelled blocks, lined up with the card's name. Every level keeps its own
-// pastel, the same as on the tabs: tabs warm grey · chapter butter · arcs blue · formats mint ·
-// How I … peach · The Outing sage · the Guide itself pink.
+// pastel: each tab its own (rose · sand · apricot · aqua · plum, its chapters in its colour) ·
+// arcs blue · formats mint · How I … peach · The Outing sage · the Guide itself butter.
 const GUIDE_CARDS: { key: string; name: string; label?: string; sum: string; tone: Tone }[] = [
   { key: "who",     name: "Who I am",         sum: GUIDE_WHO.title,                               tone: GUIDE_TONE },
   { key: "series",  name: GUIDE_SERIES.name,  label: GUIDE_SERIES.label,  sum: "Why you started, what you chose, the result", tone: SERIES_TONE },
@@ -574,7 +521,7 @@ const GBranch = ({ children }: { children: any[] }) => (
 );
 
 // one Guide card: number · name · (what it is) · arrow — closed: its grey line; open: its blocks
-const GuideCard = ({ n, card, open, onToggle, children }: { n: number; card: typeof GUIDE_CARDS[number]; open: boolean; onToggle: () => void; children: any }) => (
+const GuideCard = ({ n, card, open, onToggle, onEdit, children }: { n: number; card: typeof GUIDE_CARDS[number]; open: boolean; onToggle: () => void; onEdit?: () => void; children: any }) => (
   <div style={cardBox}>
     <div style={{ display: "flex", alignItems: "center" }}>
       <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${card.name}`} style={headBtn}>
@@ -582,6 +529,7 @@ const GuideCard = ({ n, card, open, onToggle, children }: { n: number; card: typ
         <span style={nameText}>{card.name}</span>
         {card.label && <span style={{ fontSize: SPACING.listMeta, color: C.muted, flexShrink: 0 }}>{card.label}</span>}
       </button>
+      {open && onEdit && <EditLink label={`Edit the ${card.name} episodes`} onClick={onEdit} />}
       <Caret open={open} onClick={onToggle} />
     </div>
     {open
@@ -591,7 +539,7 @@ const GuideCard = ({ n, card, open, onToggle, children }: { n: number; card: typ
 );
 
 // what each Guide card holds, open
-function GuideBody({ k, arcsCount }: { k: string; arcsCount: number }) {
+function GuideBody({ k, arcsCount, episodes }: { k: string; arcsCount: number; episodes: ConceptEpisode[] }) {
   if (k === "who") return (
     <>
       <div style={{ fontFamily: SERIF, fontSize: 15, color: C.black, lineHeight: 1.35 }}>{GUIDE_WHO.title}</div>
@@ -604,13 +552,10 @@ function GuideBody({ k, arcsCount }: { k: string; arcsCount: number }) {
     <>
       <GFlow steps={GUIDE_SERIES.steps} tone={SERIES_TONE} />
       <div style={{ ...gMeta, margin: "6px 0 4px" }}>{GUIDE_SERIES.film}</div>
-      {GUIDE_SERIES.examples.map(x => (
+      {episodes.map(x => (
         <div key={x.chapter} style={{ display: "grid", gridTemplateColumns: "86px minmax(0,1fr)", gap: 8, padding: "6px 0", borderTop: `1px solid ${C.hair}` }}>
           <span style={{ ...caps, letterSpacing: "0.06em", color: SERIES_TONE.ink, lineHeight: 1.35, paddingTop: 1 }}>{x.chapter}</span>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: SPACING.listText, color: C.black, lineHeight: 1.3 }}>{x.title}</div>
-            <div style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.35, marginTop: 1 }}>“{x.hook}”</div>
-          </div>
+          <Episode ep={x} />
         </div>
       ))}
     </>
@@ -632,13 +577,13 @@ function GuideBody({ k, arcsCount }: { k: string; arcsCount: number }) {
       </div>
       <div style={gLabel}>What you film</div>
       <div style={{ display: "flex", flexDirection: "column" as const, gap: 5 }}>
-        <GNode name="Personal Eras" note="what you develop" tone={PAL.neutral} />
-        <GNode name="Base" note="quick posts in between" tone={PAL.neutral} />
+        <GNode name="Personal Eras" note="what you develop" tone={TAB_TONE.eras} />
+        <GNode name="Base" note="quick posts in between" tone={TAB_TONE.base} />
         <div>
           <GNode name="Home · Travel · Work" note="where it happens" tone={PAL.neutral} />
           <GBranch>{[
             <div key="ch">
-              <GNode name="Chapter" note="your situation" tone={PHASE_TONE} />
+              <GNode name="Chapter" note="your situation · in its tab's colour" tone={PAL.neutral} />
               <GBranch>{[
                 <div key="arcs">
                   <GNode name="Arcs" note="how each post is told" tone={ARC_TONE} />
@@ -667,24 +612,6 @@ function GuideBody({ k, arcsCount }: { k: string; arcsCount: number }) {
   );
 }
 
-// a reference pill next to the tabs (Guide · Arcs): its colour, filled while it shows
-const ViewPill = ({ on, label, tone, n, onClick }: { on: boolean; label: string; tone: Tone; n?: number; onClick: () => void }) => (
-  <button type="button" aria-pressed={on} aria-label={n ? `${label} · ${n}` : label} onClick={() => { if (!on) onClick(); }}
-    style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 28, padding: "0 12px 0 10px", boxSizing: "border-box" as const,
-      borderRadius: 14, border: `1px solid ${on ? tone.ink : tone.mid}`,
-      background: on ? tone.fill : tone.wash, color: tone.ink,
-      boxShadow: on ? "none" : "0 1px 2px rgba(0,0,0,0.06)",
-      fontFamily: SANS, fontSize: 12, fontWeight: 600, letterSpacing: "0.01em", lineHeight: 1, whiteSpace: "nowrap" as const,
-      cursor: on ? "default" : "pointer", WebkitTapHighlightColor: "transparent" }}>
-    <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: tone.mid, border: `1.5px solid ${tone.ink}`, boxSizing: "border-box" as const }} />
-    {label}
-    {!!n && (
-      <span style={{ minWidth: 16, height: 16, padding: "0 4px", borderRadius: 8, boxSizing: "border-box" as const, background: C.white,
-        color: tone.ink, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{n}</span>
-    )}
-  </button>
-);
-
 export default function PlannerConcept({ planner, view, isMobile, onAccount }: PlannerConceptProps) {
   const acc    = (view.acc === "all" ? "lynnhoa" : view.acc) as Account;
   const arcs   = planner.arcs.filter(a => a.account === acc).sort((a, b) => a.num - b.num);
@@ -703,11 +630,6 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
 
   // open cards, per account (Base by the block's key, arcs and phases by their number)
   const [openArcs, setOpenArcs] = useState<OpenMap>(() => loadMap(OPEN_KEY));
-  const [openBs,   setOpenBs]   = useState<OpenKeys>(() => { try { localStorage.removeItem(OLD_BS_KEY); } catch { /* ignore */ } return loadMap(OPEN_BS_KEY); });
-  const bsKeys  = (openBs[acc] || []).filter(k => typeof k === "string");
-  const setBsOpen = (keys: string[]) => { const m = { ...openBs, [acc]: keys }; setOpenBs(m); saveMap(OPEN_BS_KEY, m); };
-  const toggleBs  = (k: string) => setBsOpen(bsKeys.includes(k) ? bsKeys.filter(x => x !== k) : [...bsKeys, k]);
-  const anyBsOpen = blocks.some(b => bsKeys.includes(b.key));
   const arcNums = openArcs[acc] || [];
   const setArcsOpen = (nums: number[]) => { const m = { ...openArcs, [acc]: nums }; setOpenArcs(m); saveMap(OPEN_KEY, m); };
   const toggleArc   = (n: number) => setArcsOpen(arcNums.includes(n) ? arcNums.filter(x => x !== n) : [...arcNums, n]);
@@ -747,20 +669,20 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
     setPlsOpen(anyPlOpen ? [] : pillars.map(p => p.key));
   };
 
-  // the window: one arc's texts or links, one era's or block's arcs, or one block's lines
+  // the window: one arc's texts or links, one Base block's lines, or the How I … episodes
   const [win, setWin] = useState<Win | null>(null);
   const winArc   = win && (win.kind === "texts" || win.kind === "links") ? planner.arcs.find(a => a.id === win.id) : undefined;
-  const winPhase = win && (win.kind === "era" || win.kind === "block") ? planner.phases.find(p => p.id === win.id) : undefined;
-  const winEra   = win && (win.kind === "era" || win.kind === "block") ? winPhase?.eras.find(e => e.key === win.era) : undefined;
-  const winOk    = !!win && (win.kind === "era" || win.kind === "block" ? !!winEra : !!winArc);
+  const winPhase = win && win.kind === "block" ? planner.phases.find(p => p.id === win.id) : undefined;
+  const winEra   = win && win.kind === "block" ? winPhase?.eras.find(e => e.key === win.era) : undefined;
+  const winOk    = !!win && (win.kind === "episodes" || (win.kind === "block" ? !!winEra : !!winArc));
+  const episodes = planner.episodesFor(acc);
   useEffect(() => { if (win && !winOk && !planner.loading) setWin(null); }, [win, winOk, planner.loading]);
   const close = () => setWin(null);
   const done  = <SheetButton onClick={close}>Done</SheetButton>;
   // a series of the Look arc has labels, every other one (and every arc) texts
   const winLabels = !!winArc && isSeries(winArc) && seriesWord(winArc) === "labels";
-  // a window's title: "1. Home · Coming home" · "Base · 1. Signatures" (the numbers the page shows)
-  const eraTitle = (ph: ConceptPhase, e: ConceptEra) =>
-    isBasePhase(ph) ? `Base · ${ph.eras.indexOf(e) + 1}. ${e.name}` : `${conceptPhaseLabel(ph)} · ${e.name}`;
+  // a Base block's window title: "Base · Signatures"
+  const blockTitle = (e: ConceptEra) => `Base · ${e.name}`;
 
   const columns = <T,>(list: T[], render: (x: T) => any) => {
     const column = (l: T[]) => <div style={{ display: "flex", flexDirection: "column" as const, gap: SPACING.cardGap, minWidth: 0 }}>{l.map(render)}</div>;
@@ -782,7 +704,6 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
       {items.map(x => <span key={x.label} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{x.mark}{x.label}</span>)}
     </div>
   );
-  const arcMarks = legend([{ mark: swatch(ARC_TONE, true), label: "arc" }, { mark: swatch(PAL.neutral, true), label: "optional arc" }]);
   const empty = (title: string, text: string) => (
     <div style={{ ...cardBox, padding: "14px 12px" }}>
       <div style={{ fontFamily: SERIF, fontSize: TYPE.sectionHeading.size, color: C.black }}>{title}</div>
@@ -808,7 +729,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
 
   // Base: the 6 blocks (planner.ts) with their arcs; each block's lines come from the data (the
   // Base phase, found by the block's name) — shown under the arcs, "edit" opens them
-  const norm = (t: string) => t.trim().toLowerCase().replace(/[’']/g, "'");
+  const norm = (t: string) => t.trim().toLowerCase().replace(/[’']/g, "'");   // the data's names may use either apostrophe
   const blockOf = (c: StructItem) => blocks.find(b => norm(b.name) === norm(c.name));
   const baseLines = (c: StructItem) => {
     const b = blockOf(c);
@@ -826,12 +747,12 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   const anyBaseOpen = BASE_BLOCKS.some(c => chKeys.includes(baseKey(c)));
   const baseView = (
     <>
-      <SectionHead dot={BASE_TONE.mid} label={`Base · ${BASE_BLOCKS.length}`}
+      <SectionHead dot={TAB_TONE.base.mid} label={`Base · ${BASE_BLOCKS.length}`}
         right={<button onClick={() => setChsOpen(anyBaseOpen ? chKeys.filter(k => !k.startsWith("base:")) : Array.from(new Set([...chKeys, ...BASE_BLOCKS.map(baseKey)])))} style={mini}>{anyBaseOpen ? "collapse all" : "expand all"}</button>} />
       {columns(BASE_BLOCKS, c => {
         const b = blockOf(c);
-        return <ChapterCard key={c.name} n={BASE_BLOCKS.indexOf(c) + 1} item={c} arcs={arcs} tone={BASE_TONE}
-          open={chKeys.includes(baseKey(c))} onToggle={() => toggleCh(baseKey(c))}
+        return <ChapterCard key={c.name} n={BASE_BLOCKS.indexOf(c) + 1} item={c} arcs={arcs} tone={TAB_TONE.base}
+          open={chKeys.includes(baseKey(c))} onToggle={() => toggleCh(baseKey(c))} tag={chapterTag("base", c.name)}
           onEdit={b && basePh ? () => setWin({ kind: "block", id: basePh.id, era: b.key }) : undefined} extra={baseLines(c)} />;
       })}
     </>
@@ -839,26 +760,28 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
 
   // Personal Eras and the Main Areas' chapters (planner.ts): a card with arcs opens to show them,
   // one without stays a placeholder ("empty"). Open ones are remembered by "<tab>:<name>".
-  const chapterList = (tab: string, dot: string, label: string, list: StructItem[], tone: Tone) => {
+  const chapterList = (tab: ConceptTabKey, label: string, list: StructItem[]) => {
+    const tone = TAB_TONE[tab];
     const key = (c: StructItem) => `${tab}:${c.name}`;
     const filled = list.filter(c => c.arcs?.length);
     const anyOpen = filled.some(c => chKeys.includes(key(c)));
     return (
       <>
-        <SectionHead dot={dot} label={`${label} · ${list.length}`}
+        <SectionHead dot={tone.mid} label={`${label} · ${list.length}`}
           right={filled.length ? <button onClick={() => setChsOpen(anyOpen ? chKeys.filter(k => !filled.map(key).includes(k)) : Array.from(new Set([...chKeys, ...filled.map(key)])))} style={mini}>{anyOpen ? "collapse all" : "expand all"}</button> : undefined} />
         {columns(list, c => {
-          const n = list.indexOf(c) + 1;
+          const n = list.indexOf(c) + 1, tag = chapterTag(tab, c.name);
           return c.arcs?.length
-            ? <ChapterCard key={c.name} n={n} item={c} arcs={arcs} tone={tone} open={chKeys.includes(key(c))} onToggle={() => toggleCh(key(c))} />
+            ? <ChapterCard key={c.name} n={n} item={c} arcs={arcs} tone={tone} open={chKeys.includes(key(c))} onToggle={() => toggleCh(key(c))}
+                tag={tag} episode={tag === "series" ? episodes.find(e => e.chapter === c.name) : undefined} />
             : <PlaceholderCard key={c.name} n={n} item={c} tone={tone} />;
         })}
       </>
     );
   };
-  const erasView = chapterList("eras", PAL.lynnhoa.mid, "Personal Eras", PERSONAL_ERAS, PAL.lynnhoa);
+  const erasView = chapterList("eras", "Personal Eras", PERSONAL_ERAS);
   const area     = MAIN_AREAS.find(a => a.key === show);
-  const areaView = area ? chapterList(area.key, PHASE_TONE.mid, `${area.title} · Chapters`, area.chapters, PHASE_TONE) : null;
+  const areaView = area ? chapterList(area.key, `${area.title} · Chapters`, area.chapters) : null;
 
   // @createbylynn: the 5 pillars, numbered cards (phone one column · iPad / computer two)
   // the Guide: 4 cards, read only (planner.ts)
@@ -867,8 +790,9 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
       <SectionHead dot={GUIDE_TONE.mid} label={`Guide · ${GUIDE_CARDS.length}`}
         right={<button onClick={() => setGdOpen(anyGdOpen ? [] : GUIDE_CARDS.map(c => c.key))} style={mini}>{anyGdOpen ? "collapse all" : "expand all"}</button>} />
       {columns(GUIDE_CARDS, c => (
-        <GuideCard key={c.key} n={GUIDE_CARDS.indexOf(c) + 1} card={c} open={gdKeys.includes(c.key)} onToggle={() => toggleGd(c.key)}>
-          <GuideBody k={c.key} arcsCount={arcs.length} />
+        <GuideCard key={c.key} n={GUIDE_CARDS.indexOf(c) + 1} card={c} open={gdKeys.includes(c.key)} onToggle={() => toggleGd(c.key)}
+          onEdit={c.key === "series" ? () => setWin({ kind: "episodes" }) : undefined}>
+          <GuideBody k={c.key} arcsCount={arcs.length} episodes={episodes} />
         </GuideCard>
       ))}
     </>
@@ -892,21 +816,21 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   return (
     <FoldCtx.Provider value={fold}>
     <div>
-      <TabTitle title="Content concept" acc={acc} onAccount={onAccount} isMobile={isMobile} />
-      <Subtitle text={seriesMode ? "What each post is about" : SUBTITLE[show]} />
-      <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap" as const, alignItems: "center", gap: "8px 12px" }}>
-        {seriesMode
-          ? <ViewSwitch options={CBL_VIEWS} value="pillars" onPick={() => { /* one tab */ }} label="Show" />
-          : <ViewSwitch options={VIEWS} value={show} onPick={pickView} label="Show" />}
-        {!seriesMode && (
-          <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <ViewPill on={show === "guide"} label="Guide" tone={GUIDE_TONE} onClick={() => pickView("guide")} />
-            <ViewPill on={show === "arcs"} label="Arcs" tone={ARC_TONE} n={arcs.length} onClick={() => pickView("arcs")} />
-          </span>
-        )}
+      {/* Content concept · Guide · Arcs, then the account and what the tab is */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <h2 style={{ flex: 1, minWidth: 0, fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Content concept</h2>
+        {!seriesMode && <RoundBtn on={show === "guide"} label="Guide" icon={ICON_GUIDE} tone={GUIDE_TONE} onClick={() => pickView("guide")} />}
+        {!seriesMode && <RoundBtn on={show === "arcs"} label="Arcs" icon={ICON_ARCS} tone={ARC_TONE} n={arcs.length} onClick={() => pickView("arcs")} />}
       </div>
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap" as const, gap: "6px 8px", marginTop: 8 }}>
+        <AccChip acc={acc} onAccount={onAccount} />
+        <span style={{ ...caps, letterSpacing: "0.06em", color: C.muted }}>{seriesMode ? "What each post is about" : SUBTITLE[show]}</span>
+      </div>
+      <div style={{ height: 6 }} />
 
       {planner.loading ? note("Loading…") : seriesMode ? pillarView : show === "guide" ? guideView : show === "base" ? baseView : show === "eras" ? erasView : areaView || arcsView}
+      {!seriesMode && <div style={{ height: NAV_SPACE }} />}
+      {!seriesMode && <ConceptNav value={show} onPick={pickView} />}
 
       {/* an arc's texts or links (from the Arcs tab) */}
       {win && (win.kind === "texts" || win.kind === "links") && winArc && (
@@ -923,22 +847,41 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
         </Sheet>
       )}
 
-      {/* an era's or a Base block's arcs, in posting order — the same arcs, texts and links as the Arcs tab */}
-      {win && win.kind === "era" && winPhase && winEra && (
-        <Sheet title={eraTitle(winPhase, winEra)} onClose={close} footer={done}>
-          <EraSheet key={`${winPhase.id}-${winEra.key}-${win.focus ?? ""}`} planner={planner} phase={winPhase} era={winEra} focus={win.focus} />
-        </Sheet>
-      )}
-
       {/* a Base block's lines: one list per section, saved right away (Undo on ✕) */}
       {win && win.kind === "block" && winPhase && winEra && (
-        <Sheet title={eraTitle(winPhase, winEra)} onClose={close} footer={done}>
+        <Sheet title={blockTitle(winEra)} onClose={close} footer={done}>
           {(winEra.sections.length ? winEra.sections : [{ name: "", lines: [] as string[] }]).map((x, k) => (
             <div key={`${k}-${x.name}`}>
-              <WinHead first={k === 0} icon={IC.list} tone={BASE_TONE} label={count(x.name || "Lines", x.lines.length)} />
+              <WinHead first={k === 0} icon={IC.list} tone={TAB_TONE.base} label={count(x.name || "Lines", x.lines.length)} />
               <div style={winCard}>
                 <LineList key={`bl-${winEra.key}-${k}`} initial={x.lines} marker="bullets" placeholder="A line · how it shows" addLabel="Add a line"
                   onSave={lines => { quiet(planner.updateBlockLines(winPhase.id, winEra.key, k, lines)); }} />
+              </div>
+            </div>
+          ))}
+        </Sheet>
+      )}
+
+      {/* How I …: one title and hook per series chapter, saved when you leave the field (no history) */}
+      {win && win.kind === "episodes" && (
+        <Sheet title={`${GUIDE_SERIES.name} · Episodes`} onClose={close} footer={done}>
+          {planner.episodesError && <SheetErr>{planner.episodesError}</SheetErr>}
+          {episodes.map((ep, k) => (
+            <div key={ep.chapter}>
+              <WinHead first={k === 0} icon={IC.list} tone={SERIES_TONE} label={ep.chapter} />
+              <div style={winCard}>
+                <SheetRow first label="Title">
+                  {planner.episodesError
+                    ? <span style={{ fontSize: SPACING.listText, color: C.black }}>{ep.title}</span>
+                    : <TextInline value={ep.title} placeholder="How I …" ariaLabel={`${ep.chapter}: title`}
+                        onSave={v => { quiet(planner.updateEpisode(acc, ep.chapter, { title: v.trim() })); }} />}
+                </SheetRow>
+                <SheetRow label="Hook">
+                  {planner.episodesError
+                    ? <span style={{ fontSize: SPACING.listText, color: C.ink2 }}>{ep.hook}</span>
+                    : <TextInline value={ep.hook} placeholder="Why you started" ariaLabel={`${ep.chapter}: hook`}
+                        onSave={v => { quiet(planner.updateEpisode(acc, ep.chapter, { hook: v.trim() })); }} />}
+                </SheetRow>
               </div>
             </div>
           ))}
