@@ -295,7 +295,7 @@ const TABS: { key: ConceptTabKey; label: string; title: string; icon: string }[]
   { key: "travel", label: "Travel", title: "Travel",        icon: "M3 11l18-7-7 18-2.5-7.5z" },
   { key: "work",   label: "Work",   title: "Brand Work",    icon: "M4 8h16v11H4zM9 8V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M4 13h16" },
 ];
-const ICON_GUIDE = "M5 4h9a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h9";
+const ICON_GUIDE = "M12 6.5C10 5 7 4.6 4 5v13c3-.4 6 0 8 1.5 2-1.5 5-1.9 8-1.5V5c-3-.4-6 0-8 1.5zM12 6.5v13";   // an open book
 const ICON_ARCS  = "M4 18a8 8 0 0 1 16 0M12 18h.01";
 const LineIcon = ({ d, size = 18, color, fill = "none" }: { d: string; size?: number; color: string; fill?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ flexShrink: 0, color }}
@@ -312,6 +312,10 @@ function ConceptNav({ value, onPick }: { value: string; onPick: (k: ConceptTabKe
     return () => { root.removeProperty("--toast-lift"); };
   }, []);
   return (
+    <>
+    {/* the page fades out under the bar, so no text shows around it */}
+    <div aria-hidden="true" style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 39, pointerEvents: "none",
+      height: "calc(92px + env(safe-area-inset-bottom, 0px))", background: `linear-gradient(180deg, rgba(250,249,247,0) 0%, ${C.bg} 55%)` }} />
     <nav aria-label="Content concept" style={{ position: "fixed", left: 14, right: 14, bottom: "calc(14px + env(safe-area-inset-bottom, 0px))", zIndex: 40,
       maxWidth: 440, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", padding: 5, borderRadius: 999,
       background: C.white, boxShadow: "0 4px 18px rgba(0,0,0,0.10)" }}>
@@ -330,6 +334,7 @@ function ConceptNav({ value, onPick }: { value: string; onPick: (k: ConceptTabKe
         );
       })}
     </nav>
+    </>
   );
 }
 // Guide · Arcs: two round buttons next to the title, in their colours (filled while they show)
@@ -866,6 +871,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
       {win && win.kind === "episodes" && (
         <Sheet title={`${GUIDE_SERIES.name} · Episodes`} onClose={close} footer={done}>
           {planner.episodesError && <SheetErr>{planner.episodesError}</SheetErr>}
+          <p style={{ fontSize: TYPE.label.size, color: C.muted, margin: "0 2px 4px", lineHeight: 1.5 }}>One per chapter. Saved when you leave the field; a change replaces the old text.</p>
           {episodes.map((ep, k) => (
             <div key={ep.chapter}>
               <WinHead first={k === 0} icon={IC.list} tone={SERIES_TONE} label={ep.chapter} />
