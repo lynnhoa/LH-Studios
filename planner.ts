@@ -822,12 +822,12 @@ export const TAB_TONE: Record<ConceptTabKey, PlatformTone> = {
 
 // How I … episodes (07.11.2026): one title and hook per series chapter, changed in the app
 // (table planner_concept_series, no history). GUIDE_SERIES.examples are the starting ones —
-// shown until the SQL has run, and for a chapter without a saved row.
+// shown until the SQL has run, for a chapter without a saved row, and for a field left empty.
 export interface ConceptEpisode { chapter: string; title: string; hook: string; }
 export const episodesOf = (stored: ConceptEpisode[]): ConceptEpisode[] =>
   GUIDE_SERIES.examples.map(x => {
     const r = stored.find(e => e.chapter === x.chapter);
-    return { chapter: x.chapter, title: r ? r.title : x.title, hook: r ? r.hook : x.hook };
+    return { chapter: x.chapter, title: r?.title.trim() ? r.title : x.title, hook: r?.hook.trim() ? r.hook : x.hook };   // emptied: the starting text
   });
 // the pill top right on a chapter card: "Series" on Home's series chapters, "The Outing" where it runs
 export type ChapterTag = "series" | "outing" | null;

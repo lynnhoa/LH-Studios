@@ -1,3 +1,12 @@
+# Planner · @lynnhoa concept: fixes after the bottom bar (07.11.2026)
+- The Guide button shows an open book (was a plain box).
+- The page fades out under the bottom bar, so no text shows around it.
+- The episodes window says what it does: "One per chapter. Saved when you leave the field; a change
+  replaces the old text."
+- The "Saving… / Saved" toast sits above "Deleted · Undo" (both above the bar), not behind it.
+- An episode title or hook left empty shows its starting text again (no empty box).
+- No SQL needed. Changed: `PlannerConcept.tsx`, `planner.ts`.
+
 # Planner · @lynnhoa concept: bottom bar, colours, How I … episodes (07.11.2026)
 - Bottom bar (like Lynn's Office): Eras · Base · Home · Travel · Work moved from the switch under the
   title to a floating white pill at the bottom. Each tab its own pastel — Eras rose · Base sand · Home
