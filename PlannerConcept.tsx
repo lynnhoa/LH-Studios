@@ -306,9 +306,9 @@ const LineIcon = ({ d, size = 18, color, fill = "none" }: { d: string; size?: nu
 // pastel circle; the open one filled with its colour, its label in its ink. Hidden for @createbylynn.
 const NAV_SPACE = 96;   // room under the page so the last card isn't behind the bar
 function ConceptNav({ value, onPick }: { value: string; onPick: (k: ConceptTabKey) => void }) {
-  useEffect(() => {   // the "saved" toast sits above the bar
+  useEffect(() => {   // the "saved" toast sits above the bar (and above "Deleted · Undo", which sits on the bar)
     const root = document.documentElement.style;
-    root.setProperty("--toast-lift", "calc(72px + env(safe-area-inset-bottom, 0px))");
+    root.setProperty("--toast-lift", "calc(110px + env(safe-area-inset-bottom, 0px))");   // above the bar and the Undo bar
     return () => { root.removeProperty("--toast-lift"); };
   }, []);
   return (
