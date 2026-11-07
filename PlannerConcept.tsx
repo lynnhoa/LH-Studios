@@ -25,13 +25,11 @@
 //   Arcs (pastel blue): one card per arc. Open: its purpose and its formats with the TikTok /
 //   Instagram ticks. "texts · links" open one window each — the texts and links live there
 //   (add, change, delete with Undo, saved right away).
-// @createbylynn (no phases — 28.10.2026): the same top (no Guide or Arcs buttons, no bottom bar) —
-//   "What each post is about", then "Pillars · 5" with expand all / collapse all, which
-//   opens or closes everything: every pillar and every arc. The 5 pillars are the numbered cards:
-//   number · name · arrow (open pillars remembered on this device, per account; the first time
-//   all are closed). Open: the pillar's grey line (if it has one), then its arcs — each: name
-//   (black) · what it does (grey) · "texts · links" (the same windows as an arc's) · small arrow;
-//   tap it to fold its formats (open the first time, what you fold stays folded).
+// @createbylynn (07.11.2026): the same page — the same top (the Arcs button, no Guide) and the same
+//   bottom bar, its five pillars as the tabs (Makeup rose · Hair apricot · Products aqua · Personality
+//   butter · Editorial plum, planner.ts PILLAR_TONE). A pillar shows its grey line and its arcs as
+//   cards, numbered 1, 2, 3 … in its colour (open: texts · links, purpose, formats with the ticks).
+//   The open pillar is remembered on this device; before the pillars SQL the page says to run it.
 // Arcs, pillars, purpose, formats, ticks, phases and eras come from the SQL (fixed).
 // Phone: one column · iPad / computer: two columns (first half left).
 // ─────────────────────────────────────────────────────────────
@@ -40,8 +38,8 @@ import { useState, useEffect, createContext, useContext, Fragment } from "react"
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, PAL } from "./constants";
 import { SectionHead, Sheet, SheetButton, OpenArrow, SheetRow, SheetErr, TextInline, TonedTag } from "./atoms";
 import { PERSONAL_ERAS, MAIN_AREAS, BASE_BLOCKS, BASE_NOTE, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, splitBlockLine, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel,
-  GUIDE_TONE, SERIES_TONE, PACKAGE_TONE, FORMAT_TONE, GUIDE_WHO, GUIDE_SERIES, GUIDE_PACKAGE, GUIDE_WORKFLOW, TAB_TONE, chapterTag } from "./planner";
-import type { StructItem, ChapterArc, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEpisode, ChapterTag, ConceptTabKey } from "./planner";
+  GUIDE_TONE, SERIES_TONE, PACKAGE_TONE, FORMAT_TONE, GUIDE_WHO, GUIDE_SERIES, GUIDE_PACKAGE, GUIDE_WORKFLOW, TAB_TONE, chapterTag, PILLAR_TONE, PILLAR_SHORT } from "./planner";
+import type { StructItem, ChapterArc, ConceptPillarKey, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEpisode, ChapterTag, ConceptTabKey } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
 import { IC, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
@@ -50,7 +48,7 @@ import { IC, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
 // (none the first time)
 const VIEW_KEY    = "lh_planner_concept_view";        // Personal Eras | Base | Home | Travel | Work | Guide | Arcs
 const OPEN_KEY    = "lh_planner_concept_open";
-const OPEN_PL_KEY = "lh_planner_concept_open_pillars"; // @createbylynn: the open pillars, by their key
+const VIEW_CBL_KEY = "lh_planner_concept_view_cbl";   // @createbylynn: its open pillar (or Arcs)
 const OPEN_CH_KEY = "lh_planner_concept_open_chapters"; // a Main Area's open chapters ("home:After Trip")
 const OPEN_GD_KEY = "lh_planner_concept_open_guide";  // the Guide's open cards ("who", "series" …)
 const FOLD_KEY    = "lh_planner_concept_folded";      // the lists you folded inside cards (open unless folded)
@@ -204,12 +202,13 @@ const Caret = ({ open, onClick }: { open: boolean; onClick: () => void }) => (
 );
 
 // one arc: number · name · (open: texts · links) · arrow — open: purpose and formats
-function ArcCard({ arc, open, onToggle, onOpen }: { arc: ConceptArc; open: boolean; onToggle: () => void; onOpen: (kind: "texts" | "links") => void }) {
+// n · tone: a pillar's arcs are numbered 1, 2, 3 … in the pillar's colour (the Arcs page: their number, blue)
+function ArcCard({ arc, open, onToggle, onOpen, n = arc.num, tone = ARC_TONE }: { arc: ConceptArc; open: boolean; onToggle: () => void; onOpen: (kind: "texts" | "links") => void; n?: number; tone?: Tone }) {
   return (
     <div style={cardBox}>
       <div style={{ display: "flex", alignItems: "center" }}>
-        <button onClick={onToggle} aria-expanded={open} aria-label={`${arc.num}. ${arc.name}`} style={headBtn}>
-          <NumCircle n={arc.num} tone={ARC_TONE} />
+        <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${arc.name}`} style={headBtn}>
+          <NumCircle n={n} tone={tone} />
           <span style={nameText}>{arc.name}</span>
         </button>
         {open && (
@@ -230,63 +229,6 @@ function ArcCard({ arc, open, onToggle, onOpen }: { arc: ConceptArc; open: boole
   );
 }
 
-// one pillar (@createbylynn): number · name · arrow — open: its grey line, then its arcs
-function PillarCard({ n, label, note, arcs, open, onToggle, onOpen }: { n: number; label: string; note: string; arcs: ConceptArc[]; open: boolean; onToggle: () => void; onOpen: (a: ConceptArc, kind: "texts" | "links") => void }) {
-  return (
-    <div style={cardBox}>
-      <div style={{ display: "flex", alignItems: "center" }}>
-        <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${label}`} style={headBtn}>
-          <NumCircle n={n} tone={ARC_TONE} />
-          <span style={nameText}>{label}</span>
-        </button>
-        <Caret open={open} onClick={onToggle} />
-      </div>
-      {open && (
-        <div style={cardBody}>
-          {note && <div style={descText}>{note}</div>}
-          {/* the arcs' small arrows line up with the card's arrow (10 px from the edge) */}
-          <div style={{ margin: `${note ? 6 : -4}px 4px 0 ${INDENT}px` }}>
-            {arcs.map((a, k) => <PillarArc key={a.id} arc={a} first={k === 0} onOpen={kind => onOpen(a, kind)} />)}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// one arc inside a pillar: name (black) · what it does (grey) · texts · links · small arrow —
-// tap the row to fold or unfold its formats (open the first time; what you fold stays folded)
-function PillarArc({ arc, first, onOpen }: { arc: ConceptArc; first: boolean; onOpen: (kind: "texts" | "links") => void }) {
-  const f = useContext(FoldCtx), id = `pa:${arc.id}`, open = f.isOpen(id);
-  return (
-    <div style={{ borderTop: first ? "none" : `1px solid ${C.hair}`, padding: first ? "2px 0 7px" : "7px 0" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <button type="button" onClick={() => f.toggle(id)} aria-expanded={open} aria-label={`${arc.name}, ${open ? "fold" : "open"}`}
-          style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6, minHeight: 26, padding: "4px 0", margin: "-4px 0", boxSizing: "content-box" as const,
-            background: "none", border: "none", cursor: "pointer", fontFamily: SANS, textAlign: "left" as const, color: C.black, WebkitTapHighlightColor: "transparent" }}>
-          <span style={{ fontSize: SPACING.listText, fontWeight: 600, lineHeight: 1.35, flexShrink: 0, maxWidth: "75%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{arc.name}</span>
-          {arc.purpose && <span style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.35, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{arc.purpose}</span>}
-        </button>
-        <span style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-          <button onClick={() => onOpen("texts")} aria-label={`Texts of ${arc.name}`} style={mini}>{count("texts", arc.texts.length)}</button>
-          <button onClick={() => onOpen("links")} aria-label={`Links of ${arc.name}`} style={mini}>{count("links", arc.links.length)}</button>
-          <span aria-hidden="true" onClick={() => f.toggle(id)} style={{ display: "flex", alignItems: "center", cursor: "pointer" }}><OpenArrow open={open} /></span>
-        </span>
-      </div>
-      {open && arc.formats.length > 0 && (
-        <div style={{ marginTop: 3 }}>
-          {arc.formats.map((x, k) => (
-            <div key={k} style={{ display: "flex", alignItems: "flex-start", gap: GAP - 1, padding: "2px 0" }}>
-              <span aria-hidden="true" style={{ width: 5, height: 5, borderRadius: "50%", background: C.faint, flexShrink: 0, marginTop: 7 }} />
-              <span style={{ fontSize: SPACING.listText, color: C.ink2, lineHeight: 1.4, overflowWrap: "anywhere" as const }}>{x.name}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // the five tabs of the bottom bar: name · icon (a line icon, in the tab's colour)
 const TABS: { key: ConceptTabKey; label: string; title: string; icon: string }[] = [
   { key: "eras",   label: "Eras",   title: "Personal Eras", icon: "M12 3c.6 4.2 2.8 6.4 7 7-4.2.6-6.4 2.8-7 7-.6-4.2-2.8-6.4-7-7 4.2-.6 6.4-2.8 7-7z" },
@@ -295,6 +237,16 @@ const TABS: { key: ConceptTabKey; label: string; title: string; icon: string }[]
   { key: "travel", label: "Travel", title: "Travel",        icon: "M3 11l18-7-7 18-2.5-7.5z" },
   { key: "work",   label: "Work",   title: "Brand Work",    icon: "M4 8h16v11H4zM9 8V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M4 13h16" },
 ];
+// @createbylynn: its five pillars in the same bar
+const PILLAR_ICON: Record<ConceptPillarKey, string> = {
+  makeup_looks: "M9 21h6M10 21v-9h4v9M10.5 12l.5-6 3-2v8",
+  hair_styles:  "M4 8c2.5-2.5 5.5 2.5 8 0s5.5 2.5 8 0M4 13c2.5-2.5 5.5 2.5 8 0s5.5 2.5 8 0M4 18c2.5-2.5 5.5 2.5 8 0s5.5 2.5 8 0",
+  products:     "M10 3h4v3l2 3v11a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9l2-3zM8 13h8",
+  personality:  "M5 5h14v10H10l-5 4z",
+  editorial:    "M4 8h3l2-2h6l2 2h3v11H4zM12 16a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+};
+type NavItem = { key: string; label: string; title: string; icon: string; tone: Tone };
+const TAB_ITEMS: NavItem[] = TABS.map(t => ({ ...t, tone: TAB_TONE[t.key] }));
 const ICON_GUIDE = "M12 6.5C10 5 7 4.6 4 5v13c3-.4 6 0 8 1.5 2-1.5 5-1.9 8-1.5V5c-3-.4-6 0-8 1.5zM12 6.5v13";   // an open book
 const ICON_ARCS  = "M4 18a8 8 0 0 1 16 0M12 18h.01";
 const LineIcon = ({ d, size = 18, color, fill = "none" }: { d: string; size?: number; color: string; fill?: string }) => (
@@ -303,9 +255,10 @@ const LineIcon = ({ d, size = 18, color, fill = "none" }: { d: string; size?: nu
 );
 
 // the bottom bar (like Lynn's Office): a floating white pill, one item per tab — its icon on its own
-// pastel circle; the open one filled with its colour, its label in its ink. Hidden for @createbylynn.
+// pastel circle; the open one filled with its colour, its label in its ink. @lynnhoa: its five tabs ·
+// @createbylynn: its five pillars.
 const NAV_SPACE = 96;   // room under the page so the last card isn't behind the bar
-function ConceptNav({ value, onPick }: { value: string; onPick: (k: ConceptTabKey) => void }) {
+function ConceptNav({ items, value, onPick }: { items: NavItem[]; value: string; onPick: (k: string) => void }) {
   useEffect(() => {   // the "saved" toast sits above the bar (and above "Deleted · Undo", which sits on the bar)
     const root = document.documentElement.style;
     root.setProperty("--toast-lift", "calc(110px + env(safe-area-inset-bottom, 0px))");   // above the bar and the Undo bar
@@ -319,8 +272,8 @@ function ConceptNav({ value, onPick }: { value: string; onPick: (k: ConceptTabKe
     <nav aria-label="Content concept" style={{ position: "fixed", left: 14, right: 14, bottom: "calc(14px + env(safe-area-inset-bottom, 0px))", zIndex: 40,
       maxWidth: 440, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", padding: 5, borderRadius: 999,
       background: C.white, boxShadow: "0 4px 18px rgba(0,0,0,0.10)" }}>
-      {TABS.map(t => {
-        const on = t.key === value, tone = TAB_TONE[t.key];
+      {items.map(t => {
+        const on = t.key === value, tone = t.tone;
         return (
           <button key={t.key} type="button" aria-label={t.title} aria-current={on ? "page" : undefined} onClick={() => { if (!on) onPick(t.key); }}
             style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 2, height: 56, margin: "0 2px", border: 0,
@@ -639,12 +592,12 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   const setArcsOpen = (nums: number[]) => { const m = { ...openArcs, [acc]: nums }; setOpenArcs(m); saveMap(OPEN_KEY, m); };
   const toggleArc   = (n: number) => setArcsOpen(arcNums.includes(n) ? arcNums.filter(x => x !== n) : [...arcNums, n]);
   const anyArcOpen  = arcs.some(a => arcNums.includes(a.num));
-  // @createbylynn: the open pillars, by their key (per account)
-  const [openPls, setOpenPls] = useState<OpenKeys>(() => loadMap(OPEN_PL_KEY));
-  const plKeys    = (openPls[acc] || []).filter(k => typeof k === "string");
-  const setPlsOpen = (keys: string[]) => { const m = { ...openPls, [acc]: keys }; setOpenPls(m); saveMap(OPEN_PL_KEY, m); };
-  const togglePl  = (k: string) => setPlsOpen(plKeys.includes(k) ? plKeys.filter(x => x !== k) : [...plKeys, k]);
-  const anyPlOpen = pillars.some(p => plKeys.includes(p.key));
+  // @createbylynn: the open pillar (a tab of the bottom bar) or "arcs" — remembered on this device
+  const [cblShow, setCblShow] = useState<string>(() => { try { return localStorage.getItem(VIEW_CBL_KEY) || ""; } catch { return ""; } });
+  const pickCbl = (k: string) => { setCblShow(k); try { localStorage.setItem(VIEW_CBL_KEY, k); } catch { /* ignore */ } };
+  const cblArcs = cblShow === "arcs";
+  const pillar  = pillars.find(p => p.key === cblShow) || pillars[0];
+  const pillarItems: NavItem[] = pillars.map(p => ({ key: p.key, label: PILLAR_SHORT[p.key], title: p.label, icon: PILLAR_ICON[p.key], tone: PILLAR_TONE[p.key] }));
   // a Main Area's open chapters, per account ("home:After Trip")
   const [openChs, setOpenChs] = useState<OpenKeys>(() => loadMap(OPEN_CH_KEY));
   const chKeys    = (openChs[acc] || []).filter(k => typeof k === "string");
@@ -665,13 +618,6 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
       const m = { ...folded, [acc]: foldList.includes(id) ? foldList.filter(x => x !== id) : [...foldList, id] };
       setFolded(m); saveMap(FOLD_KEY, m);
     },
-  };
-  // expand all / collapse all: every pillar and every arc (an arc's fold id is "pa:" + its id)
-  const togglePillarsAll = () => {
-    const arcIds = pillarArcs.map(a => `pa:${a.id}`);
-    const nextFold = anyPlOpen ? Array.from(new Set([...foldList, ...arcIds])) : foldList.filter(x => !arcIds.includes(x));
-    const m = { ...folded, [acc]: nextFold }; setFolded(m); saveMap(FOLD_KEY, m);
-    setPlsOpen(anyPlOpen ? [] : pillars.map(p => p.key));
   };
 
   // the window: one arc's texts or links, one Base block's lines, or the How I … episodes
@@ -716,6 +662,12 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
     </div>
   );
   const note = (text: string, color: string = C.muted) => <p style={{ fontSize: SPACING.plannerText, color, marginTop: 16 }}>{text}</p>;
+  // under an arc list, while an arc is open: what the format marks mean
+  const formatMarks = legend([
+    { mark: <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: C.ink2 }} />, label: "main format" },
+    { mark: swatch(PLATFORM_TONE.TikTok), label: "TikTok" },
+    { mark: swatch(PLATFORM_TONE.Instagram), label: "Instagram" },
+  ]);
 
   const arcsView = planner.conceptError ? note(planner.conceptError, C.red) : (
     <>
@@ -724,11 +676,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
       {!arcs.length
         ? empty(`No arcs for ${accLabel} yet`, "They're added here once its concept is mapped, in the same layout: numbered arcs, formats, platforms, texts and links.")
         : columns(arcs, a => <ArcCard key={a.id} arc={a} open={arcNums.includes(a.num)} onToggle={() => toggleArc(a.num)} onOpen={kind => setWin({ kind, id: a.id })} />)}
-      {anyArcOpen && legend([
-        { mark: <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: C.ink2 }} />, label: "main format" },
-        { mark: swatch(PLATFORM_TONE.TikTok), label: "TikTok" },
-        { mark: swatch(PLATFORM_TONE.Instagram), label: "Instagram" },
-      ])}
+      {anyArcOpen && formatMarks}
     </>
   );
 
@@ -803,18 +751,22 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
     </>
   );
 
-  const pillarView = planner.conceptError ? note(planner.conceptError, C.red) : (
+  // @createbylynn: the open pillar's arcs, numbered 1, 2, 3 … in its colour (like a tab's chapters)
+  const plOpen = pillar ? pillar.list.some(a => arcNums.includes(a.num)) : false;
+  const pillarView = planner.conceptError ? note(planner.conceptError, C.red) : !pillar
+    ? empty(`No pillars for ${accLabel} yet`, series.length
+        ? "Run the @createbylynn pillars SQL in Supabase once: it turns your series into the 5 pillars with their arcs (your texts, links and ideas come along)."
+        : "Run the @createbylynn concept SQL and then the pillars SQL in Supabase once.")
+    : (
     <>
-      <SectionHead dot={ARC_TONE.mid} label={`Pillars · ${pillars.length}`}
-        right={pillars.length ? <button onClick={togglePillarsAll} style={mini}>{anyPlOpen ? "collapse all" : "expand all"}</button> : undefined} />
-      {!pillars.length
-        ? empty(`No pillars for ${accLabel} yet`, series.length
-            ? "Run the @createbylynn pillars SQL in Supabase once: it turns your series into the 5 pillars with their arcs (your texts, links and ideas come along)."
-            : "Run the @createbylynn concept SQL and then the pillars SQL in Supabase once.")
-        : columns(pillars, p => (
-            <PillarCard key={p.key} n={p.n} label={p.label} note={p.note} arcs={p.list} open={plKeys.includes(p.key)}
-              onToggle={() => togglePl(p.key)} onOpen={(a, kind) => setWin({ kind, id: a.id })} />
-          ))}
+      <SectionHead dot={PILLAR_TONE[pillar.key].mid} label={`${pillar.label} · Arcs · ${pillar.list.length}`}
+        right={<button onClick={() => setArcsOpen(plOpen ? arcNums.filter(n => !pillar.list.some(a => a.num === n)) : Array.from(new Set([...arcNums, ...pillar.list.map(a => a.num)])))} style={mini}>{plOpen ? "collapse all" : "expand all"}</button>} />
+      {pillar.note && <div style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4, margin: "-4px 2px 8px" }}>{tidy(pillar.note)}</div>}
+      {columns(pillar.list, a => (
+        <ArcCard key={a.id} arc={a} n={pillar.list.indexOf(a) + 1} tone={PILLAR_TONE[pillar.key]}
+          open={arcNums.includes(a.num)} onToggle={() => toggleArc(a.num)} onOpen={kind => setWin({ kind, id: a.id })} />
+      ))}
+      {plOpen && formatMarks}
     </>
   );
 
@@ -825,17 +777,18 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <h2 style={{ flex: 1, minWidth: 0, fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Content concept</h2>
         {!seriesMode && <RoundBtn on={show === "guide"} label="Guide" icon={ICON_GUIDE} tone={GUIDE_TONE} onClick={() => pickView("guide")} />}
-        {!seriesMode && <RoundBtn on={show === "arcs"} label="Arcs" icon={ICON_ARCS} tone={ARC_TONE} n={arcs.length} onClick={() => pickView("arcs")} />}
+        <RoundBtn on={seriesMode ? cblArcs : show === "arcs"} label="Arcs" icon={ICON_ARCS} tone={ARC_TONE} n={arcs.length} onClick={() => (seriesMode ? pickCbl("arcs") : pickView("arcs"))} />
       </div>
       <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap" as const, gap: "6px 8px", marginTop: 8 }}>
         <AccChip acc={acc} onAccount={onAccount} />
-        <span style={{ ...caps, letterSpacing: "0.06em", color: C.muted }}>{seriesMode ? "What each post is about" : SUBTITLE[show]}</span>
+        <span style={{ ...caps, letterSpacing: "0.06em", color: C.muted }}>{seriesMode ? (cblArcs ? SUBTITLE.arcs : "What each post is about") : SUBTITLE[show]}</span>
       </div>
       <div style={{ height: 6 }} />
 
-      {planner.loading ? note("Loading…") : seriesMode ? pillarView : show === "guide" ? guideView : show === "base" ? baseView : show === "eras" ? erasView : areaView || arcsView}
-      {!seriesMode && <div style={{ height: NAV_SPACE }} />}
-      {!seriesMode && <ConceptNav value={show} onPick={pickView} />}
+      {planner.loading ? note("Loading…") : seriesMode ? (cblArcs ? arcsView : pillarView) : show === "guide" ? guideView : show === "base" ? baseView : show === "eras" ? erasView : areaView || arcsView}
+      {(!seriesMode || pillarItems.length > 0) && <div style={{ height: NAV_SPACE }} />}
+      {!seriesMode && <ConceptNav items={TAB_ITEMS} value={show} onPick={k => pickView(k as ConceptView)} />}
+      {seriesMode && pillarItems.length > 0 && <ConceptNav items={pillarItems} value={cblArcs ? "" : pillar?.key || ""} onPick={pickCbl} />}
 
       {/* an arc's texts or links (from the Arcs tab) */}
       {win && (win.kind === "texts" || win.kind === "links") && winArc && (

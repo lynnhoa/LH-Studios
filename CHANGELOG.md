@@ -1,3 +1,12 @@
+# Planner · @createbylynn concept: the same layout as @lynnhoa (07.11.2026)
+- The same top (the round Arcs button with its count; no Guide) and the same bottom bar: its five
+  pillars as the tabs — Makeup rose · Hair apricot · Products aqua · Personality butter · Editorial plum.
+- A pillar shows its grey line and its arcs as cards, numbered 1, 2, 3 … in its colour, like a tab's
+  chapters (open: texts · links, purpose, formats with the TikTok / Instagram ticks; "expand all").
+  The Arcs button lists all its arcs. The open pillar is remembered on this device.
+- The old pillar cards (with arcs folded inside) are gone.
+- No SQL needed. Changed: `PlannerConcept.tsx`, `planner.ts`.
+
 # Planner · @lynnhoa concept: fixes after the bottom bar (07.11.2026)
 - The Guide button shows an open book (was a plain box).
 - The page fades out under the bottom bar, so no text shows around it.
