@@ -1,3 +1,19 @@
+# Planner · @createbylynn concept: one roof, four tabs (07.11.2026)
+- Identity: "Making beauty look wanted — I make beauty products look wanted, and brands book me to do it."
+- Bottom bar: Base (your voice) · Looks (growth) · Products (trust) · Editorial (your own shoots).
+  Base ← the Personality arcs · Looks ← Make up looks + Hair styles · Products · Editorial.
+- Looks: each arc a Series (pill). Products: the Product run as a Package band (one product, 2–3 weeks,
+  pick 2–4, order stays), its arcs 1–5 with a "Run" pill, then Roundups (several products).
+- Guide for @createbylynn (the round book button): Who I am · Product run · Where does it go?
+- Idea window: arcs grouped under the four tabs. Window titles: "Products · Try-on".
+- Data: run `LH-Studio-createbylynn-tabs.sql` once (safe to rerun). Renames: Season looks → Makeup looks
+  (the core) · Opinion → Verdict (products) · In my looks → In rotation · Product listing → Roundups ·
+  Opinion → Opinion & thoughts (base, + "random thoughts") · Editorial worlds → Editorial (Own Shoots).
+  "pov: you hired me" and "What you see vs what I see" go; their ideas move to Editorial. Numbers follow
+  the tabs (1–13). Texts, links and ideas stay; a copy is kept in planner_concept_arcs_cbl_tabs_backup.
+- Changed: `PlannerConcept.tsx`, `PlannerWindows.tsx`, `planner.ts`. New: `LH-Studio-createbylynn-tabs.sql`,
+  `CREATEBYLYNN-CONTENT-STRUCTURE.md`.
+
 # Planner · @createbylynn concept: the same layout as @lynnhoa (07.11.2026)
 - The same top (the round Arcs button with its count; no Guide) and the same bottom bar: its five
   pillars as the tabs — Makeup rose · Hair apricot · Products aqua · Personality butter · Editorial plum.

@@ -18,7 +18,7 @@ import { B, I, S, Lbl, Tick, ConfirmDialog, BAR_BTN, Switch, TextInline, MiniInp
 import type { ToneSet } from "./atoms";
 import {
   CONCEPT_CATEGORIES, CONCEPT_ARCS, isSeries, seriesOf, seriesName, isBasePhase, eraGroups, conceptPhaseLabel, hasPhase,
-  CONCEPT_PILLARS, arcsOfPillar, isPillarArc,
+  CBL_TABS, arcsOfTab, isPillarArc,
   ACCOUNTS, PHASES, OWNERS, RHYTHMS, STATUSES, STAGE_SHORT, DAY_SHORT, accLook, phaseLabel, ownerLabel, rhythmLabel, rowKind, entryKey, periodOf, snapKey, addDays, isoWeek, weekRange, weekLabel, thisMonday, monthName, todayIndex, gateOf, stageNumOf, taskAccounts, isVisible, byOrder, fmtInt, fmtPct2, parseDec, parseIntDe, ITEM_STATUSES, FORMATS, CLASSIC, formatLook, itemStatusLabel, daysBetween, OWNER_LOOK, monthGoalOf, monthGoalPatch, loadWorkAccount, storyLines,
   isPostedStatus, isFilmedStatus, linkInfo, isUrlLike, itemStageOf, ITEM_STAGE_LABEL, TYPES, typeOf, typePatch, CONTENT, PLATFORM_TONE,
 } from "./planner";
@@ -494,7 +494,7 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
             const keep = !!next && !!it.plan.era && next.eras.some(e => e.key === it.plan.era);
             savePlan({ phase: n, era: keep ? it.plan.era : null });
           };
-          // @createbylynn: an arc, picked under its pillar, and one of its formats (no phases)
+          // @createbylynn: an arc, picked under its tab (Base · Looks · Products · Editorial), and one of its formats
           if (arcs.some(isPillarArc)) {
             const pArcs = arcs.filter(isPillarArc);
             const pickPillarArc = (id: string) => {
@@ -509,8 +509,8 @@ export function ItemWindow({ planner, itemId, isMobile, onClose }: {
                   onChange={(e: any) => pickPillarArc(String(e.target.value || ""))}>
                   <option value="">Pick an arc</option>
                   {it.plan.arc && !arc && <option value={it.plan.arc}>Not in the concept any more</option>}
-                  {CONCEPT_PILLARS.map((p, i) => ({ p, i, list: arcsOfPillar(pArcs, p.key) })).filter(g => g.list.length).map(g => (
-                    <optgroup key={g.p.key} label={`${g.i + 1}. ${g.p.label}`}>
+                  {CBL_TABS.map((t, i) => ({ t, i, list: arcsOfTab(pArcs, t) })).filter(g => g.list.length).map(g => (
+                    <optgroup key={g.t.key} label={`${g.i + 1}. ${g.t.label}`}>
                       {g.list.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                     </optgroup>
                   ))}
