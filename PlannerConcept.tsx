@@ -25,11 +25,13 @@
 //   Arcs (pastel blue): one card per arc. Open: its purpose and its formats with the TikTok /
 //   Instagram ticks. "texts · links" open one window each — the texts and links live there
 //   (add, change, delete with Undo, saved right away).
-// @createbylynn (07.11.2026): the same page — the same top (the Arcs button, no Guide) and the same
-//   bottom bar, its five pillars as the tabs (Makeup rose · Hair apricot · Products aqua · Personality
-//   butter · Editorial plum, planner.ts PILLAR_TONE). A pillar shows its grey line and its arcs as
-//   cards, numbered 1, 2, 3 … in its colour (open: texts · links, purpose, formats with the ticks).
-//   The open pillar is remembered on this device; before the pillars SQL the page says to run it.
+// @createbylynn (07.11.2026): the same page around one roof, "making beauty look wanted" — the
+//   same top (Guide · Arcs) and the same bottom bar with its four tabs (planner.ts CBL_TABS):
+//   Base (sand, your voice) · Looks (rose, each arc a Series) · Products (aqua: the Product run —
+//   a Package band, its arcs in order with a "Run" pill — then Roundups) · Editorial (plum). A tab
+//   shows its arcs as cards numbered 1, 2, 3 … in its colour (open: texts · links, purpose,
+//   formats with the ticks). Guide: Who I am · Product run · Where does it go? The open tab is
+//   remembered on this device; before the pillars SQL the page says to run it.
 // Arcs, pillars, purpose, formats, ticks, phases and eras come from the SQL (fixed).
 // Phone: one column · iPad / computer: two columns (first half left).
 // ─────────────────────────────────────────────────────────────
@@ -37,9 +39,9 @@
 import { useState, useEffect, createContext, useContext, Fragment } from "react";
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, PAL } from "./constants";
 import { SectionHead, Sheet, SheetButton, OpenArrow, SheetRow, SheetErr, TextInline, TonedTag } from "./atoms";
-import { PERSONAL_ERAS, MAIN_AREAS, BASE_BLOCKS, BASE_NOTE, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, splitBlockLine, CONCEPT_PILLARS, arcsOfPillar, isPillarArc, pillarLabel,
-  GUIDE_TONE, SERIES_TONE, PACKAGE_TONE, FORMAT_TONE, GUIDE_WHO, GUIDE_SERIES, GUIDE_PACKAGE, GUIDE_WORKFLOW, TAB_TONE, chapterTag, PILLAR_TONE, PILLAR_SHORT } from "./planner";
-import type { StructItem, ChapterArc, ConceptPillarKey, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEpisode, ChapterTag, ConceptTabKey } from "./planner";
+import { PERSONAL_ERAS, MAIN_AREAS, BASE_BLOCKS, BASE_NOTE, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, splitBlockLine, isPillarArc, pillarLabel,
+  GUIDE_TONE, SERIES_TONE, PACKAGE_TONE, FORMAT_TONE, GUIDE_WHO, GUIDE_SERIES, GUIDE_PACKAGE, GUIDE_WORKFLOW, TAB_TONE, chapterTag, CBL_TABS, CBL_RUN, CBL_WHO, CBL_WHERE, arcsOfTab, inProductRun } from "./planner";
+import type { StructItem, ChapterArc, CblTabKey, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEpisode, ChapterTag, ConceptTabKey } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
 import { IC, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
@@ -203,13 +205,15 @@ const Caret = ({ open, onClick }: { open: boolean; onClick: () => void }) => (
 
 // one arc: number · name · (open: texts · links) · arrow — open: purpose and formats
 // n · tone: a pillar's arcs are numbered 1, 2, 3 … in the pillar's colour (the Arcs page: their number, blue)
-function ArcCard({ arc, open, onToggle, onOpen, n = arc.num, tone = ARC_TONE }: { arc: ConceptArc; open: boolean; onToggle: () => void; onOpen: (kind: "texts" | "links") => void; n?: number; tone?: Tone }) {
+// pill: "Series" (Looks) · "Run" (the Product run's arcs), top right like a chapter's pill
+function ArcCard({ arc, open, onToggle, onOpen, n = arc.num, tone = ARC_TONE, pill }: { arc: ConceptArc; open: boolean; onToggle: () => void; onOpen: (kind: "texts" | "links") => void; n?: number; tone?: Tone; pill?: { label: string; tone: Tone } }) {
   return (
     <div style={cardBox}>
       <div style={{ display: "flex", alignItems: "center" }}>
         <button onClick={onToggle} aria-expanded={open} aria-label={`${n}. ${arc.name}`} style={headBtn}>
           <NumCircle n={n} tone={tone} />
           <span style={nameText}>{arc.name}</span>
+          {pill && <TonedTag tone={pill.tone} s={{ flexShrink: 0 }}>{pill.label}</TonedTag>}
         </button>
         {open && (
           <span style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
@@ -237,16 +241,16 @@ const TABS: { key: ConceptTabKey; label: string; title: string; icon: string }[]
   { key: "travel", label: "Travel", title: "Travel",        icon: "M3 11l18-7-7 18-2.5-7.5z" },
   { key: "work",   label: "Work",   title: "Brand Work",    icon: "M4 8h16v11H4zM9 8V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M4 13h16" },
 ];
-// @createbylynn: its five pillars in the same bar
-const PILLAR_ICON: Record<ConceptPillarKey, string> = {
-  makeup_looks: "M9 21h6M10 21v-9h4v9M10.5 12l.5-6 3-2v8",
-  hair_styles:  "M4 8c2.5-2.5 5.5 2.5 8 0s5.5 2.5 8 0M4 13c2.5-2.5 5.5 2.5 8 0s5.5 2.5 8 0M4 18c2.5-2.5 5.5 2.5 8 0s5.5 2.5 8 0",
-  products:     "M10 3h4v3l2 3v11a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9l2-3zM8 13h8",
-  personality:  "M5 5h14v10H10l-5 4z",
-  editorial:    "M4 8h3l2-2h6l2 2h3v11H4zM12 16a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
-};
 type NavItem = { key: string; label: string; title: string; icon: string; tone: Tone };
 const TAB_ITEMS: NavItem[] = TABS.map(t => ({ ...t, tone: TAB_TONE[t.key] }));
+// @createbylynn: its four tabs in the same bar (planner.ts CBL_TABS)
+const CBL_ICON: Record<CblTabKey, string> = {
+  base:      "M5 5h14v10H10l-5 4z",                                   // a speech bubble: your voice
+  looks:     "M9 21h6M10 21v-9h4v9M10.5 12l.5-6 3-2v8",               // a lipstick
+  products:  "M10 3h4v3l2 3v11a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9l2-3zM8 13h8",   // a bottle
+  editorial: "M4 8h3l2-2h6l2 2h3v11H4zM12 16a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",   // a camera
+};
+const CBL_ITEMS: NavItem[] = CBL_TABS.map(t => ({ key: t.key, label: t.label, title: t.label, icon: CBL_ICON[t.key], tone: t.tone }));
 const ICON_GUIDE = "M12 6.5C10 5 7 4.6 4 5v13c3-.4 6 0 8 1.5 2-1.5 5-1.9 8-1.5V5c-3-.4-6 0-8 1.5zM12 6.5v13";   // an open book
 const ICON_ARCS  = "M4 18a8 8 0 0 1 16 0M12 18h.01";
 const LineIcon = ({ d, size = 18, color, fill = "none" }: { d: string; size?: number; color: string; fill?: string }) => (
@@ -580,11 +584,11 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   // Base | Phases | Arcs — opens on the tab you had last (remembered on this device)
   const [show, setShow] = useState<ConceptView>(loadView);
   const pickView = (v: ConceptView) => { setShow(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* ignore */ } };
-  // @createbylynn: its 5 pillars with their arcs (numbered 1–5 in the fixed order)
+  // @createbylynn: its 4 tabs (Base · Looks · Products · Editorial), each showing its pillars' arcs
   const seriesMode = acc === "createbylynn";
   const series = arcs.filter(isSeries);              // before the pillars SQL: the old series
   const pillarArcs = arcs.filter(isPillarArc);
-  const pillars = CONCEPT_PILLARS.map((p, i) => ({ ...p, n: i + 1, list: arcsOfPillar(pillarArcs, p.key) })).filter(p => p.list.length);
+  const cblTabs = CBL_TABS.map(t => ({ ...t, list: arcsOfTab(pillarArcs, t) }));
 
   // open cards, per account (Base by the block's key, arcs and phases by their number)
   const [openArcs, setOpenArcs] = useState<OpenMap>(() => loadMap(OPEN_KEY));
@@ -592,12 +596,13 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   const setArcsOpen = (nums: number[]) => { const m = { ...openArcs, [acc]: nums }; setOpenArcs(m); saveMap(OPEN_KEY, m); };
   const toggleArc   = (n: number) => setArcsOpen(arcNums.includes(n) ? arcNums.filter(x => x !== n) : [...arcNums, n]);
   const anyArcOpen  = arcs.some(a => arcNums.includes(a.num));
-  // @createbylynn: the open pillar (a tab of the bottom bar) or "arcs" — remembered on this device
+  // @createbylynn: the open tab, the Guide or "arcs" — remembered on this device
   const [cblShow, setCblShow] = useState<string>(() => { try { return localStorage.getItem(VIEW_CBL_KEY) || ""; } catch { return ""; } });
   const pickCbl = (k: string) => { setCblShow(k); try { localStorage.setItem(VIEW_CBL_KEY, k); } catch { /* ignore */ } };
-  const cblArcs = cblShow === "arcs";
-  const pillar  = pillars.find(p => p.key === cblShow) || pillars[0];
-  const pillarItems: NavItem[] = pillars.map(p => ({ key: p.key, label: PILLAR_SHORT[p.key], title: p.label, icon: PILLAR_ICON[p.key], tone: PILLAR_TONE[p.key] }));
+  const cblArcs  = cblShow === "arcs";
+  const cblGuide = cblShow === "guide";
+  const cblTab   = cblTabs.find(t => t.key === cblShow) || cblTabs[0];   // a pillar key saved before the tabs: the first tab
+  const cblReady = pillarArcs.length > 0;
   // a Main Area's open chapters, per account ("home:After Trip")
   const [openChs, setOpenChs] = useState<OpenKeys>(() => loadMap(OPEN_CH_KEY));
   const chKeys    = (openChs[acc] || []).filter(k => typeof k === "string");
@@ -751,22 +756,77 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
     </>
   );
 
-  // @createbylynn: the open pillar's arcs, numbered 1, 2, 3 … in its colour (like a tab's chapters)
-  const plOpen = pillar ? pillar.list.some(a => arcNums.includes(a.num)) : false;
-  const pillarView = planner.conceptError ? note(planner.conceptError, C.red) : !pillar
-    ? empty(`No pillars for ${accLabel} yet`, series.length
-        ? "Run the @createbylynn pillars SQL in Supabase once: it turns your series into the 5 pillars with their arcs (your texts, links and ideas come along)."
+  // @createbylynn: the open tab's arcs, numbered 1, 2, 3 … in its colour (like a tab's chapters) —
+  // Looks: each a Series · Products: the Product run (its band, then its arcs in order), then Roundups
+  const tabOpen = cblTab.list.some(a => arcNums.includes(a.num));
+  const runList = cblTab.key === "products" ? cblTab.list.filter(inProductRun) : [];
+  const restList = cblTab.list.filter(a => !runList.includes(a));
+  const cblOrder = [...runList, ...restList];
+  const cblCard = (a: ConceptArc) => (
+    <ArcCard key={a.id} arc={a} n={cblOrder.indexOf(a) + 1} tone={cblTab.tone}
+      pill={cblTab.key === "looks" ? { label: "Series", tone: SERIES_TONE } : runList.includes(a) ? { label: "Run", tone: PACKAGE_TONE } : undefined}
+      open={arcNums.includes(a.num)} onToggle={() => toggleArc(a.num)} onOpen={kind => setWin({ kind, id: a.id })} />
+  );
+  const pillarView = planner.conceptError ? note(planner.conceptError, C.red) : !cblReady
+    ? empty(`No arcs for ${accLabel} yet`, series.length
+        ? "Run the @createbylynn pillars SQL in Supabase once: it turns your series into arcs (your texts, links and ideas come along)."
         : "Run the @createbylynn concept SQL and then the pillars SQL in Supabase once.")
     : (
     <>
-      <SectionHead dot={PILLAR_TONE[pillar.key].mid} label={`${pillar.label} · Arcs · ${pillar.list.length}`}
-        right={<button onClick={() => setArcsOpen(plOpen ? arcNums.filter(n => !pillar.list.some(a => a.num === n)) : Array.from(new Set([...arcNums, ...pillar.list.map(a => a.num)])))} style={mini}>{plOpen ? "collapse all" : "expand all"}</button>} />
-      {pillar.note && <div style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4, margin: "-4px 2px 8px" }}>{tidy(pillar.note)}</div>}
-      {columns(pillar.list, a => (
-        <ArcCard key={a.id} arc={a} n={pillar.list.indexOf(a) + 1} tone={PILLAR_TONE[pillar.key]}
-          open={arcNums.includes(a.num)} onToggle={() => toggleArc(a.num)} onOpen={kind => setWin({ kind, id: a.id })} />
+      <SectionHead dot={cblTab.tone.mid} label={`${cblTab.label} · Arcs · ${cblTab.list.length}`}
+        right={cblTab.list.length ? <button onClick={() => setArcsOpen(tabOpen ? arcNums.filter(n => !cblTab.list.some(a => a.num === n)) : Array.from(new Set([...arcNums, ...cblTab.list.map(a => a.num)])))} style={mini}>{tabOpen ? "collapse all" : "expand all"}</button> : undefined} />
+      {cblTab.note && <div style={{ fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4, margin: "-4px 2px 8px" }}>{tidy(cblTab.note)}</div>}
+      {runList.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: RADIUS.card, background: PACKAGE_TONE.wash, color: PACKAGE_TONE.ink, marginBottom: SPACING.cardGap }}>
+          <TonedTag tone={PACKAGE_TONE} s={{ flexShrink: 0 }}>{CBL_RUN.label}</TonedTag>
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: SPACING.listText, fontWeight: 600 }}>{CBL_RUN.name}</span>
+            <span style={{ display: "block", fontSize: SPACING.listMeta, lineHeight: 1.35 }}>{tidy(CBL_RUN.line)}</span>
+          </span>
+        </div>
+      )}
+      {runList.length > 0 && columns(runList, cblCard)}
+      {runList.length > 0 && restList.length > 0 && <div style={{ height: SPACING.cardGap }} />}
+      {restList.length > 0 && columns(restList, cblCard)}
+      {!cblTab.list.length && empty(`Nothing in ${cblTab.label} yet`, "Run LH-Studio-createbylynn-tabs.sql in Supabase once.")}
+      {tabOpen && formatMarks}
+    </>
+  );
+  // @createbylynn's Guide: who I am · the Product run · where does it go
+  const CBL_GUIDE_CARDS = [
+    { key: "cwho",   name: "Who I am",          label: "Identity",          sum: CBL_WHO.title,                         tone: GUIDE_TONE },
+    { key: "crun",   name: CBL_RUN.name,        label: CBL_RUN.label,       sum: tidy(CBL_RUN.line),                    tone: PACKAGE_TONE },
+    { key: "cwhere", name: "Where does it go?", sum: "Have an idea? This tells you where it goes",           tone: PAL.neutral },
+  ];
+  const anyCgOpen = CBL_GUIDE_CARDS.some(c => gdKeys.includes(c.key));
+  const runSteps = cblTabs.find(t => t.key === "products")?.list.filter(inProductRun) || [];
+  const cblGuideView = (
+    <>
+      <SectionHead dot={GUIDE_TONE.mid} label={`Guide · ${CBL_GUIDE_CARDS.length}`}
+        right={<button onClick={() => setGdOpen(anyCgOpen ? [] : CBL_GUIDE_CARDS.map(c => c.key))} style={mini}>{anyCgOpen ? "collapse all" : "expand all"}</button>} />
+      {columns(CBL_GUIDE_CARDS, c => (
+        <GuideCard key={c.key} n={CBL_GUIDE_CARDS.indexOf(c) + 1} card={c} open={gdKeys.includes(c.key)} onToggle={() => toggleGd(c.key)}>
+          {c.key === "cwho" && (
+            <>
+              <div style={{ fontFamily: SERIF, fontSize: 15, color: C.black, lineHeight: 1.35 }}>{CBL_WHO.title}</div>
+              <div style={{ fontSize: SPACING.listText, color: C.ink2, lineHeight: 1.4, margin: "3px 0 5px" }}>{CBL_WHO.line}</div>
+              <GMetaLine label="Portfolio" text={CBL_WHO.portfolio} tone={GUIDE_TONE} />
+            </>
+          )}
+          {c.key === "crun" && (
+            <>
+              <GFlow steps={runSteps.map((a, k) => `${k + 1} ${a.name}`)} tone={PACKAGE_TONE} />
+              <div style={{ ...gMeta, marginTop: 6 }}>{tidy(CBL_RUN.line)}</div>
+            </>
+          )}
+          {c.key === "cwhere" && CBL_WHERE.map(w => (
+            <div key={w.have} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, padding: "6px 0", borderTop: `1px solid ${C.hair}`, fontSize: SPACING.listMeta, lineHeight: 1.35 }}>
+              <span style={{ color: C.ink2 }}>{w.have}</span>
+              <span style={{ color: CBL_TABS.find(t => t.key === w.tab)?.tone.ink, fontWeight: 600, textAlign: "right" as const }}>{w.to}</span>
+            </div>
+          ))}
+        </GuideCard>
       ))}
-      {plOpen && formatMarks}
     </>
   );
 
@@ -776,19 +836,19 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
       {/* Content concept · Guide · Arcs, then the account and what the tab is */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <h2 style={{ flex: 1, minWidth: 0, fontFamily: SERIF, fontSize: isMobile ? 22 : 24, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Content concept</h2>
-        {!seriesMode && <RoundBtn on={show === "guide"} label="Guide" icon={ICON_GUIDE} tone={GUIDE_TONE} onClick={() => pickView("guide")} />}
+        <RoundBtn on={seriesMode ? cblGuide : show === "guide"} label="Guide" icon={ICON_GUIDE} tone={GUIDE_TONE} onClick={() => (seriesMode ? pickCbl("guide") : pickView("guide"))} />
         <RoundBtn on={seriesMode ? cblArcs : show === "arcs"} label="Arcs" icon={ICON_ARCS} tone={ARC_TONE} n={arcs.length} onClick={() => (seriesMode ? pickCbl("arcs") : pickView("arcs"))} />
       </div>
       <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap" as const, gap: "6px 8px", marginTop: 8 }}>
         <AccChip acc={acc} onAccount={onAccount} />
-        <span style={{ ...caps, letterSpacing: "0.06em", color: C.muted }}>{seriesMode ? (cblArcs ? SUBTITLE.arcs : "What each post is about") : SUBTITLE[show]}</span>
+        <span style={{ ...caps, letterSpacing: "0.06em", color: C.muted }}>{seriesMode ? (cblArcs ? SUBTITLE.arcs : cblGuide ? "Who I am and where things go" : cblTab.sub) : SUBTITLE[show]}</span>
       </div>
       <div style={{ height: 6 }} />
 
-      {planner.loading ? note("Loading…") : seriesMode ? (cblArcs ? arcsView : pillarView) : show === "guide" ? guideView : show === "base" ? baseView : show === "eras" ? erasView : areaView || arcsView}
-      {(!seriesMode || pillarItems.length > 0) && <div style={{ height: NAV_SPACE }} />}
+      {planner.loading ? note("Loading…") : seriesMode ? (cblArcs ? arcsView : cblGuide ? cblGuideView : pillarView) : show === "guide" ? guideView : show === "base" ? baseView : show === "eras" ? erasView : areaView || arcsView}
+      {(!seriesMode || cblReady) && <div style={{ height: NAV_SPACE }} />}
       {!seriesMode && <ConceptNav items={TAB_ITEMS} value={show} onPick={k => pickView(k as ConceptView)} />}
-      {seriesMode && pillarItems.length > 0 && <ConceptNav items={pillarItems} value={cblArcs ? "" : pillar?.key || ""} onPick={pickCbl} />}
+      {seriesMode && cblReady && <ConceptNav items={CBL_ITEMS} value={cblArcs || cblGuide ? "" : cblTab.key} onPick={pickCbl} />}
 
       {/* an arc's texts or links (from the Arcs tab) */}
       {win && (win.kind === "texts" || win.kind === "links") && winArc && (

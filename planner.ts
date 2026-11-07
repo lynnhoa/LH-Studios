@@ -249,23 +249,20 @@ export interface ConceptArc {
   arc:      ConceptArcKey | null;     // a series only: the arc it belongs to
   pillar:   ConceptPillarKey | null;  // @createbylynn: the pillar this arc sits in (empty on @lynnhoa)
 }
-// @createbylynn (27.10.2026): 5 PILLARS (fixed here, numbered 1–5), each holding its ARCS (rows of
-// planner_concept_arcs with a pillar, in num order), each arc its FORMATS. An arc's texts and links
-// are written in the app, like @lynnhoa's.
+// @createbylynn: each arc row has a PILLAR (the data's key, set by the pillars SQL); the page groups
+// them into its four tabs (CBL_TABS, below) — the pillar names here are only the data's.
 export type ConceptPillarKey = "makeup_looks" | "hair_styles" | "products" | "personality" | "editorial";
-export const CONCEPT_PILLARS: { key: ConceptPillarKey; label: string; note: string }[] = [
-  { key: "makeup_looks", label: "Make up looks", note: "" },
-  { key: "hair_styles",  label: "Hair styles",   note: "" },
-  { key: "products",     label: "Products",      note: "journey: pick 2–4 arcs · order stays · one product at a time, 2–3 weeks" },
-  { key: "personality",  label: "Personality",   note: "a line on a look or product clip · one picture + one voice" },
-  { key: "editorial",    label: "Editorial",     note: "" },
+export const CONCEPT_PILLARS: { key: ConceptPillarKey; label: string }[] = [
+  { key: "makeup_looks", label: "Make up looks" },
+  { key: "hair_styles",  label: "Hair styles" },
+  { key: "products",     label: "Products" },
+  { key: "personality",  label: "Personality" },
+  { key: "editorial",    label: "Editorial" },
 ];
 export const PILLAR_KEYS: string[] = CONCEPT_PILLARS.map(p => p.key);
 export const isPillarArc = (a: ConceptArc) => !!a.pillar;
-export const pillarLabel = (k: ConceptPillarKey | null) => CONCEPT_PILLARS.find(p => p.key === k)?.label || "";
-// the arcs of one pillar, in order
-export const arcsOfPillar = (list: ConceptArc[], k: ConceptPillarKey) =>
-  list.filter(a => a.pillar === k).sort((a, b) => a.num - b.num);
+// where an arc is shown outside the page ("Products · Try-on", "Opinion (base)"): its tab's name
+export const pillarLabel = (k: ConceptPillarKey | null) => (k && cblTabOf(k)?.label) || CONCEPT_PILLARS.find(p => p.key === k)?.label || "";
 // an arc's name where it's picked or shown outside the page: a name used in two pillars gets its
 // pillar ("Opinion (products)" · "Opinion (personality)")
 export const pillarArcName = (list: ConceptArc[], a: ConceptArc) =>
@@ -820,17 +817,44 @@ export const TAB_TONE: Record<ConceptTabKey, PlatformTone> = {
   work:   { fill: "#ECD3E7", wash: "#F6ECF4", mid: "#D2A2CB", ink: "#763A6E" },
 };
 
-// @createbylynn's five pillars in the same bottom bar (07.11.2026): each its own pastel, the same family
-export const PILLAR_TONE: Record<ConceptPillarKey, PlatformTone> = {
-  makeup_looks: TAB_TONE.eras,                                                   // rose
-  hair_styles:  TAB_TONE.home,                                                   // apricot
-  products:     TAB_TONE.travel,                                                 // aqua
-  personality:  { fill: "#F5E7AE", wash: "#FCF5DD", mid: "#E6CF7E", ink: "#75601F" },   // butter
-  editorial:    TAB_TONE.work,                                                   // plum
+// @createbylynn (07.11.2026): one roof — "making beauty look wanted" — and four tabs in the bottom bar.
+// The arcs keep their pillar (the data's key); a tab shows the arcs of its pillars:
+//   Base ← personality · Looks ← makeup_looks + hair_styles · Products ← products · Editorial ← editorial
+export type CblTabKey = "base" | "looks" | "products" | "editorial";
+export const CBL_TABS: { key: CblTabKey; label: string; sub: string; note: string; pillars: ConceptPillarKey[]; tone: PlatformTone }[] = [
+  { key: "base",      label: "Base",      sub: "Your voice, posted all the time", note: "A standalone video, or one line on a look or product clip · one picture + one voice", pillars: ["personality"], tone: TAB_TONE.base },
+  { key: "looks",     label: "Looks",     sub: "Growth: what people come for",   note: "", pillars: ["makeup_looks", "hair_styles"], tone: TAB_TONE.eras },
+  { key: "products",  label: "Products",  sub: "Trust: why they believe you",    note: "", pillars: ["products"], tone: TAB_TONE.travel },
+  { key: "editorial", label: "Editorial", sub: "Your own shoots",                note: "", pillars: ["editorial"], tone: TAB_TONE.work },
+];
+export const cblTabOf = (k: ConceptPillarKey) => CBL_TABS.find(t => t.pillars.includes(k));
+export const arcsOfTab = (list: ConceptArc[], tab: { pillars: ConceptPillarKey[] }) =>
+  list.filter(a => !!a.pillar && tab.pillars.includes(a.pillar)).sort((a, b) => a.num - b.num);
+// Looks: each arc is a series (the Series pill) · Products: the Product run (a package: its arcs
+// in order) and, outside it, Roundups (several products)
+export const CBL_RUN = {
+  name:    "Product run",
+  label:   "Package",
+  line:    "One product, 2–3 weeks · pick 2–4 · order stays",
+  outside: ["Roundups", "Product listing"],   // the second: its name before the tabs SQL
 };
-export const PILLAR_SHORT: Record<ConceptPillarKey, string> = {
-  makeup_looks: "Makeup", hair_styles: "Hair", products: "Products", personality: "Personality", editorial: "Editorial",
+export const inProductRun = (a: ConceptArc) => a.pillar === "products" && !CBL_RUN.outside.some(n => n.toLowerCase() === a.name.trim().toLowerCase());
+// the Guide of @createbylynn: who I am · the Product run · where does it go
+export const CBL_WHO = {
+  title: "Making beauty look wanted",
+  line:  "I make beauty products look wanted, and brands book me to do it.",
+  portfolio: "every post typed Product video, Problem → solution, Beauty editorial or Brand post goes to Creator › Portfolio, the proof for UGC outreach",
 };
+export const CBL_WHERE: { have: string; to: string; tab: CblTabKey }[] = [
+  { have: "A thought, hot take, mantra, “me…” moment",       to: "Base",        tab: "base" },
+  { have: "A makeup look or a hairstyle",                     to: "Looks",       tab: "looks" },
+  { have: "One product you'll keep posting",                  to: "Product run", tab: "products" },
+  { have: "Several products: haul, favourites, empties",      to: "Roundups",    tab: "products" },
+  { have: "An opinion on beauty in general",                  to: "Base",        tab: "base" },
+  { have: "An opinion on the product you're running",         to: "Verdict",     tab: "products" },
+  { have: "A product in a look, while its run is live",       to: "In rotation", tab: "products" },
+  { have: "Your own shoot",                                   to: "Editorial",   tab: "editorial" },
+];
 
 // How I … episodes (07.11.2026): one title and hook per series chapter, changed in the app
 // (table planner_concept_series, no history). GUIDE_SERIES.examples are the starting ones —
