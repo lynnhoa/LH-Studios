@@ -4,6 +4,22 @@
 -- stage, owner and order; you type a number per day, the week adds up. Default goal 35 a week
 -- (the line's target) until you set one in Edit goals.
 
+-- 1) If the table only allows known sources (Engaging's is "days"), allow "new_girls" too
+do $$
+declare c record; d text;
+begin
+  for c in select conname, pg_get_constraintdef(oid) as def from pg_constraint
+            where conrelid = 'public.planner_tasks'::regclass and contype = 'c'
+              and pg_get_constraintdef(oid) ilike '%source%' and pg_get_constraintdef(oid) ilike '%''days''%'
+              and pg_get_constraintdef(oid) not ilike '%new_girls%' loop
+    d := replace(c.def, '''days''::text', '''days''::text, ''new_girls''::text');
+    if d = c.def then d := replace(c.def, '''days''', '''days'', ''new_girls'''); end if;
+    execute format('alter table public.planner_tasks drop constraint %I', c.conname);
+    execute format('alter table public.planner_tasks add constraint %I %s', c.conname, d);
+  end loop;
+end $$;
+
+-- 2) The New girls line, under each Engaging line
 insert into public.planner_tasks (user_id, account, stage_num, phase, owner, rhythm, area, title, how, done_when, measure, source, target, link, status, sort, active)
 select distinct on (e.user_id, e.account)
        e.user_id, e.account, e.stage_num, e.phase, e.owner, 'daily', 'community', 'New girls',
