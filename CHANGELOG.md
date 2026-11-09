@@ -1,3 +1,16 @@
+# Planner · @createbylynn concept: identity, My 3 levels, Change, Daily (09.11.2026)
+- Guide, 4 cards like @lynnhoa's: Who I am rewritten person-first — "My face, my rules", the line, Name
+  (the girl who always overlines), Means, Personality, They see, Brand (making beauty look wanted), Rule,
+  the line to lynnhoa, Portfolio. New card 2 "My 3 levels": Signature (rose) · Change (peach) · Product run
+  (sage), each with Intro · Climax · Outro (what + formats) and Home / Away. Product run card gets its level
+  line. Where does it go? has the new rows (Signature, Change, a trip, lynnhoa); rows without a tab are grey.
+- Looks tab: a Change band (Package, peach) above the series, like the Product run band on Products.
+- The Base tab is called Daily (single clips between storylines); key and data stay.
+- The levels body is one shared component for both accounts (`LevelsBody`); `GuideLevel.key` is free text.
+- Data: run `LH-Studio-createbylynn-makeup-moves.sql` once — the Looks series "Makeup looks" becomes
+  "Makeup moves" (purpose "the always: overline, blush, wet lashes, the lip combo"); the pillar label follows.
+- Changed: `planner.ts`, `PlannerConcept.tsx`, `CREATEBYLYNN-CONTENT-STRUCTURE.md`. New: `LH-Studio-createbylynn-makeup-moves.sql`.
+
 # Planner · @lynnhoa concept: Guide as the stand-alone read, Daily tab (09.11.2026)
 - Who I am: the bio line "High maintenance so I can be low maintenance", Name (the put-together one),
   Means, They see ("she's thought of everything, so she's always ready"), Personality reworded; the old

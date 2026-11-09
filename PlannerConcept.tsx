@@ -40,7 +40,7 @@ import { useState, useEffect, createContext, useContext, Fragment } from "react"
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, PAL } from "./constants";
 import { SectionHead, Sheet, SheetButton, OpenArrow, SheetRow, SheetErr, TextInline, TonedTag } from "./atoms";
 import { PERSONAL_ERAS, MAIN_AREAS, BASE_BLOCKS, BASE_NOTE, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, splitBlockLine, isPillarArc, pillarLabel,
-  GUIDE_TONE, SERIES_TONE, PACKAGE_TONE, FORMAT_TONE, GUIDE_WHO, GUIDE_LEVELS, GUIDE_LEVELS_NOTE, GUIDE_SERIES, GUIDE_PACKAGE, GUIDE_WORKFLOW, TAB_TONE, chapterTag, CBL_TABS, CBL_RUN, CBL_WHO, CBL_WHERE, arcsOfTab, inProductRun } from "./planner";
+  GUIDE_TONE, SERIES_TONE, PACKAGE_TONE, FORMAT_TONE, GUIDE_WHO, GUIDE_LEVELS, GUIDE_LEVELS_NOTE, GUIDE_SERIES, GUIDE_PACKAGE, GUIDE_WORKFLOW, TAB_TONE, chapterTag, CBL_TABS, CBL_RUN, CBL_CHANGE, CBL_WHO, CBL_LEVELS, CBL_LEVELS_NOTE, CBL_WHERE, arcsOfTab, inProductRun } from "./planner";
 import type { StructItem, ChapterArc, CblTabKey, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEpisode, ChapterTag, ConceptTabKey, GuideLevel } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
@@ -441,8 +441,9 @@ const GUIDE_CARDS: { key: string; name: string; label?: string; sum: string; ton
   { key: "package", name: GUIDE_PACKAGE.name, label: GUIDE_PACKAGE.label, sum: "The Upgrade: Before, Look and Moment for every day out", tone: PACKAGE_TONE },
   { key: "how",     name: "How it all works", sum: "Where to find what, and what to do",                          tone: PAL.neutral },
 ];
-// the levels' pastels: Curation peach (How I …) · Upgrade sage (The Outing) · Project rose (what you develop)
-const LEVEL_TONE: Record<GuideLevel["key"], Tone> = { curation: SERIES_TONE, upgrade: PACKAGE_TONE, project: TAB_TONE.eras };
+// the levels' pastels — @lynnhoa: Curation peach (How I …) · Upgrade sage (The Outing) · Project rose (what you
+// develop); @createbylynn: Signature rose (Looks) · Change peach · Product run sage (its band on Products)
+const LEVEL_TONE: Record<string, Tone> = { curation: SERIES_TONE, upgrade: PACKAGE_TONE, project: TAB_TONE.eras, signature: TAB_TONE.eras, change: SERIES_TONE, run: PACKAGE_TONE };
 // a format on a level's beat: like GTag, but it may wrap (three beats share one row)
 const GWrapTag = ({ text }: { text: string }) => (
   <span style={{ fontSize: TYPE.label.size, lineHeight: 1.3, padding: "2px 6px", borderRadius: RADIUS.tag, background: FORMAT_TONE.wash, color: FORMAT_TONE.ink }}>{text}</span>
@@ -507,6 +508,36 @@ const GuideCard = ({ n, card, open, onToggle, onEdit, children }: { n: number; c
   </div>
 );
 
+// my 3 levels (both accounts): each level a band in its pastel, its three beats side by side (what · formats), home / away
+const LevelsBody = ({ note, levels }: { note: string; levels: GuideLevel[] }) => (
+  <>
+    <div style={{ ...gMeta, marginTop: 2 }}>{note}</div>
+    {levels.map((lv, i) => {
+      const tone = LEVEL_TONE[lv.key] || PAL.neutral;
+      return (
+        <div key={lv.key} style={{ marginTop: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: RADIUS.field, background: tone.wash }}>
+            <span style={{ fontSize: SPACING.listText, fontWeight: 500, color: tone.ink, lineHeight: 1.3, whiteSpace: "nowrap" as const }}>{i + 1} · {lv.name}</span>
+            <span style={{ marginLeft: "auto", fontSize: SPACING.listMeta, color: tone.ink, lineHeight: 1.3, textAlign: "right" as const }}>{lv.note} · {lv.ref}</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6, marginTop: 6 }}>
+            {lv.beats.map(b => (
+              <div key={b.name} style={{ minWidth: 0 }}>
+                <div style={{ ...caps, color: C.light }}>{b.name}</div>
+                <div style={{ fontSize: TYPE.subtext.size, color: C.ink2, lineHeight: 1.3, margin: "2px 0 4px" }}>{b.what}</div>
+                <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 2 }}>{b.formats.map(f => <GWrapTag key={f} text={f} />)}</div>
+              </div>
+            ))}
+          </div>
+          {lv.home === lv.away
+            ? <GMetaLine label="Home or away" text={lv.home} tone={tone} />
+            : <><GMetaLine label="Home" text={lv.home} tone={tone} /><GMetaLine label="Away" text={lv.away} tone={tone} /></>}
+        </div>
+      );
+    })}
+  </>
+);
+
 // what each Guide card holds, open
 function GuideBody({ k, arcsCount, episodes }: { k: string; arcsCount: number; episodes: ConceptEpisode[] }) {
   if (k === "who") return (
@@ -520,35 +551,8 @@ function GuideBody({ k, arcsCount, episodes }: { k: string; arcsCount: number; e
       <GMetaLine label="Rule" text={GUIDE_WHO.rule} tone={GUIDE_TONE} />
     </>
   );
-  // my 3 levels: each level a band in its pastel, its three beats side by side (what · formats), home / away
-  if (k === "levels") return (
-    <>
-      <div style={{ ...gMeta, marginTop: 2 }}>{GUIDE_LEVELS_NOTE}</div>
-      {GUIDE_LEVELS.map((lv, i) => {
-        const tone = LEVEL_TONE[lv.key];
-        return (
-          <div key={lv.key} style={{ marginTop: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: RADIUS.field, background: tone.wash }}>
-              <span style={{ fontSize: SPACING.listText, fontWeight: 500, color: tone.ink, lineHeight: 1.3, whiteSpace: "nowrap" as const }}>{i + 1} · {lv.name}</span>
-              <span style={{ marginLeft: "auto", fontSize: SPACING.listMeta, color: tone.ink, lineHeight: 1.3, textAlign: "right" as const }}>{lv.note} · {lv.ref}</span>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6, marginTop: 6 }}>
-              {lv.beats.map(b => (
-                <div key={b.name} style={{ minWidth: 0 }}>
-                  <div style={{ ...caps, color: C.light }}>{b.name}</div>
-                  <div style={{ fontSize: TYPE.subtext.size, color: C.ink2, lineHeight: 1.3, margin: "2px 0 4px" }}>{b.what}</div>
-                  <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 2 }}>{b.formats.map(f => <GWrapTag key={f} text={f} />)}</div>
-                </div>
-              ))}
-            </div>
-            {lv.home === lv.away
-              ? <GMetaLine label="Home or away" text={lv.home} tone={tone} />
-              : <><GMetaLine label="Home" text={lv.home} tone={tone} /><GMetaLine label="Away" text={lv.away} tone={tone} /></>}
-          </div>
-        );
-      })}
-    </>
-  );
+  if (k === "levels") return <LevelsBody note={GUIDE_LEVELS_NOTE} levels={GUIDE_LEVELS} />;
+
   if (k === "series") return (
     <>
       <GFlow steps={GUIDE_SERIES.steps} tone={SERIES_TONE} />
@@ -626,7 +630,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   // Base | Phases | Arcs — opens on the tab you had last (remembered on this device)
   const [show, setShow] = useState<ConceptView>(loadView);
   const pickView = (v: ConceptView) => { setShow(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* ignore */ } };
-  // @createbylynn: its 4 tabs (Base · Looks · Products · Editorial), each showing its pillars' arcs
+  // @createbylynn: its 4 tabs (Daily · Looks · Products · Editorial), each showing its pillars' arcs
   const seriesMode = acc === "createbylynn";
   const series = arcs.filter(isSeries);              // before the pillars SQL: the old series
   const pillarArcs = arcs.filter(isPillarArc);
@@ -827,6 +831,15 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
           </span>
         </div>
       )}
+      {cblTab.key === "looks" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: RADIUS.card, background: SERIES_TONE.wash, color: SERIES_TONE.ink, marginBottom: SPACING.cardGap }}>
+          <TonedTag tone={SERIES_TONE} s={{ flexShrink: 0 }}>{CBL_CHANGE.label}</TonedTag>
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: SPACING.listText, fontWeight: 600 }}>{CBL_CHANGE.name}</span>
+            <span style={{ display: "block", fontSize: SPACING.listMeta, lineHeight: 1.35 }}>{tidy(CBL_CHANGE.line)}</span>
+          </span>
+        </div>
+      )}
       {runList.length > 0 && columns(runList, cblCard)}
       {runList.length > 0 && restList.length > 0 && <div style={{ height: SPACING.cardGap }} />}
       {restList.length > 0 && columns(restList, cblCard)}
@@ -834,11 +847,12 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
       {tabOpen && formatMarks}
     </>
   );
-  // @createbylynn's Guide: who I am · the Product run · where does it go
+  // @createbylynn's Guide: who I am · my 3 levels · the Product run · where does it go (1 + 2 = the stand-alone read)
   const CBL_GUIDE_CARDS = [
-    { key: "cwho",   name: "Who I am",          label: "Identity",          sum: CBL_WHO.title,                         tone: GUIDE_TONE },
-    { key: "crun",   name: CBL_RUN.name,        label: CBL_RUN.label,       sum: tidy(CBL_RUN.line),                    tone: PACKAGE_TONE },
-    { key: "cwhere", name: "Where does it go?", sum: "Have an idea? This tells you where it goes",           tone: PAL.neutral },
+    { key: "cwho",    name: "Who I am",          label: "Identity",          sum: CBL_WHO.title,                         tone: GUIDE_TONE },
+    { key: "clevels", name: "My 3 levels",       label: "Signature · Change · Product run", sum: "Each home or away, each Intro → Climax → Outro", tone: PAL.lynnhoa },
+    { key: "crun",    name: CBL_RUN.name,        label: CBL_RUN.label,       sum: tidy(CBL_RUN.line),                    tone: PACKAGE_TONE },
+    { key: "cwhere",  name: "Where does it go?", sum: "Have an idea? This tells you where it goes",           tone: PAL.neutral },
   ];
   const anyCgOpen = CBL_GUIDE_CARDS.some(c => gdKeys.includes(c.key));
   const runSteps = cblTabs.find(t => t.key === "products")?.list.filter(inProductRun) || [];
@@ -852,19 +866,28 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
             <>
               <div style={{ fontFamily: SERIF, fontSize: 15, color: C.black, lineHeight: 1.35 }}>{CBL_WHO.title}</div>
               <div style={{ fontSize: SPACING.listText, color: C.ink2, lineHeight: 1.4, margin: "3px 0 5px" }}>{CBL_WHO.line}</div>
+              <GMetaLine label="Name" text={CBL_WHO.name} tone={GUIDE_TONE} />
+              <GMetaLine label="Means" text={CBL_WHO.means} tone={GUIDE_TONE} />
+              <GMetaLine label="Personality" text={CBL_WHO.personality} tone={GUIDE_TONE} />
+              <GMetaLine label="They see" text={CBL_WHO.see} tone={GUIDE_TONE} />
+              <GMetaLine label="Brand" text={CBL_WHO.brand} tone={GUIDE_TONE} />
+              <GMetaLine label="Rule" text={CBL_WHO.rule} tone={GUIDE_TONE} />
+              <GMetaLine label="lynnhoa" text={CBL_WHO.lynnhoa} tone={GUIDE_TONE} />
               <GMetaLine label="Portfolio" text={CBL_WHO.portfolio} tone={GUIDE_TONE} />
             </>
           )}
+          {c.key === "clevels" && <LevelsBody note={CBL_LEVELS_NOTE} levels={CBL_LEVELS} />}
           {c.key === "crun" && (
             <>
               <GFlow steps={runSteps.map((a, k) => `${k + 1} ${a.name}`)} tone={PACKAGE_TONE} />
               <div style={{ ...gMeta, marginTop: 6 }}>{tidy(CBL_RUN.line)}</div>
+              <GMetaLine label="Level" text="3 · Product run, trust · Intro = Receiving · Climax = Try-on, Problem → solution · Outro = Verdict, In rotation" tone={PACKAGE_TONE} />
             </>
           )}
           {c.key === "cwhere" && CBL_WHERE.map(w => (
             <div key={w.have} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, padding: "6px 0", borderTop: `1px solid ${C.hair}`, fontSize: SPACING.listMeta, lineHeight: 1.35 }}>
               <span style={{ color: C.ink2 }}>{w.have}</span>
-              <span style={{ color: CBL_TABS.find(t => t.key === w.tab)?.tone.ink, fontWeight: 600, textAlign: "right" as const }}>{w.to}</span>
+              <span style={{ color: (w.tab && CBL_TABS.find(t => t.key === w.tab)?.tone.ink) || C.muted, fontWeight: w.tab ? 600 : 400, textAlign: "right" as const }}>{w.to}</span>
             </div>
           ))}
         </GuideCard>

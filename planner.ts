@@ -253,7 +253,7 @@ export interface ConceptArc {
 // them into its four tabs (CBL_TABS, below) — the pillar names here are only the data's.
 export type ConceptPillarKey = "makeup_looks" | "hair_styles" | "products" | "personality" | "editorial";
 export const CONCEPT_PILLARS: { key: ConceptPillarKey; label: string }[] = [
-  { key: "makeup_looks", label: "Make up looks" },
+  { key: "makeup_looks", label: "Makeup moves" },
   { key: "hair_styles",  label: "Hair styles" },
   { key: "products",     label: "Products" },
   { key: "personality",  label: "Personality" },
@@ -788,7 +788,7 @@ export const GUIDE_WHO = {
 // = 3–5 posts, Intro (1) → Climax (1) → Outro (1–3), every post stands alone. Per beat: what it is and
 // its formats. Curation's climax is How I … (The Edit), the Upgrade is The Outing.
 export interface GuideBeat  { name: "Intro" | "Climax" | "Outro"; what: string; formats: string[]; }
-export interface GuideLevel { key: "curation" | "upgrade" | "project"; name: string; note: string; ref: string; beats: GuideBeat[]; home: string; away: string; }
+export interface GuideLevel { key: string; name: string; note: string; ref: string; beats: GuideBeat[]; home: string; away: string; }
 export const GUIDE_LEVELS_NOTE = "3 levels · each home or away · each Intro → Climax → Outro · 3–5 posts, every post stands alone";
 export const GUIDE_LEVELS: GuideLevel[] = [
   { key: "curation", name: "Curation", note: "the Before", ref: "How I …", beats: [
@@ -851,7 +851,7 @@ export const TAB_TONE: Record<ConceptTabKey, PlatformTone> = {
 //   Base ← personality · Looks ← makeup_looks + hair_styles · Products ← products · Editorial ← editorial
 export type CblTabKey = "base" | "looks" | "products" | "editorial";
 export const CBL_TABS: { key: CblTabKey; label: string; sub: string; note: string; pillars: ConceptPillarKey[]; tone: PlatformTone }[] = [
-  { key: "base",      label: "Base",      sub: "Your voice, posted all the time", note: "A standalone video, or one line on a look or product clip · one picture + one voice", pillars: ["personality"], tone: TAB_TONE.base },
+  { key: "base",      label: "Daily",     sub: "Single clips between storylines", note: "A standalone video, or one line on a look or product clip · one picture + one voice", pillars: ["personality"], tone: TAB_TONE.base },
   { key: "looks",     label: "Looks",     sub: "Growth: what people come for",   note: "", pillars: ["makeup_looks", "hair_styles"], tone: TAB_TONE.eras },
   { key: "products",  label: "Products",  sub: "Trust: why they believe you",    note: "", pillars: ["products"], tone: TAB_TONE.travel },
   { key: "editorial", label: "Editorial", sub: "Your own shoots",                note: "", pillars: ["editorial"], tone: TAB_TONE.work },
@@ -868,21 +868,59 @@ export const CBL_RUN = {
   outside: ["Roundups", "Product listing"],   // the second: its name before the tabs SQL
 };
 export const inProductRun = (a: ConceptArc) => a.pillar === "products" && !CBL_RUN.outside.some(n => n.toLowerCase() === a.name.trim().toLowerCase());
-// the Guide of @createbylynn: who I am · the Product run · where does it go
-export const CBL_WHO = {
-  title: "Making beauty look wanted",
-  line:  "I make beauty products look wanted, and brands book me to do it.",
-  portfolio: "every post typed Product video, Problem → solution, Beauty editorial or Brand post goes to Creator › Portfolio, the proof for UGC outreach",
+// the Change package (09.11.2026): a band on the Looks tab, like the Product run on Products — a change
+// you live through (a hair colour, a part, a lash style), one cycle per step; its beats use the Looks formats
+export const CBL_CHANGE = {
+  name:  "Change",
+  label: "Package",
+  line:  "A change you live through · Thought or Transition → Progress → Styling or Reaction · one cycle per step",
 };
-export const CBL_WHERE: { have: string; to: string; tab: CblTabKey }[] = [
-  { have: "A thought, hot take, mantra, “me…” moment",       to: "Base",        tab: "base" },
-  { have: "A makeup look or a hairstyle",                     to: "Looks",       tab: "looks" },
+// the Guide of @createbylynn (09.11.2026): who I am · my 3 levels · the Product run · where does it go
+export const CBL_WHO = {
+  title:       "My face, my rules",
+  line:        "One signature face, kept alive with small changes and the products that earn their place on it",
+  name:        "the girl who always overlines · the girl with the signature face",
+  means:       "I don't chase looks, I have mine: overlined lips, blush, wet lashes, dark chocolate hair",
+  personality: "particular, loyal, a little obsessed",
+  see:         "she has her face and she knows exactly what goes on it",       // what the audience should say after 5 posts
+  brand:       "making beauty look wanted: I make beauty products look wanted, and brands book me to do it",
+  rule:        "your face is the constant, products come and go",
+  lynnhoa:     "lynnhoa owns nails, lashes appointments, scent, outfits, trips and occasions · here it's the face and the hair, a trip is only the mirror behind you",
+  portfolio:   "every post typed Product video, Problem → solution, Beauty editorial or Brand post goes to Creator › Portfolio, the proof for UGC outreach",
+};
+// My 3 levels, @createbylynn: Signature (the always) · Change (the storyline) · Product run (trust) — the
+// same shape as lynnhoa's levels, each home or away; the trip is never the story, only the mirror behind her
+export const CBL_LEVELS_NOTE = "3 levels · each home or away · each Intro → Climax → Outro · 3–5 posts, every post stands alone";
+export const CBL_LEVELS: GuideLevel[] = [
+  { key: "signature", name: "Signature", note: "the always", ref: "Looks", beats: [
+      { name: "Intro",  what: "the always line, the thought",                                  formats: ["Presence + Text", "me…"] },
+      { name: "Climax", what: "the move in the mirror: overline, blush, wet lashes, the bun",  formats: ["Look clip, the application"] },
+      { name: "Outro",  what: "the result face, the feeling",                                  formats: ["Selfie Reaction", "Mantra", "Trend"] },
+    ], home: "your moves in your mirror", away: "the same moves in the hotel mirror" },
+  { key: "change", name: "Change", note: "the storyline", ref: "Looks · package", beats: [
+      { name: "Intro",  what: "the want or the thought",                                       formats: ["Presence + Text", "Transition"] },
+      { name: "Climax", what: "trying it, trusting the process, the switch",                   formats: ["Look clip", "want → so-I Voiceover"] },
+      { name: "Outro",  what: "giving in or the verdict, then living with it",                 formats: ["Selfie Reaction + Result", "me…", "Mantra"] },
+    ], home: "a change you live through", away: "a change you can only make there: a treatment, a cut, a colour" },
+  { key: "run", name: "Product run", note: "trust", ref: "Products · package", beats: [
+      { name: "Intro",  what: "receiving, first reaction",                                     formats: ["Unboxing", "PR reveal", "Presence + Text"] },
+      { name: "Climax", what: "try-on, problem → solution",                                    formats: ["Try-on list", "want → so-I Voiceover", "before / after"] },
+      { name: "Outro",  what: "verdict, in rotation",                                          formats: ["Verdict", "worth it?", "a look with it"] },
+    ], home: "what lands at home", away: "what you find there: Japanese and Korean finds" },
+];
+// where does it go: a row without a tab is a rule, not a place (shown in grey)
+export const CBL_WHERE: { have: string; to: string; tab?: CblTabKey }[] = [
+  { have: "A thought, hot take, mantra, “me…” moment",       to: "Daily",       tab: "base" },
+  { have: "A move you always do: overline, blush, the bun",   to: "Signature",   tab: "looks" },
+  { have: "A change you're living through",                   to: "Change",      tab: "looks" },
   { have: "One product you'll keep posting",                  to: "Product run", tab: "products" },
   { have: "Several products: haul, favourites, empties",      to: "Roundups",    tab: "products" },
-  { have: "An opinion on beauty in general",                  to: "Base",        tab: "base" },
+  { have: "An opinion on beauty in general",                  to: "Daily",       tab: "base" },
   { have: "An opinion on the product you're running",         to: "Verdict",     tab: "products" },
   { have: "A product in a look, while its run is live",       to: "In rotation", tab: "products" },
   { have: "Your own shoot",                                   to: "Editorial",   tab: "editorial" },
+  { have: "A trip",                                           to: "only the mirror behind you" },
+  { have: "Nails, lashes appointments, scent, an outfit",     to: "lynnhoa" },
 ];
 
 // How I … episodes (07.11.2026): one title and hook per series chapter, changed in the app
