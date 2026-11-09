@@ -794,7 +794,8 @@ export function usePlanner(userId: string | null, monday: string) {
   const stateOf = useCallback((t: Task, monday_: string) => {
     const period = periodOf(t, monday_);
     const e = entries[entryKey(t.id, period)];
-    const tgt = targetOf(t.id, period);
+    // New girls: until a goal is set in Edit goals, the line's own default (its target, 35)
+    const tgt = targetOf(t.id, period) ?? (t.source === "new_girls" ? t.target : null);
     const eff = e ? { ...e, target: tgt } : tgt != null ? { id: "", taskId: t.id, periodStart: period, target: tgt, actual: null, days: NO_DAYS, done: false, data: {}, note: "" } as Entry : undefined;
     return rowState(t, eff, autoOf(t, period));
   }, [entries, autoOf, targetOf]);
