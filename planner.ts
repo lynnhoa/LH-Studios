@@ -877,8 +877,8 @@ export const CBL_CHANGE = {
 };
 // the Guide of @createbylynn (09.11.2026): who I am · my 3 levels · the Product run · where does it go
 export const CBL_WHO = {
-  title:       "My face, my rules",
-  line:        "One signature face, kept alive with small changes and the products that earn their place on it",
+  title:       "A beauty personality: my beauty world through hair, makeup and skin",   // the umbrella, like lynnhoa's
+  line:        "My face, my rules",                                                    // the bio line
   name:        "the girl who always overlines · the girl with the signature face",
   means:       "I don't chase looks, I have mine: overlined lips, blush, wet lashes, dark chocolate hair",
   personality: "particular, loyal, a little obsessed",
