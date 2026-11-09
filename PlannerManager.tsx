@@ -5,6 +5,7 @@
 // Every line belongs to the account picked with the switch next to the
 // title — goals are set per account.
 //   Engaging · a box per day (goal: 7 days)
+//   New girls · a number per day (how many new girls you found), the week adds up (goal: 35)
 //   Following · Followers (typed totals) · New emails (counted from the
 //   email list) · Pitches · Leads (no goal) · Check-in note for the week
 // From Stage 2: the sales sprint on top while it runs — pitches and
@@ -17,7 +18,7 @@ import { C, SANS, TYPE, SPACING, RADIUS, PAL } from "./constants";
 import { B, BAR_BTN, ValuePill, WeekPill, SectionHead, SummaryLine, Cols } from "./atoms";
 import {
   DAY_SHORT, OWNER_LOOK, isoWeek as isoWeekOf, isVisible, periodOf, stageNumOf, todayIndex, weekRange, fmtPct2, addDays, thisMonday, mondayOf,
-  MANAGER_GOAL, managerOrder, rowKind, parseIntDe, daysBetween, snapKey, fmtInt, isTotal,
+  MANAGER_GOAL, managerOrder, rowKind, parseIntDe, daysBetween, snapKey, fmtInt, isTotal, entryKey, NEW_GIRLS,
 } from "./planner";
 import type { Task, Account, Sprint } from "./planner";
 import type { PlannerHook } from "./usePlanner";
@@ -29,8 +30,8 @@ import { XBtn } from "./undo";
 
 const microLabel: any = { fontSize: TYPE.micro.size, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: C.muted };
 const look = OWNER_LOOK.manager;
-const NAME = (t: Task) => (t.area === "community" ? "Engaging" : t.source === "following" ? "Following" : t.source === "followers" ? "Followers" : t.source === "outreach" ? "New emails" : t.source === "pitches" ? "Pitches" : t.source === "leads" ? "Leads" : t.title);
-const ICON = (t: Task) => (t.area === "community" ? IC.heart : t.source === "following" || t.source === "followers" ? IC.userPlus : t.source === "outreach" ? IC.mail : t.source === "leads" ? IC.spark : IC.send);
+const NAME = (t: Task) => (t.source === NEW_GIRLS ? "New girls" : t.area === "community" ? "Engaging" : t.source === "following" ? "Following" : t.source === "followers" ? "Followers" : t.source === "outreach" ? "New emails" : t.source === "pitches" ? "Pitches" : t.source === "leads" ? "Leads" : t.title);
+const ICON = (t: Task) => (t.source === NEW_GIRLS ? IC.userPlus : t.area === "community" ? IC.heart : t.source === "following" || t.source === "followers" ? IC.userPlus : t.source === "outreach" ? IC.mail : t.source === "leads" ? IC.spark : IC.send);
 const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const dayLabel = (d: string) => { const [y, m, dd] = d.split("-").map(Number); const dt = new Date(y, m - 1, dd); return `${WD[dt.getDay()]} ${String(dd).padStart(2, "0")}.${String(m).padStart(2, "0")}.`; };
 // name · Done · Goal · status. Number fields type at 16 px (iPhone rule in
@@ -39,6 +40,28 @@ const dayLabel = (d: string) => { const [y, m, dd] = d.split("-").map(Number); c
 const GRID = "88px minmax(64px,72px) minmax(64px,72px) minmax(80px,1fr)";
 const GAP  = 5;
 const PAD  = 4;   // inner padding of a number field; labels and plain numbers line up with it (+ 1 px border)
+
+// one day of New girls: the number typed for that day (empty = none yet), today outlined like
+// Engaging's boxes — typed at 16 px and drawn smaller (no iPhone zoom), saved when you leave the box
+const DK = 11 / 16;
+function DayNum({ value, today, label, onSave }: { value: number | null; today: boolean; label: string; onSave: (v: number | null) => void }) {
+  const [t, setT] = useState(value == null ? "" : String(value));
+  const [focus, setFocus] = useState(false);
+  useEffect(() => { if (!focus) setT(value == null ? "" : String(value)); }, [value, focus]);
+  const on = value != null && value > 0;
+  return (
+    <span style={{ position: "relative" as const, width: 20, height: 20, flexShrink: 0, borderRadius: RADIUS.check, boxSizing: "border-box" as const, overflow: "hidden",
+      border: today ? `2px solid ${C.black}` : `1.5px solid ${on ? PAL.done.mid : C.faint}`, background: on && !focus ? PAL.done.wash : C.white }}>
+      <input value={t} inputMode="numeric" aria-label={label} onFocus={() => setFocus(true)}
+        onChange={e => setT(e.target.value.replace(/[^\d]/g, "").slice(0, 3))}
+        onBlur={() => { setFocus(false); const v = t === "" ? null : Number(t); if (v !== value) onSave(v); }}
+        onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        style={{ position: "absolute" as const, left: 0, top: 0, width: `${100 / DK}%`, height: `${100 / DK}%`, transform: `scale(${DK})`, transformOrigin: "left top",
+          border: "none", outline: "none", background: "transparent", padding: 0, margin: 0, textAlign: "center" as const,
+          fontFamily: SANS, fontSize: 16, fontWeight: 600, color: PAL.done.ink, WebkitAppearance: "none" as const }} />
+    </span>
+  );
+}
 
 interface PlannerManagerProps {
   planner:   PlannerHook;
@@ -135,6 +158,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     const s = planner.stateOf(t, monday);
     const period = periodOf(t, monday);
     const days = rowKind(t) === "days";
+    const girls = t.source === NEW_GIRLS;   // a number per day, the week adds up
     const leads = t.source === "leads";
     const followers = t.source === "followers";
     const fromSprint = t.source === "pitches" && sprintThisWeek;
@@ -157,7 +181,25 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
             : text && !(state === "none" && !notEntered) ? <span style={{ fontSize: SPACING.listMeta, color: tone }}>{text.charAt(0).toLowerCase() + text.slice(1)}</span>
             : t.source === "outreach" ? <span style={{ fontSize: SPACING.listMeta, color: C.muted }}>from the list</span> : null}
         </span>
-        {days ? (
+        {girls ? (() => {
+          const e = planner.entries[entryKey(t.id, period)];
+          const counts: (number | null)[] = Array.isArray(e?.data?.counts) && e.data.counts.length === 7
+            ? e.data.counts.map((x: any) => (x == null || x === "" ? null : Number(x) || 0)) : [null, null, null, null, null, null, null];
+          const saveDay = (i: number, v: number | null) => {
+            const c = [...counts]; c[i] = v;
+            const sum = c.reduce((m: number, x) => m + (x || 0), 0);
+            quiet(planner.saveEntry(t.id, period, { data: { ...(e?.data || {}), counts: c }, actual: c.some(x => x != null) ? sum : null }));
+          };
+          return (
+            <>
+              <span style={{ display: "flex", gap: 4 }}>
+                {DAY_SHORT.map((d, i) => <DayNum key={`${t.id}|${period}|${i}`} value={counts[i] ?? null} today={i === ti} label={`New girls on ${d}`} onSave={v => saveDay(i, v)} />)}
+              </span>
+              {editGoals ? numField(`${t.id}|goal`, s.target, `Goal for ${NAME(t)}`, v => quiet(planner.saveEntry(t.id, period, { target: v })), true)
+                : <span style={{ minWidth: 44, textAlign: "right" as const, fontSize: SPACING.listMeta, color: C.muted, flexShrink: 0, whiteSpace: "nowrap" as const }}>{s.actual ?? 0} / {s.target ?? "–"}</span>}
+            </>
+          );
+        })() : days ? (
           <>
             <span style={{ display: "flex", gap: 4 }}>
               {DAY_SHORT.map((d, i) => {

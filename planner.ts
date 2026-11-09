@@ -464,7 +464,7 @@ export function goalStatus(t: Task, st: RowState, monday: string): GoalStatus | 
   return null;
 }
 // ── Which weekly goals live on which card ───────────────────
-// Manager card: engaging, following, followers, new emails, pitches, leads.
+// Manager card: engaging, new girls, following, followers, new emails, pitches, leads.
 // Creator strip: ideas, filmed, posts (+ month goal, first set). Pieces isn't shown any more
 // (the month goal counts the portfolio pieces).
 // Everything else that repeats (check-in, kit handover, your own
@@ -477,7 +477,9 @@ export const creatorOrder = (t: Task) => (t.source === "ideas" ? 0 : t.source ==
 export const ON_A_CARD = (t: Task) => MANAGER_GOAL(t) || CREATOR_GOAL(t) || t.source === "snapshot" || t.source === "portfolio_total"
   || (t.rhythm === "monthly" && t.area === "portfolio");
 // order on the Manager card
-export const managerOrder = (t: Task) => (t.area === "community" ? 0 : t.source === "following" ? 1 : t.source === "followers" ? 2 : t.source === "outreach" ? 3 : t.source === "pitches" ? 4 : 5);
+// New girls (07.11.2026): right under Engaging — how many new girls you found, typed per day
+export const NEW_GIRLS = "new_girls";
+export const managerOrder = (t: Task) => (t.source === NEW_GIRLS ? 0.5 : t.area === "community" ? 0 : t.source === "following" ? 1 : t.source === "followers" ? 2 : t.source === "outreach" ? 3 : t.source === "pitches" ? 4 : 5);
 // Rows whose Done is a total read off the profile (following 374, followers 84.827),
 // not a count of this week: without a typed number they show "Not entered", and
 // their progress is counted from last week's number
@@ -488,7 +490,7 @@ export const isTotal = (t: Task) => TOTAL_SOURCES.has(t.source);
 export const shortName = (t: Task): string =>
   t.source === "snapshot" ? "Snapshot" : t.source === "outreach" ? "New emails" : t.source === "ideas" ? "Ideas" : t.source === "posts" ? "Posts"
   : t.source === "pieces" ? "Pieces" : t.source === "filmed" ? "Filmed" : t.source === "kit_waiting" ? "Kits" : t.source === "following" ? "Following" : t.source === "followers" ? "Followers" : t.source === "pitches" ? "Pitches" : t.source === "leads" ? "Leads"
-  : t.area === "community" ? "Engaging" : t.area === "checkin" ? "Check-in" : t.title;
+  : t.source === NEW_GIRLS ? "New girls" : t.area === "community" ? "Engaging" : t.area === "checkin" ? "Check-in" : t.title;
 
 // The account you're working on: chosen in the profile menu, remembered on this device
 const WORK_KEY = "lh_work_account";

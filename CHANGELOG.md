@@ -1,3 +1,13 @@
+# Planner › Manager: New girls under Engaging (09.11.2026)
+- New line right under Engaging: New girls — the same 7 day boxes (today outlined), but you type how
+  many new girls you found that day (saved when you leave the box). The week adds up on its own
+  ("4 / 35"), with "31 to go" / "✓ reached" next to the name; it counts in "x of n reached" and shows
+  wherever the Manager lines show (Overview).
+- Goal: 35 a week by default; Edit goals changes it, like every line (it carries over).
+- Data: run `LH-Studio-manager-new-girls.sql` once (safe to rerun): one New girls line per account
+  that has an Engaging line.
+- Changed: `PlannerManager.tsx`, `planner.ts`, `usePlanner.ts`. New: `LH-Studio-manager-new-girls.sql`.
+
 # Planner · @createbylynn Guide: Who I am like @lynnhoa's (09.11.2026)
 - The title is the umbrella, "A beauty personality: my beauty world through hair, makeup and skin"; the
   line under it is the bio line, "My face, my rules" (the same order as @lynnhoa's card).
