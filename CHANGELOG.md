@@ -1,3 +1,8 @@
+# Planner · @createbylynn Guide: Who I am like @lynnhoa's (09.11.2026)
+- The title is the umbrella, "A beauty personality: my beauty world through hair, makeup and skin"; the
+  line under it is the bio line, "My face, my rules" (the same order as @lynnhoa's card).
+- No SQL needed. Changed: `planner.ts`.
+
 # Planner · @createbylynn concept: identity, My 3 levels, Change, Daily (09.11.2026)
 - Guide, 4 cards like @lynnhoa's: Who I am rewritten person-first — "My face, my rules", the line, Name
   (the girl who always overlines), Means, Personality, They see, Brand (making beauty look wanted), Rule,
