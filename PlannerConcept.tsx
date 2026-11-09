@@ -4,7 +4,7 @@
 //   Top (07.11.2026): "Content concept" with two round buttons right — Guide (butter book) and
 //   Arcs (blue arc, its count) — then the account chip (avatar · @name · ⇄, tap: the other
 //   account) and the grey line that says what the open tab is.
-//   Bottom bar (like Lynn's Office): Eras · Base · Home · Travel · Work, a floating white pill —
+//   Bottom bar (like Lynn's Office): Eras · Daily · Home · Travel · Work, a floating white pill —
 //   each tab its own pastel (rose · sand · apricot · aqua · plum, planner.ts TAB_TONE), the open
 //   one filled; a tab's chapters take its colour. The page opens on what you had last
 //   (remembered on this device). The toast sits above the bar.
@@ -40,8 +40,8 @@ import { useState, useEffect, createContext, useContext, Fragment } from "react"
 import { C, SANS, SERIF, TYPE, SPACING, RADIUS, TRACK, SHADOW, PAL } from "./constants";
 import { SectionHead, Sheet, SheetButton, OpenArrow, SheetRow, SheetErr, TextInline, TonedTag } from "./atoms";
 import { PERSONAL_ERAS, MAIN_AREAS, BASE_BLOCKS, BASE_NOTE, ACCOUNTS, PLATFORM_TONE, platformTone, ARC_TONE, PHASE_TONE, isSeries, seriesWord, seriesNum, isBasePhase, splitBlockLine, isPillarArc, pillarLabel,
-  GUIDE_TONE, SERIES_TONE, PACKAGE_TONE, FORMAT_TONE, GUIDE_WHO, GUIDE_SERIES, GUIDE_PACKAGE, GUIDE_WORKFLOW, TAB_TONE, chapterTag, CBL_TABS, CBL_RUN, CBL_WHO, CBL_WHERE, arcsOfTab, inProductRun } from "./planner";
-import type { StructItem, ChapterArc, CblTabKey, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEpisode, ChapterTag, ConceptTabKey } from "./planner";
+  GUIDE_TONE, SERIES_TONE, PACKAGE_TONE, FORMAT_TONE, GUIDE_WHO, GUIDE_LEVELS, GUIDE_LEVELS_NOTE, GUIDE_SERIES, GUIDE_PACKAGE, GUIDE_WORKFLOW, TAB_TONE, chapterTag, CBL_TABS, CBL_RUN, CBL_WHO, CBL_WHERE, arcsOfTab, inProductRun } from "./planner";
+import type { StructItem, ChapterArc, CblTabKey, Account, ConceptArc, ConceptFormat, ConceptPhase, ConceptEra, ConceptEpisode, ChapterTag, ConceptTabKey, GuideLevel } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
 import { IC, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
@@ -236,7 +236,7 @@ function ArcCard({ arc, open, onToggle, onOpen, n = arc.num, tone = ARC_TONE, pi
 // the five tabs of the bottom bar: name · icon (a line icon, in the tab's colour)
 const TABS: { key: ConceptTabKey; label: string; title: string; icon: string }[] = [
   { key: "eras",   label: "Eras",   title: "Personal Eras", icon: "M12 3c.6 4.2 2.8 6.4 7 7-4.2.6-6.4 2.8-7 7-.6-4.2-2.8-6.4-7-7 4.2-.6 6.4-2.8 7-7z" },
-  { key: "base",   label: "Base",   title: "Base",          icon: "M12 4l8 4-8 4-8-4zM4 12l8 4 8-4M4 16l8 4 8-4" },
+  { key: "base",   label: "Daily",  title: "Daily",         icon: "M12 4l8 4-8 4-8-4zM4 12l8 4 8-4M4 16l8 4 8-4" },
   { key: "home",   label: "Home",   title: "Home",          icon: "M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z" },
   { key: "travel", label: "Travel", title: "Travel",        icon: "M3 11l18-7-7 18-2.5-7.5z" },
   { key: "work",   label: "Work",   title: "Brand Work",    icon: "M4 8h16v11H4zM9 8V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M4 13h16" },
@@ -435,11 +435,18 @@ const ChapterArcRow = ({ x, arc, episode }: { x: ChapterArc; arc?: ConceptArc; e
 // pastel: each tab its own (rose · sand · apricot · aqua · plum, its chapters in its colour) ·
 // arcs blue · formats mint · How I … peach · The Outing sage · the Guide itself butter.
 const GUIDE_CARDS: { key: string; name: string; label?: string; sum: string; tone: Tone }[] = [
-  { key: "who",     name: "Who I am",         sum: GUIDE_WHO.title,                               tone: GUIDE_TONE },
-  { key: "series",  name: GUIDE_SERIES.name,  label: GUIDE_SERIES.label,  sum: "Why you started, what you chose, the result", tone: SERIES_TONE },
-  { key: "package", name: GUIDE_PACKAGE.name, label: GUIDE_PACKAGE.label, sum: "Before, Look and Moment for every day out",   tone: PACKAGE_TONE },
-  { key: "how",     name: "How it all works", sum: "Where to find what, and what to do",           tone: PAL.neutral },
+  { key: "who",     name: "Who I am",         sum: GUIDE_WHO.title,                                              tone: GUIDE_TONE },
+  { key: "levels",  name: "My 3 levels",      label: "Curation · Upgrade · Project", sum: "Each home or away, each Intro → Climax → Outro", tone: PAL.lynnhoa },
+  { key: "series",  name: GUIDE_SERIES.name,  label: GUIDE_SERIES.label,  sum: "Curation's climax: the hook, the edit, the result",     tone: SERIES_TONE },
+  { key: "package", name: GUIDE_PACKAGE.name, label: GUIDE_PACKAGE.label, sum: "The Upgrade: Before, Look and Moment for every day out", tone: PACKAGE_TONE },
+  { key: "how",     name: "How it all works", sum: "Where to find what, and what to do",                          tone: PAL.neutral },
 ];
+// the levels' pastels: Curation peach (How I …) · Upgrade sage (The Outing) · Project rose (what you develop)
+const LEVEL_TONE: Record<GuideLevel["key"], Tone> = { curation: SERIES_TONE, upgrade: PACKAGE_TONE, project: TAB_TONE.eras };
+// a format on a level's beat: like GTag, but it may wrap (three beats share one row)
+const GWrapTag = ({ text }: { text: string }) => (
+  <span style={{ fontSize: TYPE.label.size, lineHeight: 1.3, padding: "2px 6px", borderRadius: RADIUS.tag, background: FORMAT_TONE.wash, color: FORMAT_TONE.ink }}>{text}</span>
+);
 const gLabel: any = { ...caps, color: C.light, margin: "12px 0 6px" };
 const gMeta: any  = { fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.4 };
 // a pastel tag: the step of a pattern
@@ -506,8 +513,40 @@ function GuideBody({ k, arcsCount, episodes }: { k: string; arcsCount: number; e
     <>
       <div style={{ fontFamily: SERIF, fontSize: 15, color: C.black, lineHeight: 1.35 }}>{GUIDE_WHO.title}</div>
       <div style={{ fontSize: SPACING.listText, color: C.ink2, lineHeight: 1.4, margin: "3px 0 5px" }}>{GUIDE_WHO.line}</div>
+      <GMetaLine label="Name" text={GUIDE_WHO.name} tone={GUIDE_TONE} />
+      <GMetaLine label="Means" text={GUIDE_WHO.means} tone={GUIDE_TONE} />
       <GMetaLine label="Personality" text={GUIDE_WHO.personality} tone={GUIDE_TONE} />
+      <GMetaLine label="They see" text={GUIDE_WHO.see} tone={GUIDE_TONE} />
       <GMetaLine label="Rule" text={GUIDE_WHO.rule} tone={GUIDE_TONE} />
+    </>
+  );
+  // my 3 levels: each level a band in its pastel, its three beats side by side (what · formats), home / away
+  if (k === "levels") return (
+    <>
+      <div style={{ ...gMeta, marginTop: 2 }}>{GUIDE_LEVELS_NOTE}</div>
+      {GUIDE_LEVELS.map((lv, i) => {
+        const tone = LEVEL_TONE[lv.key];
+        return (
+          <div key={lv.key} style={{ marginTop: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: RADIUS.field, background: tone.wash }}>
+              <span style={{ fontSize: SPACING.listText, fontWeight: 500, color: tone.ink, lineHeight: 1.3, whiteSpace: "nowrap" as const }}>{i + 1} · {lv.name}</span>
+              <span style={{ marginLeft: "auto", fontSize: SPACING.listMeta, color: tone.ink, lineHeight: 1.3, textAlign: "right" as const }}>{lv.note} · {lv.ref}</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6, marginTop: 6 }}>
+              {lv.beats.map(b => (
+                <div key={b.name} style={{ minWidth: 0 }}>
+                  <div style={{ ...caps, color: C.light }}>{b.name}</div>
+                  <div style={{ fontSize: TYPE.subtext.size, color: C.ink2, lineHeight: 1.3, margin: "2px 0 4px" }}>{b.what}</div>
+                  <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 2 }}>{b.formats.map(f => <GWrapTag key={f} text={f} />)}</div>
+                </div>
+              ))}
+            </div>
+            {lv.home === lv.away
+              ? <GMetaLine label="Home or away" text={lv.home} tone={tone} />
+              : <><GMetaLine label="Home" text={lv.home} tone={tone} /><GMetaLine label="Away" text={lv.away} tone={tone} /></>}
+          </div>
+        );
+      })}
     </>
   );
   if (k === "series") return (
@@ -526,6 +565,8 @@ function GuideBody({ k, arcsCount, episodes }: { k: string; arcsCount: number; e
     <>
       <GFlow steps={GUIDE_PACKAGE.steps} tone={PACKAGE_TONE} extra={GUIDE_PACKAGE.optional} />
       <div style={{ ...gMeta, marginTop: 6 }}>{GUIDE_PACKAGE.line}</div>
+      <GMetaLine label="Level" text={GUIDE_PACKAGE.where} tone={PACKAGE_TONE} />
+      <GMetaLine label="Before" text={GUIDE_PACKAGE.note} tone={PACKAGE_TONE} />
       <GMetaLine label="Runs in" text={GUIDE_PACKAGE.runsIn.join(" · ")} tone={PACKAGE_TONE} />
     </>
   );
@@ -539,8 +580,9 @@ function GuideBody({ k, arcsCount, episodes }: { k: string; arcsCount: number; e
       </div>
       <div style={gLabel}>What you film</div>
       <div style={{ display: "flex", flexDirection: "column" as const, gap: 5 }}>
+        <GNode name="My 3 levels" note="how every storyline runs" tone={PAL.lynnhoa} />
         <GNode name="Personal Eras" note="what you develop" tone={TAB_TONE.eras} />
-        <GNode name="Base" note="quick posts in between" tone={TAB_TONE.base} />
+        <GNode name="Daily" note="single clips in between" tone={TAB_TONE.base} />
         <div>
           <GNode name="Home · Travel · Work" note="where it happens" tone={PAL.neutral} />
           <GBranch>{[
@@ -637,8 +679,8 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   const done  = <SheetButton onClick={close}>Done</SheetButton>;
   // a series of the Look arc has labels, every other one (and every arc) texts
   const winLabels = !!winArc && isSeries(winArc) && seriesWord(winArc) === "labels";
-  // a Base block's window title: "Base · Signatures"
-  const blockTitle = (e: ConceptEra) => `Base · ${e.name}`;
+  // a Daily block's window title: "Daily · Signatures"
+  const blockTitle = (e: ConceptEra) => `Daily · ${e.name}`;
 
   const columns = <T,>(list: T[], render: (x: T) => any) => {
     const column = (l: T[]) => <div style={{ display: "flex", flexDirection: "column" as const, gap: SPACING.cardGap, minWidth: 0 }}>{l.map(render)}</div>;
@@ -705,7 +747,7 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
   const anyBaseOpen = BASE_BLOCKS.some(c => chKeys.includes(baseKey(c)));
   const baseView = (
     <>
-      <SectionHead dot={TAB_TONE.base.mid} label={`Base · ${BASE_BLOCKS.length}`}
+      <SectionHead dot={TAB_TONE.base.mid} label={`Daily · ${BASE_BLOCKS.length}`}
         right={<button onClick={() => setChsOpen(anyBaseOpen ? chKeys.filter(k => !k.startsWith("base:")) : Array.from(new Set([...chKeys, ...BASE_BLOCKS.map(baseKey)])))} style={mini}>{anyBaseOpen ? "collapse all" : "expand all"}</button>} />
       {columns(BASE_BLOCKS, c => {
         const b = blockOf(c);

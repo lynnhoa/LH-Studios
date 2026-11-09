@@ -317,8 +317,8 @@ export interface ConceptPhase {
 }
 export const isBasePhase = (p: ConceptPhase | undefined | null) => !!p && p.unit === "base";
 // how a phase is named in pickers and lists: Base (number 0, never shown) or "1. Home" / "1 · Home"
-export const conceptPhaseLabel = (p: ConceptPhase) => (isBasePhase(p) ? "Base" : `${p.num}. ${p.name}`);
-export const conceptPhaseShort = (p: ConceptPhase) => (isBasePhase(p) ? "Base" : `${p.num} · ${p.name}`);
+export const conceptPhaseLabel = (p: ConceptPhase) => (isBasePhase(p) ? "Daily" : `${p.num}. ${p.name}`);
+export const conceptPhaseShort = (p: ConceptPhase) => (isBasePhase(p) ? "Daily" : `${p.num} · ${p.name}`);
 // a phase number is set (0 = Base counts)
 export const hasPhase = (n: number | null | undefined): n is number => typeof n === "number" && n >= 0;
 // the eras of a phase with their group headings, in order: [{ grp, eras }]
@@ -614,10 +614,10 @@ export const PERSONAL_ERAS: StructItem[] = [
   ] },
 ];
 
-// Base (06.11.2026): quick personality posts that fill the gaps between chapters — its 6 blocks,
+// Daily (06.11.2026, renamed 09.11.2026 — the key stays "base"): single clips between storylines — its 6 blocks,
 // each with its arcs and formats. The lines you write per block stay in the data (planner_concept_phases,
 // the Base phase), found by the block's name.
-export const BASE_NOTE = "Quick personality posts that fill the gaps between chapters";
+export const BASE_NOTE = "Single clips between storylines: you, already put together";
 export const BASE_BLOCKS: StructItem[] = [
   { name: "Signatures", desc: "Your matcha, your scent, sunglasses on your head and your little rules: what makes you you every day", arcs: [
     { arc: "The Moment", note: "Your matcha ritual, your walks, perfume before leaving", formats: ["Walk + Text", "Presence + Text", "Lip Sync Song"] },
@@ -776,15 +776,42 @@ export const FORMAT_TONE  = { fill: "#C6E6DA", wash: "#E1F2EC", mid: "#8FCBB4", 
 
 export const GUIDE_WHO = {
   title:       "The art of being put together",
-  line:        "I've thought of everything, so I don't have to think when the moment comes.",
-  personality: "particular, slightly chaotic, overthinks details, intentional",
+  line:        "High maintenance so I can be low maintenance",        // the bio line and the hook of every How I …
+  name:        "the put-together one",                                  // what people call her
+  means:       "I think before, so the moment needs none",
+  see:         "she's thought of everything, so she's always ready",   // what the audience should say after 5 posts
+  personality: "particular, a little chaotic, intentional in the end",
   rule:        "show the curation, not the chores",
 };
+// My 3 levels (09.11.2026): with Who I am the stand-alone read of the whole concept — Curation (the
+// Before) · Upgrade (the Moment) · Project (the long Before). Each runs at home or away; every storyline
+// = 3–5 posts, Intro (1) → Climax (1) → Outro (1–3), every post stands alone. Per beat: what it is and
+// its formats. Curation's climax is How I … (The Edit), the Upgrade is The Outing.
+export interface GuideBeat  { name: "Intro" | "Climax" | "Outro"; what: string; formats: string[]; }
+export interface GuideLevel { key: "curation" | "upgrade" | "project"; name: string; note: string; ref: string; beats: GuideBeat[]; home: string; away: string; }
+export const GUIDE_LEVELS_NOTE = "3 levels · each home or away · each Intro → Climax → Outro · 3–5 posts, every post stands alone";
+export const GUIDE_LEVELS: GuideLevel[] = [
+  { key: "curation", name: "Curation", note: "the Before", ref: "How I …", beats: [
+      { name: "Intro",  what: "a thought, an idea, the urge",                  formats: ["Presence + Text"] },
+      { name: "Climax", what: "How I …: the hook → the edit → the result",     formats: ["Seated Talking", "Half-Body Talking"] },
+      { name: "Outro",  what: "the feeling after, or in use if ready to use",  formats: ["Selfie Reaction", "Trend", "Walk + Text"] },
+    ], home: "the prep, the edit", away: "what I shop to bring home and why, my taste" },
+  { key: "upgrade", name: "Upgrade", note: "the Moment", ref: "The Outing", beats: [
+      { name: "Intro",  what: "getting ready, just the outfit",                formats: ["GRWM Talking"] },
+      { name: "Climax", what: "the look",                                       formats: ["Outfit Check"] },
+      { name: "Outro",  what: "the moment, 1–3 trends at the place",           formats: ["TikTok Trends", "Lip Sync Song", "Selfie Reaction", "Vlog optional"] },
+    ], home: "the same", away: "the same" },
+  { key: "project", name: "Project", note: "the long Before", ref: "one cycle per step", beats: [
+      { name: "Intro",  what: "a transition or a thought",                     formats: ["Transition", "Presence + Text"] },
+      { name: "Climax", what: "the progress",                                   formats: ["Vlog", "Selfie Reaction + Result"] },
+      { name: "Outro",  what: "the styling or the reaction",                   formats: ["Outfit Check", "Walk + Text", "Selfie Reaction", "Trend"] },
+    ], home: "the same", away: "the same" },
+];
 // How I …: the title on top, the hook right below it (the real reason you started to curate)
 export const GUIDE_SERIES = {
   label: "Signature series",
   name:  "How I …",
-  where: "in The Edit",
+  where: "Curation's climax, in The Edit",
   steps: ["Hook: why I started", "Curation", "Result"],
   film:  "Filmed as The Edit · Seated or Half-Body Talking",
   examples: [
@@ -801,6 +828,8 @@ export const GUIDE_PACKAGE = {
   steps:    ["Before", "Look", "Moment"],
   optional: "Story, optional",
   line:     "One outfit, one day out, every post stands alone.",
+  where:    "the Upgrade, the Moment",
+  note:     "GRWM is just the outfit, nails and lashes are already done",
   runsIn:   ["Occasion", "City Break", "Long Trip", "Invited", "Fashion Week", "Shoot Day"],
 };
 export const GUIDE_WORKFLOW = ["Pick where you are", "Check the badges", "Open the chapter", "Guide for the why"];

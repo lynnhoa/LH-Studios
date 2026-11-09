@@ -8,10 +8,26 @@ The structure has separate layers: your identity, the environments you create co
 
 The overall personality and world people follow: fashion, beauty, personal image, experiences, opinions and everyday life.
 
-**What I stand for: the art of being put together.** I've thought of everything, so I don't have to think when the moment comes.
+**What I stand for: the art of being put together.**
 
-- Personality: particular, slightly chaotic, overthinks details, intentional
+- Line (bio + the hook of every How I …): "high maintenance so I can be low maintenance"
+- Name people give me: the put-together one
+- Means: I think before, so the moment needs none
+- Personality: particular, a little chaotic, intentional in the end
+- They see (after 5 posts): "she's thought of everything, so she's always ready"
 - Rule: show the curation, not the chores
+
+## 1b. My 3 levels (09.11.2026)
+
+Three levels, each home or away, each a storyline of 3–5 posts: Intro (1) → Climax (1) → Outro (1–3). Every post stands alone. High maintenance = the Before (Curation, Project), low maintenance = the Moment (Upgrade, Daily clips).
+
+| Level | Intro | Climax | Outro |
+|---|---|---|---|
+| 1. Curation · the Before | a thought, an idea, the urge · Presence + Text | How I …: the hook → the edit → the result · Seated / Half-Body Talking | the feeling after, or in use if ready to use · Selfie Reaction, Trend, Walk + Text |
+| 2. Upgrade · the Moment (The Outing) | getting ready, just the outfit · GRWM Talking | the look · Outfit Check | the moment, 1–3 trends at the place · TikTok Trends, Lip Sync Song, Selfie Reaction, Vlog optional |
+| 3. Project · the long Before | a transition or a thought · Transition, Presence + Text | the progress · Vlog, Selfie Reaction + Result | the styling or the reaction · Outfit Check, Walk + Text, Selfie Reaction, Trend |
+
+Curation at home = the prep, the edit; away = what I shop to bring home and why, my taste. Upgrade and Project are the same home or away. A Project runs one cycle per step; the Transition carries the reveal.
 
 ## 2. Personal Eras
 
@@ -197,9 +213,9 @@ You select and repeat the Arcs that suit each package. You don't need to use all
 
 In the app: run `LH-Studio-lynnhoa-arcs.sql` once in Supabase to set these arcs and formats.
 
-## 7. Base Posts
+## 7. Daily (the Base tab, renamed 09.11.2026)
 
-Quick personality posts that fill the gaps between chapters. They don't need to belong to a Series or Content Package.
+Single clips between storylines: you, already put together. They don't need to belong to a Series or Content Package.
 
 | Block | What it is | Arcs → formats |
 |---|---|---|
@@ -229,7 +245,7 @@ Your Talking Spot can be the recognisable home base for How I ….
   - **Main Areas:** Home · Travel · Brand Work
     - **Phases:** what kind of activity or experience is happening?
   - **Content Types**
-    - Base Posts
+    - Daily (single clips)
     - Signature Series: How I … (in The Edit)
     - Content Package: The Outing (Before → Look → Moment)
     - Standalone Content Packages
@@ -240,4 +256,4 @@ Your Talking Spot can be the recognisable home base for How I ….
 
 ---
 
-In the app: Planner › @lynnhoa concept shows **Personal Eras | Base | Home | Travel | Work** and two round buttons: **Guide** (what you stand for and how it all works, 4 cards: Who I am · How I … · The Outing · How it all works) and **Arcs**. The eras and each area's phases come from `planner.ts` (`PERSONAL_ERAS`, `MAIN_AREAS`) and are empty placeholders until they're filled.
+In the app: Planner › @lynnhoa concept shows **Personal Eras | Daily | Home | Travel | Work** and two round buttons: **Guide** (what you stand for and how it all works, 5 cards: Who I am · My 3 levels · How I … · The Outing · How it all works — the first two are the stand-alone read, the rest the lookup) and **Arcs**. The eras and each area's phases come from `planner.ts` (`PERSONAL_ERAS`, `MAIN_AREAS`) and are empty placeholders until they're filled.

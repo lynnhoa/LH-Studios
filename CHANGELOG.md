@@ -1,3 +1,18 @@
+# Planner · @lynnhoa concept: Guide as the stand-alone read, Daily tab (09.11.2026)
+- Who I am: the bio line "High maintenance so I can be low maintenance", Name (the put-together one),
+  Means, They see ("she's thought of everything, so she's always ready"), Personality reworded; the old
+  line "I've thought of everything…" lives on in Means and They see. Title and Rule unchanged.
+- New card 2 "My 3 levels" (lavender): Curation (the Before, peach) · Upgrade (the Moment, sage) ·
+  Project (the long Before, rose). Each a band with its three beats side by side — Intro · Climax ·
+  Outro, what it is and its formats (mint) — then Home / Away (Curation) or Home or away (the others).
+  Cards 1 + 2 are the read on their own; How I … · The Outing · How it all works stay the lookup.
+- How I …: summary "Curation's climax: the hook, the edit, the result". The Outing: "The Upgrade …",
+  plus Level and Before ("GRWM is just the outfit, nails and lashes are already done").
+- How it all works: "My 3 levels" first in the tree; Base → Daily.
+- The Base tab is called Daily (single clips between storylines); the key "base" and the data stay.
+- No SQL needed. Changed: `planner.ts` (GUIDE_WHO, GUIDE_LEVELS, GUIDE_PACKAGE, labels),
+  `PlannerConcept.tsx`, `LYNNHOA-CONTENT-STRUCTURE.md`.
+
 # Planner · @createbylynn concept: one roof, four tabs (07.11.2026)
 - Identity: "Making beauty look wanted — I make beauty products look wanted, and brands book me to do it."
 - Bottom bar: Base (your voice) · Looks (growth) · Products (trust) · Editorial (your own shoots).
