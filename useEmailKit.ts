@@ -49,8 +49,8 @@ export const SALES_DOCS = KITS.filter(k => k.kind === "doc");
 export const TEMPLATE_KITS = KITS.filter(k => !k.open);
 // the sales steps the documents sit under (Project plan)
 export const SALES_STEPS: { step: 1 | 2; label: string; who: string }[] = [
-  { step: 1, label: "1 · Pitching",    who: "Pitch · Tony · mail or DM" },
-  { step: 2, label: "2 · Lead to won", who: "Proposal · Tony fills · Lynn checks" },
+  { step: 1, label: "1 · Pitching",    who: "Pitch · Manager · mail or DM" },
+  { step: 2, label: "2 · Lead to won", who: "Proposal" },
 ];
 
 // where the link goes inside a template text

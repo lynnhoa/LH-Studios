@@ -3,7 +3,7 @@
   Templates (blue). The page you were on is remembered on this device.
 - Kits: SALES DOCUMENTS · IN ORDER on top, in the order of the sales process (Project plan):
   1 · Pitching — Partnerships · Fashion (EN · DE), Partnerships · Beauty (EN · DE), Content for Brands ·
-  Beauty (EN); 2 · Lead to won — Feed Proposal (the Canva template: ↗ open only, Tony makes a copy per
+  Beauty (EN); 2 · Lead to won — Feed Proposal (the Canva template: ↗ open only, the manager makes a copy per
   brand). EN / DE copy that link, ↗ opens it in Canva. Under it the 4 media kits as before (tap = copy).
 - Templates: the list as before (Sort · + Add). A template's kit can now also be a pitch deck.
 - Edit links: Sales documents first (EN link + DE link for the decks, the proposal's edit link), then the

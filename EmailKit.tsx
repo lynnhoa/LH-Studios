@@ -97,7 +97,7 @@ const KitChip = ({ k, on, onClick }: { k: KitKey | null; on: boolean; onClick: (
   return <Chip on={on} tone={t} label={k ? kitInfo(k)!.label : "None"} dot={!!k} onClick={onClick} />;
 };
 
-// a sales step: a thin band in its colour (1 · PITCHING  Pitch · Tony · mail or DM)
+// a sales step: a thin band in its colour (1 · PITCHING  Pitch · Manager · mail or DM)
 const StepBand = ({ step, first }: { step: 1 | 2; first: boolean }) => {
   const st = SALES_STEPS.find(x => x.step === step)!, t = STEP_TONE[step];
   return (
@@ -320,7 +320,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
 // Sales documents (in order), then Media kits. Each: its section head (colour · name · account) and a card:
 // View link (↗ opens it) · DE link (the decks) · PDF (Share, ⋯ Replace / Delete — or Upload PDF; saved right
 // away) · File · Focus; "Link updated …" under it. The Feed Proposal is a Canva template: its edit link
-// (Tony makes a copy per brand), no PDF.
+// (the manager makes a copy per brand), no PDF.
 // Footer: Done → Save as soon as you type (the window stays open); ✕ with unsaved typing asks first.
 const typedKits = (list: MediaKit[]) => list.map(k => `${k.key}|${k.url.trim()}|${k.urlDe.trim()}|${k.file.trim()}|${k.focus.trim()}`).join("\n");
 const shortUrl = (u: string) => u.replace(/^https?:\/\/(www\.)?/i, "");
