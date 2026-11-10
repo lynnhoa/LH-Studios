@@ -7,7 +7,8 @@
 // Nothing is sent from here: everything is only copied.
 // Each kit can also hold ONE PDF (private file store, bucket media-kits,
 // <your id>/<kit>/<time>.pdf) — to attach, never as a public link.
-// The pitch decks also have a German link (url_de).
+// Every document and media kit has room for a German link (url_de); a template has a language
+// (EN / DE) and puts in the link of its language (no German link yet → the English one).
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from "react";
@@ -29,7 +30,8 @@ export interface KitDef {
   kind: "doc" | "media";
   step?: 1 | 2;     // the sales step a document belongs to
   meta?: string;    // the line under a document's name
-  de?: boolean;     // has a German version (its own link)
+  de?: boolean;     // a German version exists in Canva: its DE button shows even before the link is in
+                    // (every item has a DE link field; the others show DE once a link is pasted)
   open?: boolean;   // open only (a Canva template to copy per brand): no copy, no PDF, not for templates
 }
 export const KITS: KitDef[] = [
@@ -67,7 +69,11 @@ export interface EmailTemplate {
   categories: string[];   // the contact categories it's for (empty = any) — picks the right template per contact
   sortOrder: number | null; // your own order in the Email kit (empty = after the sorted ones, A–Z)
   channel: "email" | "dm";  // an email, or a short Instagram DM (no subject; copied and pasted into Instagram)
+  lang: TemplateLang;       // English or German: which link of the kit goes in
 }
+// a template's language: German texts put in the German link
+export type TemplateLang = "en" | "de";
+export const TEMPLATE_LANGS: { key: TemplateLang; label: string }[] = [{ key: "en", label: "English" }, { key: "de", label: "German" }];
 export const TEMPLATE_CHANNELS: { key: "email" | "dm"; label: string }[] = [{ key: "email", label: "Email" }, { key: "dm", label: "Instagram DM" }];
 export const TEMPLATE_PIPELINES: { key: TemplatePipeline; label: string }[] = [{ key: "lynnhoa", label: "@lynnhoa" }, { key: "ugc", label: "UGC" }];
 export const TEMPLATE_KINDS: { key: TemplateKind; label: string }[] = [{ key: "pitch", label: "Pitch" }, { key: "follow_up", label: "Follow-up 1" }, { key: "follow_up_2", label: "Follow-up 2" }];
@@ -85,11 +91,23 @@ const rowToTpl = (r: any): EmailTemplate => ({
   categories: Array.isArray(r.categories) ? r.categories : [],
   sortOrder: r.sort_order == null ? null : Number(r.sort_order),
   channel: r.channel === "dm" ? "dm" : "email",
+  lang: r.lang === "de" ? "de" : "en",
 });
+// the link a template puts in: its language's link (German: the DE link, else the English one)
+export const kitLink = (kits: { key: string; url?: string; urlDe?: string }[] | undefined, k: string | null, lang: TemplateLang = "en") => {
+  const kit = k ? (kits || []).find(x => x.key === k) : undefined;
+  if (!kit) return "";
+  return String((lang === "de" && String(kit.urlDe || "").trim() ? kit.urlDe : kit.url) || "").trim();
+};
 // your Email kit order: sorted templates first, then the rest A–Z
 const tplSort = (a: EmailTemplate, b: EmailTemplate) =>
   (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER) || (a.name || "").localeCompare(b.name || "", "de");
 const fail = (error: any) => { if (error) throw new Error(error.message || "Couldn't save."); };
+// a template save: the language column comes with the German templates SQL
+const failTpl = (error: any) => {
+  if (error && /\blang\b/.test(error.message || "")) throw new Error("German templates need the Email kit German SQL — run it in Supabase once.");
+  fail(error);
+};
 
 // "2,4 MB" · "380 KB" (German format)
 export const fmtSize = (b: number) => b >= 1024 * 1024
@@ -219,7 +237,8 @@ export function useEmailKit(userId: string | null) {
     return "opened";
   }, [kits]);
 
-  const tplRow = (f: Partial<EmailTemplate>) => {
+  // the language is only written when it's German or changes (so English works before the SQL)
+  const tplRow = (f: Partial<EmailTemplate>, prevLang: TemplateLang = "en") => {
     const row: any = { updated_at: new Date().toISOString() };
     if (f.name    !== undefined) row.name    = f.name.trim();
     if (f.purpose !== undefined) row.purpose = f.purpose.trim();
@@ -231,13 +250,14 @@ export function useEmailKit(userId: string | null) {
     if (f.categories !== undefined) row.categories = f.categories;
     if (f.channel !== undefined && f.channel === "dm") row.channel = "dm";
     else if (f.channel !== undefined) row.channel = "email";
+    if (f.lang !== undefined && (f.lang === "de" || f.lang !== prevLang)) row.lang = f.lang === "de" ? "de" : "en";
     return row;
   };
   // a new template goes to the end of your order
   const addTemplate = useCallback(async (f: EmailTemplate): Promise<EmailTemplate> => {
     const next = templates.reduce((m, t) => Math.max(m, t.sortOrder ?? 0), 0) + 1;
     const { data, error } = await supabase.from("email_templates").insert({ user_id: userId, ...tplRow(f), sort_order: next }).select().single();
-    fail(error);
+    failTpl(error);
     const n = rowToTpl(data);
     setTemplates(prev => [...prev, n].sort(tplSort));
     return n;
@@ -253,10 +273,11 @@ export function useEmailKit(userId: string | null) {
     }
   }, [userId, templates]);
   const updateTemplate = useCallback(async (id: string, f: Partial<EmailTemplate>) => {
-    const { data, error } = await supabase.from("email_templates").update(tplRow(f)).eq("id", id).eq("user_id", userId).select().single();
-    fail(error);
+    const prevLang = templates.find(t => t.id === id)?.lang ?? "en";
+    const { data, error } = await supabase.from("email_templates").update(tplRow(f, prevLang)).eq("id", id).eq("user_id", userId).select().single();
+    failTpl(error);
     setTemplates(prev => prev.map(t => (t.id === id ? rowToTpl(data) : t)));
-  }, [userId]);
+  }, [userId, templates]);
   const deleteTemplate = useCallback(async (id: string) => {
     const { error } = await supabase.from("email_templates").delete().eq("id", id).eq("user_id", userId);
     fail(error);

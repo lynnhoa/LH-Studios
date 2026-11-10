@@ -1,3 +1,18 @@
+# Outreach › Email kit: German links everywhere, media kits as rows, German templates (10.11.2026)
+- Media kits are rows like the sales documents (icon · name · focus · EN · DE · ↗) instead of the 4 tiles.
+- Every document and media kit has room for a German link (Edit links: EN link · DE link). DE shows on the
+  decks that have a German version (Partnerships · Fashion / Beauty) and on any other item as soon as its
+  German link is pasted. Feed Proposal: ↗ opens it; with a German link, EN / DE open that version.
+- Templates have a Language (English / German; all of today's are English). A German template puts in the
+  kit's DE link, or the EN link while there's no DE link yet ("Text copied ✓ · with the EN link"). The same
+  in Contacts when you write from a contact. The list shows "DE" on German templates.
+- Data: run `LH-Studio-email-kit-german.sql` once (safe to rerun; adds the template language).
+  `LH-Studio-email-kit-docs.sql` no longer puts in links (the first version's Canva API links are temporary
+  and only open for you): a rerun never touches your links. Replace all 8 links in Edit links (the 4 media
+  kits too) with Canva's public view links.
+- Changed: `EmailKit.tsx`, `useEmailKit.ts`, `outlook.ts`, `EmailList.tsx`, `LH-Studio-email-kit-docs.sql`.
+  New: `LH-Studio-email-kit-german.sql`.
+
 # Outreach › Email kit: two pages + sales documents in order (10.11.2026)
 - Two pages in a bottom bar like Planner › Concept's, centred because there are only two: Kits (peach) ·
   Templates (blue). The page you were on is remembered on this device.
