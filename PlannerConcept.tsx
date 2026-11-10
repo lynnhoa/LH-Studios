@@ -45,6 +45,8 @@ import type { StructItem, ChapterArc, CblTabKey, Account, ConceptArc, ConceptFor
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
 import { IC, WinHead, winCard, LineList, LinkList } from "./PlannerWindows";
+import { BottomNav, NavIcon, NAV_SPACE } from "./BottomNav";
+import type { NavItem } from "./BottomNav";
 
 // remembered on this device: the tab, and the open arcs, phases and Base blocks per account
 // (none the first time)
@@ -241,7 +243,6 @@ const TABS: { key: ConceptTabKey; label: string; title: string; icon: string }[]
   { key: "travel", label: "Travel", title: "Travel",        icon: "M3 11l18-7-7 18-2.5-7.5z" },
   { key: "work",   label: "Work",   title: "Brand Work",    icon: "M4 8h16v11H4zM9 8V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M4 13h16" },
 ];
-type NavItem = { key: string; label: string; title: string; icon: string; tone: Tone };
 const TAB_ITEMS: NavItem[] = TABS.map(t => ({ ...t, tone: TAB_TONE[t.key] }));
 // @createbylynn: its four tabs in the same bar (planner.ts CBL_TABS)
 const CBL_ICON: Record<CblTabKey, string> = {
@@ -253,47 +254,8 @@ const CBL_ICON: Record<CblTabKey, string> = {
 const CBL_ITEMS: NavItem[] = CBL_TABS.map(t => ({ key: t.key, label: t.label, title: t.label, icon: CBL_ICON[t.key], tone: t.tone }));
 const ICON_GUIDE = "M12 6.5C10 5 7 4.6 4 5v13c3-.4 6 0 8 1.5 2-1.5 5-1.9 8-1.5V5c-3-.4-6 0-8 1.5zM12 6.5v13";   // an open book
 const ICON_ARCS  = "M4 18a8 8 0 0 1 16 0M12 18h.01";
-const LineIcon = ({ d, size = 18, color, fill = "none" }: { d: string; size?: number; color: string; fill?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ flexShrink: 0, color }}
-    fill={fill} stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
-);
+const LineIcon = NavIcon;
 
-// the bottom bar (like Lynn's Office): a floating white pill, one item per tab — its icon on its own
-// pastel circle; the open one filled with its colour, its label in its ink. @lynnhoa: its five tabs ·
-// @createbylynn: its five pillars.
-const NAV_SPACE = 96;   // room under the page so the last card isn't behind the bar
-function ConceptNav({ items, value, onPick }: { items: NavItem[]; value: string; onPick: (k: string) => void }) {
-  useEffect(() => {   // the "saved" toast sits above the bar (and above "Deleted · Undo", which sits on the bar)
-    const root = document.documentElement.style;
-    root.setProperty("--toast-lift", "calc(110px + env(safe-area-inset-bottom, 0px))");   // above the bar and the Undo bar
-    return () => { root.removeProperty("--toast-lift"); };
-  }, []);
-  return (
-    <>
-    {/* the page fades out under the bar, so no text shows around it */}
-    <div aria-hidden="true" style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 39, pointerEvents: "none",
-      height: "calc(92px + env(safe-area-inset-bottom, 0px))", background: `linear-gradient(180deg, rgba(250,249,247,0) 0%, ${C.bg} 55%)` }} />
-    <nav aria-label="Content concept" style={{ position: "fixed", left: 14, right: 14, bottom: "calc(14px + env(safe-area-inset-bottom, 0px))", zIndex: 40,
-      maxWidth: 440, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", padding: 5, borderRadius: 999,
-      background: C.white, boxShadow: "0 4px 18px rgba(0,0,0,0.10)" }}>
-      {items.map(t => {
-        const on = t.key === value, tone = t.tone;
-        return (
-          <button key={t.key} type="button" aria-label={t.title} aria-current={on ? "page" : undefined} onClick={() => { if (!on) onPick(t.key); }}
-            style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 2, height: 56, margin: "0 2px", border: 0,
-              borderRadius: 999, background: on ? tone.wash : "transparent", color: on ? tone.ink : C.muted, fontFamily: SANS, fontSize: 11,
-              fontWeight: on ? 600 : 400, cursor: on ? "default" : "pointer", WebkitTapHighlightColor: "transparent" }}>
-            <span style={{ width: 30, height: 30, borderRadius: "50%", background: on ? C.white : tone.wash, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-              <LineIcon d={t.icon} size={17} color={tone.ink} />
-            </span>
-            {t.label}
-          </button>
-        );
-      })}
-    </nav>
-    </>
-  );
-}
 // Guide · Arcs: two round buttons next to the title, in their colours (filled while they show)
 const RoundBtn = ({ on, label, icon, tone, n, onClick }: { on: boolean; label: string; icon: string; tone: Tone; n?: number; onClick: () => void }) => (
   <button type="button" aria-label={n ? `${label} · ${n}` : label} aria-pressed={on} onClick={() => { if (!on) onClick(); }}
@@ -912,8 +874,8 @@ export default function PlannerConcept({ planner, view, isMobile, onAccount }: P
 
       {planner.loading ? note("Loading…") : seriesMode ? (cblArcs ? arcsView : cblGuide ? cblGuideView : pillarView) : show === "guide" ? guideView : show === "base" ? baseView : show === "eras" ? erasView : areaView || arcsView}
       {(!seriesMode || cblReady) && <div style={{ height: NAV_SPACE }} />}
-      {!seriesMode && <ConceptNav items={TAB_ITEMS} value={show} onPick={k => pickView(k as ConceptView)} />}
-      {seriesMode && cblReady && <ConceptNav items={CBL_ITEMS} value={cblArcs || cblGuide ? "" : cblTab.key} onPick={pickCbl} />}
+      {!seriesMode && <BottomNav label="Content concept" items={TAB_ITEMS} value={show} onPick={k => pickView(k as ConceptView)} />}
+      {seriesMode && cblReady && <BottomNav label="Content concept" items={CBL_ITEMS} value={cblArcs || cblGuide ? "" : cblTab.key} onPick={pickCbl} />}
 
       {/* an arc's texts or links (from the Arcs tab) */}
       {win && (win.kind === "texts" || win.kind === "links") && winArc && (

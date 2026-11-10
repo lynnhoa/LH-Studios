@@ -1,19 +1,23 @@
 // ─────────────────────────────────────────────────────────────
 // EmailKit — Outreach › Email kit (tab next to Contacts). Copy only:
-// nothing is sent from here.
-//   Title · summary line (● 4 media kits · n templates · copy only)
-//   MEDIA KITS · tap to copy ……… Edit links
-//     4 slim tiles in one row (40 px), in the rate-card colours:
-//     Collab pink · Editorial butter · Hotels pistachio · UGC blue.
-//     Tap = the Canva view link is copied ("Collab link copied ✓").
-//   EMAIL TEMPLATES ……… + Add
+// nothing is sent from here. Two pages, picked in the bottom bar (centred,
+// like Planner › Concept's): Kits · Templates (remembered on this device).
+//   Kits
+//     SALES DOCUMENTS · IN ORDER ……… Edit links
+//       one card in the order of the sales process (Project plan):
+//       1 · Pitching — Partnerships · Fashion (EN · DE), Partnerships ·
+//       Beauty (EN · DE), Content for Brands · Beauty (EN);
+//       2 · Lead to won — Feed Proposal (a Canva template: ↗ open only).
+//       EN / DE = copy that link · ↗ = open it in Canva.
+//     MEDIA KITS · TAP TO COPY
+//       4 slim tiles in one row (40 px), in the rate-card colours:
+//       Collab pink · Editorial butter · Hotels pistachio · UGC blue.
+//   Templates ……… Sort · + Add
 //     grouped by purpose (chips when there's more than one purpose);
-//     each row: name · its media kit · copy icon (copies the text with
-//     that kit's link). Tap a row = the template window.
-// Windows (one level, the app's sheet): Edit links (all 4 kits: link,
-// Canva file, focus, PDF) and a template (read view: kit choice · Share
-// PDF · subject · text · Done | Copy text; Edit → Cancel | Save → back
-// to the read view).
+//     each row: name · its kit (a deck or a media kit) · copy icon (copies
+//     the text with that kit's link). Tap a row = the template window.
+// Windows (one level, the app's sheet): Edit links (every document and kit:
+// link, German link for the decks, PDF, Canva file, focus) and a template.
 // PDF per kit: uploaded / replaced / deleted in Edit links (saved right
 // away); Share = the phone's share sheet to attach it (computer: the
 // file opens). A small dot on a tile = this kit has a PDF.
@@ -23,14 +27,18 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { C, SANS, SERIF, TYPE, PAL, RADIUS, TRACK, SPACING, CARD_TONE } from "./constants";
 import { fmtD } from "./formatters";
 import { I, S, MenuSelect, MiniInput, MiniArea, Lbl, PillBtn, SummaryLine, Strong, SectionHead, ListCard, Row, Chip, ChipRow, TonedTag, Sheet, SheetHead, SheetRow, SheetAction, SheetMeta, SheetErr, SheetButton, MoreMenu, MoveBtn, useDraft, sameDraft, SHEET_CARD, SHEET_CAPS, ROW_ICON, ConfirmDialog, ColGroups } from "./atoms";
+import type { ToneSet } from "./atoms";
 import { copyText, OUTREACH_CATEGORIES, catOf } from "./outreach";
 import { showNote } from "./undo";
-import { KITS, KIT_TOKEN, kitInfo, fillText, fmtSize, TEMPLATE_PIPELINES, TEMPLATE_KINDS, TEMPLATE_CHANNELS, kindLabel } from "./useEmailKit";
-import type { EmailKitHook, EmailTemplate, KitKey, MediaKit } from "./useEmailKit";
+import { BottomNav, NAV_SPACE } from "./BottomNav";
+import type { NavItem } from "./BottomNav";
+import { MEDIA_KITS, SALES_DOCS, SALES_STEPS, TEMPLATE_KITS, KIT_TOKEN, kitInfo, fillText, fmtSize, TEMPLATE_PIPELINES, TEMPLATE_KINDS, TEMPLATE_CHANNELS, kindLabel } from "./useEmailKit";
+import type { EmailKitHook, EmailTemplate, KitKey, MediaKit, KitDef } from "./useEmailKit";
 
 const Ico = ({ d, size = 14, color = "currentColor" }: { d: string; size?: number; color?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d={d} /></svg>
 );
+const DECK = "M4 5h16v11H4zM12 16v4M8 20h8";   // a screen on a stand: a pitch deck
 const IC: Record<string, string> = {
   copy:       "M9 9h10v10H9zM5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1",
   link:       "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
@@ -38,13 +46,29 @@ const IC: Record<string, string> = {
   editorial:  "M4 8h3l2-2h6l2 2h3v11H4zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z",
   hotels:     "M5 20V4h10v16M15 9h4v11M8 8h4M8 12h4M8 16h4M3 20h18",
   ugc:        "M4 7h11v10H4zM15 10l5-3v10l-5-3",
+  pitch_fashion: DECK, pitch_beauty: DECK, pitch_content: DECK,
+  proposal:   "M14 3v4a1 1 0 0 0 1 1h4M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2zM9 13h6M9 17h6",
   share:      "M12 15V3M8 7l4-4 4 4M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7",
   open:       "M10.5 6.5H8a2.5 2.5 0 0 0-2.5 2.5v7A2.5 2.5 0 0 0 8 18.5h7a2.5 2.5 0 0 0 2.5-2.5v-2.5M13.5 5.5h5v5M18.5 5.5l-7 7",
   file:       "M14 3v4a1 1 0 0 0 1 1h4M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2zM9 13h6M9 17h6",
   mail:       "M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 7l9 6 9-6",
+  folder:     "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
 };
-const toneOf = (k: KitKey) => PAL[CARD_TONE[k] || "neutral"];
+// the documents' colours: Fashion pink · Beauty rose · Content for Brands blue · Proposal pistachio;
+// the media kits keep their rate-card colours
+const ROSE: ToneSet = { fill: "#F6D3DD", wash: "#FBEBEF", mid: "#E7A9BB", ink: "#8C3F57" };
+const DOC_TONE: Record<string, ToneSet> = { pitch_fashion: PAL.late, pitch_beauty: ROSE, pitch_content: PAL.progress, proposal: PAL.done };
+const toneOf = (k: KitKey): ToneSet => DOC_TONE[k] || PAL[CARD_TONE[k] || "neutral"];
+const STEP_TONE: Record<number, ToneSet> = { 1: PAL.waiting, 2: PAL.done };
 const NO_PURPOSE = "Other";
+
+// the two pages of the bottom bar
+type KitPage = "kits" | "templates";
+const PAGE_KEY = "lh_emailkit_page";
+const PAGES: NavItem[] = [
+  { key: "kits",      label: "Kits",      title: "Kits and sales documents", icon: IC.folder, tone: PAL.createbylynn },
+  { key: "templates", label: "Templates", title: "Email templates",          icon: IC.mail,   tone: PAL.progress },
+];
 
 const caps: any = { fontSize: TYPE.micro.size, letterSpacing: TRACK.caps, textTransform: "uppercase" as const, color: C.muted };
 const linkBtn: any = {
@@ -56,9 +80,9 @@ const TA = (p: any) => (
     fontFamily: SANS, fontSize: TYPE.field.size, lineHeight: 1.45, color: C.black, outline: "none", boxSizing: "border-box" as const, resize: "vertical" as const, WebkitAppearance: "none" as const }} />
 );
 
-// the round copy button on a row (its own tap: doesn't open the row)
 // "Hotel, Restaurant" · "Any category" — the categories a template is for
 const catsText = (t: EmailTemplate) => (t.categories || []).length ? (t.categories || []).map(k => catOf(k).label).join(", ") : "Any category";
+// the round copy button on a row (its own tap: doesn't open the row)
 const CopyBtn = ({ onClick, label }: { onClick: () => void; label: string }) => (
   <button onClick={(e) => { e.stopPropagation(); onClick(); }} aria-label={label} title={label}
     style={{ width: 32, height: 32, borderRadius: "50%", border: `1px solid ${C.edge}`, background: C.white, color: C.ink2, display: "inline-flex",
@@ -73,23 +97,77 @@ const KitChip = ({ k, on, onClick }: { k: KitKey | null; on: boolean; onClick: (
   return <Chip on={on} tone={t} label={k ? kitInfo(k)!.label : "None"} dot={!!k} onClick={onClick} />;
 };
 
-// the text with {kit} shown as a small coloured pill
+// a sales step: a thin band in its colour (1 · PITCHING  Pitch · Tony · mail or DM)
+const StepBand = ({ step, first }: { step: 1 | 2; first: boolean }) => {
+  const st = SALES_STEPS.find(x => x.step === step)!, t = STEP_TONE[step];
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 6, padding: "7px 12px 5px", background: t.wash, borderTop: first ? "none" : `1px solid ${C.hair}` }}>
+      <span style={{ fontSize: 10, letterSpacing: "0.1em", fontWeight: 600, textTransform: "uppercase" as const, color: t.ink }}>{st.label}</span>
+      <span style={{ fontSize: TYPE.micro.size, color: t.ink, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{st.who}</span>
+    </div>
+  );
+};
+// EN / DE: copy that link (dashed while it has none)
+const LangPill = ({ lang, has, tone, label, onClick }: { lang: string; has: boolean; tone: ToneSet; label: string; onClick: () => void }) => (
+  <button type="button" onClick={onClick} aria-label={label} title={has ? label : "No link yet"}
+    style={{ height: 30, minWidth: 38, padding: "0 8px", borderRadius: RADIUS.pill, border: `1px ${has ? "solid" : "dashed"} ${tone.mid}`, background: has ? tone.wash : C.white,
+      color: tone.ink, fontFamily: SANS, fontSize: TYPE.subtext.size, fontWeight: 600, cursor: "copy", WebkitTapHighlightColor: "transparent" }}>{lang}</button>
+);
+// one document: icon · name · its line · EN / DE · ↗
+function DocRow({ d, k, onCopy, onOpen }: { d: KitDef; k: MediaKit | undefined; onCopy: (lang: "EN" | "DE") => void; onOpen: () => void }) {
+  const t = toneOf(d.key);
+  const meta = [k?.focus || d.focus, d.account === "@lynnhoa" ? "@lynnhoa" : ""].filter(Boolean).join(" · ");
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 56, padding: "8px 10px 8px 12px", borderTop: `1px solid ${C.hair}` }}>
+      <span style={{ position: "relative" as const, width: 32, height: 32, borderRadius: "50%", background: t.wash, color: t.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Ico d={IC[d.key]} size={16} />
+        {k?.pdf && <span aria-label="Has a PDF" title="Has a PDF" style={{ position: "absolute" as const, top: 1, right: 1, width: 6, height: 6, borderRadius: "50%", background: t.mid, border: `1.5px solid ${C.white}` }} />}
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: SPACING.listText, fontWeight: 500, lineHeight: 1.3 }}>{d.label}</span>
+        <span style={{ display: "block", fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.35, marginTop: 1 }}>{meta}</span>
+      </span>
+      <span style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+        {!d.open && <LangPill lang="EN" has={!!k?.url} tone={t} label={`Copy the ${d.short} EN link`} onClick={() => onCopy("EN")} />}
+        {!d.open && d.de && <LangPill lang="DE" has={!!k?.urlDe} tone={t} label={`Copy the ${d.short} DE link`} onClick={() => onCopy("DE")} />}
+        <button type="button" onClick={onOpen} aria-label={`Open ${d.label} in Canva`} title="Open in Canva"
+          style={{ width: 30, height: 30, borderRadius: "50%", border: `1px ${k?.url ? "solid" : "dashed"} ${k?.url ? C.edge : t.mid}`, background: C.white, color: C.ink2,
+            display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, cursor: "pointer", WebkitTapHighlightColor: "transparent" }}>
+          <Ico d={IC.open} size={14} />
+        </button>
+      </span>
+    </div>
+  );
+}
 
 interface EmailKitProps { kit: EmailKitHook; isMobile: boolean; }
 
 export default function EmailKit({ kit, isMobile }: EmailKitProps) {
   const { kits, templates, loading, loadError } = kit;
+  const [page, setPage] = useState<KitPage>(() => { try { return localStorage.getItem(PAGE_KEY) === "templates" ? "templates" : "kits"; } catch { return "kits"; } });
+  const pickPage = (p: string) => {
+    const v: KitPage = p === "templates" ? "templates" : "kits";
+    setPage(v); try { localStorage.setItem(PAGE_KEY, v); } catch { /* ignore */ }
+    window.scrollTo?.({ top: 0 });
+  };
   const [editLinks, setEditLinks] = useState(false);
   const [openId, setOpenId]       = useState<string | null>(null);
   const [adding, setAdding]       = useState(false);
   const [purpose, setPurpose]     = useState<string>("all");
 
-  const urlOf = (k: KitKey | null) => (k ? kits.find(x => x.key === k)?.url || "" : "");
+  const kitOf = (k: KitKey) => kits.find(x => x.key === k);
+  const urlOf = (k: KitKey | null) => (k ? kitOf(k)?.url || "" : "");
   const copy = async (text: string, msg: string) => { const ok = await copyText(text); showNote(ok ? msg : "Couldn't copy"); };
-  const copyKit = (k: KitKey) => {
+  const copyKit = (k: KitKey, lang: "EN" | "DE" = "EN") => {
+    const d = kitInfo(k)!, url = lang === "DE" ? kitOf(k)?.urlDe || "" : urlOf(k);
+    const name = d.de ? `${d.short} ${lang}` : d.short;
+    if (!url) { showNote(`Add the ${name} link first · Edit links`); return; }
+    copy(url, `${name} link copied ✓`);
+  };
+  const openKit = (k: KitKey) => {
     const url = urlOf(k);
-    if (!url) { showNote(`Add the ${kitInfo(k)!.short} link first · Edit links`); return; }
-    copy(url, `${kitInfo(k)!.short} link copied ✓`);
+    if (!/^https?:\/\//i.test(url)) { showNote(`Add the ${kitInfo(k)!.short} link first · Edit links`); return; }
+    window.open(url, "_blank", "noopener");
   };
   const sharePdf = (k: KitKey) => {
     kit.sharePdf(k).then(r => { if (r === "shared") showNote("PDF shared ✓"); }).catch((e: any) => showNote(e?.message || "The PDF couldn't be opened."));
@@ -113,25 +191,41 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
     [ids[i], ids[j]] = [ids[j], ids[i]];
     kit.saveOrder(ids).catch((e: any) => showNote(e?.message || "Couldn't save the order."));
   };
+  const kitName = (t: EmailTemplate) => t.kit && kitInfo(t.kit) ? <span style={{ color: toneOf(t.kit).ink }}>{kitInfo(t.kit)!.label}</span> : "none";
 
   return (
     <div>
       <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? TYPE.screen.size : TYPE.pageTitle.size, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>Email kit</h2>
       <SummaryLine dot={PAL.neutral.mid}>
-        <span><Strong>{kits.length || KITS.length}</Strong> media kits · <Strong>{templates.length}</Strong> {templates.length === 1 ? "template" : "templates"}</span>
+        {page === "kits"
+          ? <span><Strong>{SALES_DOCS.length}</Strong> sales documents · <Strong>{MEDIA_KITS.length}</Strong> media kits</span>
+          : <span><Strong>{templates.length}</Strong> {templates.length === 1 ? "template" : "templates"} · copy only</span>}
       </SummaryLine>
 
       {loadError && <p role="alert" style={{ fontSize: TYPE.subtext.size, color: C.red, margin: "12px 0 0" }}>{loadError}</p>}
 
-      {!loadError && (
+      {!loadError && page === "kits" && (
         <>
+          {/* ── SALES DOCUMENTS: in the order of the sales process ── */}
+          <SectionHead dot={PAL.waiting.mid} label="Sales documents · in order" right={<button onClick={() => setEditLinks(true)} style={linkBtn}>Edit links</button>} />
+          <ListCard s={{ marginTop: 0 }}>
+            {SALES_STEPS.map((st, si) => (
+              <div key={st.step}>
+                <StepBand step={st.step} first={si === 0} />
+                {SALES_DOCS.filter(d => d.step === st.step).map(d => (
+                  <DocRow key={d.key} d={d} k={kitOf(d.key)} onCopy={lang => copyKit(d.key, lang)} onOpen={() => openKit(d.key)} />
+                ))}
+              </div>
+            ))}
+          </ListCard>
+
           {/* ── MEDIA KITS: 4 slim tiles, tap = copy ── */}
-          <SectionHead label="Media kits · tap to copy" right={<button onClick={() => setEditLinks(true)} style={linkBtn}>Edit links</button>} />
+          <SectionHead label="Media kits · tap to copy" />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6 }}>
-            {KITS.map(d => {
+            {MEDIA_KITS.map(d => {
               const t = toneOf(d.key);
               const has = !!urlOf(d.key);
-              const hasPdf = !!kits.find(x => x.key === d.key)?.pdf;
+              const hasPdf = !!kitOf(d.key)?.pdf;
               return (
                 <button key={d.key} onClick={() => copyKit(d.key)} aria-label={`Copy the ${d.label} link`} title={has ? `Copy the ${d.label} link` : "No link yet"}
                   style={{ height: 40, minWidth: 0, boxSizing: "border-box" as const, padding: "0 6px", borderRadius: RADIUS.tile, cursor: "copy",
@@ -144,7 +238,11 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
               );
             })}
           </div>
+        </>
+      )}
 
+      {!loadError && page === "templates" && (
+        <>
           {/* ── EMAIL TEMPLATES ── */}
           <SectionHead label="Email templates" right={sorting
             ? <button onClick={() => setSorting(false)} style={linkBtn}>Done</button>
@@ -159,7 +257,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
                 {templates.map((t, i) => (
                   <Row key={t.id} first={i === 0} chevron={false}
                     title={t.name || "Untitled"}
-                    meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"} · {kindLabel(t.kind)} · Kit: {t.kit ? <span style={{ color: toneOf(t.kit).ink }}>{kitInfo(t.kit)!.label}</span> : "none"}</>}
+                    meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"} · {kindLabel(t.kind)} · Kit: {kitName(t)}</>}
                     right={<span style={{ display: "inline-flex", gap: 6 }}>
                       <MoveBtn dir="up" label={`Move ${t.name || "this template"} up`} off={i === 0} onClick={() => move(i, -1)} />
                       <MoveBtn dir="down" label={`Move ${t.name || "this template"} down`} off={i === templates.length - 1} onClick={() => move(i, 1)} />
@@ -171,7 +269,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
           ) : templates.length === 0 ? (
             <ListCard s={{ padding: "18px 14px", textAlign: "center" as const }}>
               <div style={{ fontSize: SPACING.listText }}>Add your first template</div>
-              <div style={{ fontSize: SPACING.listMeta, color: C.muted, marginTop: 3, lineHeight: 1.4 }}>Each template gets a purpose and a media kit choice.</div>
+              <div style={{ fontSize: SPACING.listMeta, color: C.muted, marginTop: 3, lineHeight: 1.4 }}>Each template gets a purpose and a kit: a pitch deck or a media kit.</div>
             </ListCard>
           ) : (
             <>
@@ -191,7 +289,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
                       {list.map((t, i) => (
                         <Row key={t.id} first={i === 0} chevron={false} onClick={() => setOpenId(t.id)}
                           title={t.name || "Untitled"}
-                          meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"}{t.channel === "dm" ? " · DM" : ""} · {kindLabel(t.kind)} · {catsText(t)} · Kit: {t.kit ? <span style={{ color: toneOf(t.kit).ink }}>{kitInfo(t.kit)!.label}</span> : "none"}</>}
+                          meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"}{t.channel === "dm" ? " · DM" : ""} · {kindLabel(t.kind)} · {catsText(t)} · Kit: {kitName(t)}</>}
                           right={<CopyBtn label={`Copy ${t.name || "the text"}`} onClick={() => copyTemplate(t, t.kit)} />} />
                       ))}
                     </ListCard>
@@ -202,6 +300,10 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
           )}
         </>
       )}
+
+      {/* the two pages: Kits · Templates (centred, like the Planner's bar) */}
+      <div style={{ height: NAV_SPACE }} />
+      <BottomNav label="Email kit" items={PAGES} value={page} onPick={pickPage} />
 
       {editLinks && <LinksWindow kit={kit} onShare={sharePdf} onClose={() => setEditLinks(false)} />}
       {/* one window: after Add template the same window becomes the saved template (no close + reopen blink) */}
@@ -214,17 +316,19 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
   );
 }
 
-// ── Media kits: the 4 kits in one window — one level, the fields are the view (like Contact) ──
-// Each kit: its section head (colour · name · account) and a card: View link (↗ opens it) · PDF
-// (Share, ⋯ Replace / Delete — or Upload PDF; saved right away) · File · Focus; "Link updated …" under it.
+// ── Edit links: every document and kit in one window — one level, the fields are the view (like Contact) ──
+// Sales documents (in order), then Media kits. Each: its section head (colour · name · account) and a card:
+// View link (↗ opens it) · DE link (the decks) · PDF (Share, ⋯ Replace / Delete — or Upload PDF; saved right
+// away) · File · Focus; "Link updated …" under it. The Feed Proposal is a Canva template: its edit link
+// (Tony makes a copy per brand), no PDF.
 // Footer: Done → Save as soon as you type (the window stays open); ✕ with unsaved typing asks first.
-const typedKits = (list: MediaKit[]) => list.map(k => `${k.key}|${k.url.trim()}|${k.file.trim()}|${k.focus.trim()}`).join("\n");
+const typedKits = (list: MediaKit[]) => list.map(k => `${k.key}|${k.url.trim()}|${k.urlDe.trim()}|${k.file.trim()}|${k.focus.trim()}`).join("\n");
 const shortUrl = (u: string) => u.replace(/^https?:\/\/(www\.)?/i, "");
 // a link field: shows the link without https://www. — the whole link while you type
-function LinkInput({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+function LinkInput({ value, onChange, label, placeholder = "Paste the view link" }: { value: string; onChange: (v: string) => void; label: string; placeholder?: string }) {
   const [foc, setFoc] = useState(false);
   return (
-    <MiniInput bare type="url" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} aria-label={label} placeholder="Paste the view link"
+    <MiniInput bare type="url" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} aria-label={label} placeholder={placeholder}
       value={foc ? value : shortUrl(value)} onFocus={() => setFoc(true)} onBlur={() => setFoc(false)} onChange={(e: any) => onChange(e.target.value)} />
   );
 }
@@ -234,7 +338,7 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
   const dr = useDraft<MediaKit[]>(kits, { same: (a, b) => typedKits(a) === typedKits(b) });
   const f = dr.d;
   const [err, setErr]         = useState<string | null>(null);
-  const [badKey, setBadKey]   = useState<KitKey | null>(null);           // the kit whose link isn't a link
+  const [badKey, setBadKey]   = useState<KitKey | null>(null);           // the kit whose link (or DE link) isn't a link
   const [busy, setBusy]       = useState(false);
   const [busyKey, setBusyKey] = useState<KitKey | null>(null);           // a PDF being uploaded / deleted
   const [askDel, setAskDel]   = useState<KitKey | null>(null);
@@ -244,7 +348,8 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
   const save = async () => {
     if (busy) return;
     setErr(null);
-    const bad = f.find(k => k.url.trim() && !/^https?:\/\//i.test(k.url.trim()));
+    const notLink = (u: string) => !!u.trim() && !/^https?:\/\//i.test(u.trim());
+    const bad = f.find(k => notLink(k.url) || notLink(k.urlDe));
     if (bad) { setBadKey(bad.key); return; }
     setBusy(true); dr.saving();
     try { await kit.saveKits(f); showNote("Saved ✓"); }
@@ -271,26 +376,35 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
   return (
     <>
       {askDel && <ConfirmDialog title={`Delete the ${kitInfo(askDel)!.short} PDF?`} text="The PDF is removed from this media kit. The Canva link stays." okLabel="Delete" danger onOk={() => removePdf(askDel)} onCancel={() => setAskDel(null)} />}
-      <Sheet title="Media kits" onClose={onClose} dirty={dr.changed}
+      <Sheet title="Edit links" onClose={onClose} dirty={dr.changed}
         footer={dr.changed ? <SheetButton dark dim={busy} onClick={save}>{busy ? "Saving…" : "Save"}</SheetButton> : <SheetButton onClick={onClose}>Done</SheetButton>}>
         {err && <SheetErr>{err}</SheetErr>}
-        <p style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "0 2px 6px", lineHeight: 1.4 }}>Use Canva's view-only link (Share → Public view link), never the edit link.</p>
+        <p style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "0 2px 6px", lineHeight: 1.4 }}>Use Canva's view-only link (Share → Public view link), never the edit link — only the Feed Proposal keeps its edit link.</p>
         {f.map((k, i) => {
           const d = kitInfo(k.key)!;
+          const group = i === 0 || kitInfo(f[i - 1].key)?.kind !== d.kind ? (d.kind === "doc" ? "Sales documents · in order" : "Media kits") : "";
+          const urlDe = k.urlDe.trim();
           const st = kits.find(x => x.key === k.key);
           const p = st?.pdf ?? null;
           const url = k.url.trim();
           const meta = [st?.url && st.updatedAt ? `Link updated ${fmtD(st.updatedAt.slice(0, 10))}` : "", p && p.updatedAt ? `PDF ${fmtD(p.updatedAt.slice(0, 10))}` : ""].filter(Boolean).join(" · ");
           return (
             <div key={k.key}>
-              <SheetHead first={i === 0} icon={<Ico d={IC[k.key]} size={11} />} label={d.label} tone={toneOf(k.key)}
+              {group && <div style={{ ...SHEET_CAPS, margin: i === 0 ? "4px 2px 0" : "22px 2px 0", color: C.ink2, fontWeight: 600 }}>{group}</div>}
+              <SheetHead first={i === 0 && !group} icon={<Ico d={IC[k.key]} size={11} />} label={d.label} tone={toneOf(k.key)}
                 right={<TonedTag tone={d.account === "@lynnhoa" ? PAL.lynnhoa : PAL.neutral}>{d.account}</TonedTag>} />
               <div style={SHEET_CARD}>
-                <SheetRow first label="View link"
+                <SheetRow first label={d.open ? "Edit link" : d.de ? "EN link" : "View link"}
                   right={/^https?:\/\//i.test(url) ? <button onClick={() => window.open(url, "_blank", "noopener")} aria-label={`Open the ${d.label} link`} title="Open the link" style={ROW_ICON}><Ico d={IC.open} size={14} /></button> : null}>
-                  <LinkInput value={k.url} onChange={v => set(k.key, { url: v })} label={`${d.label} view link`} />
+                  <LinkInput value={k.url} onChange={v => set(k.key, { url: v })} label={`${d.label} ${d.open ? "edit" : d.de ? "EN" : "view"} link`} placeholder={d.open ? "Paste the edit link" : "Paste the view link"} />
                 </SheetRow>
-                <SheetRow label="PDF"
+                {d.de && (
+                  <SheetRow label="DE link"
+                    right={/^https?:\/\//i.test(urlDe) ? <button onClick={() => window.open(urlDe, "_blank", "noopener")} aria-label={`Open the ${d.label} DE link`} title="Open the link" style={ROW_ICON}><Ico d={IC.open} size={14} /></button> : null}>
+                    <LinkInput value={k.urlDe} onChange={v => set(k.key, { urlDe: v })} label={`${d.label} DE link`} placeholder="Paste the German view link" />
+                  </SheetRow>
+                )}
+                {!d.open && <SheetRow label="PDF"
                   right={busyKey === k.key ? null : p
                     ? <><PillBtn onClick={() => onShare(k.key)} s={pill}><Ico d={IC.share} size={13} />Share</PillBtn>
                         <MoreMenu size={30} items={[{ label: "Replace PDF", onClick: () => upload(k.key) }, { label: "Delete PDF", danger: true, onClick: () => setAskDel(k.key) }]} /></>
@@ -299,11 +413,11 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
                     {busyKey === k.key ? <span style={{ color: C.muted }}>Saving…</span>
                       : p ? <>{p.name} <span style={{ color: C.muted }}>· {fmtSize(p.size)}</span></> : <span style={{ color: C.light }}>No PDF yet</span>}
                   </span>
-                </SheetRow>
+                </SheetRow>}
                 <SheetRow label="File"><MiniInput bare value={k.file} placeholder="Canva file name" aria-label={`${d.label} Canva file`} onChange={(e: any) => set(k.key, { file: e.target.value })} /></SheetRow>
                 <SheetRow label="Focus"><MiniInput bare value={k.focus} placeholder="What it's for" aria-label={`${d.label} focus`} onChange={(e: any) => set(k.key, { focus: e.target.value })} /></SheetRow>
               </div>
-              {badKey === k.key && <div id={`kit-err-${k.key}`}><SheetMeta s={{ color: C.red }}>This isn't a view link yet — it must start with https:// (Canva → Share → Public view link).</SheetMeta></div>}
+              {badKey === k.key && <div id={`kit-err-${k.key}`}><SheetMeta s={{ color: C.red }}>This isn't a link yet — it must start with https:// (Canva → Share → Public view link).</SheetMeta></div>}
               {meta && <SheetMeta>{meta}</SheetMeta>}
             </div>
           );
@@ -375,11 +489,11 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
         {!isNew && (
           <SheetAction>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "0 2px 6px" }}>
-              <span style={SHEET_CAPS}>Media kit</span>
+              <span style={SHEET_CAPS}>Kit · deck or media kit</span>
               {pickPdf && <button onClick={() => onShare(pick!)} style={{ ...linkBtn, display: "inline-flex", alignItems: "center", gap: 4 }}><Ico d={IC.share} size={12} />Share PDF</button>}
             </div>
             <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
-              {KITS.map(d => <KitChip key={d.key} k={d.key} on={pick === d.key} onClick={() => setPick(d.key)} />)}
+              {TEMPLATE_KITS.map(d => <KitChip key={d.key} k={d.key} on={pick === d.key} onClick={() => setPick(d.key)} />)}
               <KitChip k={null} on={pick === null} onClick={() => setPick(null)} />
             </div>
             {pick && !urlOf(pick) && <p style={{ fontSize: SPACING.listMeta, color: C.amber, margin: "6px 2px 0" }}>No {kitInfo(pick)!.short} link yet · add it in Edit links.</p>}
@@ -411,7 +525,7 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
             <SheetRow label="Media kit">
               <MenuSelect bare value={f.kit || ""} aria-label="Media kit" onChange={(e: any) => { const v = (e.target.value || null) as KitKey | null; dr.setD(x => ({ ...x, kit: v })); }}>
                 <option value="">None</option>
-                {KITS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
+                {TEMPLATE_KITS.map(d => <option key={d.key} value={d.key}>{d.kind === "doc" ? `${d.label} (deck)` : d.label}</option>)}
               </MenuSelect>
             </SheetRow>
           )}
