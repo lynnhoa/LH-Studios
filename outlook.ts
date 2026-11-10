@@ -12,8 +12,8 @@
 //   {kit}     the template's media kit link (no {kit} → the link goes at the end)
 // ─────────────────────────────────────────────────────────────
 
-import { fillText, KIT_TOKEN } from "./useEmailKit";
-import type { EmailTemplate } from "./useEmailKit";
+import { fillText, KIT_TOKEN, kitLink } from "./useEmailKit";
+import type { EmailTemplate, TemplateLang } from "./useEmailKit";
 import { pipelineOf, ownTemplatesOf } from "./outreach";
 import type { Pitch } from "./outreach";
 
@@ -115,6 +115,6 @@ export function pickTemplate(list: EmailTemplate[], category: string, wantKind: 
 }
 // a template's kind as logged in the pitch log: a pitch, or a follow-up (Follow-up 1 and 2 are both follow-ups)
 export const logKind = (t: EmailTemplate): "pitch" | "follow_up" => (t.kind === "pitch" ? "pitch" : "follow_up");
-// a media kit's link from the Email kit ("" when it has none yet)
-export const kitUrlOf = (kits: { key: string; url?: string }[] | undefined, k: string | null) =>
-  (k ? String((kits || []).find(x => x.key === k)?.url || "").trim() : "");
+// a kit's link from the Email kit in the template's language ("" when it has none yet;
+// a German template without a German link gets the English one)
+export const kitUrlOf = (kits: { key: string; url?: string; urlDe?: string }[] | undefined, k: string | null, lang: TemplateLang = "en") => kitLink(kits, k, lang);

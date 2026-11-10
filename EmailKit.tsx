@@ -9,15 +9,18 @@
 //       Beauty (EN · DE), Content for Brands · Beauty (EN);
 //       2 · Lead to won — Feed Proposal (a Canva template: ↗ open only).
 //       EN / DE = copy that link · ↗ = open it in Canva.
-//     MEDIA KITS · TAP TO COPY
-//       4 slim tiles in one row (40 px), in the rate-card colours:
-//       Collab pink · Editorial butter · Hotels pistachio · UGC blue.
+//     MEDIA KITS
+//       the 4 kits as rows like the documents, in the rate-card colours
+//       (Collab pink · Editorial butter · Hotels pistachio · UGC blue): EN · DE · ↗.
+//     DE shows on the decks that have a German version, and on any other item
+//     as soon as its German link is pasted in Edit links.
 //   Templates ……… Sort · + Add
 //     grouped by purpose (chips when there's more than one purpose);
 //     each row: name · its kit (a deck or a media kit) · copy icon (copies
-//     the text with that kit's link). Tap a row = the template window.
+//     the text with that kit's link — a German template the DE link, else the
+//     EN one). Tap a row = the template window (Language: English / German).
 // Windows (one level, the app's sheet): Edit links (every document and kit:
-// link, German link for the decks, PDF, Canva file, focus) and a template.
+// EN link, DE link, PDF, Canva file, focus) and a template.
 // PDF per kit: uploaded / replaced / deleted in Edit links (saved right
 // away); Share = the phone's share sheet to attach it (computer: the
 // file opens). A small dot on a tile = this kit has a PDF.
@@ -32,8 +35,8 @@ import { copyText, OUTREACH_CATEGORIES, catOf } from "./outreach";
 import { showNote } from "./undo";
 import { BottomNav, NAV_SPACE } from "./BottomNav";
 import type { NavItem } from "./BottomNav";
-import { MEDIA_KITS, SALES_DOCS, SALES_STEPS, TEMPLATE_KITS, KIT_TOKEN, kitInfo, fillText, fmtSize, TEMPLATE_PIPELINES, TEMPLATE_KINDS, TEMPLATE_CHANNELS, kindLabel } from "./useEmailKit";
-import type { EmailKitHook, EmailTemplate, KitKey, MediaKit, KitDef } from "./useEmailKit";
+import { MEDIA_KITS, SALES_DOCS, SALES_STEPS, TEMPLATE_KITS, KIT_TOKEN, kitInfo, kitLink, fillText, fmtSize, TEMPLATE_PIPELINES, TEMPLATE_KINDS, TEMPLATE_CHANNELS, TEMPLATE_LANGS, kindLabel } from "./useEmailKit";
+import type { EmailKitHook, EmailTemplate, KitKey, MediaKit, KitDef, TemplateLang } from "./useEmailKit";
 
 const Ico = ({ d, size = 14, color = "currentColor" }: { d: string; size?: number; color?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d={d} /></svg>
@@ -107,18 +110,23 @@ const StepBand = ({ step, first }: { step: 1 | 2; first: boolean }) => {
     </div>
   );
 };
-// EN / DE: copy that link (dashed while it has none)
-const LangPill = ({ lang, has, tone, label, onClick }: { lang: string; has: boolean; tone: ToneSet; label: string; onClick: () => void }) => (
+type Lang = "EN" | "DE";
+// does this item show a DE button: a German version exists, or its German link is in
+const hasDe = (d: KitDef, k: MediaKit | undefined) => !!d.de || !!k?.urlDe?.trim();
+// EN / DE: copy that link (dashed while it has none) — on the Feed Proposal: open that version
+const LangPill = ({ lang, has, tone, label, open, onClick }: { lang: Lang; has: boolean; tone: ToneSet; label: string; open?: boolean; onClick: () => void }) => (
   <button type="button" onClick={onClick} aria-label={label} title={has ? label : "No link yet"}
     style={{ height: 30, minWidth: 38, padding: "0 8px", borderRadius: RADIUS.pill, border: `1px ${has ? "solid" : "dashed"} ${tone.mid}`, background: has ? tone.wash : C.white,
-      color: tone.ink, fontFamily: SANS, fontSize: TYPE.subtext.size, fontWeight: 600, cursor: "copy", WebkitTapHighlightColor: "transparent" }}>{lang}</button>
+      color: tone.ink, fontFamily: SANS, fontSize: TYPE.subtext.size, fontWeight: 600, cursor: open ? "pointer" : "copy", WebkitTapHighlightColor: "transparent" }}>{lang}</button>
 );
-// one document: icon · name · its line · EN / DE · ↗
-function DocRow({ d, k, onCopy, onOpen }: { d: KitDef; k: MediaKit | undefined; onCopy: (lang: "EN" | "DE") => void; onOpen: () => void }) {
+// one document or media kit: icon · name · its line · EN / DE (copy) · ↗ (open in Canva).
+// The Feed Proposal (open only): ↗ — or EN / DE that open, once it has a German link.
+function KitRow({ d, k, first, onCopy, onOpen }: { d: KitDef; k: MediaKit | undefined; first?: boolean; onCopy: (lang: Lang) => void; onOpen: (lang: Lang) => void }) {
   const t = toneOf(d.key);
+  const de = hasDe(d, k);
   const meta = [k?.focus || d.focus, d.account === "@lynnhoa" ? "@lynnhoa" : ""].filter(Boolean).join(" · ");
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 56, padding: "8px 10px 8px 12px", borderTop: `1px solid ${C.hair}` }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 56, padding: "8px 10px 8px 12px", borderTop: first ? "none" : `1px solid ${C.hair}` }}>
       <span style={{ position: "relative" as const, width: 32, height: 32, borderRadius: "50%", background: t.wash, color: t.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <Ico d={IC[d.key]} size={16} />
         {k?.pdf && <span aria-label="Has a PDF" title="Has a PDF" style={{ position: "absolute" as const, top: 1, right: 1, width: 6, height: 6, borderRadius: "50%", background: t.mid, border: `1.5px solid ${C.white}` }} />}
@@ -128,17 +136,27 @@ function DocRow({ d, k, onCopy, onOpen }: { d: KitDef; k: MediaKit | undefined; 
         <span style={{ display: "block", fontSize: SPACING.listMeta, color: C.muted, lineHeight: 1.35, marginTop: 1 }}>{meta}</span>
       </span>
       <span style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-        {!d.open && <LangPill lang="EN" has={!!k?.url} tone={t} label={`Copy the ${d.short} EN link`} onClick={() => onCopy("EN")} />}
-        {!d.open && d.de && <LangPill lang="DE" has={!!k?.urlDe} tone={t} label={`Copy the ${d.short} DE link`} onClick={() => onCopy("DE")} />}
-        <button type="button" onClick={onOpen} aria-label={`Open ${d.label} in Canva`} title="Open in Canva"
-          style={{ width: 30, height: 30, borderRadius: "50%", border: `1px ${k?.url ? "solid" : "dashed"} ${k?.url ? C.edge : t.mid}`, background: C.white, color: C.ink2,
-            display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, cursor: "pointer", WebkitTapHighlightColor: "transparent" }}>
-          <Ico d={IC.open} size={14} />
-        </button>
+        {d.open && de
+          ? <>
+              <LangPill open lang="EN" has={!!k?.url} tone={t} label={`Open the ${d.label} EN in Canva`} onClick={() => onOpen("EN")} />
+              <LangPill open lang="DE" has={!!k?.urlDe} tone={t} label={`Open the ${d.label} DE in Canva`} onClick={() => onOpen("DE")} />
+            </>
+          : <>
+              {!d.open && <LangPill lang="EN" has={!!k?.url} tone={t} label={`Copy the ${d.short} EN link`} onClick={() => onCopy("EN")} />}
+              {!d.open && de && <LangPill lang="DE" has={!!k?.urlDe} tone={t} label={`Copy the ${d.short} DE link`} onClick={() => onCopy("DE")} />}
+              <OpenBtn has={!!k?.url} tone={t} label={`Open ${d.label} in Canva`} onClick={() => onOpen("EN")} />
+            </>}
       </span>
     </div>
   );
 }
+const OpenBtn = ({ has, tone, label, onClick }: { has: boolean; tone: ToneSet; label: string; onClick: () => void }) => (
+        <button type="button" onClick={onClick} aria-label={label} title="Open in Canva"
+          style={{ width: 30, height: 30, borderRadius: "50%", border: `1px ${has ? "solid" : "dashed"} ${has ? C.edge : tone.mid}`, background: C.white, color: C.ink2,
+            display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, cursor: "pointer", WebkitTapHighlightColor: "transparent", flexShrink: 0 }}>
+          <Ico d={IC.open} size={14} />
+        </button>
+);
 
 interface EmailKitProps { kit: EmailKitHook; isMobile: boolean; }
 
@@ -156,26 +174,30 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
   const [purpose, setPurpose]     = useState<string>("all");
 
   const kitOf = (k: KitKey) => kits.find(x => x.key === k);
-  const urlOf = (k: KitKey | null) => (k ? kitOf(k)?.url || "" : "");
+  // the link of a template's language (German: the DE link, else the EN one)
+  const linkOf = (k: KitKey | null, lang: TemplateLang = "en") => kitLink(kits, k, lang);
   const copy = async (text: string, msg: string) => { const ok = await copyText(text); showNote(ok ? msg : "Couldn't copy"); };
-  const copyKit = (k: KitKey, lang: "EN" | "DE" = "EN") => {
-    const d = kitInfo(k)!, url = lang === "DE" ? kitOf(k)?.urlDe || "" : urlOf(k);
-    const name = d.de ? `${d.short} ${lang}` : d.short;
+  const nameOf = (k: KitKey, lang: Lang) => { const d = kitInfo(k)!; return hasDe(d, kitOf(k)) ? `${d.short} ${lang}` : d.short; };
+  const urlIn = (k: KitKey, lang: Lang) => String((lang === "DE" ? kitOf(k)?.urlDe : kitOf(k)?.url) || "").trim();
+  const copyKit = (k: KitKey, lang: Lang = "EN") => {
+    const url = urlIn(k, lang), name = nameOf(k, lang);
     if (!url) { showNote(`Add the ${name} link first · Edit links`); return; }
     copy(url, `${name} link copied ✓`);
   };
-  const openKit = (k: KitKey) => {
-    const url = urlOf(k);
-    if (!/^https?:\/\//i.test(url)) { showNote(`Add the ${kitInfo(k)!.short} link first · Edit links`); return; }
+  const openKit = (k: KitKey, lang: Lang = "EN") => {
+    const url = urlIn(k, lang);
+    if (!/^https?:\/\//i.test(url)) { showNote(`Add the ${nameOf(k, lang)} link first · Edit links`); return; }
     window.open(url, "_blank", "noopener");
   };
   const sharePdf = (k: KitKey) => {
     kit.sharePdf(k).then(r => { if (r === "shared") showNote("PDF shared ✓"); }).catch((e: any) => showNote(e?.message || "The PDF couldn't be opened."));
   };
   const copyTemplate = (t: EmailTemplate, k: KitKey | null) => {
-    if (k && !urlOf(k)) { showNote(`Add the ${kitInfo(k)!.short} link first · Edit links`); return; }
+    const url = linkOf(k, t.lang);
+    if (k && !url) { showNote(`Add the ${kitInfo(k)!.short} link first · Edit links`); return; }
     if (!t.body.trim()) { showNote("This template has no text yet"); return; }
-    copy(fillText(t.body, k ? urlOf(k) : null), "Text copied ✓");
+    const enInstead = !!k && t.lang === "de" && !kitOf(k)?.urlDe?.trim();   // a German text, no German link yet
+    copy(fillText(t.body, k ? url : null), enInstead ? "Text copied ✓ · with the EN link (no DE link yet)" : "Text copied ✓");
   };
 
   const purposes = useMemo(() => Array.from(new Set(templates.map(t => t.purpose.trim() || NO_PURPOSE))).sort((a, b) => a.localeCompare(b, "de")), [templates]);
@@ -213,31 +235,19 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
               <div key={st.step}>
                 <StepBand step={st.step} first={si === 0} />
                 {SALES_DOCS.filter(d => d.step === st.step).map(d => (
-                  <DocRow key={d.key} d={d} k={kitOf(d.key)} onCopy={lang => copyKit(d.key, lang)} onOpen={() => openKit(d.key)} />
+                  <KitRow key={d.key} d={d} k={kitOf(d.key)} onCopy={lang => copyKit(d.key, lang)} onOpen={lang => openKit(d.key, lang)} />
                 ))}
               </div>
             ))}
           </ListCard>
 
-          {/* ── MEDIA KITS: 4 slim tiles, tap = copy ── */}
-          <SectionHead label="Media kits · tap to copy" />
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6 }}>
-            {MEDIA_KITS.map(d => {
-              const t = toneOf(d.key);
-              const has = !!urlOf(d.key);
-              const hasPdf = !!kitOf(d.key)?.pdf;
-              return (
-                <button key={d.key} onClick={() => copyKit(d.key)} aria-label={`Copy the ${d.label} link`} title={has ? `Copy the ${d.label} link` : "No link yet"}
-                  style={{ height: 40, minWidth: 0, boxSizing: "border-box" as const, padding: "0 6px", borderRadius: RADIUS.tile, cursor: "copy",
-                    border: has ? `1px solid ${C.line}` : `1px dashed ${t.mid}`, background: t.wash, color: t.ink, fontFamily: SANS, fontSize: TYPE.subtext.size,
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 5, WebkitTapHighlightColor: "transparent", position: "relative" as const }}>
-                  {hasPdf && <span aria-label="Has a PDF" title="Has a PDF" style={{ position: "absolute", top: 5, right: 5, width: 5, height: 5, borderRadius: "50%", background: t.mid }} />}
-                  <span style={{ width: 18, height: 18, borderRadius: "50%", background: C.white, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={IC[d.key]} size={11} /></span>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{d.short}</span>
-                </button>
-              );
-            })}
-          </div>
+          {/* ── MEDIA KITS: rows like the documents · EN / DE copy, ↗ opens ── */}
+          <SectionHead label="Media kits" />
+          <ListCard s={{ marginTop: 0 }}>
+            {MEDIA_KITS.map((d, i) => (
+              <KitRow key={d.key} first={i === 0} d={d} k={kitOf(d.key)} onCopy={lang => copyKit(d.key, lang)} onOpen={lang => openKit(d.key, lang)} />
+            ))}
+          </ListCard>
         </>
       )}
 
@@ -257,7 +267,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
                 {templates.map((t, i) => (
                   <Row key={t.id} first={i === 0} chevron={false}
                     title={t.name || "Untitled"}
-                    meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"} · {kindLabel(t.kind)} · Kit: {kitName(t)}</>}
+                    meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"}{t.lang === "de" ? " · DE" : ""} · {kindLabel(t.kind)} · Kit: {kitName(t)}</>}
                     right={<span style={{ display: "inline-flex", gap: 6 }}>
                       <MoveBtn dir="up" label={`Move ${t.name || "this template"} up`} off={i === 0} onClick={() => move(i, -1)} />
                       <MoveBtn dir="down" label={`Move ${t.name || "this template"} down`} off={i === templates.length - 1} onClick={() => move(i, 1)} />
@@ -289,7 +299,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
                       {list.map((t, i) => (
                         <Row key={t.id} first={i === 0} chevron={false} onClick={() => setOpenId(t.id)}
                           title={t.name || "Untitled"}
-                          meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"}{t.channel === "dm" ? " · DM" : ""} · {kindLabel(t.kind)} · {catsText(t)} · Kit: {kitName(t)}</>}
+                          meta={<>{t.pipeline === "ugc" ? "UGC" : "@lynnhoa"}{t.lang === "de" ? " · DE" : ""}{t.channel === "dm" ? " · DM" : ""} · {kindLabel(t.kind)} · {catsText(t)} · Kit: {kitName(t)}</>}
                           right={<CopyBtn label={`Copy ${t.name || "the text"}`} onClick={() => copyTemplate(t, t.kit)} />} />
                       ))}
                     </ListCard>
@@ -308,8 +318,8 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
       {editLinks && <LinksWindow kit={kit} onShare={sharePdf} onClose={() => setEditLinks(false)} />}
       {/* one window: after Add template the same window becomes the saved template (no close + reopen blink) */}
       {(current || adding) && (
-        <TemplateWindow key="template" isNew={!current} t={current || { id: "", name: "", purpose: purpose !== "all" && purpose !== NO_PURPOSE ? purpose : "", subject: "", body: "", kit: null, createdAt: "", pipeline: "lynnhoa", kind: "pitch", categories: [], sortOrder: null, channel: "email" }}
-          kit={kit} purposes={purposes} urlOf={urlOf} onCopy={copyTemplate} onShare={sharePdf} onCopySubject={(s) => copy(s, "Subject copied ✓")}
+        <TemplateWindow key="template" isNew={!current} t={current || { id: "", name: "", purpose: purpose !== "all" && purpose !== NO_PURPOSE ? purpose : "", subject: "", body: "", kit: null, createdAt: "", pipeline: "lynnhoa", kind: "pitch", categories: [], sortOrder: null, channel: "email", lang: "en" }}
+          kit={kit} purposes={purposes} linkOf={linkOf} onCopy={copyTemplate} onShare={sharePdf} onCopySubject={(s) => copy(s, "Subject copied ✓")}
           onClose={() => { setOpenId(null); setAdding(false); }} onCreated={(id) => { setAdding(false); setOpenId(id); }} />
       )}
     </div>
@@ -318,7 +328,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
 
 // ── Edit links: every document and kit in one window — one level, the fields are the view (like Contact) ──
 // Sales documents (in order), then Media kits. Each: its section head (colour · name · account) and a card:
-// View link (↗ opens it) · DE link (the decks) · PDF (Share, ⋯ Replace / Delete — or Upload PDF; saved right
+// EN link (↗ opens it) · DE link (every item; empty until there's a German version) · PDF (Share, ⋯ Replace / Delete — or Upload PDF; saved right
 // away) · File · Focus; "Link updated …" under it. The Feed Proposal is a Canva template: its edit link
 // (the manager makes a copy per brand), no PDF.
 // Footer: Done → Save as soon as you type (the window stays open); ✕ with unsaved typing asks first.
@@ -394,16 +404,16 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
               <SheetHead first={i === 0 && !group} icon={<Ico d={IC[k.key]} size={11} />} label={d.label} tone={toneOf(k.key)}
                 right={<TonedTag tone={d.account === "@lynnhoa" ? PAL.lynnhoa : PAL.neutral}>{d.account}</TonedTag>} />
               <div style={SHEET_CARD}>
-                <SheetRow first label={d.open ? "Edit link" : d.de ? "EN link" : "View link"}
-                  right={/^https?:\/\//i.test(url) ? <button onClick={() => window.open(url, "_blank", "noopener")} aria-label={`Open the ${d.label} link`} title="Open the link" style={ROW_ICON}><Ico d={IC.open} size={14} /></button> : null}>
-                  <LinkInput value={k.url} onChange={v => set(k.key, { url: v })} label={`${d.label} ${d.open ? "edit" : d.de ? "EN" : "view"} link`} placeholder={d.open ? "Paste the edit link" : "Paste the view link"} />
+                <SheetRow first label={d.open ? "Edit link" : "EN link"}
+                  right={/^https?:\/\//i.test(url) ? <button onClick={() => window.open(url, "_blank", "noopener")} aria-label={`Open the ${d.label} EN link`} title="Open the link" style={ROW_ICON}><Ico d={IC.open} size={14} /></button> : null}>
+                  <LinkInput value={k.url} onChange={v => set(k.key, { url: v })} label={`${d.label} ${d.open ? "edit" : "EN"} link`} placeholder={d.open ? "Paste the edit link" : "Paste the view link"} />
                 </SheetRow>
-                {d.de && (
-                  <SheetRow label="DE link"
-                    right={/^https?:\/\//i.test(urlDe) ? <button onClick={() => window.open(urlDe, "_blank", "noopener")} aria-label={`Open the ${d.label} DE link`} title="Open the link" style={ROW_ICON}><Ico d={IC.open} size={14} /></button> : null}>
-                    <LinkInput value={k.urlDe} onChange={v => set(k.key, { urlDe: v })} label={`${d.label} DE link`} placeholder="Paste the German view link" />
-                  </SheetRow>
-                )}
+                {/* every item has room for its German version; empty = no DE button (the decks with a German version show it dashed) */}
+                <SheetRow label={d.open ? "DE edit link" : "DE link"}
+                  right={/^https?:\/\//i.test(urlDe) ? <button onClick={() => window.open(urlDe, "_blank", "noopener")} aria-label={`Open the ${d.label} DE link`} title="Open the link" style={ROW_ICON}><Ico d={IC.open} size={14} /></button> : null}>
+                  <LinkInput value={k.urlDe} onChange={v => set(k.key, { urlDe: v })} label={`${d.label} DE link`}
+                    placeholder={d.de ? (d.open ? "Paste the German edit link" : "Paste the German view link") : "German version · when there is one"} />
+                </SheetRow>
                 {!d.open && <SheetRow label="PDF"
                   right={busyKey === k.key ? null : p
                     ? <><PillBtn onClick={() => onShare(k.key)} s={pill}><Ico d={IC.share} size={13} />Share</PillBtn>
@@ -433,9 +443,9 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
 // Footer: Done → Save as soon as you type (stays open) · a new template: Add template (opens as itself).
 // the template's fields you type (the kit is picked in the top card and saved at once — a new template types it too)
 const tplTyped = (x: EmailTemplate, withKit: boolean) => ({ name: x.name, purpose: x.purpose, subject: x.subject, body: x.body, pipeline: x.pipeline, kind: x.kind,
-  channel: x.channel, categories: [...(x.categories || [])].sort(), ...(withKit ? { kit: x.kit } : {}) });
-function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubject, onClose, onCreated, isNew }: {
-  t: EmailTemplate; kit: EmailKitHook; purposes: string[]; urlOf: (k: KitKey | null) => string;
+  channel: x.channel, lang: x.lang, categories: [...(x.categories || [])].sort(), ...(withKit ? { kit: x.kit } : {}) });
+function TemplateWindow({ t, kit, purposes, linkOf, onCopy, onShare, onCopySubject, onClose, onCreated, isNew }: {
+  t: EmailTemplate; kit: EmailKitHook; purposes: string[]; linkOf: (k: KitKey | null, lang?: TemplateLang) => string;
   onCopy: (t: EmailTemplate, k: KitKey | null) => void; onShare: (k: KitKey) => void; onCopySubject: (s: string) => void;
   onClose: () => void; onCreated?: (id: string) => void; isNew?: boolean;
 }) {
@@ -496,7 +506,8 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
               {TEMPLATE_KITS.map(d => <KitChip key={d.key} k={d.key} on={pick === d.key} onClick={() => setPick(d.key)} />)}
               <KitChip k={null} on={pick === null} onClick={() => setPick(null)} />
             </div>
-            {pick && !urlOf(pick) && <p style={{ fontSize: SPACING.listMeta, color: C.amber, margin: "6px 2px 0" }}>No {kitInfo(pick)!.short} link yet · add it in Edit links.</p>}
+            {pick && !linkOf(pick, f.lang) && <p style={{ fontSize: SPACING.listMeta, color: C.amber, margin: "6px 2px 0" }}>No {kitInfo(pick)!.short} link yet · add it in Edit links.</p>}
+            {pick && f.lang === "de" && !!linkOf(pick, "en") && !kit.kits.find(k => k.key === pick)?.urlDe?.trim() && <p style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "6px 2px 0" }}>No {kitInfo(pick)!.short} DE link yet · the EN link goes in.</p>}
             <PillBtn dark onClick={() => onCopy(f, pick)} s={{ width: "100%", height: 32, marginTop: 8, justifyContent: "center", fontSize: TYPE.subtext.size }}><Ico d={IC.copy} size={14} />Copy text</PillBtn>
           </SheetAction>
         )}
@@ -519,6 +530,11 @@ function TemplateWindow({ t, kit, purposes, urlOf, onCopy, onShare, onCopySubjec
           <SheetRow label="Channel">
             <MenuSelect bare value={f.channel || "email"} aria-label="Channel" onChange={sel("channel")}>
               {TEMPLATE_CHANNELS.map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
+            </MenuSelect>
+          </SheetRow>
+          <SheetRow label="Language">
+            <MenuSelect bare value={f.lang || "en"} aria-label="Language" onChange={sel("lang")}>
+              {TEMPLATE_LANGS.map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
             </MenuSelect>
           </SheetRow>
           {isNew && (

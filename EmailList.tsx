@@ -202,7 +202,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
     const tpl = list.find(t => t.id === pickTemplate(list, c.category, nextKind(c) || "follow_up_2", outreach.pitches || []));
     if (!tpl) { showNote(dm ? "No DM template yet — add one in Email kit (Channel: Instagram DM)" : noTemplateText(c.category)); return; }
     if (!tpl.body.trim()) { showNote("This template has no text yet — add it in Email kit"); return; }
-    const url = kitUrlOf(kit?.kits, tpl.kit);
+    const url = kitUrlOf(kit?.kits, tpl.kit, tpl.lang);
     if (tpl.kit && !url) { showNote(`Add the ${kitInfo(tpl.kit)!.short} link in Email kit first`); return; }
     const mail = fillFor(tpl, c, url || null);
     const before = [{ id: c.id, status: c.status, lastContact: c.lastContact }];
@@ -805,7 +805,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
   const [tplId, setTplId] = useState(preselect);
   useEffect(() => { setTplId(preselect); }, [preselect]);
   const tpl = tpls.find(t => t.id === tplId) || null;
-  const kitUrl = (k: string | null) => kitUrlOf(kit?.kits, k);
+  const kitUrl = (k: string | null) => kitUrlOf(kit?.kits, k, tpl?.lang);
   const willPitch = tpl?.kind === "pitch" && statusAfterPitch(c.status) !== c.status;
   const tplAcc = tpl ? accountOfTemplate(tpl) : accKey;            // the account this pitch counts for
 
