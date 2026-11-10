@@ -1,11 +1,13 @@
 // ─────────────────────────────────────────────────────────────
 // useEmailKit — Outreach › Email kit
-//   email_kits       the 4 media kits (Canva view links), one row per kit
+//   email_kits       one row per document (Canva links): the 4 sales documents
+//                    in the order of the sales process, then the 4 media kits
 //   email_templates  email texts to copy (purpose, subject, text, kit)
-// The 4 kits are added by the app itself the first time (empty links).
+// The rows are added by the app itself the first time (empty links).
 // Nothing is sent from here: everything is only copied.
 // Each kit can also hold ONE PDF (private file store, bucket media-kits,
 // <your id>/<kit>/<time>.pdf) — to attach, never as a public link.
+// The pitch decks also have a German link (url_de).
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from "react";
@@ -16,22 +18,46 @@ import { isMobileDevice } from "./PDFExport";
 export const KIT_BUCKET = "media-kits";
 export const KIT_PDF_MAX = 20 * 1024 * 1024;   // 20 MB, the same limit as the signed contracts
 
-// key = the rate-card key, so each kit has the same colour as in the Service Catalog
-export type KitKey = "influencer" | "editorial" | "hotels" | "ugc";
+// media kits: key = the rate-card key, so each kit has the same colour as in the Service Catalog
+export type MediaKey = "influencer" | "editorial" | "hotels" | "ugc";
+// sales documents, in the order of the sales process (Project plan: 1 Pitching · 2 Lead to won)
+export type DocKey = "pitch_fashion" | "pitch_beauty" | "pitch_content" | "proposal";
+export type KitKey = MediaKey | DocKey;
 
-export const KITS: { key: KitKey; short: string; label: string; account: string; focus: string; file: string }[] = [
-  { key: "influencer", short: "Collab",    label: "Brand collab",          account: "@lynnhoa", focus: "Fashion, Beauty & Lifestyle", file: "LH-COLLAB" },
-  { key: "editorial",  short: "Editorial", label: "Editorial",             account: "@lynnhoa", focus: "Fashion, Beauty & Lifestyle", file: "LH-EDIT"   },
-  { key: "hotels",     short: "Hotels",    label: "Hotels & Restaurants",  account: "@lynnhoa", focus: "Hospitality",                 file: "LH-HOSP"   },
-  { key: "ugc",        short: "UGC",       label: "UGC",                   account: "General",  focus: "Fashion & Beauty",            file: "UGC"       },
+export interface KitDef {
+  key: KitKey; short: string; label: string; account: string; focus: string; file: string;
+  kind: "doc" | "media";
+  step?: 1 | 2;     // the sales step a document belongs to
+  meta?: string;    // the line under a document's name
+  de?: boolean;     // has a German version (its own link)
+  open?: boolean;   // open only (a Canva template to copy per brand): no copy, no PDF, not for templates
+}
+export const KITS: KitDef[] = [
+  { key: "pitch_fashion", short: "Fashion deck", label: "Partnerships · Fashion",      account: "@lynnhoa", focus: "Pitch deck · normal collabs",               file: "Lynn Hoa · Partnerships · Fashion",       kind: "doc", step: 1, de: true },
+  { key: "pitch_beauty",  short: "Beauty deck",  label: "Partnerships · Beauty",       account: "@lynnhoa", focus: "Pitch deck · normal collabs",               file: "Lynn Hoa · Partnerships · Beauty",        kind: "doc", step: 1, de: true },
+  { key: "pitch_content", short: "Content deck", label: "Content for Brands · Beauty", account: "General",  focus: "Pitch deck · content production for brands", file: "Lynn Hoa · Content for Brands · Beauty", kind: "doc", step: 1 },
+  { key: "proposal",      short: "Proposal",     label: "Feed Proposal",               account: "General",  focus: "Template · a copy per brand in Canva",      file: "Feed Proposal · [Brand] · Template",      kind: "doc", step: 2, open: true },
+  { key: "influencer", short: "Collab",    label: "Brand collab",          account: "@lynnhoa", focus: "Fashion, Beauty & Lifestyle", file: "LH-COLLAB", kind: "media" },
+  { key: "editorial",  short: "Editorial", label: "Editorial",             account: "@lynnhoa", focus: "Fashion, Beauty & Lifestyle", file: "LH-EDIT",   kind: "media" },
+  { key: "hotels",     short: "Hotels",    label: "Hotels & Restaurants",  account: "@lynnhoa", focus: "Hospitality",                 file: "LH-HOSP",   kind: "media" },
+  { key: "ugc",        short: "UGC",       label: "UGC",                   account: "General",  focus: "Fashion & Beauty",            file: "UGC",       kind: "media" },
 ];
 export const kitInfo = (k?: string | null) => KITS.find(x => x.key === k);
+export const MEDIA_KITS = KITS.filter(k => k.kind === "media");
+export const SALES_DOCS = KITS.filter(k => k.kind === "doc");
+// what a template can send: the decks and the media kits (not the proposal template)
+export const TEMPLATE_KITS = KITS.filter(k => !k.open);
+// the sales steps the documents sit under (Project plan)
+export const SALES_STEPS: { step: 1 | 2; label: string; who: string }[] = [
+  { step: 1, label: "1 · Pitching",    who: "Pitch · Manager · mail or DM" },
+  { step: 2, label: "2 · Lead to won", who: "Proposal" },
+];
 
 // where the link goes inside a template text
 export const KIT_TOKEN = "{kit}";
 
 export interface KitPdf { path: string; name: string; size: number; updatedAt: string; }
-export interface MediaKit { key: KitKey; url: string; file: string; focus: string; updatedAt: string; pdf: KitPdf | null; }
+export interface MediaKit { key: KitKey; url: string; urlDe: string; file: string; focus: string; updatedAt: string; pdf: KitPdf | null; }
 // pipeline: whose contacts it's for (UGC → @createbylynn, else @lynnhoa) · kind: a first pitch or a follow-up
 export type TemplatePipeline = "lynnhoa" | "ugc";
 export type TemplateKind = "pitch" | "follow_up" | "follow_up_2";   // follow_up = Follow-up 1
@@ -49,7 +75,7 @@ export const kindLabel = (k: string) => TEMPLATE_KINDS.find(x => x.key === k)?.l
 
 const rowToKit = (r: any): MediaKit => {
   const d = kitInfo(r.key)!;
-  return { key: r.key, url: r.url ?? "", file: r.canva_file ?? d.file, focus: r.focus ?? d.focus, updatedAt: r.updated_at ?? "",
+  return { key: r.key, url: r.url ?? "", urlDe: r.url_de ?? "", file: r.canva_file ?? d.file, focus: r.focus ?? d.focus, updatedAt: r.updated_at ?? "",
     pdf: r.pdf_path ? { path: r.pdf_path, name: r.pdf_name || "Media kit.pdf", size: Number(r.pdf_size) || 0, updatedAt: r.pdf_updated_at ?? "" } : null };
 };
 const rowToTpl = (r: any): EmailTemplate => ({
@@ -101,7 +127,7 @@ export function useEmailKit(userId: string | null) {
     }
     setLoadError(null);
     let rows: any[] = k.data || [];
-    // first time: add the 4 kits (empty links)
+    // first time: add the kits and documents (empty links)
     const missingKits = KITS.filter(d => !rows.some(r => r.key === d.key));
     if (missingKits.length) {
       const add = missingKits.map(d => ({ user_id: userId, key: d.key, canva_file: d.file, focus: d.focus, url: "" }));
@@ -116,20 +142,23 @@ export function useEmailKit(userId: string | null) {
   useEffect(() => { load(); }, [load]);
   useEffect(() => registerReloader(() => { load(); }), [load]);
 
-  // the "Edit links" window saves all 4 kits at once
+  // the "Edit links" window saves all kits at once (the German link only when it changed:
+  // the column comes with the sales documents SQL)
   const saveKits = useCallback(async (next: MediaKit[]) => {
     const now = new Date().toISOString();
     const changed = next.filter(n => {
       const o = kits.find(x => x.key === n.key);
-      return !o || o.url !== n.url.trim() || o.file !== n.file.trim() || o.focus !== n.focus.trim();
+      return !o || o.url !== n.url.trim() || o.urlDe !== n.urlDe.trim() || o.file !== n.file.trim() || o.focus !== n.focus.trim();
     });
     for (const n of changed) {
-      const { error } = await supabase.from("email_kits")
-        .update({ url: n.url.trim(), canva_file: n.file.trim(), focus: n.focus.trim(), updated_at: now })
-        .eq("user_id", userId).eq("key", n.key);
+      const o = kits.find(x => x.key === n.key);
+      const row: any = { url: n.url.trim(), canva_file: n.file.trim(), focus: n.focus.trim(), updated_at: now };
+      if (!o || o.urlDe !== n.urlDe.trim()) row.url_de = n.urlDe.trim();
+      const { error } = await supabase.from("email_kits").update(row).eq("user_id", userId).eq("key", n.key);
+      if (error && /url_de/.test(error.message || "")) throw new Error("The German links need the sales documents SQL — run it in Supabase once.");
       fail(error);
     }
-    if (changed.length) setKits(prev => prev.map(p => { const c = changed.find(x => x.key === p.key); return c ? { ...p, url: c.url.trim(), file: c.file.trim(), focus: c.focus.trim(), updatedAt: now } : p; }));
+    if (changed.length) setKits(prev => prev.map(p => { const c = changed.find(x => x.key === p.key); return c ? { ...p, url: c.url.trim(), urlDe: c.urlDe.trim(), file: c.file.trim(), focus: c.focus.trim(), updatedAt: now } : p; }));
   }, [kits, userId]);
 
   // ── PDFs ─────────────────────────────────────────────────────

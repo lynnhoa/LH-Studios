@@ -1,3 +1,19 @@
+# Outreach › Email kit: two pages + sales documents in order (10.11.2026)
+- Two pages in a bottom bar like Planner › Concept's, centred because there are only two: Kits (peach) ·
+  Templates (blue). The page you were on is remembered on this device.
+- Kits: SALES DOCUMENTS · IN ORDER on top, in the order of the sales process (Project plan):
+  1 · Pitching — Partnerships · Fashion (EN · DE), Partnerships · Beauty (EN · DE), Content for Brands ·
+  Beauty (EN); 2 · Lead to won — Feed Proposal (the Canva template: ↗ open only, the manager makes a copy per
+  brand). EN / DE copy that link, ↗ opens it in Canva. Under it the 4 media kits as before (tap = copy).
+- Templates: the list as before (Sort · + Add). A template's kit can now also be a pitch deck.
+- Edit links: Sales documents first (EN link + DE link for the decks, the proposal's edit link), then the
+  media kits; PDF, File and Focus as before.
+- The bottom bar is one shared component now (`BottomNav.tsx`), used by Planner › Concept and Email kit.
+- Data: run `LH-Studio-email-kit-docs.sql` once (safe to rerun): adds the German link column, allows the
+  new kit keys, adds the 4 documents and puts in all 8 Canva links (the 4 media kits too). In Canva each
+  design must be shared "Anyone with the link can view".
+- Changed: `EmailKit.tsx`, `useEmailKit.ts`, `PlannerConcept.tsx`. New: `BottomNav.tsx`, `LH-Studio-email-kit-docs.sql`.
+
 # Planner › Manager: New girls under Engaging (09.11.2026)
 - New line right under Engaging: New girls — the same 7 day boxes (today outlined), but you type how
   many new girls you found that day (saved when you leave the box). The week adds up on its own
