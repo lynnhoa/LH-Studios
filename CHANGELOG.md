@@ -8,7 +8,8 @@
   in Contacts when you write from a contact. The list shows "DE" on German templates.
 - Data: run `LH-Studio-email-kit-german.sql` once (safe to rerun; adds the template language).
   `LH-Studio-email-kit-docs.sql` no longer puts in links (the first version's Canva API links are temporary
-  and only open for you): a rerun never touches your links. Paste the public view links in Edit links.
+  and only open for you): a rerun never touches your links. Replace all 8 links in Edit links (the 4 media
+  kits too) with Canva's public view links.
 - Changed: `EmailKit.tsx`, `useEmailKit.ts`, `outlook.ts`, `EmailList.tsx`, `LH-Studio-email-kit-docs.sql`.
   New: `LH-Studio-email-kit-german.sql`.
 

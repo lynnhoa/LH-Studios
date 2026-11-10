@@ -203,7 +203,7 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
     if (!tpl) { showNote(dm ? "No DM template yet — add one in Email kit (Channel: Instagram DM)" : noTemplateText(c.category)); return; }
     if (!tpl.body.trim()) { showNote("This template has no text yet — add it in Email kit"); return; }
     const url = kitUrlOf(kit?.kits, tpl.kit, tpl.lang);
-    if (tpl.kit && !url) { showNote(`Add the ${kitInfo(tpl.kit)!.short} link in Email kit first`); return; }
+    if (tpl.kit && !url) { showNote(`Add the ${kitInfo(tpl.kit)!.short}${tpl.lang === "de" ? "" : " EN"} link in Email kit first`); return; }
     const mail = fillFor(tpl, c, url || null);
     const before = [{ id: c.id, status: c.status, lastContact: c.lastContact }];
     // the save starts first, then your mail app opens in the same tap
@@ -813,7 +813,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
     setErr(null);
     if (!tpl) return;
     if (!tpl.body.trim()) { setErr("This template has no text yet — add it in Email kit."); return; }
-    if (tpl.kit && !kitUrl(tpl.kit)) { setErr(`Add the ${kitInfo(tpl.kit)!.short} link in Email kit first.`); return; }
+    if (tpl.kit && !kitUrl(tpl.kit)) { setErr(`Add the ${kitInfo(tpl.kit)!.short}${tpl.lang === "de" ? "" : " EN"} link in Email kit first.`); return; }
     const typed = f.email.trim().toLowerCase();
     const to = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typed) ? typed : c.email;
     const mail = fillFor(tpl, { contactName: f.contactName, company: f.company }, tpl.kit ? kitUrl(tpl.kit) : null);
@@ -897,7 +897,7 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
               <div style={{ display: "flex", gap: 6 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <MenuSelect value={tplId} aria-label="Template" onChange={(e: any) => setTplId(e.target.value)}>
-                    {tpls.map(t => <option key={t.id} value={t.id}>{t.name || "Untitled"}{t.kind === "follow_up" ? " · follow-up 1" : t.kind === "follow_up_2" ? " · follow-up 2" : ""}</option>)}
+                    {tpls.map(t => <option key={t.id} value={t.id}>{t.name || "Untitled"}{t.lang === "de" ? " · DE" : ""}{t.kind === "follow_up" ? " · follow-up 1" : t.kind === "follow_up_2" ? " · follow-up 2" : ""}</option>)}
                   </MenuSelect>
                 </div>
                 <PillBtn dark onClick={write} title={isDm ? "Copy the DM and open the chat in Instagram" : tpl?.kind === "follow_up" ? "Write the follow-up in your mail app" : "Write the email in your mail app"}

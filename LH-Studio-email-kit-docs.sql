@@ -7,8 +7,8 @@
 --        2 · Lead to won Feed Proposal (the template: a copy per brand)
 -- The links go in by hand in the app: Email kit › Edit links (EN link · DE link). Use Canva's
 -- Share › Public view link (brands open it without an account); the Feed Proposal: Share › Copy link.
--- (The first version of this file put in Canva API links. Those are temporary and only open for
---  you: replace them in Edit links.)
+-- (The first version of this file put in Canva API links for ALL 8 items, the 4 media kits too.
+--  Those are temporary and only open for you: replace each of them in Edit links.)
 
 -- 1) the German link
 alter table public.email_kits add column if not exists url_de text;

@@ -8,7 +8,8 @@
 //       1 · Pitching — Partnerships · Fashion (EN · DE), Partnerships ·
 //       Beauty (EN · DE), Content for Brands · Beauty (EN);
 //       2 · Lead to won — Feed Proposal (a Canva template: ↗ open only).
-//       EN / DE = copy that link · ↗ = open it in Canva.
+//       EN / DE = copy that link · ↗ = open it in Canva (the Feed Proposal: EN ↗ / DE ↗
+//       open that version — it's never copied).
 //     MEDIA KITS
 //       the 4 kits as rows like the documents, in the rate-card colours
 //       (Collab pink · Editorial butter · Hotels pistachio · UGC blue): EN · DE · ↗.
@@ -23,7 +24,7 @@
 // EN link, DE link, PDF, Canva file, focus) and a template.
 // PDF per kit: uploaded / replaced / deleted in Edit links (saved right
 // away); Share = the phone's share sheet to attach it (computer: the
-// file opens). A small dot on a tile = this kit has a PDF.
+// file opens). A small dot on a row's icon = this kit has a PDF.
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -117,7 +118,8 @@ const hasDe = (d: KitDef, k: MediaKit | undefined) => !!d.de || !!k?.urlDe?.trim
 const LangPill = ({ lang, has, tone, label, open, onClick }: { lang: Lang; has: boolean; tone: ToneSet; label: string; open?: boolean; onClick: () => void }) => (
   <button type="button" onClick={onClick} aria-label={label} title={has ? label : "No link yet"}
     style={{ height: 30, minWidth: 38, padding: "0 8px", borderRadius: RADIUS.pill, border: `1px ${has ? "solid" : "dashed"} ${tone.mid}`, background: has ? tone.wash : C.white,
-      color: tone.ink, fontFamily: SANS, fontSize: TYPE.subtext.size, fontWeight: 600, cursor: open ? "pointer" : "copy", WebkitTapHighlightColor: "transparent" }}>{lang}</button>
+      color: tone.ink, fontFamily: SANS, fontSize: TYPE.subtext.size, fontWeight: 600, cursor: open ? "pointer" : "copy", WebkitTapHighlightColor: "transparent",
+      display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 3 }}>{lang}{open && <Ico d={IC.open} size={11} />}</button>
 );
 // one document or media kit: icon · name · its line · EN / DE (copy) · ↗ (open in Canva).
 // The Feed Proposal (open only): ↗ — or EN / DE that open, once it has a German link.
@@ -194,7 +196,7 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
   };
   const copyTemplate = (t: EmailTemplate, k: KitKey | null) => {
     const url = linkOf(k, t.lang);
-    if (k && !url) { showNote(`Add the ${kitInfo(k)!.short} link first · Edit links`); return; }
+    if (k && !url) { showNote(`Add the ${kitInfo(k)!.short} EN link first · Edit links`); return; }
     if (!t.body.trim()) { showNote("This template has no text yet"); return; }
     const enInstead = !!k && t.lang === "de" && !kitOf(k)?.urlDe?.trim();   // a German text, no German link yet
     copy(fillText(t.body, k ? url : null), enInstead ? "Text copied ✓ · with the EN link (no DE link yet)" : "Text copied ✓");
@@ -349,6 +351,7 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
   const f = dr.d;
   const [err, setErr]         = useState<string | null>(null);
   const [badKey, setBadKey]   = useState<KitKey | null>(null);           // the kit whose link (or DE link) isn't a link
+  const [badDe, setBadDe]     = useState(false);                         // … and whether it's the DE link
   const [busy, setBusy]       = useState(false);
   const [busyKey, setBusyKey] = useState<KitKey | null>(null);           // a PDF being uploaded / deleted
   const [askDel, setAskDel]   = useState<KitKey | null>(null);
@@ -360,7 +363,7 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
     setErr(null);
     const notLink = (u: string) => !!u.trim() && !/^https?:\/\//i.test(u.trim());
     const bad = f.find(k => notLink(k.url) || notLink(k.urlDe));
-    if (bad) { setBadKey(bad.key); return; }
+    if (bad) { setBadDe(!notLink(bad.url)); setBadKey(bad.key); return; }
     setBusy(true); dr.saving();
     try { await kit.saveKits(f); showNote("Saved ✓"); }
     catch (e: any) { dr.failed(); setErr(e?.message || "Couldn't save."); }
@@ -411,7 +414,7 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
                 {/* every item has room for its German version; empty = no DE button (the decks with a German version show it dashed) */}
                 <SheetRow label={d.open ? "DE edit link" : "DE link"}
                   right={/^https?:\/\//i.test(urlDe) ? <button onClick={() => window.open(urlDe, "_blank", "noopener")} aria-label={`Open the ${d.label} DE link`} title="Open the link" style={ROW_ICON}><Ico d={IC.open} size={14} /></button> : null}>
-                  <LinkInput value={k.urlDe} onChange={v => set(k.key, { urlDe: v })} label={`${d.label} DE link`}
+                  <LinkInput value={k.urlDe} onChange={v => set(k.key, { urlDe: v })} label={`${d.label} DE ${d.open ? "edit " : ""}link`}
                     placeholder={d.de ? (d.open ? "Paste the German edit link" : "Paste the German view link") : "German version · when there is one"} />
                 </SheetRow>
                 {!d.open && <SheetRow label="PDF"
@@ -427,7 +430,7 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
                 <SheetRow label="File"><MiniInput bare value={k.file} placeholder="Canva file name" aria-label={`${d.label} Canva file`} onChange={(e: any) => set(k.key, { file: e.target.value })} /></SheetRow>
                 <SheetRow label="Focus"><MiniInput bare value={k.focus} placeholder="What it's for" aria-label={`${d.label} focus`} onChange={(e: any) => set(k.key, { focus: e.target.value })} /></SheetRow>
               </div>
-              {badKey === k.key && <div id={`kit-err-${k.key}`}><SheetMeta s={{ color: C.red }}>This isn't a link yet — it must start with https:// (Canva → Share → Public view link).</SheetMeta></div>}
+              {badKey === k.key && <div id={`kit-err-${k.key}`}><SheetMeta s={{ color: C.red }}>The {badDe ? "DE" : "EN"}{d.open ? " edit" : ""} link isn't a link yet — it must start with https:// ({d.open ? "Canva → Share → Copy link" : "Canva → Share → Public view link"}).</SheetMeta></div>}
               {meta && <SheetMeta>{meta}</SheetMeta>}
             </div>
           );
@@ -438,8 +441,8 @@ function LinksWindow({ kit, onShare, onClose }: { kit: EmailKitHook; onShare: (k
 }
 
 // ── one template — one level, the fields are the view (like Contact) ──
-// Top card: the media kit (saved at once) · Share PDF · Copy text. Template card: Name · Purpose · For ·
-// Type · Channel · (Media kit, new only) · Categories. Text card: Subject (copy) · the text. ⋯ Delete.
+// Top card: the kit, a deck or a media kit (saved at once) · Share PDF · Copy text. Template card: Name · Purpose · For ·
+// Type · Channel · Language (English / German: which link goes in) · (Kit, new only) · Categories. Text card: Subject (copy) · the text. ⋯ Delete.
 // Footer: Done → Save as soon as you type (stays open) · a new template: Add template (opens as itself).
 // the template's fields you type (the kit is picked in the top card and saved at once — a new template types it too)
 const tplTyped = (x: EmailTemplate, withKit: boolean) => ({ name: x.name, purpose: x.purpose, subject: x.subject, body: x.body, pipeline: x.pipeline, kind: x.kind,
@@ -506,7 +509,7 @@ function TemplateWindow({ t, kit, purposes, linkOf, onCopy, onShare, onCopySubje
               {TEMPLATE_KITS.map(d => <KitChip key={d.key} k={d.key} on={pick === d.key} onClick={() => setPick(d.key)} />)}
               <KitChip k={null} on={pick === null} onClick={() => setPick(null)} />
             </div>
-            {pick && !linkOf(pick, f.lang) && <p style={{ fontSize: SPACING.listMeta, color: C.amber, margin: "6px 2px 0" }}>No {kitInfo(pick)!.short} link yet · add it in Edit links.</p>}
+            {pick && !linkOf(pick, f.lang) && <p style={{ fontSize: SPACING.listMeta, color: C.amber, margin: "6px 2px 0" }}>No {kitInfo(pick)!.short} EN link yet · add it in Edit links.</p>}
             {pick && f.lang === "de" && !!linkOf(pick, "en") && !kit.kits.find(k => k.key === pick)?.urlDe?.trim() && <p style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "6px 2px 0" }}>No {kitInfo(pick)!.short} DE link yet · the EN link goes in.</p>}
             <PillBtn dark onClick={() => onCopy(f, pick)} s={{ width: "100%", height: 32, marginTop: 8, justifyContent: "center", fontSize: TYPE.subtext.size }}><Ico d={IC.copy} size={14} />Copy text</PillBtn>
           </SheetAction>
