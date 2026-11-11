@@ -1,7 +1,10 @@
 // ─────────────────────────────────────────────────────────────
 // PlannerManager — Planner › Manager (the manager's workspace).
-// One card, this week's goals, two columns: Done (the manager's number)
-// and Goal (yours — locked; "Edit goals" opens them, "Done" locks them).
+// One card, this week's goals, on ONE number grid (11.11.2026), shared with the Sales card: name ·
+// status … count (right-aligned, 72 px; a typed field is the same width with its digits on the same
+// edge) · "/ goal" (right-aligned, 72 px, flush with the card's edge; "–" = no goal). Every count and
+// goal 15 px. Goals are yours — locked; "Edit goals" turns them into fields in the same spot.
+// Engaging and New girls: name, count and goal on the grid, their 7 day boxes in a row under it.
 // Every line belongs to the account picked with the switch next to the
 // title — goals are set per account.
 //   Engaging · a box per day (goal: 7 days)
@@ -45,18 +48,20 @@ const GRID = "88px minmax(64px,72px) minmax(64px,72px) minmax(80px,1fr)";
 const GAP  = 5;
 const PAD  = 4;   // inner padding of a number field; labels and plain numbers line up with it (+ 1 px border)
 
-// one day of New girls: the number typed for that day (empty = none yet), today outlined like
-// Engaging's boxes — typed at 16 px and drawn smaller (no iPhone zoom), saved when you leave the box
-const DK = 11 / 16;
-function DayNum({ value, today, label, onSave }: { value: number | null; today: boolean; label: string; onSave: (v: number | null) => void }) {
+// one day of New girls: the number typed for that day (empty = its day letter), today outlined like
+// Engaging's boxes — a cell of the 7-day row under the name, typed at 16 px and drawn smaller (no
+// iPhone zoom), saved when you leave the box
+const DK = 13 / 16;
+const DAY_H = 32;   // the day boxes of Engaging and New girls
+function DayNum({ value, today, label, letter, onSave }: { value: number | null; today: boolean; label: string; letter: string; onSave: (v: number | null) => void }) {
   const [t, setT] = useState(value == null ? "" : String(value));
   const [focus, setFocus] = useState(false);
   useEffect(() => { if (!focus) setT(value == null ? "" : String(value)); }, [value, focus]);
   const on = value != null && value > 0;
   return (
-    <span style={{ position: "relative" as const, width: 20, height: 20, flexShrink: 0, borderRadius: RADIUS.check, boxSizing: "border-box" as const, overflow: "hidden",
-      border: today ? `2px solid ${C.black}` : `1.5px solid ${on ? PAL.done.mid : C.faint}`, background: on && !focus ? PAL.done.wash : C.white }}>
-      <input value={t} inputMode="numeric" aria-label={label} onFocus={() => setFocus(true)}
+    <span style={{ position: "relative" as const, display: "block", height: DAY_H, minWidth: 0, borderRadius: 8, boxSizing: "border-box" as const, overflow: "hidden",
+      border: today ? `2px solid ${C.black}` : `1.5px solid ${on ? PAL.done.mid : C.edge}`, background: on && !focus ? PAL.done.wash : C.white }}>
+      <input value={t} inputMode="numeric" aria-label={label} placeholder={letter} onFocus={() => setFocus(true)}
         onChange={e => setT(e.target.value.replace(/[^\d]/g, "").slice(0, 3))}
         onBlur={() => { setFocus(false); const v = t === "" ? null : Number(t); if (v !== value) onSave(v); }}
         onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
@@ -160,6 +165,34 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     <ValuePill key={`${id}|${value}`} text={value == null ? "" : fmtInt(value)} label={label}
       onCommit={(t) => { const v = t.trim() === "" ? null : parseIntDe(t); if (v !== value) onSave(v); }} />
   );
+  // ── one number grid for every line (goals and Sales): name · status … count · / goal ──
+  // count: right-aligned in one column (typed fields the same width, their digits on the same edge);
+  // goal: "/ 350" (or "–"), right-aligned, flush with the card's right edge; both one size
+  const NUM = 15, COUNT_W = 72, GOAL_W = 72, ROW_X = 14, ROW_H = 48;   // "84.827" and "/ 85.000" both fit
+  const rowLine = (top = true): any => ({ display: "flex", alignItems: "center", minHeight: ROW_H, padding: `0 ${ROW_X}px`, borderTop: top ? `1px solid ${C.hair}` : "none" });
+  const nameCell = (name: string, status: any, faded = false, lead: any = null) => (
+    <span style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, paddingRight: 8, whiteSpace: "nowrap" as const, overflow: "hidden" }}>
+      {lead}
+      <span style={{ minWidth: 0, display: "flex", alignItems: "baseline", gap: 6, overflow: "hidden" }}>
+        <span style={{ fontSize: SPACING.plannerText, color: faded ? C.muted : C.black }}>{name}</span>
+        {status}
+      </span>
+    </span>
+  );
+  const statusText = (text: string, color: string) => <span style={{ fontSize: SPACING.listMeta, color, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{text}</span>;
+  const numCss: any = { flexShrink: 0, boxSizing: "border-box" as const, textAlign: "right" as const, fontSize: NUM, fontVariantNumeric: "tabular-nums" as const, whiteSpace: "nowrap" as const };
+  const countCell = (v: number | string | null, label?: string) =>
+    <span aria-label={label} style={{ ...numCss, width: COUNT_W, paddingRight: 10, color: v == null ? C.light : C.black }}>{v == null ? "–" : typeof v === "number" ? fmtInt(v) : v}</span>;
+  const countField = (id: string, value: number | null, label: string, onSave: (v: number | null) => void) => (
+    <ValuePill key={`${id}|${value}`} width={COUNT_W} height={32} size={NUM} padR={10} text={value == null ? "" : fmtInt(value)} label={label}
+      onCommit={(t) => { const v = t.trim() === "" ? null : parseIntDe(t); if (v !== value) onSave(v); }} />
+  );
+  const goalCell = (target: number | null | undefined, none = false) =>
+    <span style={{ ...numCss, width: GOAL_W, paddingRight: 8, color: C.muted }}>{none || target == null ? "–" : `/ ${fmtInt(target)}`}</span>;
+  const goalField = (id: string, value: number | null, label: string, onSave: (v: number | null) => void) => (
+    <ValuePill key={`${id}|${value}`} width={GOAL_W} height={32} size={NUM} padR={8} tint={PAL.progress.wash} text={value == null ? "" : fmtInt(value)} label={label}
+      onCommit={(t) => { const v = t.trim() === "" ? null : parseIntDe(t); if (v !== value) onSave(v); }} />
+  );
   const plain = (v: any, muted = false) => <span style={{ textAlign: "right" as const, minWidth: 64, paddingRight: 11, boxSizing: "border-box" as const, fontSize: TYPE.body.size, color: muted ? C.light : C.black }}>{v == null ? "–" : typeof v === "number" ? fmtInt(v) : v}</span>;
   const lock = <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2.2" aria-hidden="true"><path d="M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3" /></svg>;
 
@@ -181,58 +214,54 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
       : state === "none" ? (notEntered ? "Not entered" : "No goal set") : undefined;
     const typed = !fromSprint && (t.source === "following" || t.source === "pitches" || leads);
     const tone = state === "reached" ? PAL.done.ink : state === "missed" ? PAL.late.ink : state === "togo" ? PAL.waiting.ink : C.muted;
-    const goalText = leads ? "no goal" : fromSprint ? `/ ${s.target ?? "–"}` : s.target == null ? "no goal" : `/ ${fmtInt(s.target)}`;
+    const status = s.done ? statusText("✓ reached", PAL.done.ink)
+      : fromSprint ? statusText("from sprint", C.muted)
+      : text && !(state === "none" && !notEntered) ? statusText(text.charAt(0).toLowerCase() + text.slice(1), tone)
+      : t.source === "outreach" ? statusText("from the list", C.muted) : null;
+    const editGoal = (label = `Goal for ${NAME(t)}`) => goalField(`${t.id}|goal`, s.target, label, v => quiet(planner.saveEntry(t.id, period, { target: v })));
+
+    // Engaging · New girls: name, count and goal on the grid; the 7 days in a row under it
+    if (days || girls) {
+      const e = planner.entries[entryKey(t.id, period)];
+      const counts: (number | null)[] = girls && Array.isArray(e?.data?.counts) && e.data.counts.length === 7
+        ? e.data.counts.map((x: any) => (x == null || x === "" ? null : Number(x) || 0)) : [null, null, null, null, null, null, null];
+      const saveGirls = (i: number, v: number | null) => {
+        const c = [...counts]; c[i] = v;
+        const sum = c.reduce((m: number, x) => m + (x || 0), 0);
+        quiet(planner.saveEntry(t.id, period, { data: { ...(e?.data || {}), counts: c }, actual: c.some(x => x != null) ? sum : null }));
+      };
+      return (
+        <div key={t.id} style={{ padding: `10px ${ROW_X}px 12px`, borderTop: `1px solid ${C.hair}` }}>
+          <div style={{ display: "flex", alignItems: "center", minHeight: 32 }}>
+            {nameCell(NAME(t), status, s.done)}
+            {countCell(girls ? s.actual ?? 0 : s.daysDone)}
+            {girls && editGoals ? editGoal() : goalCell(girls ? s.target : 7)}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6, marginTop: 8 }}>
+            {DAY_SHORT.map((d, i) => {
+              if (girls) return <DayNum key={`${t.id}|${period}|${i}`} value={counts[i] ?? null} today={i === ti} letter={d.charAt(0)} label={`New girls on ${d}`} onSave={v => saveGirls(i, v)} />;
+              const on = s.days[i];
+              return (
+                <button key={d} onClick={() => { const ds = [...s.days]; ds[i] = !ds[i]; quiet(planner.saveEntry(t.id, period, { days: ds })); }}
+                  aria-pressed={on} aria-label={`${d}${on ? ", done" : ""}`} title={d}
+                  style={{ height: DAY_H, minWidth: 0, padding: 0, borderRadius: 8, boxSizing: "border-box" as const, cursor: "pointer", fontFamily: SANS,
+                    border: i === ti ? `2px solid ${C.black}` : `1.5px solid ${on ? PAL.done.mid : C.edge}`, background: on ? PAL.done.wash : C.white,
+                    color: on ? PAL.done.ink : C.light, fontSize: on ? 14 : 12, fontWeight: on ? 700 : 400, lineHeight: 1 }}>{on ? "✓" : d.charAt(0)}</button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // every other line: name · status … count (typed or counted) · / goal
     return (
-      <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, minHeight: SPACING.row1, padding: `0 ${SPACING.rowSide}px`, borderTop: `1px solid ${C.hair}` }}>
-        <span style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6, whiteSpace: "nowrap" as const, overflow: "hidden" }}>
-          <span style={{ fontSize: SPACING.plannerText, color: s.done ? C.muted : C.black }}>{NAME(t)}</span>
-          {s.done ? <span aria-label="Reached" style={{ fontSize: SPACING.listMeta, color: PAL.done.ink }}>✓ reached</span>
-            : fromSprint ? <span style={{ fontSize: SPACING.listMeta, color: C.muted }}>from sprint</span>
-            : text && !(state === "none" && !notEntered) ? <span style={{ fontSize: SPACING.listMeta, color: tone }}>{text.charAt(0).toLowerCase() + text.slice(1)}</span>
-            : t.source === "outreach" ? <span style={{ fontSize: SPACING.listMeta, color: C.muted }}>from the list</span> : null}
-        </span>
-        {girls ? (() => {
-          const e = planner.entries[entryKey(t.id, period)];
-          const counts: (number | null)[] = Array.isArray(e?.data?.counts) && e.data.counts.length === 7
-            ? e.data.counts.map((x: any) => (x == null || x === "" ? null : Number(x) || 0)) : [null, null, null, null, null, null, null];
-          const saveDay = (i: number, v: number | null) => {
-            const c = [...counts]; c[i] = v;
-            const sum = c.reduce((m: number, x) => m + (x || 0), 0);
-            quiet(planner.saveEntry(t.id, period, { data: { ...(e?.data || {}), counts: c }, actual: c.some(x => x != null) ? sum : null }));
-          };
-          return (
-            <>
-              <span style={{ display: "flex", gap: 4 }}>
-                {DAY_SHORT.map((d, i) => <DayNum key={`${t.id}|${period}|${i}`} value={counts[i] ?? null} today={i === ti} label={`New girls on ${d}`} onSave={v => saveDay(i, v)} />)}
-              </span>
-              {editGoals ? numField(`${t.id}|goal`, s.target, `Goal for ${NAME(t)}`, v => quiet(planner.saveEntry(t.id, period, { target: v })), true)
-                : <span style={{ minWidth: 44, textAlign: "right" as const, fontSize: SPACING.listMeta, color: C.muted, flexShrink: 0, whiteSpace: "nowrap" as const }}>{s.actual ?? 0} / {s.target ?? "–"}</span>}
-            </>
-          );
-        })() : days ? (
-          <>
-            <span style={{ display: "flex", gap: 4 }}>
-              {DAY_SHORT.map((d, i) => {
-                const on = s.days[i];
-                return (
-                  <button key={d} onClick={() => { const ds = [...s.days]; ds[i] = !ds[i]; quiet(planner.saveEntry(t.id, period, { days: ds })); }}
-                    aria-pressed={on} aria-label={`${d}${on ? ", done" : ""}`} title={d}
-                    style={{ width: 20, height: 20, padding: 0, borderRadius: RADIUS.check, boxSizing: "border-box" as const, cursor: "pointer", flexShrink: 0,
-                      border: i === ti ? `2px solid ${C.black}` : `1.5px solid ${on ? PAL.done.mid : C.faint}`, background: on ? PAL.done.wash : C.white, color: PAL.done.ink, fontSize: TYPE.micro.size, lineHeight: 1 }}>{on ? "✓" : ""}</button>
-                );
-              })}
-            </span>
-            <span style={{ width: 44, textAlign: "right" as const, fontSize: SPACING.listMeta, color: C.muted, flexShrink: 0 }}>{s.daysDone} / 7</span>
-          </>
-        ) : (
-          <>
-            {followers ? numField(`${t.id}|done`, s.actual, "Followers this week", v => quiet(planner.saveSnapshot(acc, monday, { followers: v })))
-              : typed ? numField(`${t.id}|done`, s.actual, `${NAME(t)} this week`, v => quiet(planner.saveEntry(t.id, period, { actual: v })))
-              : plain(s.actual ?? 0)}
-            {!leads && !fromSprint && editGoals ? numField(`${t.id}|goal`, s.target, `Goal for ${NAME(t)}`, v => quiet(planner.saveEntry(t.id, period, { target: v })), true)
-              : <span style={{ width: 52, fontSize: SPACING.listMeta, color: C.muted, flexShrink: 0, whiteSpace: "nowrap" as const }}>{goalText}</span>}
-          </>
-        )}
+      <div key={t.id} style={rowLine()}>
+        {nameCell(NAME(t), status, s.done)}
+        {followers ? countField(`${t.id}|done`, s.actual, "Followers this week", v => quiet(planner.saveSnapshot(acc, monday, { followers: v })))
+          : typed ? countField(`${t.id}|done`, s.actual, `${NAME(t)} this week`, v => quiet(planner.saveEntry(t.id, period, { actual: v })))
+          : countCell(s.actual ?? 0)}
+        {!leads && !fromSprint && editGoals ? editGoal() : goalCell(s.target, leads)}
       </div>
     );
   };
@@ -244,13 +273,10 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
   const prevSn = planner.snaps[snapKey(acc, addDays(monday, -7))];
   const fDiff = sn?.followers != null && prevSn?.followers != null ? sn.followers - prevSn.followers : null;
   const followersRow = (
-    <div key="followers" style={{ display: "flex", alignItems: "center", gap: 8, minHeight: SPACING.row1, padding: `0 ${SPACING.rowSide}px`, borderTop: `1px solid ${C.hair}` }}>
-      <span style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6, whiteSpace: "nowrap" as const }}>
-        <span style={{ fontSize: SPACING.plannerText }}>Followers</span>
-        {fDiff != null && <span style={{ fontSize: SPACING.listMeta, color: fDiff >= 0 ? PAL.done.ink : PAL.late.ink }}>{fDiff >= 0 ? "+" : "−"}{fmtInt(Math.abs(fDiff))}</span>}
-      </span>
-      {numField(`followers|${acc}`, sn?.followers ?? null, "Followers this week", v => quiet(planner.saveSnapshot(acc, monday, { followers: v })))}
-      <span style={{ width: 52, fontSize: SPACING.listMeta, color: C.muted, flexShrink: 0 }}>no goal</span>
+    <div key="followers" style={rowLine()}>
+      {nameCell("Followers", fDiff != null ? statusText(`${fDiff >= 0 ? "+" : "−"}${fmtInt(Math.abs(fDiff))}`, fDiff >= 0 ? PAL.done.ink : PAL.late.ink) : null)}
+      {countField(`followers|${acc}`, sn?.followers ?? null, "Followers this week", v => quiet(planner.saveSnapshot(acc, monday, { followers: v })))}
+      {goalCell(null, true)}
     </div>
   );
 
@@ -259,7 +285,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     return (
       <>
         <SectionHead label="Check-in" />
-        <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, minHeight: SPACING.row1, display: "flex", alignItems: "center", padding: `4px ${SPACING.rowSide}px`, boxSizing: "border-box" as const }}>
+        <div style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, minHeight: ROW_H, display: "flex", alignItems: "center", padding: `4px ${ROW_X}px`, boxSizing: "border-box" as const }}>
           <InlineText value={e?.note || ""} placeholder="Note for this week" ariaLabel="Check-in note"
             onSave={v => quiet(planner.saveEntry(checkT.id, periodOf(checkT, monday), { note: v }))} />
         </div>
@@ -273,7 +299,6 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     ugc:    "M4 7h11v10H4zM15 10l5-3v10l-5-3",                                       // a camera: content for brands
   };
   const salesTone = (c: SalesCatDef) => (c.key === "ugc" ? PAL.progress : PAL.late);
-  const NUM = SPACING.plannerText;   // the count and its goal: one size
   const salesRow = (c: SalesCatDef, what: "pitches" | "leads") => {
     const t = salesT(what === "pitches" ? c.pitches : c.leads);
     const isP = what === "pitches";
@@ -288,19 +313,13 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     const tone = hit ? PAL.done.ink : !isP || target == null ? C.muted : over ? PAL.late.ink : PAL.waiting.ink;
     const name = `${isP ? "Pitches" : "Leads"} · ${c.label}`;
     return (
-      <div key={`${c.key}|${what}`} style={{ display: "flex", alignItems: "center", gap: 8, minHeight: SPACING.row1, padding: `0 ${SPACING.rowSide}px`, borderTop: `1px solid ${C.hair}` }}>
-        <span aria-hidden="true" style={{ width: 3, height: 20, borderRadius: 2, background: salesTone(c).mid, flexShrink: 0 }} />
-        <span style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6, whiteSpace: "nowrap" as const, overflow: "hidden" }}>
-          <span style={{ fontSize: SPACING.plannerText, color: hit ? C.muted : C.black }}>{isP ? "Pitches" : "Leads"}</span>
-          {status && <span style={{ fontSize: SPACING.listMeta, color: tone, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{status}{bySprint ? " · sprint" : ""}</span>}
-        </span>
-        {/* lined up with the numbers in the goals card above (same column as plain counts) */}
-        <span aria-label={`${name}: ${n}`} style={{ minWidth: 64, paddingRight: 11, boxSizing: "border-box" as const, textAlign: "right" as const, fontSize: NUM, color: C.black, fontVariantNumeric: "tabular-nums" as const }}>{fmtInt(n)}</span>
+      <div key={`${c.key}|${what}`} style={rowLine()}>
+        {nameCell(isP ? "Pitches" : "Leads", status ? statusText(`${status}${bySprint ? " · sprint" : ""}`, tone) : null, hit,
+          <span aria-hidden="true" style={{ width: 3, height: 20, borderRadius: 2, background: salesTone(c).mid, flexShrink: 0 }} />)}
+        {countCell(n, `${name}: ${n}`)}
         {isP && editGoals && t && !bySprint
-          ? numField(`${t.id}|goal`, target, `Goal for ${name}`, v => quiet(planner.saveEntry(t.id, periodOf(t, monday), { target: v })), true)
-          : <span style={{ width: editGoals && salesReady ? 72 : 52, flexShrink: 0, whiteSpace: "nowrap" as const, fontSize: isP ? NUM : SPACING.listMeta, color: C.muted, fontVariantNumeric: "tabular-nums" as const }}>
-              {isP ? `/ ${target != null ? fmtInt(target) : "–"}` : "no goal"}
-            </span>}
+          ? goalField(`${t.id}|goal`, target, `Goal for ${name}`, v => quiet(planner.saveEntry(t.id, periodOf(t, monday), { target: v })))
+          : goalCell(target, !isP)}
       </div>
     );
   };
@@ -318,7 +337,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
           const tone = salesTone(c);
           return (
             <div key={c.key}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 12px 6px", background: tone.wash, borderTop: i === 0 ? "none" : `1px solid ${C.hair}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, padding: `7px ${ROW_X}px 6px`, background: tone.wash, borderTop: i === 0 ? "none" : `1px solid ${C.hair}` }}>
                 <span style={{ width: 20, height: 20, borderRadius: "50%", background: C.white, color: tone.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <Ico d={SALES_ICON[c.key]} size={11} />
                 </span>

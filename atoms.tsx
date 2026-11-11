@@ -1099,18 +1099,24 @@ export const SheetButton = ({ dark, dim, onClick, children, flex = 1, title }: {
 //    The field types at 16 px (no iPhone zoom) and is drawn at 14 px (scale .875).
 //    Enter or tapping away saves, Escape keeps the old value.
 // white: a white field with a thin border — for fields sitting on a coloured tile (Creator goals)
-export function ValuePill({ text, label, onCommit, width = 72, white }: { text: string; label: string; onCommit: (t: string) => void; width?: number; white?: boolean }) {
+// size: the number's drawn size (typed at 16 px, no iPhone zoom) · height · padR: the space right of
+// the number (so typed and plain numbers end on one line) · tint: its background when not focused
+export function ValuePill({ text, label, onCommit, width = 72, white, size = 14, height = 28, padR, tint }: {
+  text: string; label: string; onCommit: (t: string) => void; width?: number; white?: boolean; size?: number; height?: number; padR?: number; tint?: string;
+}) {
   const [focus, setFocus] = useState(false);
-  const k = 0.875;
+  const k = size / 16;
+  const pad = padR != null ? `0 ${padR / k}px 0 ${8 / k}px` : "0 11px";
   return (
-    <span style={{ position: "relative", display: "inline-block", width, height: 28, flexShrink: 0 }}>
+    <span style={{ position: "relative", display: "inline-block", width, height, flexShrink: 0 }}>
       <input key={text} defaultValue={text} aria-label={label} inputMode="numeric" placeholder="–"
         onFocus={(e) => { setFocus(true); e.target.select(); }}
         onBlur={(e) => { setFocus(false); if (e.target.value !== text) onCommit(e.target.value); }}
         onKeyDown={(e) => { const el = e.target as HTMLInputElement; if (e.key === "Enter") el.blur(); if (e.key === "Escape") { el.value = text; el.blur(); } }}
-        style={{ position: "absolute", top: 0, right: 0, width: width / k, height: 28 / k, transform: `scale(${k})`, transformOrigin: "top right",
-          fontSize: 16, fontFamily: SANS, textAlign: "right" as const, padding: "0 11px", boxSizing: "border-box" as const, borderRadius: 8 / k,
-          border: `1px solid ${focus || white ? C.edge : "transparent"}`, background: focus || white ? C.white : PAL.neutral.wash, color: C.black, outline: "none", margin: 0 }} />
+        style={{ position: "absolute", top: 0, right: 0, width: width / k, height: height / k, transform: `scale(${k})`, transformOrigin: "top right",
+          fontSize: 16, fontFamily: SANS, textAlign: "right" as const, padding: pad, boxSizing: "border-box" as const, borderRadius: 8 / k,
+          border: `1px solid ${focus || white ? C.edge : "transparent"}`, background: focus || white ? C.white : tint || PAL.neutral.wash, color: C.black, outline: "none", margin: 0,
+          fontVariantNumeric: "tabular-nums" as const }} />
     </span>
   );
 }
