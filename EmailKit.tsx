@@ -18,8 +18,9 @@
 //   Templates ……… Sort · + Add
 //     grouped by purpose (chips when there's more than one purpose);
 //     each row: name · its kit (a deck or a media kit) · copy icon (copies
-//     the text with that kit's link — a German template the DE link, else the
-//     EN one). Tap a row = the template window (Language: English / German).
+//     the text with that kit's link where {kit} is — only there; no {kit} = no
+//     link, "· not in the text" in the row — a German template the DE link, else
+//     the EN one). Tap a row = the template window (Language: English / German).
 // Windows (one level, the app's sheet): Edit links (every document and kit:
 // EN link, DE link, PDF, Canva file, focus) and a template.
 // PDF per kit: uploaded / replaced / deleted in Edit links (saved right
@@ -36,7 +37,7 @@ import { copyText, OUTREACH_CATEGORIES, catOf } from "./outreach";
 import { showNote } from "./undo";
 import { BottomNav, NAV_SPACE } from "./BottomNav";
 import type { NavItem } from "./BottomNav";
-import { MEDIA_KITS, SALES_DOCS, SALES_STEPS, TEMPLATE_KITS, KIT_TOKEN, kitInfo, kitLink, fillText, fmtSize, TEMPLATE_PIPELINES, TEMPLATE_KINDS, TEMPLATE_CHANNELS, TEMPLATE_LANGS, kindLabel } from "./useEmailKit";
+import { MEDIA_KITS, SALES_DOCS, SALES_STEPS, TEMPLATE_KITS, KIT_TOKEN, kitInfo, kitLink, fillText, usesKit, fmtSize, TEMPLATE_PIPELINES, TEMPLATE_KINDS, TEMPLATE_CHANNELS, TEMPLATE_LANGS, kindLabel } from "./useEmailKit";
 import type { EmailKitHook, EmailTemplate, KitKey, MediaKit, KitDef, TemplateLang } from "./useEmailKit";
 
 const Ico = ({ d, size = 14, color = "currentColor" }: { d: string; size?: number; color?: string }) => (
@@ -195,11 +196,12 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
     kit.sharePdf(k).then(r => { if (r === "shared") showNote("PDF shared ✓"); }).catch((e: any) => showNote(e?.message || "The PDF couldn't be opened."));
   };
   const copyTemplate = (t: EmailTemplate, k: KitKey | null) => {
-    const url = linkOf(k, t.lang);
-    if (k && !url) { showNote(`Add the ${kitInfo(k)!.short} EN link first · Edit links`); return; }
+    const needs = usesKit({ kit: k, body: t.body });              // the link only goes where {kit} is
+    const url = needs ? linkOf(k, t.lang) : "";
+    if (needs && !url) { showNote(`Add the ${kitInfo(k)!.short} EN link first · Edit links`); return; }
     if (!t.body.trim()) { showNote("This template has no text yet"); return; }
-    const enInstead = !!k && t.lang === "de" && !kitOf(k)?.urlDe?.trim();   // a German text, no German link yet
-    copy(fillText(t.body, k ? url : null), enInstead ? "Text copied ✓ · with the EN link (no DE link yet)" : "Text copied ✓");
+    const enInstead = needs && t.lang === "de" && !kitOf(k!)?.urlDe?.trim();   // a German text, no German link yet
+    copy(fillText(t.body, needs ? url : null), enInstead ? "Text copied ✓ · with the EN link (no DE link yet)" : "Text copied ✓");
   };
 
   const purposes = useMemo(() => Array.from(new Set(templates.map(t => t.purpose.trim() || NO_PURPOSE))).sort((a, b) => a.localeCompare(b, "de")), [templates]);
@@ -215,7 +217,10 @@ export default function EmailKit({ kit, isMobile }: EmailKitProps) {
     [ids[i], ids[j]] = [ids[j], ids[i]];
     kit.saveOrder(ids).catch((e: any) => showNote(e?.message || "Couldn't save the order."));
   };
-  const kitName = (t: EmailTemplate) => t.kit && kitInfo(t.kit) ? <span style={{ color: toneOf(t.kit).ink }}>{kitInfo(t.kit)!.label}</span> : "none";
+  // "Kit: Brand collab" — and "· not in the text" when the text has no {kit} (then no link goes in)
+  const kitName = (t: EmailTemplate) => t.kit && kitInfo(t.kit)
+    ? <><span style={{ color: toneOf(t.kit).ink }}>{kitInfo(t.kit)!.label}</span>{!usesKit(t) && <span style={{ color: C.amber }}> · not in the text</span>}</>
+    : "none";
 
   return (
     <div>
@@ -509,8 +514,15 @@ function TemplateWindow({ t, kit, purposes, linkOf, onCopy, onShare, onCopySubje
               {TEMPLATE_KITS.map(d => <KitChip key={d.key} k={d.key} on={pick === d.key} onClick={() => setPick(d.key)} />)}
               <KitChip k={null} on={pick === null} onClick={() => setPick(null)} />
             </div>
-            {pick && !linkOf(pick, f.lang) && <p style={{ fontSize: SPACING.listMeta, color: C.amber, margin: "6px 2px 0" }}>No {kitInfo(pick)!.short} EN link yet · add it in Edit links.</p>}
-            {pick && f.lang === "de" && !!linkOf(pick, "en") && !kit.kits.find(k => k.key === pick)?.urlDe?.trim() && <p style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "6px 2px 0" }}>No {kitInfo(pick)!.short} DE link yet · the EN link goes in.</p>}
+            {/* the link only goes where {kit} is in the text */}
+            {pick && !f.body.includes(KIT_TOKEN) && (
+              <p style={{ fontSize: SPACING.listMeta, color: C.amber, margin: "6px 2px 0", lineHeight: 1.4 }}>
+                {KIT_TOKEN} isn't in the text, so no link goes in the email.{" "}
+                <button onClick={() => dr.setD(x => ({ ...x, body: `${x.body.replace(/\s+$/, "")}\n\n${KIT_TOKEN}` }))} style={{ ...linkBtn, fontSize: SPACING.listMeta }}>Add {KIT_TOKEN} at the end</button>
+              </p>
+            )}
+            {pick && f.body.includes(KIT_TOKEN) && !linkOf(pick, f.lang) && <p style={{ fontSize: SPACING.listMeta, color: C.amber, margin: "6px 2px 0" }}>No {kitInfo(pick)!.short} EN link yet · add it in Edit links.</p>}
+            {pick && f.body.includes(KIT_TOKEN) && f.lang === "de" && !!linkOf(pick, "en") && !kit.kits.find(k => k.key === pick)?.urlDe?.trim() && <p style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "6px 2px 0" }}>No {kitInfo(pick)!.short} DE link yet · the EN link goes in.</p>}
             <PillBtn dark onClick={() => onCopy(f, pick)} s={{ width: "100%", height: 32, marginTop: 8, justifyContent: "center", fontSize: TYPE.subtext.size }}><Ico d={IC.copy} size={14} />Copy text</PillBtn>
           </SheetAction>
         )}
@@ -577,7 +589,7 @@ function TemplateWindow({ t, kit, purposes, linkOf, onCopy, onShare, onCopySubje
         </div>
         <SheetMeta>
           {f.channel === "dm" ? <>A DM is copied and Instagram opens the chat — paste and send. Keep it to 2–4 lines.<br /></> : null}
-          Filled in for each contact when you write from Contacts: {"{name}"} first name (no name: “Company team”) · {"{company}"} company · {KIT_TOKEN} media kit link (without it, the link goes at the end)
+          Filled in for each contact when you write from Contacts: {"{name}"} first name (no name: “Company team”) · {"{company}"} company · {KIT_TOKEN} the kit's link, exactly where you put it (no {KIT_TOKEN} = no link)
         </SheetMeta>
       </Sheet>
     </>
