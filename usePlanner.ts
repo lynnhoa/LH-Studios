@@ -763,13 +763,19 @@ export function usePlanner(userId: string | null, monday: string) {
     setContacts(prev => prev.map(x => (x.id === p.contactId ? { ...x, status: before.status, lastContact: before.lastContact } : x)));
   }, [userId]);
 
-  // Manager › Sales: a category's first pitches logged in the week (emails and DMs; the pitch's
-  // account decides: @lynnhoa = Collabs, @createbylynn = UGC) and the contacts that became a Lead
-  // in it (each contact once; its category decides). Follow-ups don't count.
+  // Manager › Sales: the contacts pitched in the week — each contact ONCE, however often it was
+  // written to (tests, a second pitch), and only while it still shows as contacted (set back to
+  // "not contacted" or deleted = not counted). Emails and DMs; the pitch's account decides
+  // (@lynnhoa = Collabs, @createbylynn = UGC). Leads: the contacts that became a Lead in the week
+  // (each once; its category decides). Follow-ups don't count.
   const salesCount = useCallback((cat: SalesCat, what: "pitches" | "leads", week: string): number => {
     const def = SALES_CATS.find(c => c.key === cat)!;
     const end = addDays(week, 6);
-    if (what === "pitches") return pitches.filter(p => p.kind === "pitch" && p.account === def.account && p.sentOn >= week && p.sentOn <= end).length;
+    if (what === "pitches") {
+      const status = new Map(contacts.map(c => [c.id, c.status || "new"]));
+      return new Set(pitches.filter(p => p.kind === "pitch" && p.account === def.account && p.sentOn >= week && p.sentOn <= end
+        && (status.get(p.contactId) ?? "new") !== "new").map(p => p.contactId)).size;
+    }
     const pipe = cat === "ugc" ? "ugc" : "lynnhoa";
     const ids = new Set(leadDays.filter(l => l.day >= week && l.day <= end).map(l => l.contactId));
     return contacts.filter(c => ids.has(c.id) && pipelineOf(c.category) === pipe).length;

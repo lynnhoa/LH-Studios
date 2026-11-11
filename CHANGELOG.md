@@ -1,3 +1,12 @@
+# Planner › Manager › Sales: Pitches count each contact once (bug fix, 11.11.2026)
+- Bug: Pitches counted every logged pitch, so writing to the same contact again (tests, a second ✉)
+  counted it again, and a contact set back to "not contacted" still counted (e.g. 18 instead of 7).
+- Now Pitches = the contacts pitched in the week, each once, and only while the contact still shows as
+  contacted (not "not contacted", not deleted). Emails and DMs; follow-ups don't count. Leads unchanged.
+- Undo after ✉ / Write still removes the logged pitch; only the last one can be undone, so for tests set
+  the contact back to "not contacted" (or delete the test pitch in the contact's timeline).
+- No SQL. Changed: `usePlanner.ts`, `PlannerManager.tsx`.
+
 # Outreach: the media kit link only where {kit} is (bug fix, 11.11.2026)
 - Bug: a template with a media kit picked but no {kit} in its text got the kit's link added at the very
   end of the email (after the closing lines) — writing from Contacts (✉ and Write) and Copy in Email kit.
