@@ -16,7 +16,7 @@ import {
   fmtInt, fmtPct2, monthGoalOf, thisMonday, todayIndex, MANAGER_GOAL, CREATOR_GOAL, managerOrder, creatorOrder, rowKind, snapKey, shortName, isTotal,
   itemStageOf, ITEM_STAGE_LABEL,
 } from "./planner";
-import { monthOfWeek } from "./planner";
+import { monthOfWeek, SALES_CATS, salesCatOf } from "./planner";
 import type { Account, Task, ItemStage } from "./planner";
 import { monthStart, monthEnd, today } from "./formatters";
 import type { PlannerHook } from "./usePlanner";
@@ -67,7 +67,9 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
   const mCounted = mGoals.filter(t => t.source !== "leads");
   const leadsT = mGoals.find(t => t.source === "leads");
   const cGoals = visible.filter(t => CREATOR_GOAL(t) && forAcc(t)).sort((a, b) => creatorOrder(a) - creatorOrder(b));
-  const all = [...mCounted, ...cGoals];
+  // Sales (Collabs / UGC): the Pitches lines count like goals, on both accounts (counted from Outreach)
+  const salesPitchTs = SALES_CATS.map(c => tasks.find(t => t.active && t.source === c.pitches)).filter(Boolean) as Task[];
+  const all = [...mCounted, ...salesPitchTs, ...cGoals];
   const ratioOf = (t: Task, w: string) => {
     const s = planner.stateOf(t, w);
     if (s.done) return 1;
@@ -178,7 +180,8 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
   const spShare = spNow?.pitchGoal ? Math.ceil(spNow.pitchGoal / spWeeks) : null;
   const hasFollowers = mCounted.some(t => t.source === "followers");
   const diffText = fDiff != null && <span style={{ color: fDiff >= 0 ? C.green : C.red }}> · {fDiff >= 0 ? "+" : "−"}{fmtInt(Math.abs(fDiff))}</span>;
-  const mTiles = mCounted.map((t, k) => {
+  const mList = [...mCounted, ...salesPitchTs];
+  const mTiles = mList.map((t, k) => {
     const s0 = planner.stateOf(t, monday);
     const s = t.source === "pitches" && spCovers ? { ...s0, actual: spWeekPitches, target: spShare, done: spShare != null && spWeekPitches >= spShare } : s0;
     const days = rowKind(t) === "days";
@@ -190,9 +193,16 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
     if (t.source === "following" && !hasFollowers && sn?.followers != null) sub = <span style={{ color: C.muted }}>Followers {fmtInt(sn.followers)}{diffText}</span>;
     if (t.source === "pitches" && spCovers) sub = <span style={{ color: s.done ? C.green : TONE.attn }}>{s.done ? "Reached" : `${Math.max(0, (s.target ?? 0) - (s.actual ?? 0))} to go`} · sprint</span>;
     if (t.source === "pitches" && leadsN != null) sub = <>{sub}<span style={{ color: C.muted }}> · {leadsN} {leadsN === 1 ? "lead" : "leads"}</span></>;
+    const sc = salesCatOf(t.source);   // Sales: its own category's leads next to its pitches (· sprint while its sprint sets the goal)
+    if (sc) {
+      const lt = tasks.find(x => x.active && x.source === sc.leads);
+      const ln = lt ? planner.stateOf(lt, monday).actual ?? 0 : planner.salesCount(sc.key, "leads", monday);
+      const bySprint = planner.sprintShare(sc.account, monday) != null;
+      sub = <>{sub}<span style={{ color: C.muted }}>{bySprint ? " · sprint" : ""} · {ln} {ln === 1 ? "lead" : "leads"}</span></>;
+    }
     const ratio = t.source === "pitches" && spCovers ? (s.target ? Math.min(1, (s.actual ?? 0) / s.target) : 0) : ratioOf(t, monday);
     // an odd last tile spans both columns, so the grid stays even
-    return tile(t.id, mLook.border, shortName(t), value, sub, { ratio, done: s.done, empty: (isTotal(t) && s.actual == null) || s.target == null }, mCounted.length % 2 === 1 && k === mCounted.length - 1);
+    return tile(t.id, mLook.border, shortName(t), value, sub, { ratio, done: s.done, empty: (isTotal(t) && s.actual == null) || s.target == null }, mList.length % 2 === 1 && k === mList.length - 1);
   });
 
   // ── sales sprint (from Stage 2) ─────────────────────────────
