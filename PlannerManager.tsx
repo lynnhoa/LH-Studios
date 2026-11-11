@@ -351,7 +351,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
         })}
       </div>
       <p style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "6px 2px 0", lineHeight: 1.4 }}>
-        Counted from Outreach: first pitches logged this week (emails and DMs) and contacts that became a Lead.
+        Counted from Outreach: contacts pitched this week, each once (emails and DMs), and contacts that became a Lead.
         {!salesReady && " Goals: run LH-Studio-manager-sales.sql once in Supabase."}
       </p>
     </>
