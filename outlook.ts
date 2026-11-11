@@ -9,7 +9,7 @@
 // Placeholders in subject and text:
 //   {name}    first name of the contact; no name → "Company team"
 //   {company} the company
-//   {kit}     the template's media kit link (no {kit} → the link goes at the end)
+//   {kit}     the template's media kit link — only where {kit} is (no {kit} = no link)
 // ─────────────────────────────────────────────────────────────
 
 import { fillText, KIT_TOKEN, kitLink } from "./useEmailKit";

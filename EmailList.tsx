@@ -20,7 +20,7 @@ import {
   pipelineOf, statusAfterPitch, accountOf, ownTemplatesOf,
 } from "./outreach";
 import { useListsVersion } from "./useOutreachLists";
-import { kitInfo } from "./useEmailKit";
+import { kitInfo, usesKit } from "./useEmailKit";
 import type { EmailTemplate } from "./useEmailKit";
 import { fillFor, composeUrl, openMail, templatesFor, pickTemplate, kitUrlOf, accountOfTemplate, logKind, igChatUrl, copyNow, openInstagram } from "./outlook";
 import type { Pitch, ChipKey, OutreachEvent, OutreachStatus } from "./outreach";
@@ -202,8 +202,9 @@ export default function EmailList({ outreach, kit, settings, isMobile, isWide, s
     const tpl = list.find(t => t.id === pickTemplate(list, c.category, nextKind(c) || "follow_up_2", outreach.pitches || []));
     if (!tpl) { showNote(dm ? "No DM template yet — add one in Email kit (Channel: Instagram DM)" : noTemplateText(c.category)); return; }
     if (!tpl.body.trim()) { showNote("This template has no text yet — add it in Email kit"); return; }
-    const url = kitUrlOf(kit?.kits, tpl.kit, tpl.lang);
-    if (tpl.kit && !url) { showNote(`Add the ${kitInfo(tpl.kit)!.short}${tpl.lang === "de" ? "" : " EN"} link in Email kit first`); return; }
+    // the kit's link only goes where {kit} is in the text (no {kit} = no link, nothing to check)
+    const url = usesKit(tpl) ? kitUrlOf(kit?.kits, tpl.kit, tpl.lang) : "";
+    if (usesKit(tpl) && !url) { showNote(`Add the ${kitInfo(tpl.kit)!.short}${tpl.lang === "de" ? "" : " EN"} link in Email kit first`); return; }
     const mail = fillFor(tpl, c, url || null);
     const before = [{ id: c.id, status: c.status, lastContact: c.lastContact }];
     // the save starts first, then your mail app opens in the same tap
@@ -813,10 +814,10 @@ function ContactWindow({ c, outreach, kit, onWritten, isMobile, onClose, onCopy,
     setErr(null);
     if (!tpl) return;
     if (!tpl.body.trim()) { setErr("This template has no text yet — add it in Email kit."); return; }
-    if (tpl.kit && !kitUrl(tpl.kit)) { setErr(`Add the ${kitInfo(tpl.kit)!.short}${tpl.lang === "de" ? "" : " EN"} link in Email kit first.`); return; }
+    if (usesKit(tpl) && !kitUrl(tpl.kit)) { setErr(`Add the ${kitInfo(tpl.kit)!.short}${tpl.lang === "de" ? "" : " EN"} link in Email kit first.`); return; }
     const typed = f.email.trim().toLowerCase();
     const to = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typed) ? typed : c.email;
-    const mail = fillFor(tpl, { contactName: f.contactName, company: f.company }, tpl.kit ? kitUrl(tpl.kit) : null);
+    const mail = fillFor(tpl, { contactName: f.contactName, company: f.company }, usesKit(tpl) ? kitUrl(tpl.kit) : null);
     const before = [{ id: c.id, status: c.status, lastContact: c.lastContact }];
     const kind = logKind(tpl);
     const handle = cleanHandle(f.instagram || "") || handleOf(c);

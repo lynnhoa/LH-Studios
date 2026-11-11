@@ -117,12 +117,15 @@ export const fmtSize = (b: number) => b >= 1024 * 1024
 // the PDFs, fetched once while a window is open, so Share works in the same tap (iPhone)
 const pdfCache = new Map<string, File>();
 
-// the text to copy: the kit's link goes where {kit} is; no {kit} → the link goes at the end
+// the text to copy: the kit's link goes where {kit} is — and only there (11.11.2026: no {kit} in the
+// text = no link in the email; before, the link was added at the end, which nobody expected)
 export function fillText(body: string, url: string | null): string {
   const has = body.includes(KIT_TOKEN);
-  if (!url) return has ? body.split(KIT_TOKEN).join("").replace(/[ \t]+\n/g, "\n").trim() : body.trim();
-  return has ? body.split(KIT_TOKEN).join(url).trim() : `${body.trim()}\n\n${url}`;
+  if (!has) return body.trim();
+  return url ? body.split(KIT_TOKEN).join(url).trim() : body.split(KIT_TOKEN).join("").replace(/[ \t]+\n/g, "\n").trim();
 }
+// does this template put a kit link in the email: a kit picked AND {kit} in its text
+export const usesKit = (t: { kit: string | null; body: string }) => !!t.kit && (t.body || "").includes(KIT_TOKEN);
 
 export function useEmailKit(userId: string | null) {
   const [kits,      setKits]      = useState<MediaKit[]>([]);

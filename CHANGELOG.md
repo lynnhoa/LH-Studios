@@ -1,3 +1,13 @@
+# Outreach: the media kit link only where {kit} is (bug fix, 11.11.2026)
+- Bug: a template with a media kit picked but no {kit} in its text got the kit's link added at the very
+  end of the email (after the closing lines) — writing from Contacts (✉ and Write) and Copy in Email kit.
+- Now the link goes exactly where {kit} is in the text, and only there. No {kit} = no link (and no
+  "Add the … link first" stop for it).
+- Email kit: the template list shows "Kit: Brand collab · not in the text" when the text has no {kit};
+  the template window says "{kit} isn't in the text, so no link goes in the email" with "Add {kit} at the
+  end". Put {kit} where the link should be, e.g. "You can view my media kit here: {kit}".
+- No SQL. Changed: `useEmailKit.ts` (fillText, usesKit), `EmailList.tsx`, `EmailKit.tsx`, `outlook.ts`.
+
 # Planner › Manager: one number grid, aligned (11.11.2026)
 - Every line of This week's goals and Sales · this week sits on one grid: the count right-aligned in one
   column, "/ goal" right-aligned beside it, flush with the card's right edge. Both are one size (15 px);
