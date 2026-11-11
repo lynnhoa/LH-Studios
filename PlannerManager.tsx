@@ -7,7 +7,11 @@
 //   Engaging · a box per day (goal: 7 days)
 //   New girls · a number per day (how many new girls you found), the week adds up (goal: 35)
 //   Following · Followers (typed totals) · New emails (counted from the
-//   email list) · Pitches · Leads (no goal) · Check-in note for the week
+//   email list)
+// SALES · THIS WEEK (11.11.2026), under the goals, the same on both account pages:
+//   Collabs (pink, @lynnhoa pipeline) and UGC (blue, @createbylynn), each Pitches (own goal) and
+//   Leads (no goal) — counted from Outreach, never typed. Then the Check-in note for the week.
+//   (Before LH-Studio-manager-sales.sql the old typed Pitches / Leads lines stay in the goals.)
 // From Stage 2: the sales sprint on top while it runs — pitches and
 // follow-ups typed per day, a 14-day strip, End & review. Between
 // sprints a thin Start row (✕ hides it).
@@ -18,9 +22,9 @@ import { C, SANS, TYPE, SPACING, RADIUS, PAL } from "./constants";
 import { B, BAR_BTN, ValuePill, WeekPill, SectionHead, SummaryLine, Cols } from "./atoms";
 import {
   DAY_SHORT, OWNER_LOOK, isoWeek as isoWeekOf, isVisible, periodOf, stageNumOf, todayIndex, weekRange, fmtPct2, addDays, thisMonday, mondayOf,
-  MANAGER_GOAL, managerOrder, rowKind, parseIntDe, daysBetween, snapKey, fmtInt, isTotal, entryKey, NEW_GIRLS,
+  MANAGER_GOAL, managerOrder, rowKind, parseIntDe, daysBetween, snapKey, fmtInt, isTotal, entryKey, NEW_GIRLS, SALES_CATS,
 } from "./planner";
-import type { Task, Account, Sprint } from "./planner";
+import type { Task, Account, Sprint, SalesCatDef } from "./planner";
 import type { PlannerHook } from "./usePlanner";
 import type { PlannerView } from "./PlannerTodo";
 import { OUTREACH_TIERS, OUTREACH_CATEGORIES } from "./outreach";
@@ -90,10 +94,19 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
   if (shownAcc !== acc) { setShownAcc(acc); setEditGoals(false); setPastOpen(false); setPick(null); }
   const forAcc = (t: Task) => t.account === acc || t.account === "both";
   const visible = tasks.filter(t => isVisible(t, stages, view.acc));
-  const goals  = visible.filter(t => MANAGER_GOAL(t) && forAcc(t)).sort((a, b) => managerOrder(a) - managerOrder(b));
+  // Sales lines (Collabs / UGC): once the SQL made them, the old Pitches / Leads lines leave the goals
+  const salesT = (src: string) => tasks.find(t => t.active && t.source === src);
+  const salesReady = SALES_CATS.every(c => !!salesT(c.pitches));
+  const ownCat = SALES_CATS.find(c => c.account === acc)!;            // the sprint of this account feeds its category
+  const goals  = visible.filter(t => MANAGER_GOAL(t) && forAcc(t) && !(salesReady && (t.source === "pitches" || t.source === "leads")))
+    .sort((a, b) => managerOrder(a) - managerOrder(b));
   const counted = goals.filter(t => t.source !== "leads");                    // leads has no goal
   const checkT = visible.find(t => t.area === "checkin" && forAcc(t));
-  const pitchT = goals.find(t => t.source === "pitches");
+  // the line a running sprint gives its weekly goal to: this account's Sales Pitches (counted from
+  // Outreach, so only the goal is synced), or before the SQL the old typed Pitches line (goal + number)
+  const salesPitchT = salesT(ownCat.pitches);
+  const autoPitch = !!salesPitchT;
+  const pitchT = salesPitchT || goals.find(t => t.source === "pitches");
   const ti     = todayIndex(monday);
   const over   = monday < thisMonday();
   const stage2 = stageNumOf(stages, acc) >= 2;
@@ -111,7 +124,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
   const sprintThisWeek = !!sp && sp.startOn <= addDays(monday, 6) && sp.endOn >= monday;
 
   // while a sprint covers this week, the weekly Pitches row shows the sprint's numbers (kept in sync)
-  const syncWeek = sp && pitchT && sprintThisWeek ? { actual: sumWeek(sp, monday), target: weekShare } : null;
+  const syncWeek = sp && pitchT && sprintThisWeek ? { actual: autoPitch ? null : sumWeek(sp, monday), target: weekShare } : null;
   useEffect(() => {
     if (!syncWeek || !pitchT || !sp) return;
     // only once this week and the goal history are loaded (an empty screen must not decide what's saved)
@@ -124,15 +137,15 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
       if (!planner.hasTarget(pitchT.id, after) && own != null && own !== syncWeek.target) quiet(planner.saveEntry(pitchT.id, after, { target: own }));
     }
     const e = planner.entries[`${pitchT.id}|${monday}`];
-    if ((e?.actual ?? null) !== syncWeek.actual || (syncWeek.target != null && (e?.target ?? null) !== syncWeek.target))
-      quiet(planner.saveEntry(pitchT.id, monday, { actual: syncWeek.actual, ...(syncWeek.target != null ? { target: syncWeek.target } : {}) }));
-  }, [syncWeek?.actual, syncWeek?.target, pitchT?.id, monday, planner.weekReady, planner.targetsReady]);
+    if ((!autoPitch && (e?.actual ?? null) !== syncWeek.actual) || (syncWeek.target != null && (e?.target ?? null) !== syncWeek.target))
+      quiet(planner.saveEntry(pitchT.id, monday, { ...(autoPitch ? {} : { actual: syncWeek.actual }), ...(syncWeek.target != null ? { target: syncWeek.target } : {}) }));
+  }, [syncWeek?.actual, syncWeek?.target, pitchT?.id, autoPitch, monday, planner.weekReady, planner.targetsReady]);
 
   // a day's numbers → the sprint, and the week's pitches follow (no typing twice)
   const saveDay = (s: Sprint, day: string, key: "p" | "f", v: number | null) => {
     const days = { ...s.days, [day]: { ...(s.days[day] || {}), [key]: v } };
     quiet(planner.updateSprint(s.id, { days }));
-    if (key === "p" && pitchT) {
+    if (key === "p" && pitchT && !autoPitch) {                       // Sales Pitches count themselves
       const wk = mondayOf(day);
       quiet(planner.saveEntry(pitchT.id, wk, { actual: sumWeek(s, wk, days), ...(weekShare != null ? { target: weekShare } : {}) }));
     }
@@ -257,6 +270,76 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     );
   })();
 
+  // ── Sales · this week: Collabs and UGC, each Pitches (goal) + Leads, counted from Outreach ──
+  const SALES_ICON: Record<string, string> = {
+    collab: "M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z",   // a heart: brand collaborations
+    ugc:    "M4 7h11v10H4zM15 10l5-3v10l-5-3",                                       // a camera: content for brands
+  };
+  const salesTone = (c: SalesCatDef) => (c.key === "ugc" ? PAL.progress : PAL.late);
+  const NUM = SPACING.plannerText;   // the count and its goal: one size
+  const salesRow = (c: SalesCatDef, what: "pitches" | "leads") => {
+    const t = salesT(what === "pitches" ? c.pitches : c.leads);
+    const isP = what === "pitches";
+    const st = t ? planner.stateOf(t, monday) : null;
+    const n = st ? st.actual ?? 0 : planner.salesCount(c.key, what, monday);
+    const target = isP ? st?.target ?? null : null;
+    const bySprint = isP && c.key === ownCat.key && autoPitch && sprintThisWeek && weekShare != null;   // this week's goal = the sprint's share
+    const hit = target != null && n >= target;
+    const left = target != null ? Math.max(0, target - n) : 0;
+    const status = !isP ? (n === 0 ? "none yet" : "") : target == null ? "" : hit ? "✓ reached" : over ? `−${fmtInt(left)}` : `${fmtInt(left)} to go`;
+    const tone = hit ? PAL.done.ink : !isP || target == null ? C.muted : over ? PAL.late.ink : PAL.waiting.ink;
+    const name = `${isP ? "Pitches" : "Leads"} · ${c.label}`;
+    return (
+      <div key={`${c.key}|${what}`} style={{ display: "flex", alignItems: "center", gap: 8, minHeight: SPACING.row1, padding: `0 ${SPACING.rowSide}px`, borderTop: `1px solid ${C.hair}` }}>
+        <span aria-hidden="true" style={{ width: 3, height: 20, borderRadius: 2, background: salesTone(c).mid, flexShrink: 0 }} />
+        <span style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6, whiteSpace: "nowrap" as const, overflow: "hidden" }}>
+          <span style={{ fontSize: SPACING.plannerText, color: hit ? C.muted : C.black }}>{isP ? "Pitches" : "Leads"}</span>
+          {status && <span style={{ fontSize: SPACING.listMeta, color: tone }}>{status}{bySprint ? " · sprint" : ""}</span>}
+        </span>
+        {/* lined up with the numbers in the goals card above (same column as plain counts) */}
+        <span aria-label={`${name}: ${n}`} style={{ minWidth: 64, paddingRight: 11, boxSizing: "border-box" as const, textAlign: "right" as const, fontSize: NUM, color: C.black, fontVariantNumeric: "tabular-nums" as const }}>{fmtInt(n)}</span>
+        {isP && editGoals && t && !bySprint
+          ? numField(`${t.id}|goal`, target, `Goal for ${name}`, v => quiet(planner.saveEntry(t.id, periodOf(t, monday), { target: v })), true)
+          : <span style={{ width: editGoals && salesReady ? 72 : 52, flexShrink: 0, whiteSpace: "nowrap" as const, fontSize: isP ? NUM : SPACING.listMeta, color: C.muted, fontVariantNumeric: "tabular-nums" as const }}>
+              {isP ? `/ ${target != null ? fmtInt(target) : "–"}` : "no goal"}
+            </span>}
+      </div>
+    );
+  };
+  const salesPitchLines = SALES_CATS.map(c => salesT(c.pitches)).filter(Boolean) as Task[];
+  const salesReached = salesPitchLines.filter(t => planner.stateOf(t, monday).done).length;
+  const salesCard = (
+    <>
+      <SectionHead dot={PAL.waiting.mid} label="Sales · this week" right={salesPitchLines.length ? <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+        <span style={{ color: salesReached === salesPitchLines.length ? PAL.done.ink : PAL.neutral.ink }}>{salesReached} of {salesPitchLines.length} reached</span>
+        <button onClick={() => setEditGoals(e => !e)} aria-pressed={editGoals}
+          style={{ background: "none", border: "none", padding: "8px 0", margin: "-8px 0", cursor: "pointer", fontFamily: SANS, fontSize: TYPE.label.size, color: editGoals ? PAL.progress.ink : PAL.neutral.ink }}>{editGoals ? "Done" : "Edit goals"}</button>
+      </span> : null} />
+      <div id="card-sales" style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: RADIUS.tile, overflow: "hidden" }}>
+        {SALES_CATS.map((c, i) => {
+          const tone = salesTone(c);
+          return (
+            <div key={c.key}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 12px 6px", background: tone.wash, borderTop: i === 0 ? "none" : `1px solid ${C.hair}` }}>
+                <span style={{ width: 20, height: 20, borderRadius: "50%", background: C.white, color: tone.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico d={SALES_ICON[c.key]} size={11} />
+                </span>
+                <span style={{ fontSize: 10, letterSpacing: "0.1em", fontWeight: 600, textTransform: "uppercase" as const, color: tone.ink }}>{c.label}</span>
+                <span style={{ fontSize: TYPE.micro.size, color: tone.ink, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{c.sub}</span>
+              </div>
+              {salesRow(c, "pitches")}
+              {salesRow(c, "leads")}
+            </div>
+          );
+        })}
+      </div>
+      <p style={{ fontSize: SPACING.listMeta, color: C.muted, margin: "6px 2px 0", lineHeight: 1.4 }}>
+        Counted from Outreach: first pitches logged this week (emails and DMs) and contacts that became a Lead.
+        {!salesReady && " Goals: run LH-Studio-manager-sales.sql once in Supabase."}
+      </p>
+    </>
+  );
+
   const goalRows = [
     ...goals.flatMap(t => (t.source === "following" && !hasFollowers ? [goalRow(t), followersRow] : [goalRow(t)])),
     ...(!hasFollowers && !goals.some(t => t.source === "following") ? [followersRow] : []),
@@ -272,6 +355,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
         {goals.length === 0 && <p style={{ fontSize: SPACING.plannerText, color: C.muted, margin: 0, padding: "12px" }}>No goals for this account yet.</p>}
         {goalRows}
       </div>
+      {salesCard}
       {checkNote}
     </>
   );
@@ -370,7 +454,8 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
 
       {guide.open && <GuideCard onClose={guide.close} steps={[
         "Tick Engaging every day you engage.",
-        "Type Following, Followers, Pitches and Leads anytime during the week, by Sunday at the latest. New emails count by themselves.",
+        salesReady ? "Type Following and Followers anytime during the week, by Sunday at the latest. New emails, and Sales (Pitches and Leads, Collabs and UGC), count by themselves from Outreach."
+          : "Type Following, Followers, Pitches and Leads anytime during the week, by Sunday at the latest. New emails count by themselves.",
         stage2 ? "In a sales sprint, type the pitches and follow-ups each day. At the end: End & review." : "Goals are set with Edit goals, usually at the check-in.",
       ]} />}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: SPACING.titleToSummary }}>

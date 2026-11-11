@@ -474,7 +474,22 @@ export const MANAGER_GOAL = (t: Task) => t.phase === "maintain" && (
   t.source === "following" || t.source === "followers" || t.source === "outreach" || t.source === "pitches" || t.source === "leads" || (t.area === "community" && t.rhythm === "daily"));
 export const CREATOR_GOAL = (t: Task) => t.phase === "maintain" && (t.source === "ideas" || t.source === "filmed" || t.source === "posts");
 export const creatorOrder = (t: Task) => (t.source === "ideas" ? 0 : t.source === "filmed" ? 1 : t.source === "posts" ? 2 : 3);
-export const ON_A_CARD = (t: Task) => MANAGER_GOAL(t) || CREATOR_GOAL(t) || t.source === "snapshot" || t.source === "portfolio_total"
+// Sales (11.11.2026): Pitches and Leads in two categories — Collabs (the @lynnhoa pipeline: brand
+// collaborations) and UGC (@createbylynn: content for brands). Counted from Outreach, never typed:
+// Pitches = first pitches logged that week (emails and DMs) by the pitch's account; Leads = contacts
+// that became Lead that week, by their category. One line each per category (SQL
+// LH-Studio-manager-sales.sql renames the old Pitches / Leads rows, so goals and history stay).
+export type SalesCat = "collab" | "ugc";
+export interface SalesCatDef { key: SalesCat; label: string; sub: string; account: Account; pitches: string; leads: string; }
+export const SALES_CATS: SalesCatDef[] = [
+  { key: "collab", label: "Collabs", sub: "@lynnhoa · brand collaborations", account: "lynnhoa",      pitches: "pitches_collab", leads: "leads_collab" },
+  { key: "ugc",    label: "UGC",     sub: "@createbylynn · content for brands", account: "createbylynn", pitches: "pitches_ugc",    leads: "leads_ugc" },
+];
+export const SALES_SOURCES = new Set(SALES_CATS.flatMap(c => [c.pitches, c.leads]));
+export const salesCatOf = (source: string) => SALES_CATS.find(c => c.pitches === source || c.leads === source);
+export const isSalesLeads = (t: Task) => SALES_CATS.some(c => c.leads === t.source);
+export const SALES_GOAL = (t: Task) => t.phase === "maintain" && SALES_SOURCES.has(t.source);
+export const ON_A_CARD = (t: Task) => MANAGER_GOAL(t) || SALES_GOAL(t) || CREATOR_GOAL(t) || t.source === "snapshot" || t.source === "portfolio_total"
   || (t.rhythm === "monthly" && t.area === "portfolio");
 // order on the Manager card
 // New girls (07.11.2026): right under Engaging — how many new girls you found, typed per day
@@ -490,7 +505,8 @@ export const isTotal = (t: Task) => TOTAL_SOURCES.has(t.source);
 export const shortName = (t: Task): string =>
   t.source === "snapshot" ? "Snapshot" : t.source === "outreach" ? "New emails" : t.source === "ideas" ? "Ideas" : t.source === "posts" ? "Posts"
   : t.source === "pieces" ? "Pieces" : t.source === "filmed" ? "Filmed" : t.source === "kit_waiting" ? "Kits" : t.source === "following" ? "Following" : t.source === "followers" ? "Followers" : t.source === "pitches" ? "Pitches" : t.source === "leads" ? "Leads"
-  : t.source === NEW_GIRLS ? "New girls" : t.area === "community" ? "Engaging" : t.area === "checkin" ? "Check-in" : t.title;
+  : t.source === NEW_GIRLS ? "New girls" : t.area === "community" ? "Engaging" : t.area === "checkin" ? "Check-in"
+  : salesCatOf(t.source) ? `${SALES_CATS.some(c => c.pitches === t.source) ? "Pitches" : "Leads"} · ${salesCatOf(t.source)!.label}` : t.title;
 
 // The account you're working on: chosen in the profile menu, remembered on this device
 const WORK_KEY = "lh_work_account";
@@ -535,7 +551,7 @@ export function isVisible(t: Task, stages: Stage[], f: AccountFilter): boolean {
 // auto   → filled in elsewhere (account snapshot); the box ticks itself
 export type RowKind = "check" | "days" | "number" | "auto";
 export const AUTO_DONE  = new Set(["snapshot", "kit_waiting", "portfolio_total"]);  // the box ticks itself
-export const AUTO_COUNT = new Set(["outreach", "ideas", "posts", "pieces", "filmed"]); // the number is counted, not typed (pitches are typed)
+export const AUTO_COUNT = new Set(["outreach", "ideas", "posts", "pieces", "filmed", "pitches_collab", "pitches_ugc", "leads_collab", "leads_ugc"]); // the number is counted, not typed (the old Pitches / Leads lines are typed)
 export const rowKind = (t: Task): RowKind =>
   AUTO_DONE.has(t.source) ? "auto" : t.rhythm === "once" ? "check" : t.measure ? "number" : t.rhythm === "daily" ? "days" : "check";
 

@@ -1,3 +1,19 @@
+# Planner › Manager: Sales · this week — Collabs and UGC (11.11.2026)
+- New block under This week's goals: SALES · THIS WEEK, the same on both account pages. Two bands —
+  COLLABS (pink, @lynnhoa · brand collaborations) and UGC (blue, @createbylynn · content for brands) —
+  each with Pitches (its own goal, "x to go" / "✓ reached") and Leads (no goal). Count and goal in one
+  text size, lined up with the numbers above. "x of 2 reached" and Edit goals in its head.
+- Counted from Outreach, no typing: Pitches = first pitches logged that week (emails and DMs; follow-ups
+  don't count), the pitch's account decides (@lynnhoa = Collabs, @createbylynn = UGC). Leads = contacts
+  that became a Lead that week (each once), their category decides.
+- The lines above don't change; Pitches and Leads move out of them into Sales. A running sales sprint
+  gives its weekly pitch goal to its own category's Pitches. The Dashboard shows Pitches · Collabs and
+  Pitches · UGC, each with its leads.
+- Data: run `LH-Studio-manager-sales.sql` once (safe to rerun). @lynnhoa's Pitches / Leads become the
+  Collabs lines and @createbylynn's the UGC lines, with their goals and history; a missing category gets
+  a copy. Until then the old typed lines stay and Sales counts without goals.
+- Changed: `PlannerManager.tsx`, `PlannerOverview.tsx`, `planner.ts`, `usePlanner.ts`. New: `LH-Studio-manager-sales.sql`.
+
 # Outreach › Email kit: German links everywhere, media kits as rows, German templates (10.11.2026)
 - Media kits are rows like the sales documents (icon · name · focus · EN · DE · ↗) instead of the 4 tiles.
 - Every document and media kit has room for a German link (Edit links: EN link · DE link). DE shows on the

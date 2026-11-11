@@ -18,9 +18,10 @@ import { monthEnd, today, monthStart, ymd } from "./formatters";
 import {
   addDays, entryKey, snapKey, mondayOf, periodOf, rowState, taskAccounts, NO_DAYS, planOf,
 } from "./planner";
-import { daysBetween, PILLAR_KEYS, episodesOf } from "./planner";
+import { daysBetween, PILLAR_KEYS, episodesOf, SALES_CATS } from "./planner";
+import type { SalesCat } from "./planner";
 import type { Stage, Task, Entry, TaskStatus, Snapshot, Account, Item, ItemStatus, Note, NoteKind, Auto, Sprint, SprintStats, ConceptArc, ConceptPhase, ConceptEra, ConceptEraArc, ConceptNow, ConceptEpisode } from "./planner";
-import { followInfo, followUpDue } from "./outreach";
+import { followInfo, followUpDue, pipelineOf } from "./outreach";
 import { useListsVersion } from "./useOutreachLists";
 import type { Pitch } from "./outreach";
 
@@ -241,6 +242,8 @@ export function usePlanner(userId: string | null, monday: string) {
   const [items,     setItems]     = useState<Item[]>([]);
   const [notes,     setNotes]     = useState<Note[]>([]);
   const [pitches,   setPitches]   = useState<Pitch[]>([]);
+  // Outreach: the days contacts became a Lead (status lines) — Manager › Sales counts them per week
+  const [leadDays,  setLeadDays]  = useState<{ contactId: string; day: string }[]>([]);
   const [sprints,   setSprints]   = useState<Sprint[]>([]);
   const [stage2Error, setStage2Error] = useState<string | null>(null);
   const [arcs,      setArcs]      = useState<ConceptArc[]>([]);
@@ -332,8 +335,8 @@ export function usePlanner(userId: string | null, monday: string) {
 
   // Creator lists and notes, Outreach contacts and (Stage 2) the pitch log and sprints
   const loadOutside = useCallback(async () => {
-    if (!userId) { setContacts([]); setItems([]); setNotes([]); setPitches([]); setSprints([]); setArcs([]); setPhases([]); setNows({}); setEpisodes([]); return; }
-    const [oc, it, nt, pl, sp, ca, ph, nw, se]: any[] = await Promise.all([
+    if (!userId) { setContacts([]); setItems([]); setNotes([]); setPitches([]); setLeadDays([]); setSprints([]); setArcs([]); setPhases([]); setNows({}); setEpisodes([]); return; }
+    const [oc, it, nt, pl, sp, ca, ph, nw, se, le]: any[] = await Promise.all([
       // lists that grow: every row, page by page (more than 1,000 is fine)
       selectAll("outreach_contacts", "id, company, category, tier, status, last_contact, created_at", q => q.eq("user_id", userId).order("id")),
       selectAll("planner_items", "*", q => q.eq("user_id", userId).order("created_at").order("id")),
@@ -348,6 +351,8 @@ export function usePlanner(userId: string | null, monday: string) {
       supabase.from("planner_concept_now").select("*").eq("user_id", userId),
       // the How I … episodes (one more SQL); without them the starting ones show
       supabase.from("planner_concept_series").select("*").eq("user_id", userId),
+      // Outreach status lines that made a contact a Lead (Manager › Sales · Leads)
+      selectAll("outreach_events", "contact_id, at", q => q.eq("user_id", userId).eq("kind", "status").eq("status", "lead").order("id")),
     ]);
     if (oc?.error) setOutreachError(oc.error.message);
     else {
@@ -360,6 +365,7 @@ export function usePlanner(userId: string | null, monday: string) {
     // Stage 2 tables (Phase 6 SQL); without them the rest of the Planner still works
     const e2 = pl?.error || sp?.error;
     setStage2Error(e2 ? (/outreach_pitches|planner_sprints/.test(e2.message || "") ? "The sprint and pitch log tables don't exist yet — run the Phase 6 SQL in Supabase once." : e2.message) : null);
+    if (!le?.error) setLeadDays((le?.data || []).filter((r: any) => r.at).map((r: any) => ({ contactId: r.contact_id, day: ymd(new Date(r.at)) })));
     if (!pl?.error) setPitches((pl?.data || []).map((r: any) => ({ id: r.id, contactId: r.contact_id, account: r.account, kind: r.kind === "follow_up" ? "follow_up" : "pitch", sentOn: String(r.sent_on).slice(0, 10) })));
     if (!sp?.error) setSprints((sp?.data || []).map(rowToSprint));
     if (ca?.error) setConceptError(/planner_concept_arcs/.test(ca.error.message || "") ? CONCEPT_MISSING : ca.error.message);
@@ -749,6 +755,18 @@ export function usePlanner(userId: string | null, monday: string) {
     setContacts(prev => prev.map(x => (x.id === p.contactId ? { ...x, status: before.status, lastContact: before.lastContact } : x)));
   }, [userId]);
 
+  // Manager › Sales: a category's first pitches logged in the week (emails and DMs; the pitch's
+  // account decides: @lynnhoa = Collabs, @createbylynn = UGC) and the contacts that became a Lead
+  // in it (each contact once; its category decides). Follow-ups don't count.
+  const salesCount = useCallback((cat: SalesCat, what: "pitches" | "leads", week: string): number => {
+    const def = SALES_CATS.find(c => c.key === cat)!;
+    const end = addDays(week, 6);
+    if (what === "pitches") return pitches.filter(p => p.kind === "pitch" && p.account === def.account && p.sentOn >= week && p.sentOn <= end).length;
+    const pipe = cat === "ugc" ? "ugc" : "lynnhoa";
+    const ids = new Set(leadDays.filter(l => l.day >= week && l.day <= end).map(l => l.contactId));
+    return contacts.filter(c => ids.has(c.id) && pipelineOf(c.category) === pipe).length;
+  }, [pitches, leadDays, contacts, lv]);
+
   // ── what a row shows: its entry plus what is filled in elsewhere ─
   const newContacts = useCallback((week: string) => contacts.filter(c => c.week === week), [contacts]);
   const autoOf = useCallback((t: Task, period: string): Auto | undefined => {
@@ -758,6 +776,11 @@ export function usePlanner(userId: string | null, monday: string) {
     const inWeek = (d: string | null) => !!d && d >= period && d <= last;
     switch (t.source) {
       case "outreach": return { actual: contacts.filter(c => c.week === period).length };
+      // Sales: counted from Outreach (Collabs / UGC)
+      case "pitches_collab": return { actual: salesCount("collab", "pitches", period) };
+      case "pitches_ugc":    return { actual: salesCount("ugc", "pitches", period) };
+      case "leads_collab":   return { actual: salesCount("collab", "leads", period) };
+      case "leads_ugc":      return { actual: salesCount("ugc", "leads", period) };
       // followers: the number typed for this account and week (kept in the snapshot row)
       case "followers": return { actual: t.account === "both" ? null : snaps[snapKey(t.account, period)]?.followers ?? null };
       case "snapshot": {
@@ -778,7 +801,7 @@ export function usePlanner(userId: string | null, monday: string) {
       }
     }
     return undefined;
-  }, [contacts, snaps, items, pitches]);
+  }, [contacts, snaps, items, pitches, salesCount]);
   // this period's target, or the last one set before it (targets carry over)
   const targetOf = useCallback((taskId: string, period: string): number | null => {
     const own = entries[entryKey(taskId, period)]?.target;
@@ -811,7 +834,7 @@ export function usePlanner(userId: string | null, monday: string) {
     saveEntry, planTargets, updateStage, startNextStage,
     saveSnapshot, newContacts, autoOf, stateOf, doneOf, targetOf, loginEmail, reopenStage,
     createItem, updateItem, setItemStatus, deleteItem, noteOf, saveNote,
-    pitches, sprints, stage2Error, createSprint, updateSprint, deleteSprint, activeSprint, sprintStats, followUpsDue, pitchesInWeek, contactName,
+    pitches, salesCount, sprints, stage2Error, createSprint, updateSprint, deleteSprint, activeSprint, sprintStats, followUpsDue, pitchesInWeek, contactName,
     restoreItem, deletePitch, restorePitch,
     arcs, conceptError, updateArc, phases, phasesError, updateBlockLines, nowOf, setNow, nowError,
     episodesFor, updateEpisode, episodesError,
