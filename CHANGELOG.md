@@ -1,3 +1,15 @@
+# Planner › Manager: one number grid, aligned (11.11.2026)
+- Every line of This week's goals and Sales · this week sits on one grid: the count right-aligned in one
+  column, "/ goal" right-aligned beside it, flush with the card's right edge. Both are one size (15 px);
+  the goal grey; no goal = "–" (instead of the small "no goal").
+- Typed numbers (Following, Followers) are fields of the same width with their digits on the same edge
+  as the counted numbers; in Edit goals each goal becomes a (blue) field in the same spot, so nothing moves.
+- Engaging and New girls: name, count and goal on the grid, the 7 day boxes in a row under it, evenly
+  across the full width (bigger to tap; an empty day shows its letter, today outlined).
+- Rows and bands 14 px from the edge on both sides; Check-in the same.
+- No SQL. Changed: `PlannerManager.tsx`, `atoms.tsx` (ValuePill: optional size, height, right padding,
+  tint — defaults unchanged, so other screens look the same).
+
 # Planner › Manager: Sales · this week — Collabs and UGC (11.11.2026)
 - New block under This week's goals: SALES · THIS WEEK, the same on both account pages. Two bands —
   COLLABS (pink, @lynnhoa · brand collaborations) and UGC (blue, @createbylynn · content for brands) —
