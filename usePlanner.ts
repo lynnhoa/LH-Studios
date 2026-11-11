@@ -18,7 +18,7 @@ import { monthEnd, today, monthStart, ymd } from "./formatters";
 import {
   addDays, entryKey, snapKey, mondayOf, periodOf, rowState, taskAccounts, NO_DAYS, planOf,
 } from "./planner";
-import { daysBetween, PILLAR_KEYS, episodesOf, SALES_CATS } from "./planner";
+import { daysBetween, PILLAR_KEYS, episodesOf, SALES_CATS, SALES_SOURCES, SALES_SINCE, sprintShareOf } from "./planner";
 import type { SalesCat } from "./planner";
 import type { Stage, Task, Entry, TaskStatus, Snapshot, Account, Item, ItemStatus, Note, NoteKind, Auto, Sprint, SprintStats, ConceptArc, ConceptPhase, ConceptEra, ConceptEraArc, ConceptNow, ConceptEpisode } from "./planner";
 import { followInfo, followUpDue, pipelineOf } from "./outreach";
@@ -242,7 +242,7 @@ export function usePlanner(userId: string | null, monday: string) {
   const [items,     setItems]     = useState<Item[]>([]);
   const [notes,     setNotes]     = useState<Note[]>([]);
   const [pitches,   setPitches]   = useState<Pitch[]>([]);
-  // Outreach: the days contacts became a Lead (status lines) — Manager › Sales counts them per week
+  // Outreach: the day each contact first became a Lead (or went straight to Client) — Manager › Sales counts them per week
   const [leadDays,  setLeadDays]  = useState<{ contactId: string; day: string }[]>([]);
   const [sprints,   setSprints]   = useState<Sprint[]>([]);
   const [stage2Error, setStage2Error] = useState<string | null>(null);
@@ -351,8 +351,8 @@ export function usePlanner(userId: string | null, monday: string) {
       supabase.from("planner_concept_now").select("*").eq("user_id", userId),
       // the How I … episodes (one more SQL); without them the starting ones show
       supabase.from("planner_concept_series").select("*").eq("user_id", userId),
-      // Outreach status lines that made a contact a Lead (Manager › Sales · Leads)
-      selectAll("outreach_events", "contact_id, at", q => q.eq("user_id", userId).eq("kind", "status").eq("status", "lead").order("id")),
+      // Outreach status lines that made a contact a Lead, or a Client without the Lead step (Manager › Sales · Leads)
+      selectAll("outreach_events", "contact_id, at", q => q.eq("user_id", userId).eq("kind", "status").in("status", ["lead", "client"]).order("id")),
     ]);
     if (oc?.error) setOutreachError(oc.error.message);
     else {
@@ -365,7 +365,15 @@ export function usePlanner(userId: string | null, monday: string) {
     // Stage 2 tables (Phase 6 SQL); without them the rest of the Planner still works
     const e2 = pl?.error || sp?.error;
     setStage2Error(e2 ? (/outreach_pitches|planner_sprints/.test(e2.message || "") ? "The sprint and pitch log tables don't exist yet — run the Phase 6 SQL in Supabase once." : e2.message) : null);
-    if (!le?.error) setLeadDays((le?.data || []).filter((r: any) => r.at).map((r: any) => ({ contactId: r.contact_id, day: ymd(new Date(r.at)) })));
+    if (!le?.error) {
+      const first = new Map<string, string>();   // each contact once: its first Lead (or Client) day
+      for (const r of le?.data || []) {
+        if (!r.at) continue;
+        const day = ymd(new Date(r.at));
+        if (!first.has(r.contact_id) || day < first.get(r.contact_id)!) first.set(r.contact_id, day);
+      }
+      setLeadDays(Array.from(first, ([contactId, day]) => ({ contactId, day })));
+    }
     if (!pl?.error) setPitches((pl?.data || []).map((r: any) => ({ id: r.id, contactId: r.contact_id, account: r.account, kind: r.kind === "follow_up" ? "follow_up" : "pitch", sentOn: String(r.sent_on).slice(0, 10) })));
     if (!sp?.error) setSprints((sp?.data || []).map(rowToSprint));
     if (ca?.error) setConceptError(/planner_concept_arcs/.test(ca.error.message || "") ? CONCEPT_MISSING : ca.error.message);
@@ -817,11 +825,17 @@ export function usePlanner(userId: string | null, monday: string) {
   const stateOf = useCallback((t: Task, monday_: string) => {
     const period = periodOf(t, monday_);
     const e = entries[entryKey(t.id, period)];
+    // Sales Pitches: while its account's sales sprint covers the week, the goal is the sprint's share (live)
+    const sc = SALES_CATS.find(c => c.pitches === t.source);
+    const share = sc ? sprintShareOf(sprints, sc.account, period) : null;
     // New girls: until a goal is set in Edit goals, the line's own default (its target, 35)
-    const tgt = targetOf(t.id, period) ?? (t.source === "new_girls" ? t.target : null);
+    const tgt = share ?? targetOf(t.id, period) ?? (t.source === "new_girls" ? t.target : null);
     const eff = e ? { ...e, target: tgt } : tgt != null ? { id: "", taskId: t.id, periodStart: period, target: tgt, actual: null, days: NO_DAYS, done: false, data: {}, note: "" } as Entry : undefined;
-    return rowState(t, eff, autoOf(t, period));
-  }, [entries, autoOf, targetOf]);
+    // Sales: weeks before the switch keep the number that was typed then
+    const typedBefore = SALES_SOURCES.has(t.source) && period < SALES_SINCE && e?.actual != null;
+    return rowState(t, eff, typedBefore ? undefined : autoOf(t, period));
+  }, [entries, autoOf, targetOf, sprints]);
+  const sprintShare = useCallback((acc: Account, week: string) => sprintShareOf(sprints, acc, week), [sprints]);
   // done for stage gates (one-time tasks; the first set counts itself)
   const doneOf = useCallback((t: Task) => stateOf(t, monday).done, [stateOf, monday]);
 
@@ -834,7 +848,7 @@ export function usePlanner(userId: string | null, monday: string) {
     saveEntry, planTargets, updateStage, startNextStage,
     saveSnapshot, newContacts, autoOf, stateOf, doneOf, targetOf, loginEmail, reopenStage,
     createItem, updateItem, setItemStatus, deleteItem, noteOf, saveNote,
-    pitches, salesCount, sprints, stage2Error, createSprint, updateSprint, deleteSprint, activeSprint, sprintStats, followUpsDue, pitchesInWeek, contactName,
+    pitches, salesCount, sprintShare, sprints, stage2Error, createSprint, updateSprint, deleteSprint, activeSprint, sprintStats, followUpsDue, pitchesInWeek, contactName,
     restoreItem, deletePitch, restorePitch,
     arcs, conceptError, updateArc, phases, phasesError, updateBlockLines, nowOf, setNow, nowError,
     episodesFor, updateEpisode, episodesError,

@@ -5,10 +5,12 @@
   text size, lined up with the numbers above. "x of 2 reached" and Edit goals in its head.
 - Counted from Outreach, no typing: Pitches = first pitches logged that week (emails and DMs; follow-ups
   don't count), the pitch's account decides (@lynnhoa = Collabs, @createbylynn = UGC). Leads = contacts
-  that became a Lead that week (each once), their category decides.
-- The lines above don't change; Pitches and Leads move out of them into Sales. A running sales sprint
-  gives its weekly pitch goal to its own category's Pitches. The Dashboard shows Pitches · Collabs and
-  Pitches · UGC, each with its leads.
+  that became a Lead that week (or a Client without the Lead step; each contact once, on its first day),
+  their category decides. Weeks before 09.11.2026 keep the Pitches / Leads that were typed then.
+- The lines above don't change; Pitches and Leads move out of them into Sales. While an account's sales
+  sprint covers the week, its category's Pitches goal is the sprint's weekly share ("· sprint", locked in
+  Edit goals), on both pages — worked out live, never saved, so your own goal is back after the sprint.
+  The Dashboard shows Collab pitches and UGC pitches, each with its leads.
 - Data: run `LH-Studio-manager-sales.sql` once (safe to rerun). @lynnhoa's Pitches / Leads become the
   Collabs lines and @createbylynn's the UGC lines, with their goals and history; a missing category gets
   a copy. Until then the old typed lines stay and Sales counts without goals.

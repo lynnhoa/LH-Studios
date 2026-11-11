@@ -480,11 +480,22 @@ export const creatorOrder = (t: Task) => (t.source === "ideas" ? 0 : t.source ==
 // that became Lead that week, by their category. One line each per category (SQL
 // LH-Studio-manager-sales.sql renames the old Pitches / Leads rows, so goals and history stay).
 export type SalesCat = "collab" | "ugc";
-export interface SalesCatDef { key: SalesCat; label: string; sub: string; account: Account; pitches: string; leads: string; }
+export interface SalesCatDef { key: SalesCat; label: string; one: string; sub: string; account: Account; pitches: string; leads: string; }
 export const SALES_CATS: SalesCatDef[] = [
-  { key: "collab", label: "Collabs", sub: "@lynnhoa · brand collaborations", account: "lynnhoa",      pitches: "pitches_collab", leads: "leads_collab" },
-  { key: "ugc",    label: "UGC",     sub: "@createbylynn · content for brands", account: "createbylynn", pitches: "pitches_ugc",    leads: "leads_ugc" },
+  { key: "collab", label: "Collabs", one: "Collab", sub: "@lynnhoa · brand collaborations",    account: "lynnhoa",      pitches: "pitches_collab", leads: "leads_collab" },
+  { key: "ugc",    label: "UGC",     one: "UGC",    sub: "@createbylynn · content for brands", account: "createbylynn", pitches: "pitches_ugc",    leads: "leads_ugc" },
 ];
+// the first week counted from Outreach: earlier weeks keep the Pitches / Leads that were typed then
+export const SALES_SINCE = "2026-11-09";
+// while a sales sprint of the category's account covers the week, its Pitches goal is the sprint's
+// weekly share (worked out live, never saved — so nothing is left behind after the sprint)
+export const sprintShareOf = (sprints: Sprint[], acc: Account, week: string): number | null => {
+  const end = addDays(week, 6);
+  const sp = sprints.find(s => s.account === acc && s.startOn <= end && s.endOn >= week && s.pitchGoal);
+  if (!sp) return null;
+  const weeks = Math.max(1, Math.round((daysBetween(sp.startOn, sp.endOn) + 1) / 7));
+  return Math.ceil((sp.pitchGoal as number) / weeks);
+};
 export const SALES_SOURCES = new Set(SALES_CATS.flatMap(c => [c.pitches, c.leads]));
 export const salesCatOf = (source: string) => SALES_CATS.find(c => c.pitches === source || c.leads === source);
 export const isSalesLeads = (t: Task) => SALES_CATS.some(c => c.leads === t.source);
@@ -506,7 +517,7 @@ export const shortName = (t: Task): string =>
   t.source === "snapshot" ? "Snapshot" : t.source === "outreach" ? "New emails" : t.source === "ideas" ? "Ideas" : t.source === "posts" ? "Posts"
   : t.source === "pieces" ? "Pieces" : t.source === "filmed" ? "Filmed" : t.source === "kit_waiting" ? "Kits" : t.source === "following" ? "Following" : t.source === "followers" ? "Followers" : t.source === "pitches" ? "Pitches" : t.source === "leads" ? "Leads"
   : t.source === NEW_GIRLS ? "New girls" : t.area === "community" ? "Engaging" : t.area === "checkin" ? "Check-in"
-  : salesCatOf(t.source) ? `${SALES_CATS.some(c => c.pitches === t.source) ? "Pitches" : "Leads"} · ${salesCatOf(t.source)!.label}` : t.title;
+  : salesCatOf(t.source) ? `${salesCatOf(t.source)!.one} ${SALES_CATS.some(c => c.pitches === t.source) ? "pitches" : "leads"}` : t.title;
 
 // The account you're working on: chosen in the profile menu, remembered on this device
 const WORK_KEY = "lh_work_account";

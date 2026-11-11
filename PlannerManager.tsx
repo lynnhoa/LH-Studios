@@ -97,16 +97,13 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
   // Sales lines (Collabs / UGC): once the SQL made them, the old Pitches / Leads lines leave the goals
   const salesT = (src: string) => tasks.find(t => t.active && t.source === src);
   const salesReady = SALES_CATS.every(c => !!salesT(c.pitches));
-  const ownCat = SALES_CATS.find(c => c.account === acc)!;            // the sprint of this account feeds its category
   const goals  = visible.filter(t => MANAGER_GOAL(t) && forAcc(t) && !(salesReady && (t.source === "pitches" || t.source === "leads")))
     .sort((a, b) => managerOrder(a) - managerOrder(b));
   const counted = goals.filter(t => t.source !== "leads");                    // leads has no goal
   const checkT = visible.find(t => t.area === "checkin" && forAcc(t));
-  // the line a running sprint gives its weekly goal to: this account's Sales Pitches (counted from
-  // Outreach, so only the goal is synced), or before the SQL the old typed Pitches line (goal + number)
-  const salesPitchT = salesT(ownCat.pitches);
-  const autoPitch = !!salesPitchT;
-  const pitchT = salesPitchT || goals.find(t => t.source === "pitches");
+  // before the SQL: the old typed Pitches line, which a running sprint fills (number + goal). The Sales
+  // Pitches lines need no syncing: their goal during a sprint is the sprint's share, worked out live.
+  const pitchT = goals.find(t => t.source === "pitches");
   const ti     = todayIndex(monday);
   const over   = monday < thisMonday();
   const stage2 = stageNumOf(stages, acc) >= 2;
@@ -124,7 +121,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
   const sprintThisWeek = !!sp && sp.startOn <= addDays(monday, 6) && sp.endOn >= monday;
 
   // while a sprint covers this week, the weekly Pitches row shows the sprint's numbers (kept in sync)
-  const syncWeek = sp && pitchT && sprintThisWeek ? { actual: autoPitch ? null : sumWeek(sp, monday), target: weekShare } : null;
+  const syncWeek = sp && pitchT && sprintThisWeek ? { actual: sumWeek(sp, monday), target: weekShare } : null;
   useEffect(() => {
     if (!syncWeek || !pitchT || !sp) return;
     // only once this week and the goal history are loaded (an empty screen must not decide what's saved)
@@ -137,15 +134,15 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
       if (!planner.hasTarget(pitchT.id, after) && own != null && own !== syncWeek.target) quiet(planner.saveEntry(pitchT.id, after, { target: own }));
     }
     const e = planner.entries[`${pitchT.id}|${monday}`];
-    if ((!autoPitch && (e?.actual ?? null) !== syncWeek.actual) || (syncWeek.target != null && (e?.target ?? null) !== syncWeek.target))
-      quiet(planner.saveEntry(pitchT.id, monday, { ...(autoPitch ? {} : { actual: syncWeek.actual }), ...(syncWeek.target != null ? { target: syncWeek.target } : {}) }));
-  }, [syncWeek?.actual, syncWeek?.target, pitchT?.id, autoPitch, monday, planner.weekReady, planner.targetsReady]);
+    if ((e?.actual ?? null) !== syncWeek.actual || (syncWeek.target != null && (e?.target ?? null) !== syncWeek.target))
+      quiet(planner.saveEntry(pitchT.id, monday, { actual: syncWeek.actual, ...(syncWeek.target != null ? { target: syncWeek.target } : {}) }));
+  }, [syncWeek?.actual, syncWeek?.target, pitchT?.id, monday, planner.weekReady, planner.targetsReady]);
 
   // a day's numbers → the sprint, and the week's pitches follow (no typing twice)
   const saveDay = (s: Sprint, day: string, key: "p" | "f", v: number | null) => {
     const days = { ...s.days, [day]: { ...(s.days[day] || {}), [key]: v } };
     quiet(planner.updateSprint(s.id, { days }));
-    if (key === "p" && pitchT && !autoPitch) {                       // Sales Pitches count themselves
+    if (key === "p" && pitchT) {
       const wk = mondayOf(day);
       quiet(planner.saveEntry(pitchT.id, wk, { actual: sumWeek(s, wk, days), ...(weekShare != null ? { target: weekShare } : {}) }));
     }
@@ -283,10 +280,11 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
     const st = t ? planner.stateOf(t, monday) : null;
     const n = st ? st.actual ?? 0 : planner.salesCount(c.key, what, monday);
     const target = isP ? st?.target ?? null : null;
-    const bySprint = isP && c.key === ownCat.key && autoPitch && sprintThisWeek && weekShare != null;   // this week's goal = the sprint's share
+    // while its account's sales sprint covers the week, its goal is the sprint's share (both pages, live)
+    const bySprint = isP && !!t && planner.sprintShare(c.account, monday) != null;
     const hit = target != null && n >= target;
     const left = target != null ? Math.max(0, target - n) : 0;
-    const status = !isP ? (n === 0 ? "none yet" : "") : target == null ? "" : hit ? "✓ reached" : over ? `−${fmtInt(left)}` : `${fmtInt(left)} to go`;
+    const status = !isP ? (n === 0 ? (over ? "none" : "none yet") : "") : target == null ? "" : hit ? "✓ reached" : over ? `−${fmtInt(left)}` : `${fmtInt(left)} to go`;
     const tone = hit ? PAL.done.ink : !isP || target == null ? C.muted : over ? PAL.late.ink : PAL.waiting.ink;
     const name = `${isP ? "Pitches" : "Leads"} · ${c.label}`;
     return (
@@ -294,7 +292,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
         <span aria-hidden="true" style={{ width: 3, height: 20, borderRadius: 2, background: salesTone(c).mid, flexShrink: 0 }} />
         <span style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6, whiteSpace: "nowrap" as const, overflow: "hidden" }}>
           <span style={{ fontSize: SPACING.plannerText, color: hit ? C.muted : C.black }}>{isP ? "Pitches" : "Leads"}</span>
-          {status && <span style={{ fontSize: SPACING.listMeta, color: tone }}>{status}{bySprint ? " · sprint" : ""}</span>}
+          {status && <span style={{ fontSize: SPACING.listMeta, color: tone, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{status}{bySprint ? " · sprint" : ""}</span>}
         </span>
         {/* lined up with the numbers in the goals card above (same column as plain counts) */}
         <span aria-label={`${name}: ${n}`} style={{ minWidth: 64, paddingRight: 11, boxSizing: "border-box" as const, textAlign: "right" as const, fontSize: NUM, color: C.black, fontVariantNumeric: "tabular-nums" as const }}>{fmtInt(n)}</span>
@@ -459,7 +457,7 @@ export default function PlannerManager({ planner, view, monday, setMonday, isMob
         stage2 ? "In a sales sprint, type the pitches and follow-ups each day. At the end: End & review." : "Goals are set with Edit goals, usually at the check-in.",
       ]} />}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: SPACING.titleToSummary }}>
-        <SummaryLine dot={counted.length && reached === counted.length ? PAL.done.mid : PAL.waiting.mid}>{weekRange(monday)}{over ? " · closed, still editable" : ""}</SummaryLine>
+        <SummaryLine dot={counted.length + salesPitchLines.length && reached + salesReached === counted.length + salesPitchLines.length ? PAL.done.mid : PAL.waiting.mid}>{weekRange(monday)}{over ? " · closed, still editable" : ""}</SummaryLine>
         <WeekPill label={`Week ${isoWeekOf(monday)}`} onPrev={() => setMonday(addDays(monday, -7))} onNext={() => setMonday(addDays(monday, 7))} />
       </div>
 

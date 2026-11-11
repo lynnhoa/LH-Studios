@@ -193,11 +193,12 @@ export default function PlannerOverview({ planner, view, monday, setMonday, isMo
     if (t.source === "following" && !hasFollowers && sn?.followers != null) sub = <span style={{ color: C.muted }}>Followers {fmtInt(sn.followers)}{diffText}</span>;
     if (t.source === "pitches" && spCovers) sub = <span style={{ color: s.done ? C.green : TONE.attn }}>{s.done ? "Reached" : `${Math.max(0, (s.target ?? 0) - (s.actual ?? 0))} to go`} · sprint</span>;
     if (t.source === "pitches" && leadsN != null) sub = <>{sub}<span style={{ color: C.muted }}> · {leadsN} {leadsN === 1 ? "lead" : "leads"}</span></>;
-    const sc = salesCatOf(t.source);   // Sales: its own category's leads next to its pitches
+    const sc = salesCatOf(t.source);   // Sales: its own category's leads next to its pitches (· sprint while its sprint sets the goal)
     if (sc) {
       const lt = tasks.find(x => x.active && x.source === sc.leads);
       const ln = lt ? planner.stateOf(lt, monday).actual ?? 0 : planner.salesCount(sc.key, "leads", monday);
-      sub = <>{sub}<span style={{ color: C.muted }}> · {ln} {ln === 1 ? "lead" : "leads"}</span></>;
+      const bySprint = planner.sprintShare(sc.account, monday) != null;
+      sub = <>{sub}<span style={{ color: C.muted }}>{bySprint ? " · sprint" : ""} · {ln} {ln === 1 ? "lead" : "leads"}</span></>;
     }
     const ratio = t.source === "pitches" && spCovers ? (s.target ? Math.min(1, (s.actual ?? 0) / s.target) : 0) : ratioOf(t, monday);
     // an odd last tile spans both columns, so the grid stays even
