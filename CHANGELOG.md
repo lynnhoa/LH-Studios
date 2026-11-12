@@ -1,3 +1,17 @@
+# Service Catalog › UGC: Creative Direction — Look board €800 · Campaign idea €1,600 (12.11.2026)
+- New section "Creative Direction" on the UGC card (run the SQL): Look board · Creative direction €800 and
+  Campaign idea · Concept + creative direction, look board included €1,600. They are add-ons: a flat fee,
+  never × usage rights / exclusivity, not volume-discounted — and can be added on top of any UGC item in
+  the Calculator (the add-on chips of a line).
+- Built into packages: a package can now have fixed-€ add-ons built in (package window › "Built in"). Feed
+  Takeover has the Look board, Launch Campaign the Campaign idea. The package keeps its own price for the
+  content (2,810 / 5,100); the rate card, the catalog list and the Calculator tile show it with the built-in
+  fee (3,610 / 6,700), and the rate card says "Includes … 1× Look board".
+- Calculator: adding the package puts its built-in add-on on the line by itself, one per package (2× Feed
+  Takeover = 2 look boards). With paid usage +50 %, Feed Takeover = 2,810 × 1.5 + 800 = 5,015 (not 5,415).
+- Data: run `LH-Studio-ugc-creative-direction.sql` once (safe to rerun). Changed: `pricing.ts` (pkgAddons,
+  pkgPrice, pkgIncludesText), `Calculator.tsx`, `ServiceCatalog.tsx`.
+
 # Planner › Manager › Sales: Pitches count each contact once (bug fix, 11.11.2026)
 - Bug: Pitches counted every logged pitch, so writing to the same contact again (tests, a second ✉)
   counted it again, and a contact set back to "not contacted" still counted (e.g. 18 instead of 7).

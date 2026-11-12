@@ -23,7 +23,7 @@ import {
 } from "./atoms";
 import {
   normalizeCards, pricingCats, cardChoices, cardAddons, priceLine, optLabel, optName, addonPriceText,
-  BASE_CARD_KEYS, pctOnInfo, volTiersOf, volPctOf, requantify, addonLabel, countUnit, retainerPctOf,
+  BASE_CARD_KEYS, pctOnInfo, volTiersOf, volPctOf, requantify, addonLabel, countUnit, retainerPctOf, pkgAddons, pkgPrice,
 } from "./pricing";
 import { retDiscOf, vatInfo } from "./docs";
 import { quoteDraft } from "./quoteDraft";
@@ -56,8 +56,9 @@ function clientLang(c: any): "en" | "de" {
 }
 
 type Own    = { usage: number; excl: number; platforms: string[] };
-// an add-on on a line: months (per-month add-ons; auto = follows the paid usage), count (fixed-price add-ons)
-type Pick   = { key: string; months: number; count: number; auto: boolean };
+// an add-on on a line: months (per-month add-ons; auto = follows the paid usage), count (fixed-price add-ons),
+// incl = built into the package (e.g. its Look board): one per package, so its count follows the line's quantity
+type Pick   = { key: string; months: number; count: number; auto: boolean; incl?: boolean };
 type Line   = { id: string; cat: string; key?: string; qty: number; neg: number | null; vol: boolean; addons: Pick[]; own: Own | null; fixed?: any };
 type Rights = { usage: any | null; excl: any | null; platforms: string[]; cat?: string | null };   // cat = the card the options were picked from
 const NO_RIGHTS: Rights = { usage: null, excl: null, platforms: [], cat: null };
@@ -177,6 +178,9 @@ export default function Calculator({
   const choices = cardChoices(card);
   const tiles   = [...choices.filter(c => c.kind === "deliverable"), ...choices.filter(c => c.kind === "package")];
   const tiersOf = (cat: string) => volTiersOf(rc[cat], cat);
+  // a package's built-in add-ons (e.g. Feed Takeover's Look board) go on its line by themselves
+  const builtIns = (cat: string, ch: any): Pick[] => (ch?.kind === "package" ? pkgAddons(rc[cat], ch.item) : [])
+    .map((a: any) => ({ key: a.key, months: 1, count: 1, auto: false, incl: true }));
   const inCatalogue = (l: Line) => !!rc[l.cat] && cardChoices(rc[l.cat]).some(c => c.key === l.key);
   // an original line of a revision → its catalogue item (same name and kind), so the tiles count it
   const keyByName = (cat: string, ln: any) => {
@@ -256,7 +260,7 @@ export default function Calculator({
     const autoMo = paidMonths(uOn ? uOpt : null);
     const adds = ln.addons.map(a => {
       const addon = addonList.find((x: any) => x.key === a.key);
-      return addon ? { addon, months: addon.perMonth && a.auto ? autoMo : a.months, count: a.count } : null;
+      return addon ? { addon, months: addon.perMonth && a.auto ? autoMo : a.months, count: a.incl ? Math.max(1, ln.qty) : a.count } : null;
     }).filter(Boolean) as any[];
     const listUnit = Number(choice.item.p ?? 0) || 0;
     const tiers = tiersOf(ln.cat);
@@ -329,7 +333,7 @@ export default function Calculator({
       const m = prev.filter(l => l.cat === catSel && l.key === ch.key && !l.own);
       const t = m[m.length - 1];
       if (t) return prev.map(l => (l.id === t.id ? withQty(l, l.qty + 1) : l));
-      return [...prev, { id: uid(), cat: catSel, key: ch.key, qty: 1, neg: null, vol: false, addons: [], own: null }];
+      return [...prev, { id: uid(), cat: catSel, key: ch.key, qty: 1, neg: null, vol: false, addons: builtIns(catSel, ch), own: null }];
     });
   };
   // − takes one off the item's last line; at 0 the line goes
@@ -372,7 +376,7 @@ export default function Calculator({
       const cat = ln.cat && rc[ln.cat] ? ln.cat : catSel;
       const ch = cardChoices(rc[cat]).find(c => String(c.item.n || "").trim().toLowerCase() === String(ln.name || "").trim().toLowerCase());
       if (!ch) { miss++; return; }
-      got.push({ id: uid(), cat, key: ch.key, qty: Math.max(1, parseInt(ln.qty) || 1), neg: null, vol: false, addons: [], own: null });
+      got.push({ id: uid(), cat, key: ch.key, qty: Math.max(1, parseInt(ln.qty) || 1), neg: null, vol: false, addons: builtIns(cat, ch), own: null });
       if (!r) {
         const cl = rc[cat];
         const u = ln.usageLabel ? (cl.usage || []).find((o: any) => !o.sentinel && optName(o.l).toLowerCase() === optName(ln.usageLabel).toLowerCase()) : null;
@@ -700,7 +704,8 @@ export default function Calculator({
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: DENSITY.tileGap, marginTop: 10 }}>
             {tiles.map(ch => {
               const n = countOf(ch.key);
-              const price = ch.item.p !== null && ch.item.p !== undefined ? fmt(Number(ch.item.p) || 0) : ch.item.m ? pctSpace(ch.item.m) : "";
+              const price = ch.kind === "package" ? fmt(pkgPrice(card, ch.item))   // with its built-in add-ons (Look board …)
+                : ch.item.p !== null && ch.item.p !== undefined ? fmt(Number(ch.item.p) || 0) : ch.item.m ? pctSpace(ch.item.m) : "";
               return (
                 <div key={ch.key} {...press(() => addTile(ch))} aria-label={`Add ${ch.item.n}`}
                   style={{ minWidth: 0, padding: "7px 8px 6px 10px", borderRadius: RADIUS.tile, border: `1px solid ${n ? C.pillOn : PAL.neutral.wash}`,
@@ -856,7 +861,7 @@ export default function Calculator({
                                 <div style={{ ...ELL, fontSize: TYPE.subtext.size }}>{a.n}</div>
                                 <div style={{ ...ELL, fontSize: TYPE.label.size, color: C.muted }}>{sub}</div>
                               </div>
-                              {isFixed && <div style={{ width: 108, flexShrink: 0 }}><Stepper h={SPACING.rowField} value={pick.count} onChange={v => updPick(ln, a.key, { count: v })} label={`${a.n} count`} /></div>}
+                              {isFixed && <div style={{ width: 108, flexShrink: 0 }}><Stepper h={SPACING.rowField} value={pick.incl ? Math.max(1, ln.qty) : pick.count} onChange={v => updPick(ln, a.key, { count: v, incl: false })} label={`${a.n} count`} /></div>}
                               {!isFixed && a.perMonth && <div style={{ width: 108, flexShrink: 0 }}><Stepper h={SPACING.rowField} value={Number(d.months) || 1} onChange={v => updPick(ln, a.key, { months: v, auto: false })} label={`${a.n} months`} /></div>}
                               <span style={{ fontSize: TYPE.subtext.size, minWidth: 66, textAlign: "right" as const, whiteSpace: "nowrap" as const }}>{fmt(Number(d.amt) || 0)}</span>
                             </div>

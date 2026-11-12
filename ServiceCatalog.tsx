@@ -19,7 +19,8 @@ import { SETTINGS_DEFAULT } from "./rateCards";
 import { pagesToPdf, isMobileDevice } from "./PDFExport";
 import { editLock } from "./saveStatus";
 import {
-  normalizeCard, sectionKind, KIND_LABEL, optName, pctText, addonPriceText, BASE_CARD_KEYS, retainerPctOf, volTiersOf
+  normalizeCard, sectionKind, KIND_LABEL, optName, pctText, addonPriceText, BASE_CARD_KEYS, retainerPctOf, volTiersOf,
+  cardAddons, pkgAddons, pkgPrice, pkgIncludesText,
 } from "./pricing";
 import type { SectionKind, VolTier } from "./pricing";
 
@@ -60,8 +61,10 @@ function sectionRows(card: any, sec: any, cardKey?: string, lang?: string): { ke
     return [{
       key: it.id || `i${i}`,
       n: pctSpace(it.n),
-      note: pctSpace([it.note, kind === "packages" && it.includes?.length ? `Includes ${it.includes.map((x: any) => `${x.qty || 1}× ${x.n}`).join(", ")}` : ""].filter(Boolean).join(" · ")),
-      price: kind === "addons" ? addonPriceText(it) : it.p !== null && it.p !== undefined ? money(it.p) : pctSpace(it.m || ""),
+      note: pctSpace([it.note, kind === "packages" ? pkgIncludesText(card, it) : ""].filter(Boolean).join(" · ")),
+      // a package shows its price with its built-in add-ons (Feed Takeover + Look board = 3.610 €)
+      price: kind === "addons" ? addonPriceText(it) : kind === "packages" && it.p !== null && it.p !== undefined ? money(pkgPrice(card, it))
+        : it.p !== null && it.p !== undefined ? money(it.p) : pctSpace(it.m || ""),
     }];
   });
 }
@@ -840,6 +843,26 @@ function ItemWindow({ kind, item, card, cardKey, cardName, isNew, onSave, onDele
               </div>
             )}
           </div>
+          {/* built in: fixed-€ add-ons of this card that come with the package (a flat fee, never × usage) */}
+          {(() => {
+            const opts = cardAddons(card).filter((a: any) => a.p !== null && a.p !== undefined && !a.perMonth);
+            if (!opts.length) return null;
+            const ids: string[] = Array.isArray(d.withAddons) ? d.withAddons : [];
+            const built = pkgAddons(card, d);
+            return <>
+              <SheetHead icon={<SVG d={P_BOX} size={11} />} label={`Built in · ${built.length}`} tone={tone} />
+              <div style={{ ...SHEET_CARD, padding: "10px 12px" }}>
+                <ChipRow>
+                  {opts.map((a: any) => {
+                    const on = ids.includes(a.key);
+                    return <Chip key={a.key} on={on} tone={tone} dot={false} label={`${a.n} ${addonPriceText(a)}`.trim()}
+                      onClick={() => up({ withAddons: on ? ids.filter(x => x !== a.key) : [...ids, a.key] })} />;
+                  })}
+                </ChipRow>
+              </div>
+              {built.length > 0 && <SheetMeta>On the rate card: {money(pkgPrice(card, d))} = {money(Number(d.p) || 0)} + {built.map((a: any) => `${a.n} ${money(Number(a.p) || 0)}`).join(" + ")} · the built-in part is never × usage</SheetMeta>}
+            </>;
+          })()}
           {pv && <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minHeight: 36, padding: "0 12px", marginTop: 8, borderRadius: RADIUS.field, fontSize: TYPE.row.size,
             background: pv.saves > 0 ? PAL.done.wash : PAL.neutral.wash, color: pv.saves > 0 ? PAL.done.ink : PAL.neutral.ink }}>
             <span>Value {money(pv.value)}</span><span>{pv.saves > 0 ? `saves ${money(pv.saves)} · ${pv.pct} %` : "no saving"}</span>
@@ -1183,13 +1206,14 @@ export default function ServiceCatalog({ rc, upsertCard, deleteCard, settings, c
               <ListCard>
                 {items.map((it: any, i: number) => {
                   const pv = kind === "packages" ? packValue(it, delivs) : null;
+                  const built = kind === "packages" ? pkgAddons(card, it) : [];
                   const meta = kind === "packages"
-                    ? ((it.includes || []).length
-                        ? <>{contentsText(it)}{pv && pv.saves > 0 && <span style={{ color: PAL.done.ink }}> · saves {pv.pct} %</span>}</>
+                    ? ((it.includes || []).length || built.length
+                        ? <>{[contentsText(it), ...built.map((a: any) => `1 × ${a.n}`)].filter(Boolean).join(" + ")}{pv && pv.saves > 0 && <span style={{ color: PAL.done.ink }}> · saves {pv.pct} %</span>}</>
                         : <>{pctSpace(it.note) || ""}<span style={{ color: PAL.waiting.ink }}>{it.note ? " · " : ""}add contents</span></>)
                     : kind === "info" ? (isVolRow(it) ? `${tiersText(volTiersOf(card, tab))} · Card settings` : withRetainer(it.note, retPct)) : pctSpace(it.note || "");
                   const right = kind === "info" ? (it.m && !isVolRow(it) ? <span style={{ fontSize: TYPE.row.size, color: C.muted }}>{pctSpace(it.m)}</span> : null)
-                    : it.p !== null && it.p !== undefined ? amount(money(it.p)) : <span style={{ fontSize: TYPE.row.size, color: C.muted }}>{pctSpace(it.m || "")}</span>;
+                    : it.p !== null && it.p !== undefined ? amount(money(kind === "packages" ? pkgPrice(card, it) : it.p)) : <span style={{ fontSize: TYPE.row.size, color: C.muted }}>{pctSpace(it.m || "")}</span>;
                   return <Row key={it.id || i} first={i === 0} chevron={false} onClick={() => setWin({ type: "item", si, id: it.id })}
                     title={pctSpace(it.n) || "Untitled"} meta={meta || undefined} right={right} />;
                 })}
