@@ -118,6 +118,27 @@ export function cardAddons(card: any): any[] {
     .filter((it: any) => it.n && !it.info);
 }
 
+// ─── BUILT-IN ADD-ONS (12.11.2026) ───────────────────────────
+// A package can have fixed-€ add-ons built in, e.g. the Look board in Feed Takeover: stored on the
+// package as withAddons (add-on ids of the same card). They stay add-ons — a flat fee, never
+// multiplied by usage / exclusivity, not volume-discounted — and the package shows its price with
+// them (rate card, Calculator tile). The package's own p stays the content part.
+export function pkgAddons(card: any, item: any): any[] {
+  const ids: string[] = Array.isArray(item?.withAddons) ? item.withAddons : [];
+  if (!ids.length) return [];
+  return cardAddons(card).filter((a: any) => ids.includes(a.key) && a.p !== null && a.p !== undefined && !a.perMonth);
+}
+export const pkgPrice = (card: any, item: any): number =>
+  r2((Number(item?.p) || 0) + pkgAddons(card, item).reduce((s: number, a: any) => s + (Number(a.p) || 0), 0));
+// "Includes 2× Short-form video, 1× Look board" — contents plus built-in add-ons
+export const pkgIncludesText = (card: any, item: any): string => {
+  const parts = [
+    ...(Array.isArray(item?.includes) ? item.includes : []).filter((x: any) => x?.n).map((x: any) => `${x.qty || 1}× ${x.n}`),
+    ...pkgAddons(card, item).map((a: any) => `1× ${a.n}`),
+  ];
+  return parts.length ? `Includes ${parts.join(", ")}` : "";
+};
+
 // Card keys that can be quoted, base cards first, then custom cards
 export function pricingCats(rc: any): string[] {
   const keys = Object.keys(rc || {}).filter(k => cardChoices(rc[k]).length > 0);
